@@ -4,7 +4,48 @@
    numa_app.services.top_contributors.rank_contributors(); the picker is a
    GET form (same pattern as the Items "Sort by" control), so the result is
    bookmarkable and needs no JS beyond the existing onchange-submit idiom. #}
-{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False) %}
+{# Glycemic load ranking's notes: what the figures are, coverage, foods with
+   no GI, and lower-GL swap suggestions (from _build_contributors()). #}
+{% import "_gl_result.html" as _glr_pop %}
+{% macro gi_dagger_note() %}<p class="muted mb-1"><small>&dagger; GI measured in people with impaired glucose tolerance or diabetes. {{ _glr_pop.gi_impaired_advice() }}</small></p>{% endmacro %}
+
+{% macro gl_contributor_notes(gl) %}
+{% if gl["items"] | selectattr("impaired") | list %}{{ gi_dagger_note() }}{% endif %}
+<p class="muted mt-1"><small>Each food's glycemic load is its GI &times; its carbohydrate (g) &divide; 100, for the amount used. Unlike protein quality, glycemic load adds up: these rows total the glycemic load shown in the Glycemic Load section{% if gl.gl_gaps %}, which counts only foods with a GI{% endif %}.
+  {% if gl.gl_coverage is not none and gl.gl_coverage < 100 %}They cover {{ gl.gl_coverage }}% of the carbohydrate here.{% endif %}</small></p>
+{% if gl.gl_gaps %}
+<p class="muted mb-1"><small>Not ranked &mdash; carbohydrate but no GI yet:
+  {% for g in gl.gl_gaps %}<a href="/food/annotate/{{ g.fdc_id }}">{{ g.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+  (click one to look up its GI).</small></p>
+{% endif %}
+{% if gl.gl_swaps %}
+<div class="mt-2" id="gl-swaps">
+  <p class="mb-1"><strong>Lower-glycemic swaps to try</strong> <small class="muted">&mdash; this glycemic load is {{ gl.gl_band }}. Foods in your Food Cache with a lower GI and similar carbohydrate per 100&thinsp;g, at the same weight. NuMa can&rsquo;t tell whether a swap suits the dish &mdash; that&rsquo;s your call.</small> {{ manual_link("gl-swaps") }}</p>
+  {% for group in gl.gl_swaps %}
+  <p class="mb-0"><small>Instead of <strong>{{ group.item.food_name }}</strong> (GI {{ group.item.gi | round | int }}{% if group.item.impaired %}<sup title="Measured in people with impaired glucose tolerance or diabetes">&dagger;</sup>{% endif %}, glycemic load {{ "%.1f"|format(group.item.amount) }}):</small></p>
+  <ul class="mb-2" style="font-size:0.9rem">
+    {% for sw in group.swaps %}
+    <li><a href="/food/{{ sw.fdc_id }}">{{ sw.name }}</a>{{ food_id_tag(sw.fdc_id) }} &mdash; GI {{ sw.gi | round | int }}{% if sw.impaired %}<sup title="Measured in people with impaired glucose tolerance or diabetes">&dagger;</sup>{% endif %}, glycemic load {{ "%.1f"|format(sw.gl_after) }} (&minus;{{ "%.1f"|format(sw.saving) }})
+      &middot; <a href="{{ sw.whatif_url }}" title="Opens What-if with this swap filled in: see every nutrient before and after. Nothing is changed.">see the full effect in What-if</a>{% if sw.whatif_recent_url %} (<a href="{{ sw.whatif_recent_url }}" title="The same swap across every meal in the last 30 days">last 30 days</a>){% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  {{ gl_pool_note(gl) }}
+  {% if not (gl["items"] | selectattr("impaired") | list) and gl.gl_swaps | map(attribute="swaps") | sum(start=[]) | selectattr("impaired") | list %}{{ gi_dagger_note() }}{% endif %}
+</div>
+{% elif gl.gl_band in ("Medium", "High") %}
+<p class="muted mb-1"><small>This glycemic load is {{ gl.gl_band }}. No lower-GI food with similar carbohydrate is in your Food Cache yet. {{ gl_pool_note(gl, inline=True) }} {{ manual_link("gl-swaps") }}</small></p>
+{% endif %}
+{% endmacro %}
+
+{# Swap suggestions only come from foods with a GI: say how many that is and
+   point to the foods in use that have none (Foods -> 9, #missing-gi). #}
+{% macro gl_pool_note(gl, inline=False) %}
+{% set pool = gl.gl_pool_n or 0 %}{% set todo = gl.gl_missing_in_use_n or 0 %}
+{% if not inline %}<p class="muted mb-1"><small>{% endif %}Suggestions come only from the {{ pool }} food{{ "s" if pool != 1 }} you&rsquo;ve given a GI{% if todo %}; {{ todo }} food{{ "s" if todo != 1 }} you use {{ "have" if todo != 1 else "has" }} carbohydrate but no GI &mdash; <a href="/food/cache/db-check#missing-gi">add GIs to them</a> for more and better suggestions{% else %}; give more foods a GI for more suggestions{% endif %}.{% if not inline %}</small></p>{% endif %}
+{% endmacro %}
+
+{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False, gl=None) %}
 <div class="d-flex flex-wrap align-items-center gap-3">
   <h3 class="section-heading mb-0">Top Contributors</h3>
   <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2">
@@ -43,7 +84,7 @@
   <thead>
     <tr>
       <th>{% if always_food_level %}Food or ingredient{% else %}Food / Recipe{% endif %}</th>
-      <th class="num-col">{% if is_dcp %}Digestible Complete Protein (standalone){% else %}Amount{% endif %}</th>
+      <th class="num-col">{% if is_dcp %}Digestible Complete Protein (standalone){% elif gl %}Glycemic load{% else %}Amount{% endif %}</th>
       <th class="num-col">% of total</th>
     </tr>
   </thead>
@@ -58,6 +99,7 @@
         {% else %}
         {{ c.food_name }}
         {% endif %}
+        {% if gl %}<small class="muted">GI {{ c.gi | round | int }}{% if c.impaired %}<sup title="Measured in people with impaired glucose tolerance or diabetes">&dagger;</sup>{% endif %}, {{ c.grams | round | int }}&thinsp;g</small>{% endif %}
       </td>
       <td class="num-col">{{ c.amount | small_amount }}&thinsp;{{ contributor_unit }}</td>
       <td class="num-col">{{ c.pct | small_amount }}%</td>
@@ -75,9 +117,13 @@
 {% if always_food_level %}
 <p class="muted mt-1"><small>Any recipe used in this meal is broken down into its individual foods here — no row ever represents a whole recipe by name.</small></p>
 {% endif %}
+{% if gl %}{{ gl_contributor_notes(gl) }}{% endif %}
 {% if is_dcp %}
 <p class="muted mt-1"><small>Ranked by each food's own <strong>digestible complete protein (DCP)</strong> — what that food alone would contribute after amino-acid digestibility and completeness, not raw protein grams. These are standalone, per-food figures: combining foods can raise a meal's <em>actual</em> DCP above what any of them score alone (that's the whole point of protein complementarity), so this table's total won't match the real meal DCP in <a href="#sec-protein-summary">Protein Summary</a> above.</small></p>
 {% endif %}
+{% elif gl %}
+<p class="muted mt-2">None of the foods here has a GI recorded, so there is no glycemic load to rank.</p>
+{{ gl_contributor_notes(gl) }}
 {% else %}
 <p class="muted">No data available for this nutrient.</p>
 {% endif %}

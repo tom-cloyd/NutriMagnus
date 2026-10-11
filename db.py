@@ -259,8 +259,12 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        # max_meal_g: the most of this food a protein complement suggestion
+        # may add to one meal (usda_nutrients.complement_meal_limit) — a
+        # personal preference, not a data edit, so has_user_annotation()
+        # deliberately ignores it.
         for _col in ("gi_no_prompt INTEGER DEFAULT 0", "diaas_no_prompt INTEGER DEFAULT 0",
-                     "gi_source TEXT", "reviewed INTEGER DEFAULT 0"):
+                     "gi_source TEXT", "reviewed INTEGER DEFAULT 0", "max_meal_g REAL"):
             try:
                 conn.execute(f"ALTER TABLE food_annotations ADD COLUMN {_col}")
             except sqlite3.OperationalError:
@@ -1174,6 +1178,30 @@ def get_food_annotation(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | 
     ).fetchone()
 
 
+def food_meal_limits(conn: sqlite3.Connection) -> dict[int, float]:
+    """{fdc_id: grams} for every food with a per-meal complement limit set.
+    Empty, not an error, before the column's migration has run: callers sit
+    inside catch-all candidate builders that would otherwise drop every
+    pantry food over it."""
+    try:
+        return {r["fdc_id"]: r["max_meal_g"] for r in conn.execute(
+            "SELECT fdc_id, max_meal_g FROM food_annotations WHERE max_meal_g > 0")}
+    except sqlite3.OperationalError:
+        return {}
+
+
+def set_food_meal_limit(conn: sqlite3.Connection, fdc_id: int, grams: float | None) -> None:
+    """Set (or, with None, clear) the most of this food a complement
+    suggestion may add to one meal. Touches no other annotation field."""
+    conn.execute("""
+        INSERT INTO food_annotations (fdc_id, max_meal_g, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(fdc_id) DO UPDATE SET
+            max_meal_g = excluded.max_meal_g,
+            updated_at = datetime('now')
+    """, (fdc_id, grams))
+
+
 def upsert_food_annotation(
     conn: sqlite3.Connection,
     fdc_id: int,
@@ -1262,6 +1290,18 @@ def set_food_annotation(
 def delete_food_annotation(conn: sqlite3.Connection, fdc_id: int) -> None:
     conn.execute("DELETE FROM food_annotations WHERE fdc_id = ?", (fdc_id,))
     refresh_user_edited(conn, fdc_id)
+
+
+def foods_with_gi(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Every current (not archived) cached food with a GI recorded:
+    fdc_id, name, nutrients_json, gi_estimate, gi_source. The pool lower-GL swap
+    suggestions draw from (numa_app/services/gl_swaps.py)."""
+    return conn.execute(
+        """SELECT f.fdc_id, f.name, f.nutrients_json, a.gi_estimate, a.gi_source
+           FROM foods f JOIN food_annotations a ON a.fdc_id = f.fdc_id
+           WHERE a.gi_estimate IS NOT NULL AND COALESCE(f.archived, 0) = 0
+           ORDER BY f.name"""
+    ).fetchall()
 
 
 def annotations_for_fdcids(

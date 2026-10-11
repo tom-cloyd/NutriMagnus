@@ -24,6 +24,7 @@ import db as _db
 import diaas as _diaas
 import profile as _profile
 import usda as _usda
+from numa_app.services import glycemic_load as _gl
 from numa_app.services.rda_status import rda_status
 from numa_app.services.recipe_dcp import recipe_dcp_per_serving
 from numa_app.services.recipe_nutrients import expand_recipe_ingredients, recipe_serving_grams
@@ -37,7 +38,7 @@ REPLACE_BASES = ("grams", "factor", "servings", "stated")
 # no value for a nutrient, marks that nutrient's "after" as possibly low.
 _UNKNOWN_SHARE = 0.10
 
-SUMMARY_KEYS = ("calories", "protein_g", "dcp", "carbs_g", "sugar_g", "fat_g", "fiber_g")
+SUMMARY_KEYS = ("calories", "protein_g", "dcp", "carbs_g", "sugar_g", "fat_g", "fiber_g", "gl")
 
 
 class WhatIfError(ValueError):
@@ -318,7 +319,7 @@ def _row_keys(groups: list[tuple[str, list[str]]], *totals: dict) -> list[tuple[
 
 def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
                    groups: list[tuple[str, list[str]]], diet_pref: str = "all",
-                   days: str = "all") -> dict:
+                   days: str = "all", gi_opt_out: bool = False) -> dict:
     """Before/after daily totals for `meals` (rows with id, meal_date) under
     `edits`. Raises WhatIfError if an edit can't be applied (e.g. a recipe
     with no serving weight matched by weight). Writes nothing.
@@ -373,11 +374,13 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
 
     # Targets from each day's own pinned profile.
     active = _profile.load_profile()
-    rda_by_day, ul_by_day = {}, {}
+    rda_by_day, ul_by_day, gl_target_by_day = {}, {}, {}
     for d in dates:
         p = _profile_for_date(conn, d, active)
         rda_by_day[d] = _profile.compute_rda(p, diet_pref=diet_pref) if p else {}
         ul_by_day[d] = _profile.get_max_limits(p) if p else {}
+        if p and getattr(p, "gl_day_target", None):
+            gl_target_by_day[d] = p.gl_day_target
 
     n = len(dates)
     avg_before = {k: sum(before[d].get(k, 0.0) for d in dates) / n for k in _keys(before)} if n else {}
@@ -419,6 +422,8 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
         "days_mode": days_mode,
         "sections": out_sections,
         "summary":  [_dcp_cell(conn, dates, leaves_before, leaves_after) if k == "dcp"
+                     else _gl_cell(conn, dates, leaves_before, leaves_after, gi_opt_out, gl_target_by_day)
+                     if k == "gl"
                      else _summary_cell(k, avg_before, avg_after) for k in SUMMARY_KEYS],
         "edits":    edit_report,
         "has_profile": any(rda_by_day.values()),
@@ -443,6 +448,46 @@ def _dcp_cell(conn, dates, leaves_before, leaves_after) -> dict:
     a = sum(p[1] for p in pairs) / n if n else 0.0
     return {"key": "dcp", "label": "Protein (DCP)", "unit": "g", "before": b, "after": a,
             "delta": a - b, "days": n, "of_days": len(dates)}
+
+
+def _gl_cell(conn, dates, leaves_before, leaves_after, gi_opt_out: bool = False,
+             targets: dict[str, float] | None = None) -> dict:
+    """Average daily glycemic load before and after, from each day's leaf
+    foods (so the scenario's edits reach GL through the same expansion as
+    every nutrient). A day's GL counts only the foods with a GI, so it is a
+    lower bound when some carbohydrate has none: coverage_* says how much of
+    the carbohydrate the figure covers, and gaps_after names the foods with
+    no GI after the change — a swap to such a food makes "after" look better
+    than it is unless that is said. Days with no carbohydrate to count are
+    left out of the average (`days` of `of_days`).
+
+    `targets` (date -> that day's pinned daily GL target) adds days over it
+    before and after — the averages-hide-timing point: an average under the
+    target can still have days over it. A day counts as over only when its
+    counted GL already exceeds the target (true for certain even when some
+    foods lack a GI); `target_unknown_*` counts incomplete days still under."""
+    targets = targets or {}
+
+    def side(leaves_by_day):
+        per_day = {d: _gl.gl_for_leaves(leaves_by_day[d], conn, gi_opt_out=gi_opt_out) for d in dates}
+        counted = [r for r in per_day.values() if r["carbs_g"] > 0]
+        avg = sum(r["total"] or 0.0 for r in counted) / len(counted) if counted else None
+        over = sum(1 for d, t in targets.items() if d in per_day and (per_day[d]["total"] or 0.0) > t)
+        unknown = sum(1 for d, t in targets.items() if d in per_day and not per_day[d]["complete"]
+                      and (per_day[d]["total"] or 0.0) <= t)
+        return avg, _gl.combine_gl(list(per_day.values())), len(counted), over, unknown
+    b, b_all, b_days, b_over, b_unknown = side(leaves_before)
+    a, a_all, a_days, a_over, a_unknown = side(leaves_after)
+    return {"key": "gl", "label": "Glycemic load", "unit": "day total",
+            "before": b or 0.0, "after": a or 0.0, "delta": (a or 0.0) - (b or 0.0),
+            "band_before": _gl.gl_band(b, "day"), "band_after": _gl.gl_band(a, "day"),
+            "coverage_before": b_all["coverage_pct"], "coverage_after": a_all["coverage_pct"],
+            "complete_before": b_all["complete"], "complete_after": a_all["complete"],
+            "gaps_after": [g for g in a_all["gaps"] if g["reason"] == _gl.GAP_NO_GI],
+            "days": max(b_days, a_days), "of_days": len(dates),
+            "target_days": sum(1 for d in dates if d in targets),
+            "days_over_target_before": b_over, "days_over_target_after": a_over,
+            "target_unknown_before": b_unknown, "target_unknown_after": a_unknown}
 
 
 def _summary_cell(key: str, avg_before: dict, avg_after: dict) -> dict:
@@ -531,7 +576,8 @@ def _avg_pct(pairs: list[tuple[float, float]]) -> tuple[float | None, int]:
 
 def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
                      groups: list[tuple[str, list[str]]],
-                     max_columns: int | None = MAX_RECIPE_COLUMNS) -> dict:
+                     max_columns: int | None = MAX_RECIPE_COLUMNS,
+                     gi_opt_out: bool = False) -> dict:
     """Per-serving nutrients before and after `edits` for each of `recipes`
     (rows with id, name). An "add" puts its amount into each recipe like one
     more ingredient — per batch (amount / servings per serving) or, with
@@ -553,9 +599,9 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
         servings = ctx.servings_of(rid)
         if not servings:
             continue
-        before, _ = ctx.item_breakdown("recipe", rid, 1.0, rewrite=None)
+        before, leaves_before = ctx.item_breakdown("recipe", rid, 1.0, rewrite=None)
         ctx.current = rid
-        after, _ = ctx.item_breakdown("recipe", rid, 1.0, rewrite=rewrite)
+        after, leaves_after = ctx.item_breakdown("recipe", rid, 1.0, rewrite=rewrite)
         extra: list[dict] = []
         for i, e in adds:
             kind, item_id = e.item
@@ -565,6 +611,8 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
             _add(after, nuts)
             extra.extend(leaves)
             ctx.hits.setdefault(i, set()).add(rid)
+        gl_before = _gl.gl_for_leaves(leaves_before, conn, gi_opt_out=gi_opt_out)
+        gl_after = _gl.gl_for_leaves(leaves_after + extra, conn, gi_opt_out=gi_opt_out)
         dcp_before, why_before = recipe_dcp_per_serving(rid, conn)
         dcp_after, why_after = recipe_dcp_per_serving(rid, conn, rewrite=rewrite, extra=extra)
         ctx.current = None
@@ -572,6 +620,7 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
                           "serving_size": r.get("serving_size"),
                           "before": before, "after": after,
                           "dcp_before": dcp_before, "dcp_after": dcp_after,
+                          "gl_before": gl_before, "gl_after": gl_after,
                           "dcp_missing_aa": "missing_aa" in (why_before, why_after)})
 
     targeted = [i for i, e in enumerate(edits) if e.op != "add"]
@@ -620,6 +669,10 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
                              "changed": any(c["delta"] is None or abs(c["delta"]) > 1e-9 for c in dcp_cells
                                             if c["before"] is not None or c["after"] is not None),
                              "unknown": []})
+        if "carbs_g" in keys and shown:
+            # At the end of the section, not under Carbohydrate, which its
+            # Fiber/Sugar sub-rows follow.
+            rows.append(_recipe_gl_row(shown, candidates))
         if rows:
             out_sections.append({"name": group_name, "rows": rows})
 
@@ -641,6 +694,32 @@ def evaluate_recipes(conn, recipes: list[dict], edits: list[Edit], *,
         "edits":    edit_report,
         "parents":  [{"id": pid, "name": item_name(conn, ("recipe", pid))} for pid in parents],
     }
+
+
+def _recipe_gl_row(shown: list[dict], candidates: list[dict]) -> dict:
+    """The per-serving glycemic load row, at the end of carbohydrate's section. A cell's
+    figure counts only foods with a GI; coverage_* and gaps_after say how much
+    of the carbohydrate that is (see _gl_cell())."""
+    cells = []
+    for r in shown:
+        b, a = r["gl_before"], r["gl_after"]
+        cell = {"before": b["total"], "after": a["total"], "delta": None, "delta_pct": None,
+                "band_before": _gl.gl_band(b["total"]), "band_after": _gl.gl_band(a["total"]),
+                "coverage_before": b["coverage_pct"], "coverage_after": a["coverage_pct"],
+                "complete_before": b["complete"], "complete_after": a["complete"],
+                "gaps_after": [g for g in a["gaps"] if g["reason"] == _gl.GAP_NO_GI]}
+        if b["total"] is not None and a["total"] is not None:
+            cell["delta"] = a["total"] - b["total"]
+            if b["total"]:
+                cell["delta_pct"] = cell["delta"] / b["total"] * 100
+        cells.append(cell)
+    avg_pct, avg_n = _avg_pct([(r["gl_before"]["total"], r["gl_after"]["total"]) for r in candidates
+                               if r["gl_before"]["total"] is not None and r["gl_after"]["total"] is not None])
+    return {"key": "gl", "label": "Glycemic load", "unit": "", "cells": cells,
+            "avg_pct": avg_pct, "avg_n": avg_n,
+            "changed": any(c["delta"] is None or abs(c["delta"]) > 1e-9 for c in cells
+                           if c["before"] is not None or c["after"] is not None),
+            "unknown": []}
 
 
 # ---------------------------------------------------------------------------

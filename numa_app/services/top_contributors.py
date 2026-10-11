@@ -12,7 +12,9 @@ Docs: README-numa-documentation.md, Architecture: "numa_app/services/top_contrib
 """
 import sqlite3
 
+import db as _db
 import diaas as _diaas
+from numa_app.services import glycemic_load as _gl
 
 Nutrients = dict[str, float]
 
@@ -82,3 +84,46 @@ def rank_contributors_by_dcp(ingredients: list[dict], conn: sqlite3.Connection |
     for c in contributions:
         c["pct"] = round(c["amount"] / total * 100, 4) if total else 0.0
     return {"items": contributions, "total": total}
+
+
+def rank_contributors_by_gl(ingredients: list[dict], conn: sqlite3.Connection,
+                            gi_opt_out: bool = False) -> dict:
+    """Rank leaf foods by their glycemic load (GI x carbohydrate g / 100).
+
+    Unlike DCP, GL is additive: the items sum to the meal's or recipe's GL
+    (the counted part — see glycemic_load). `ingredients` must be leaf foods
+    (sub-recipes opened up), since a GI belongs to a food. The same food
+    reached twice (in two sub-recipes) is one row.
+
+    Returns rank_contributors()'s {"items", "total"} plus "gaps" (foods with
+    carbohydrate but no GI — glycemic_load gap dicts) and "coverage_pct".
+    Each item also carries "gi", "grams" and "carbs_100g", which lower-GL
+    swap suggestions (gl_swaps.py) work from, and "impaired" (its GI was
+    measured in people with impaired glucose tolerance or diabetes).
+    """
+    whole = _gl.gl_for_leaves(ingredients, conn, gi_opt_out=gi_opt_out)
+    ids = list({i["fdc_id"] for i in ingredients if i.get("fdc_id")})
+    ann_map = _db.annotations_for_fdcids(conn, ids)
+    by_food: dict = {}
+    for ing in ingredients:
+        fid = ing.get("fdc_id")
+        ann = ann_map.get(fid)
+        if not fid or ann is None or ann["gi_estimate"] is None:
+            continue
+        nuts = ing.get("nutrients_100g") or {}
+        row = by_food.setdefault(fid, {
+            "food_name": ing["food_name"], "fdc_id": fid, "recipe_id": None,
+            "amount": 0.0, "grams": 0.0, "gi": ann["gi_estimate"],
+            "carbs_100g": nuts.get("carbs_g") or 0.0,
+            "impaired": _gl.gi_measured_impaired(ann["gi_source"]),
+        })
+        row["grams"] += ing["grams"]
+        row["amount"] += ann["gi_estimate"] * (nuts.get("carbs_g") or 0.0) * ing["grams"] / 10000.0
+    contributions = [c for c in by_food.values() if c["amount"] > 0]
+    total = sum(c["amount"] for c in contributions)
+    contributions.sort(key=lambda c: c["amount"], reverse=True)
+    for c in contributions:
+        c["pct"] = round(c["amount"] / total * 100, 4) if total else 0.0
+    return {"items": contributions, "total": total,
+            "gaps": [g for g in whole["gaps"] if g["reason"] == _gl.GAP_NO_GI],
+            "coverage_pct": whole["coverage_pct"]}

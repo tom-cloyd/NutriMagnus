@@ -149,7 +149,9 @@
     {{ manual_link("gl") }}
     {% if gi_estimate is not none %}<br><span class="ms-0">GL = GI &times; the portion&rsquo;s carbohydrate grams &divide; 100, so halving the portion halves the GL while the GI stays put.</span>{% endif %}
     {% if gi_source %}<br><span class="ms-0">Value taken from: {{ gi_source }}</span>{% endif %}
+    {% if gi_source | gi_impaired %}{% import "_gl_result.html" as _glr_pop %}<br><span class="ms-0">&#9432; This GI was measured in people with impaired glucose tolerance or diabetes. {{ _glr_pop.gi_impaired_advice() }}</span>{% endif %}
   </p>
+  {% if gi_estimate is not none %}{% import "_gl_result.html" as _glr %}{{ _glr.gl_band_help("serving") }}{% endif %}
   {% endif %}
   {% if incoming_applied %}
   <div class="alert alert-success" style="max-width:42rem">
@@ -316,14 +318,14 @@
         <span class="ps-status status-met">— &#10003; Complete protein</span>
         {% else %}
         <span class="ps-status status-gap">— &#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}
-          {% if protein.limiting_score is not none %}({{ "%.3f"|format(protein.limiting_score) }}){% endif %}
+          {% if protein.limiting_dig_score is not none %}({{ "%.3f"|format(protein.limiting_dig_score) }} after digestion){% endif %}
         </span>
         {% endif %}
       </div>
-      {% if protein.diaas is not none and protein.protein_raw is not none %}
+      {% if protein.digestibility is not none and protein.protein_raw is not none %}
       <div class="ps-derivation">
         (Computed from {{ protein.protein_raw }}&thinsp;g raw protein
-        &times; DIAAS&thinsp;{{ "%.2f"|format(protein.diaas) }}
+        &times; digestibility&thinsp;{{ "%.2f"|format(protein.digestibility) }}
         {% if protein.protein_digestible is not none %}
         = {{ protein.protein_digestible }}&thinsp;g digestible
         &rarr; <strong>{{ protein.dcp_g }}&thinsp;g DCP</strong>
@@ -415,34 +417,42 @@
 
   {% if protein %}
   <div class="protein-meta">
+    {% if protein.digestibility is not none %}
+    <p class="mb-1">
+      <strong>Digestibility:</strong> {{ "%.2f"|format(protein.digestibility) }}
+      &nbsp;<small class="muted">(share of this protein the body absorbs: {{ protein.digestibility_pct }}%)</small>
+    </p>
+    {% endif %}
     {% if protein.diaas is not none %}
     <p>
       <strong>DIAAS:</strong>
       <span class="{% if protein.diaas_level == 'good' %}status-met{% elif protein.diaas_level == 'ok' %}rda-near{% else %}rda-low{% endif %}">
         {{ "%.2f"|format(protein.diaas) }}
       </span>
-      &nbsp;<small class="muted">(protein digestibility score; if completely digestible, DIAAS would = 1.0)</small>
+      &nbsp;<small class="muted">(the lowest after-digestion amino acid score below; 1.0 or more means every amino acid meets the reference per gram of protein eaten)</small>
     </p>
     <div style="max-width:20rem; margin-bottom:0.5rem">
       <div style="background:#e9ecef; border-radius:4px; height:8px; overflow:hidden">
         <div style="width:{{ protein.diaas_pct }}%; height:100%; background:{% if protein.diaas_level == 'good' %}#198754{% elif protein.diaas_level == 'ok' %}#ffc107{% else %}#dc3545{% endif %}"></div>
       </div>
     </div>
+    {% endif %}
     {% if protein.protein_digestible is not none %}
     <p class="mb-1">
       <strong>Digestible protein:</strong> {{ protein.protein_digestible }}&thinsp;g
-      <small class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; DIAAS {{ "%.2f"|format(protein.diaas) }})</small>
+      <small class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; digestibility {{ "%.2f"|format(protein.digestibility) }})</small>
     </p>
     {% endif %}
     {% if protein.dcp_g is not none %}
     <div class="dcp-box {% if protein.complete %}dcp-complete{% else %}dcp-incomplete{% endif %} mb-2">
       <strong>Digestible complete protein:</strong> {{ protein.dcp_g }}&thinsp;g
-      {% if not protein.complete %}
+      {% if protein.digestion_limited %}
+      <small class="muted">&mdash; all of the digestible protein; this food is limited by digestion, not by any one amino acid</small>
+      {% elif not protein.complete %}
       <small class="muted">&mdash; limited by {{ protein.limiting_aa }}
-        (score {{ "%.3f"|format(protein.limiting_score) }})</small>
+        (score in the food {{ "%.3f"|format(protein.limiting_score) }})</small>
       {% endif %}
     </div>
-    {% endif %}
     {% endif %}
     <p>
       {% if protein.complete %}
@@ -457,7 +467,8 @@
     <thead>
       <tr>
         <th>Amino Acid</th>
-        <th class="num-col">Score vs. ref.</th>
+        <th class="num-col">In the food</th>
+        <th class="num-col">After digestion</th>
         <th>Status</th>
       </tr>
     </thead>
@@ -466,17 +477,19 @@
       <tr>
         <td>{{ aa.label }}</td>
         <td class="num-col">{{ "%.3f"|format(aa.score) }}</td>
+        <td class="num-col">{{ "%.3f"|format(aa.dig_score) }}</td>
         <td>
           {% if aa.met %}
           <span class="status-met">&#10003; Met</span>
           {% else %}
-          <span class="status-gap">&#9888; Gap</span>
+          <span class="status-gap">&#9888; Short</span>
           {% endif %}
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  {% include "_protein_quality_note.html" %}
 
   {% endif %}
 
@@ -570,7 +583,7 @@
     <tbody>
     {% for step in s.grad_steps %}
     <tr{% if loop.last %} class="table-success"{% endif %}>
-      <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.full_closure_grams %}100% of your amount{% else %}full{% endif %})</span>{% endif %}</td>
+      <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.full_closure_grams %}100% of your amount{% elif s.capped %}per-meal limit{% else %}full{% endif %})</span>{% endif %}</td>
       <td>{{ step.dig_protein }}&thinsp;g</td>
       <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
       <td>{% if step.pct_increase is not none %}{{ "%+.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
@@ -583,6 +596,8 @@
   <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
   {% include "_complement_anchor.html" %}
   {% endif %}
+  {% include "_complement_target_note.html" %}
+  {% include "_complement_limit.html" %}
   {% if s.aa_effects %}
   <p class="mb-1 muted"><small>Effect:
     {% for e in s.aa_effects %}
@@ -659,6 +674,7 @@
   {% for s in complements.general %}{{ suggest_card(s, "Serve alongside") }}{% endfor %}
   {% endif %}
 
+  <p class="muted mt-2 mb-1"><small>{{ complements.dcp_note }}</small></p>
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
   {% if complements.has_estimate_or_generic %}
   <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
@@ -721,6 +737,7 @@
     {% if s.current_diaas is not none %}
     <p class="mb-1 muted"><small>Current meal DIAAS: {{ "%.2f"|format(s.current_diaas) }}</small></p>
     {% endif %}
+    {% include "_complement_limit.html" %}
     {% if s.steps %}
     <table class="table table-sm mb-1" style="max-width:32rem">
       <thead><tr><th>Add</th><th>Meal DIAAS</th><th>DCP<br>achieved</th><th>%<br>increase</th></tr></thead>
@@ -735,7 +752,7 @@
       {% endfor %}
       </tbody>
     </table>
-    <p class="mb-1 muted"><small>Meal DIAAS: the pooled digestibility-adjusted amino acid score for the meal this food is paired into, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in that meal after adding this amount. % increase: DCP achieved's rise over the meal's current DCP.</small></p>
+    <p class="mb-1 muted"><small>Meal DIAAS: the pooled digestibility-adjusted amino acid score for the meal this food is paired into, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in that meal after adding this amount. % increase: DCP achieved's rise over the meal's current DCP{% if complements.base_dcp is not none %} of {{ complements.base_dcp }}&thinsp;g{% endif %}.</small></p>
     {% else %}
     <p class="mb-1 muted"><small>Serve alongside: <strong>{{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} ({{ s.amount_note }}){% endif %}</strong></small></p>
     {% endif %}
@@ -785,7 +802,7 @@
 </form>
 <script>
 document.getElementById('complements-form').addEventListener('change', function (e) {
-  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore' || e.target.name === 'anchor_grams') {
+  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore' || e.target.name === 'anchor_grams' || e.target.name === 'uncap') {
     document.getElementById('recalc-complements-btn').disabled = false;
   }
 });

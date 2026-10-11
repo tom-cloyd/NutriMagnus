@@ -62,6 +62,33 @@ def exact_dcp(ingredients: list[dict] | None, extra: list[tuple[str, dict | None
     return round(dcp, 1) if dcp is not None else None
 
 
+def base_dcp(ingredients: list[dict] | None) -> float | None:
+    """The base's own current digestible complete protein (g), from its real
+    per-ingredient breakdown — the same diaas.meal_level_diaas figure the
+    meal/day/recipe page shows for itself. None without an ingredient list."""
+    if not ingredients:
+        return None
+    import diaas as _diaas
+    with _db.get_db() as conn:
+        result = _diaas.meal_level_diaas(list(ingredients), conn)
+    dcp = result.get("digestible_complete_protein_g")
+    return round(dcp, 1) if dcp is not None else None
+
+
+def label_serving_g(row) -> float | None:
+    """A cached food's label serving in grams, or None when it has none or
+    it isn't given in grams. Feeds the per-meal complement limit."""
+    if row is None:
+        return None
+    try:
+        size, unit = row["serving_size"], (row["serving_unit"] or "").strip().lower()
+    except (IndexError, KeyError):
+        return None
+    if size and size > 0 and unit in ("g", "grm", "gram", "grams"):
+        return float(size)
+    return None
+
+
 def load_cache_candidates(exclude_names_lower: set[str] | None = None) -> list[dict]:
     """Search the user's broader food cache (not just pantry) for a real match to
     each entry in the internal curated complement table.
@@ -75,6 +102,7 @@ def load_cache_candidates(exclude_names_lower: set[str] | None = None) -> list[d
     seen_fdc_ids: set[int] = set()
     try:
         with _db.get_db() as conn:
+            limits = _db.food_meal_limits(conn)
             for name in _usda.complement_table_names():
                 if name.lower() in exclude_names_lower:
                     continue
@@ -84,10 +112,12 @@ def load_cache_candidates(exclude_names_lower: set[str] | None = None) -> list[d
                     seen_fdc_ids.add(row["fdc_id"])
                     nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else None
                     candidates.append({
-                        "name":      row["name"],
-                        "fdc_id":    row["fdc_id"],
-                        "nutrients": nutrients,
-                        "diaas":     _usda.get_diaas(row["name"]),
+                        "name":       row["name"],
+                        "fdc_id":     row["fdc_id"],
+                        "nutrients":  nutrients,
+                        "diaas":      _usda.get_diaas(row["name"]),
+                        "max_meal_g": limits.get(row["fdc_id"]),
+                        "serving_g":  label_serving_g(row),
                     })
     except Exception:
         return []
@@ -190,6 +220,25 @@ def two_step_combo(
         b for b in sub.get("diaas_improvers", [])
         if b.get("steps") and b["steps"][0]["new_diaas"] > gc_diaas
     ]
+    # A food strong enough to close the step-1 pool's remaining gap outright
+    # lands in the sub-call's gap-closer tiers, not diaas_improvers (each
+    # source pooled at its own digestibility makes that common for e.g. soy
+    # isolate) — offer it as step 2 too, as a single step at its closing amount.
+    sub_closers = sorted(sub.get("pantry", []) + sub.get("general", []),
+                         key=lambda c: c["grams"])
+    for c in sub_closers:
+        c_diaas = min(1.0, c.get("predicted_diaas") or 0.0)
+        if c_diaas <= gc_diaas:
+            continue
+        c_protein = combined.get("protein_g", 0.0) + float(c.get("protein_added") or 0)
+        qualifying.append({
+            **c,
+            "new_diaas": round(c_diaas, 2),
+            "steps": [{"grams": c["grams"], "new_diaas": round(c_diaas, 2),
+                       "dcp": round(c_protein * c_diaas, 1)}],
+        })
+    # Same order the sub-call gives diaas_improvers: best resulting DIAAS, then grams.
+    qualifying.sort(key=lambda b: (-(b.get("new_diaas") or 0), b["grams"]))
 
     step1 = {
         "name":       gc_name,
@@ -251,6 +300,7 @@ def build_complement_display(
     comp_sort: str = "dcp",
     diaas_sort: str = "effect",
     anchor_overrides: dict[str, float] | None = None,
+    uncap_names: set[str] | None = None,
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
 
@@ -293,6 +343,8 @@ def build_complement_display(
         profile-completer is always promoted to the top of its tier regardless of
         mode. two_step_combos inherits this order (Step 1 candidates come from the
         same sorted list).
+    uncap_names: suggestion names whose per-meal limit the user lifted for this
+        page view (see usda.suggest_complements; complement_meal_limit()).
     diaas_sort: "effect" (default; highest resulting DIAAS first) or "grams"
         (smallest serving first) — controls the diaas_improvers tier order.
 
@@ -316,13 +368,21 @@ def build_complement_display(
             max_improver_grams=max_improver_grams,
             cache_candidates=cache_candidates,
             exclude_names=exclude_names,
+            uncap_names=uncap_names,
         )
     except Exception:
         return {"no_data": True}
 
     anchor_overrides = anchor_overrides or {}
     base_protein = base_nutrients.get("protein_g", 0.0)
-    base_digestible = base_protein * digestibility
+    # The base's current DCP: what every "% increase", "DCP before" and net
+    # gain is measured from. It used to be protein × digestibility, which
+    # ignores the limiting amino acid — on a meal at TID 0.84 but Lysine 0.69
+    # that's 76.8 g against a real 63.7 g, so a 10 g addition that raised DCP
+    # to 74.2 g showed as a -3% "increase".
+    base_digestible = base_dcp(ingredients)
+    if base_digestible is None:
+        base_digestible = base_protein * min(1.0, gaps[0][1])
 
     def _adj_min(new_scores: dict) -> float:
         """Rescale the raw new_scores' minimum onto the digestibility-adjusted basis."""
@@ -333,11 +393,27 @@ def build_complement_display(
         dig = float(s.get("digestible_protein_added") or 0)
         new_scores = s.get("new_scores", {})
         if new_scores and gaps:
-            old_adj_min = gaps[0][1]
-            new_adj_min = _adj_min(new_scores)
-            scale = (new_adj_min / old_adj_min) if old_adj_min > 0 else 1.0
-            return round((base_protein + raw) * min(1.0, scale), 1)
+            # Total protein × the pooled limiting score, capped at 1.0 — the
+            # same formula _dcp_at_frac uses for the graduated rows. (It used to
+            # multiply by new/old limiting score instead, which reaches 1.0 on
+            # any improvement at all and so counted every gram as complete.)
+            return round((base_protein + raw) * min(1.0, _adj_min(new_scores)), 1)
         return round(base_digestible + dig, 1)
+
+    _achieved_memo: dict[int, float] = {}
+
+    def _achieved_dcp(s: dict) -> float:
+        """DCP achieved with this suggestion added at its shown amount — the
+        exact per-ingredient figure (exact_dcp) when the base has an ingredient
+        list, else the _total_dig estimate. One number for both the ranking and
+        the "Total digestible complete protein" line, so they can't disagree."""
+        key = id(s)
+        if key not in _achieved_memo:
+            grams = s.get("grams")
+            val = (exact_dcp(ingredients, [(s.get("name", ""), s.get("comp_nutrients"), grams)])
+                   if grams else None)
+            _achieved_memo[key] = val if val is not None else _total_dig(s)
+        return _achieved_memo[key]
 
     def _dcp_at_frac(frac: float, raw_full: float, new_scores_full: dict) -> float | None:
         """DCP of the combined pool (base + frac*complement) using the weighted-pool IAA formula."""
@@ -389,6 +465,23 @@ def build_complement_display(
                 })
         return steps
 
+    def _target_label(s: dict) -> str | None:
+        """The gap this suggestion's amount was sized to close, when it isn't the
+        main one — otherwise the page reads as if every amount closes the main gap."""
+        target = s.get("target_aa")
+        if not target or target == gaps[0][0]:
+            return None
+        return _usda.nutrient_label(target)[0]
+
+    def _limit_fields(s: dict) -> dict:
+        """Per-meal limit display fields (usda_nutrients.complement_meal_limit)."""
+        return {
+            "limit_g":      s.get("limit_g"),
+            "limit_source": s.get("limit_source"),
+            "user_limit":   bool(s.get("user_limit")),
+            "uncapped":     bool(s.get("uncapped")),
+        }
+
     def _fmt(s: dict) -> dict:
         raw = float(s.get("protein_added") or 0)
         dig = float(s.get("digestible_protein_added") or 0)
@@ -396,9 +489,7 @@ def build_complement_display(
         name = s.get("name", "")
         new_scores = s.get("new_scores", {})
         comp_nutrients = s.get("comp_nutrients")
-        total_dig = exact_dcp(ingredients, [(name, comp_nutrients, full_grams)]) if full_grams else None
-        if total_dig is None:
-            total_dig = _total_dig(s)
+        total_dig = _achieved_dcp(s)
         anchor = anchor_overrides.get(name.lower())
         return {
             "name":              name,
@@ -418,6 +509,11 @@ def build_complement_display(
             "protein_added":     round(raw, 1),
             "opens_new_gap":     s.get("opens_new_gap", False),
             "aa_effects":        aa_effects(s, gaps, digestibility=digestibility),
+            "target_label":      _target_label(s),
+            **_limit_fields(s),
+            "capped":            bool(s.get("capped")),
+            "closing_grams":     s.get("closing_grams"),
+            "primary_label":     _usda.nutrient_label(gaps[0][0])[0],
             "total_dig":         total_dig,
             "estimated":         s.get("estimated", False),
         }
@@ -453,6 +549,7 @@ def build_complement_display(
             "fdc_id":            s.get("fdc_id"),
             "recipe_id":         s.get("recipe_id"),
             "serving_weight_g":  s.get("serving_weight_g"),
+            **_limit_fields(s),
             "diaas":             round(s["diaas"], 2) if s.get("diaas") else None,
             "current_diaas":     s.get("current_diaas"),
             "new_diaas":         s.get("new_diaas"),
@@ -486,10 +583,8 @@ def build_complement_display(
         total_dig_complete = exact_dcp(ingredients, pair_extra)
         if total_dig_complete is None:
             if new_scores and gaps:
-                old_adj_min = gaps[0][1]
-                new_adj_min = _adj_min(new_scores)
-                scale = (new_adj_min / old_adj_min) if old_adj_min > 0 else 1.0
-                total_dig_complete = round(total_raw * min(1.0, scale), 1)
+                # Same estimate as _total_dig: protein × the pooled limiting score.
+                total_dig_complete = round(total_raw * min(1.0, _adj_min(new_scores)), 1)
             else:
                 total_dig_complete = round(base_digestible + float(p.get("total_dig_added") or 0), 1)
         return {
@@ -520,8 +615,11 @@ def build_complement_display(
         sort_key = lambda s: (0 if s.get("new_complete") else 1,
                                -(s.get("gaps_closed") or 0),
                                -_gap_effect(s))
-    else:  # "dcp" (default): greatest resulting digestible complete protein
-        sort_key = lambda s: (0 if s.get("new_complete") else 1, -_total_dig(s))
+    else:  # "dcp" (default): greatest resulting digestible complete protein,
+        # the same figure each suggestion displays (it used to rank on the
+        # _total_dig estimate while showing exact_dcp, so the order could
+        # contradict the numbers on the page)
+        sort_key = lambda s: (0 if s.get("new_complete") else 1, -_achieved_dcp(s))
     pantry_suggs    = sorted(suggestions.get("pantry",  []), key=sort_key)[:pantry_limit]
     general_suggs   = sorted(suggestions.get("general", []), key=sort_key)[:general_limit]
     pair_suggs      = suggestions.get("pairs", [])[:pair_limit]
@@ -583,9 +681,22 @@ def build_complement_display(
     comp_ranking_note = _COMP_RANKING_NOTES.get(
         comp_sort,
         ("Ranked by greatest DCP achieved: the option that leaves the most digestible complete protein "
-         "after adding it. Exception: an option that fully completes the amino acid profile is always "
+         "after adding it, at the amount shown — the same figure as its \u201cTotal digestible complete "
+         "protein\u201d line. Exception: an option that fully completes the amino acid profile is always "
          "promoted to the top."),
     )
+    # Footer under the suggestion lists: how "DCP achieved" was worked out.
+    if ingredients:
+        dcp_note = ("How DCP achieved is worked out: for each option, NuMa adds it to your ingredients at the "
+                    "amount shown — the capped amount where a per-meal limit applies — and recalculates "
+                    "digestible complete protein from every ingredient's own amino acids and digestibility, "
+                    "the same calculation as the DCP shown for this page itself. The rankings use exactly "
+                    "these figures.")
+    else:
+        dcp_note = ("How DCP achieved is worked out: total protein after adding the option at the amount "
+                    "shown (the capped amount where a per-meal limit applies), multiplied by the combined "
+                    "protein's new limiting amino acid score, digestibility included and capped at 1.0. "
+                    "The rankings use exactly these figures.")
     if diaas_sort == "grams":
         diaas_ranking_note = "Ranked by smallest addition: fewest grams needed."
     else:
@@ -599,6 +710,8 @@ def build_complement_display(
         "no_gaps":              False,
         "gaps":                 gap_rows,
         "comp_ranking_note":    comp_ranking_note,
+        "dcp_note":             dcp_note,
+        "base_dcp":             round(base_digestible, 1),
         "diaas_ranking_note":   diaas_ranking_note,
         "pairs_ranking_note":   pairs_ranking_note,
         "two_step_ranking_note": two_step_ranking_note,

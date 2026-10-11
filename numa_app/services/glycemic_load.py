@@ -14,6 +14,7 @@ Docs: README-numa-documentation.md, Architecture: "numa_app/services/glycemic_lo
 import json
 
 import db as _db
+from numa_app.services.rda_status import rda_status
 
 # A food without a GI whose carbohydrate in the amount eaten is under this
 # counts as zero rather than as missing data: its GL can be at most 1 even at
@@ -27,6 +28,27 @@ GAP_NO_GI      = "no_gi"       # no GI recorded yet
 GAP_NOT_WANTED = "not_wanted"  # GI marked "don't prompt me" (or GI opted out in Settings)
 GAP_NO_DATA    = "no_data"     # the food has no nutrient data at all
 GAP_NO_RECIPE  = "no_recipe"   # a logged recipe that has since been deleted
+
+# The GI lookup saves a picked row's subject group into gi_source as one of
+# these labels (web/templates/food_annotate.html). A value measured only in
+# people with impaired glucose tolerance or diabetes may not describe someone
+# without it (and vice versa) — see user-manual.md #gi-populations.
+IMPAIRED_LABEL = "Impaired glucose tolerance"
+
+
+def gi_measured_impaired(gi_source) -> bool:
+    """True if a saved GI's source says it was measured in people with
+    impaired glucose tolerance or diabetes."""
+    return bool(gi_source) and IMPAIRED_LABEL in gi_source
+
+
+def _ann_source(ann):
+    """An annotation's gi_source, or None — callers may pass a plain dict
+    without that key, or a row from before the column existed."""
+    try:
+        return ann["gi_source"]
+    except (KeyError, IndexError):
+        return None
 
 
 def _ingredient_line_items(conn, recipe_id: int) -> list[dict]:
@@ -52,20 +74,39 @@ def _add_gap(gaps: list[dict], gap: dict) -> None:
         gaps.append(gap)
 
 
-def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool) -> tuple[float, str | None]:
+def _new_acc() -> dict:
+    """Running tallies behind a result's coverage and population fields."""
+    return {"with_gi": 0.0, "counted": 0.0, "impaired": []}
+
+
+def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool,
+                acc: dict | None = None, name: str | None = None) -> tuple[float, str | None]:
     """(GL of `grams` of a food, gap reason or None). A food with no
     carbohydrate value at all (an oil, say) counts as carbohydrate-free, the
-    same as every other nutrient total treats it."""
+    same as every other nutrient total treats it.
+
+    `acc`, when given (see _new_acc()), collects carbs with a GI and carbs
+    that count, for the coverage figure (see _result()) — a negligible amount
+    and a food whose GI is "not wanted" count in neither — and `name` when
+    the GI counted was measured in people with impaired glucose tolerance."""
     carbs_g = (nutrients.get("carbs_g") or 0.0) * grams / 100.0
     if ann is not None and ann["gi_estimate"] is not None:
+        if acc is not None:
+            acc["with_gi"] += carbs_g
+            acc["counted"] += carbs_g
+            if (name and carbs_g >= NEGLIGIBLE_CARBS_G and gi_measured_impaired(_ann_source(ann))
+                    and name not in acc["impaired"]):
+                acc["impaired"].append(name)
         return ann["gi_estimate"] * carbs_g / 100.0, None
     if carbs_g < NEGLIGIBLE_CARBS_G:
         return 0.0, None
     not_wanted = gi_opt_out or (ann is not None and ann["gi_no_prompt"])
+    if acc is not None and not not_wanted:
+        acc["counted"] += carbs_g
     return 0.0, GAP_NOT_WANTED if not_wanted else GAP_NO_GI
 
 
-def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out) -> float:
+def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out, acc) -> float:
     """GL of `line_items` x `scale`, appending a gap per item that can't be
     counted. `seen` holds the recipes already being expanded on this path, so
     a reference cycle stops instead of recursing forever."""
@@ -88,7 +129,7 @@ def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out) -> float:
             servings = recipe["servings"] or 1
             total += _accumulate(_ingredient_line_items(conn, rid), conn,
                                  scale * (li["amount"] or 0.0) / servings,
-                                 seen | {rid}, gaps, gi_opt_out)
+                                 seen | {rid}, gaps, gi_opt_out, acc)
             continue
 
         cached = _db.get_cached_food(conn, li["fdc_id"]) if li.get("fdc_id") else None
@@ -97,22 +138,37 @@ def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out) -> float:
             continue
         share, reason = _food_share(json.loads(cached["nutrients_json"]),
                                     (li["amount"] or 0.0) * scale,
-                                    ann_map.get(li["fdc_id"]), gi_opt_out)
+                                    ann_map.get(li["fdc_id"]), gi_opt_out, acc, li["name"])
         total += share
         if reason:
             gap(li["name"], li["fdc_id"], None, reason)
     return total
 
 
-def _result(total: float, gaps: list[dict]) -> dict:
-    """{"total", "complete", "gaps"}. total is the GL of everything that could
-    be counted, rounded — a lower bound when gaps is non-empty — or None when
-    nothing with carbohydrate could be counted at all ("at least 0" would say
-    nothing). complete is True only when nothing was left out."""
+def _result(total: float, gaps: list[dict], acc: dict | None = None) -> dict:
+    """{"total", "complete", "gaps", "carbs_with_gi_g", "carbs_g", "coverage_pct",
+    "impaired"}.
+    total is the GL of everything that could be counted, rounded — a lower
+    bound when gaps is non-empty — or None when nothing with carbohydrate
+    could be counted at all ("at least 0" would say nothing). complete is
+    True only when nothing was left out.
+
+    coverage_pct is the share of the carbohydrate that counts (see
+    _food_share()) that came from foods with a GI — "GL covers 72% of this
+    meal's carbohydrate" — or None when there is none to cover.
+
+    impaired names the counted foods whose GI was measured in people with
+    impaired glucose tolerance or diabetes (gi_measured_impaired())."""
+    acc = acc or _new_acc()
+    with_gi, counted = acc["with_gi"], acc["counted"]
     return {
         "total":    None if gaps and total <= 0 else round(total, 1),
         "complete": not gaps,
         "gaps":     gaps,
+        "carbs_with_gi_g": round(with_gi, 1),
+        "carbs_g":         round(counted, 1),
+        "coverage_pct":    round(with_gi / counted * 100) if counted > 0 else None,
+        "impaired":        list(acc["impaired"]),
     }
 
 
@@ -127,17 +183,40 @@ def gl_for_items(line_items: list[dict], conn, *, scale: float = 1.0,
     without one is reported as not wanted rather than as still to do.
     """
     gaps: list[dict] = []
-    total = _accumulate(line_items, conn, scale, frozenset(), gaps, gi_opt_out)
-    return _result(total, gaps)
+    acc = _new_acc()
+    total = _accumulate(line_items, conn, scale, frozenset(), gaps, gi_opt_out, acc)
+    return _result(total, gaps, acc)
+
+
+def gl_for_leaves(leaves: list[dict], conn, *, gi_opt_out: bool = False) -> dict:
+    """GL of already-expanded leaf foods — {"food_name", "fdc_id",
+    "nutrients_100g", "grams"}, the shape recipe_nutrients and what-if
+    produce — as a result dict (see _result()). What-if uses this so its
+    edits, applied once during expansion, reach GL with no second
+    expansion path."""
+    ids = list({lf["fdc_id"] for lf in leaves if lf.get("fdc_id")})
+    ann_map = _db.annotations_for_fdcids(conn, ids)
+    gaps: list[dict] = []
+    acc = _new_acc()
+    total = 0.0
+    for lf in leaves:
+        share, reason = _food_share(lf["nutrients_100g"], lf["grams"],
+                                    ann_map.get(lf.get("fdc_id")), gi_opt_out, acc, lf["food_name"])
+        total += share
+        if reason:
+            _add_gap(gaps, {"name": lf["food_name"], "fdc_id": lf.get("fdc_id"),
+                            "recipe_id": None, "reason": reason})
+    return _result(total, gaps, acc)
 
 
 def food_gl(name: str, fdc_id: int, nutrients: dict, grams: float, ann, *,
             gi_opt_out: bool = False) -> dict:
     """GL of `grams` of one food, from nutrients and an annotation row the
     caller already has (the food page may show a food not yet cached)."""
-    share, reason = _food_share(nutrients, grams, ann, gi_opt_out)
+    acc = _new_acc()
+    share, reason = _food_share(nutrients, grams, ann, gi_opt_out, acc, name)
     gaps = [{"name": name, "fdc_id": fdc_id, "recipe_id": None, "reason": reason}] if reason else []
-    return _result(share, gaps)
+    return _result(share, gaps, acc)
 
 
 def recipe_gl(conn, recipe_id: int, servings: float = 1.0, *, gi_opt_out: bool = False) -> dict:
@@ -160,7 +239,10 @@ def combine_gl(results: list[dict]) -> dict:
     for r in results:
         for g in r["gaps"]:
             _add_gap(gaps, g)
-    return _result(total, gaps)
+    acc = {"with_gi": sum(r.get("carbs_with_gi_g", 0.0) for r in results),
+           "counted": sum(r.get("carbs_g", 0.0) for r in results),
+           "impaired": list(dict.fromkeys(n for r in results for n in r.get("impaired", [])))}
+    return _result(total, gaps, acc)
 
 
 # ── GL classification bands ───────────────────────────────────────────────
@@ -219,6 +301,53 @@ def gl_band_caveat(scope: str = "serving") -> str | None:
             "naturally run higher.")
 
 
+# Daily GL target suggestions (Settings -> "Help me choose"; user-manual.md
+# #gl-target-choose, where each option's criteria and sources are given).
+# "Moderate GL diet": an average daily GL under 80 per 2,000 kcal (Barclay,
+# GI Foundation, University of Sydney, 2021) — scaled to the user's calories.
+GL_MODERATE_PER_2000_KCAL = 80.0
+# The widely repeated "low GL day" ceiling (unsourced convention; see GL_BANDS).
+GL_CONVENTIONAL_DAY_TARGET = 80.0
+# "A step down from where you are": 10-20% under the recent average; the
+# suggested figure is the middle of that range. Needs enough known days.
+GL_STEP_DOWN = (0.10, 0.20)
+GL_STEP_DOWN_MIN_DAYS = 7
+
+
+def gl_target_options(calories: float | None, recent_avg: float | None,
+                      recent_days: int) -> dict:
+    """The three suggested daily GL targets: {"scaled", "fixed",
+    "step_down", "step_down_range", "recent_avg", "recent_days"}.
+    scaled is None without a calorie target; step_down (and its range) is
+    None without GL_STEP_DOWN_MIN_DAYS days of known GL to average."""
+    scaled = round(GL_MODERATE_PER_2000_KCAL * calories / 2000) if calories and calories > 0 else None
+    step = rng = None
+    if recent_avg and recent_days >= GL_STEP_DOWN_MIN_DAYS:
+        lo, hi = GL_STEP_DOWN
+        rng = (round(recent_avg * (1 - hi)), round(recent_avg * (1 - lo)))
+        step = round(recent_avg * (1 - (lo + hi) / 2))
+    return {"scaled": scaled, "fixed": round(GL_CONVENTIONAL_DAY_TARGET), "step_down": step,
+            "step_down_range": rng, "recent_avg": recent_avg, "recent_days": recent_days}
+
+
+def gl_target_status(total: float | None, complete: bool, target: float | None) -> dict | None:
+    """A day's GL against the profile's personal daily target (a ceiling,
+    classified like a nutrient maximum: rda_status(..., "limit")).
+
+    Returns None when there is no target or no figure. Otherwise {"target",
+    "pct", "status", "over"}: status is "met" / "near" / "over", or
+    "unknown" for an incomplete day still under the target — its true GL is
+    higher, so "under" can't be claimed (an incomplete day already over the
+    target is over for certain)."""
+    if not target or target <= 0 or total is None:
+        return None
+    pct = total / target * 100
+    status = rda_status(pct, "limit")
+    if not complete and status != "over":
+        status = "unknown"
+    return {"target": target, "pct": round(pct), "status": status, "over": total > target}
+
+
 # ── Day-level GL, for trends and plots ────────────────────────────────────
 
 def meal_line_items(conn, meal_id: int) -> list[dict]:
@@ -233,6 +362,17 @@ def meal_line_items(conn, meal_id: int) -> list[dict]:
         }
         for item in _db.meal_get_items(conn, meal_id)
     ]
+
+
+def day_gl(conn, meal_date: str, *, gi_opt_out: bool = False) -> dict | None:
+    """Every meal on meal_date combined, as a result dict (see _result()) —
+    the partial total and its gaps, for a page that can show "at least".
+    None for a date with no meals. Trends and plots use day_gl_total(),
+    which treats an incomplete day as unknown instead."""
+    meals = _db.meal_list_by_date(conn, meal_date)
+    if not meals:
+        return None
+    return combine_gl([meal_gl(conn, m["id"], gi_opt_out=gi_opt_out) for m in meals])
 
 
 def day_gl_total(conn, meal_date: str) -> float | None:

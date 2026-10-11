@@ -1,0 +1,30 @@
+{# Per-meal limit for one complement suggestion `s` (gap-closer or DIAAS
+   booster) — see usda_nutrients.complement_meal_limit. On the food, meal and
+   recipe pages it sits inside #complements-form: the "use the full amount"
+   checkbox rides the form's own recalculation, and "Save limit" posts to
+   /complement-limit via formaction. Set limit_readonly to show only the
+   capped note (pages with no complements form). #}
+{% if s.capped %}
+<p class="mb-1"><small class="rda-near">Limited to {{ s.limit_g }}&thinsp;g, {{ s.limit_source }}. Fully closing the {{ s.target_label or s.primary_label }} gap would take {{ s.closing_grams }}&thinsp;g.</small></p>
+{% endif %}
+{% if not limit_readonly %}
+{% if s.capped or s.uncapped %}
+<label class="mb-1 d-inline-flex align-items-center gap-1" style="font-size:.8rem">
+  <input type="checkbox" name="uncap" value="{{ s.name }}"{% if s.uncapped %} checked{% endif %}>
+  <span class="muted">{% if s.uncapped %}Showing the full amount this time, over the {{ s.limit_g }}&thinsp;g limit ({{ s.limit_source }}). Untick and recalculate to go back to the limit.{% else %}Use the full {{ s.closing_grams }}&thinsp;g this time (this page only; recalculate to apply){% endif %}</span>
+</label>
+{% endif %}
+{% if s.fdc_id and s.limit_g %}
+<div id="limit-{{ s.fdc_id }}" class="d-flex align-items-center gap-1 mb-1 flex-wrap" style="font-size:.8rem">
+  <label class="muted" for="limit-g-{{ s.fdc_id }}">Most I&rsquo;d add to a meal:</label>
+  <input type="number" min="1" step="1" id="limit-g-{{ s.fdc_id }}" name="limit_g_{{ s.fdc_id }}"
+         value="{{ s.limit_g if s.user_limit else '' }}" placeholder="{{ s.limit_g }}"
+         class="form-control form-control-sm" style="width:5.5rem">
+  <span class="muted">g</span>
+  <input type="hidden" name="limit_next" value="{{ request.url.path }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+  <button type="submit" formaction="/complement-limit" formmethod="post" name="limit_fdc" value="{{ s.fdc_id }}"
+          class="btn btn-sm btn-outline-secondary py-0">Save limit for this food</button>
+  <span class="muted">{% if s.user_limit %}(your saved limit &mdash; clear the box and save to go back to the default){% else %}(now {{ s.limit_g }}&thinsp;g: {{ s.limit_source }}){% endif %}</span>
+</div>
+{% endif %}
+{% endif %}

@@ -233,6 +233,41 @@
 </div>
 {% endif %}
 
+{% if gl_rows %}
+<h4>Glycemic comparison <span class="muted"><small>(per 100 g of each item)</small></span> {{ manual_link("compare-gl") }}</h4>
+<p class="muted">Glycemic load per 100 g is each item&rsquo;s GI &times; its carbohydrate &divide; 100, counting only foods with a GI. <strong>Lowest</strong> glycemic load is highlighted. &ldquo;&ge;&rdquo; marks a figure missing some foods&rsquo; GI, so the true figure is higher. A recipe has no single GI, so its GI shows &mdash;.</p>
+<div class="table-responsive">
+<table class="table table-sm table-bordered compare-table mb-4">
+  <thead class="table-light">
+    <tr>
+      <th class="compare-nutrient-col">Metric</th>
+      {% for e in entries %}
+      <th class="compare-val-col">{{ e.name | truncate(28) }}{{ estimate_note(e) }}</th>
+      {% endfor %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in gl_rows %}
+    <tr>
+      <td class="compare-nutrient-col">{{ row.label }}</td>
+      {% for cell in row.cells %}
+      <td class="compare-val-col {% if cell.is_max %}compare-max{% endif %}">
+        {% if cell.value is none %}&mdash;
+        {% elif row.key == "gi" %}{{ cell.value }}{% if cell.impaired %}<sup title="Measured in people with impaired glucose tolerance or diabetes">&dagger;</sup>{% endif %}
+        {% else %}{% if not cell.complete %}&ge;&thinsp;{% endif %}{{ "%.1f"|format(cell.value) }}{% if not cell.complete and cell.coverage is not none %}<br><small class="muted">covers {{ cell.coverage }}% of carbs</small>{% endif %}
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% if gl_rows | selectattr("key", "equalto", "gi") | map(attribute="cells") | sum(start=[]) | selectattr("impaired") | list %}
+{% import "_gl_result.html" as _glr_pop %}<p class="muted"><small>&dagger; GI measured in people with impaired glucose tolerance or diabetes. {{ _glr_pop.gi_impaired_advice() }}</small></p>
+{% endif %}
+{% endif %}
+
 {# ── Nutrient comparison ── #}
 <div class="d-flex align-items-center gap-3 mb-1 no-print">
   <h4 class="mb-0">Nutrient comparison <span class="muted"><small>(per 100 g of each item)</small></span></h4>

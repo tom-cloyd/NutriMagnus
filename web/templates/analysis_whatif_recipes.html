@@ -155,6 +155,11 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
           <td class="num-col">
             {% if row.key == "dcp" and c.after is none %}
               <span class="muted" title="Can't be worked out: an ingredient with 1 g or more of protein has no amino-acid data">NC</span>
+            {% elif row.key == "gl" and c.after is none %}
+              <span class="muted" title="None of the carbohydrate here comes from a food with a GI">no GI</span>
+            {% elif row.key == "gl" %}
+              <strong>{% if not c.complete_after %}&ge;&thinsp;{% endif %}{{ num(c.after) }}</strong>
+              <span class="small muted d-block">{{ c.band_after }}{% if c.band_before and c.band_before != c.band_after %} (was {{ c.band_before }}){% endif %}</span>
             {% else %}
               <strong>{{ num(c.after) }}</strong>
             {% endif %}
@@ -162,6 +167,9 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
               <div class="small">{{ signed(c.delta) }}{% if c.delta_pct is not none %} ({{ signed(c.delta_pct) }}%){% endif %}</div>
             {% endif %}
             <span class="small muted d-block js-before d-none">was {% if c.before is none %}NC{% else %}{{ num(c.before) }}{% endif %}</span>
+            {% if row.key == "gl" and c.coverage_after is not none and c.coverage_after < 100 %}
+              <span class="small text-warning d-block" title="{% if c.gaps_after %}No GI for: {{ c.gaps_after|map(attribute='name')|join(', ') }}{% endif %}">covers {{ c.coverage_after }}% of carbs{% if c.coverage_before is not none and c.coverage_before != c.coverage_after %} (was {{ c.coverage_before }}%){% endif %}</span>
+            {% endif %}
           </td>
           {% endfor %}
         </tr>
@@ -176,7 +184,8 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
     <strong>Average change</strong> = the average of each recipe's percent change, over all {{ result.changed_count }} recipe(s) the change reaches, including any not shown as a column &middot;
     the number of servings stays the same, so removing an ingredient makes each serving lighter, and adding one makes it heavier &middot;
     <strong>Protein (DCP)</strong> is worked out the same way as on the recipe page; NC = not computed (an ingredient with 1 g or more of protein has no amino-acid data) &middot;
-    <span class="text-warning">?</span> = something you added has no value for that nutrient, so its "after" figure may be too low.
+    <span class="text-warning">?</span> = something you added has no value for that nutrient, so its "after" figure may be too low. &middot;
+    <strong>Glycemic load</strong> is per serving, banded Low / Medium / High; it counts only foods with a GI, so &ge; and <span class="text-warning">covers N% of carbs</span> mark a figure that is really higher (hover to see which foods have no GI) &mdash; a swap to a food with no GI can look like an improvement it isn&rsquo;t. {{ manual_link("whatif-gl") }}
   </small></p>
 
   {% if result.parents %}

@@ -176,7 +176,14 @@ numa_app/
                          home page's "Update Now" button; is_available() gates
                          it to a packaged (PyInstaller) Linux install only
     top_contributors.py — rank a meal's/recipe's ingredients by contribution to
-                         one nutrient, for the "Top Contributors" analysis section
+                         one nutrient (or DCP, or glycemic load), for the "Top
+                         Contributors" analysis section
+    protein_per_meal.py — per-meal protein amount (from profile age/weight) and
+                         whether a meal's DCP and leucine reach it; meal page
+                         + day pages (sources: manual #protein-per-meal)
+    gl_swaps.py         — lower-GL swap suggestions for a meal/recipe's top GL
+                         foods, from cached foods with a GI; each opens What-if
+                         pre-filled (never writes)
     manual_update.py    — check/download/serve a newer User Manual than the baked-in
                          one, independently of program updates; Ed25519-verified
                          (published by scripts/publish_manual.py)

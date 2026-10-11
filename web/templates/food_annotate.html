@@ -136,6 +136,9 @@
            style="font-size:0.85rem{% if not (annotation and annotation.gi_source) %};display:none{% endif %}">
           <strong>Value taken from:</strong> <span id="gi-source-text">{{ annotation.gi_source if annotation and annotation.gi_source else '' }}</span>
         </p>
+        <p class="muted mt-1 mb-0" id="gi-pop-note" style="font-size:0.85rem{% if not (annotation and annotation.gi_source | gi_impaired) %};display:none{% endif %}">
+          {% import "_gl_result.html" as _glr_pop %}&#9432; Measured in people with impaired glucose tolerance or diabetes. {{ _glr_pop.gi_impaired_advice() }}
+        </p>
 
         <details class="mt-2" id="gi-lookup-details">
           {# Which edition answers this lookup is an install-level fact nothing
@@ -184,6 +187,7 @@
               </select>
               <button type="button" class="btn btn-outline-secondary" id="gi-lookup-search">Search</button>
             </div>
+            <p class="muted mb-2" style="font-size:0.8rem">&ldquo;Impaired glucose tolerance&rdquo; rows were measured in people with diabetes (mostly type 2) or pre-diabetes. {{ manual_link("gi-impaired", "What this means, and how to use such a value if you don't have diabetes") }}</p>
             {# overflow-x: the results table can be wider than this card; without it
                the table spilled out sideways over the reading-guide panel. #}
             <div id="gi-lookup-results" class="small" style="overflow-x:auto"></div>
@@ -274,6 +278,9 @@
    Full version lives in the manual under "How to read a lookup result". #}
 <aside class="gi-lookup-guide small" style="flex:1 1 20rem; min-width:18rem; max-width:30rem; margin-left:1rem">
   <h5 class="h6">Reading a GI database lookup result {{ manual_link("gi-result-row", "Learn more") }}</h5>
+  <p class="mb-2"><strong>Which result should you pick?</strong> Your own population first, then the same food prepared the
+    same way, then the better study &mdash; and leave it blank if nothing truly matches.
+    {{ manual_link("choosing-gi-values", "Choosing a GI value") }}</p>
   {% if gi_table and gi_table.edition == 2021 %}
   <p class="mb-1"><span class="badge text-bg-success">2021 edition</span> is answering these
     lookups, so a row also carries the year its study was run.</p>
@@ -323,7 +330,7 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
       which of that edition's two tables the row sat in — all that edition recorded — so it
       also picks up some rows flagged only for very few subjects or widely scattered
       results. Be sceptical of extreme Impaired values.{% endif %}
-      {{ manual_link("gi-populations", "Learn more") }}</li>
+      {{ manual_link("choosing-gi-values", "Which to use") }}</li>
     <li><strong>ref {% if not (gi_table and gi_table.edition == 2021) %}Bread, 2h {% endif %}76</strong>
       — which source study the value came from ({% if gi_table and gi_table.edition == 2021 %}<strong>76</strong>{% else %}the
       trailing <strong>76</strong>{% endif %}; a <strong>UO</strong> code means unpublished
@@ -359,6 +366,9 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
     srcInput.value = text || '';
     if (srcText) srcText.textContent = text || '';
     if (srcLine) srcLine.style.display = text ? '' : 'none';
+    // Same test as glycemic_load.gi_measured_impaired().
+    var popNote = document.getElementById('gi-pop-note');
+    if (popNote) popNote.style.display = (text && text.indexOf('Impaired glucose tolerance') !== -1) ? '' : 'none';
   }
 
   // A hand-typed number is nobody else's value, so the saved provenance of the

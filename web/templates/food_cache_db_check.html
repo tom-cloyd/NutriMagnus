@@ -15,6 +15,7 @@
     <li class="sb-item"><a class="sb-toggle" href="#calories">Food data problems</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#missing-aa">Foods you use with no amino acid data</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#missing-portions">Foods you use with no portion weights</a></li>
+    {% if missing_gi or not gi_opt_out %}<li class="sb-item"><a class="sb-toggle" href="#missing-gi">Foods you use with no GI</a></li>{% endif %}
     <li class="sb-item"><a class="sb-toggle" href="#generic-density">Amounts converted with a generic density</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#stale-amounts">Amounts that no longer match</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#old-copies">USDA copies over a year old</a></li>
@@ -332,7 +333,10 @@ in the section above.</small></p>
       "intro": "Foods with real protein (1 g or more per 100 g) but no amino acid figures, so they are left out of protein quality (DCP, DIAAS) wherever they appear. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, open it: look for a Foundation or SR Legacy version, use Refresh from USDA, or estimate its amino acids from a similar food. If it doesn&rsquo;t matter (a little cheese on a salad, say), tick not needed."},
      {"id": "missing-portions", "rows": missing_portions, "key": "portions", "title": "Foods you use with no portion weights",
       "manual": "ts-no-volume-portion",
-      "intro": "Foods with no cup, spoon, piece or other portion weight, so an amount for them can only be typed as a weight. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, add a weight once on its Portions page. If you always weigh it anyway, tick not needed."}] %}
+      "intro": "Foods with no cup, spoon, piece or other portion weight, so an amount for them can only be typed as a weight. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, add a weight once on its Portions page. If you always weigh it anyway, tick not needed."}]
+   + ([{"id": "missing-gi", "rows": missing_gi, "key": "gi", "title": "Foods you use with no GI",
+      "manual": "missing-gi",
+      "intro": "Foods with 5 g or more carbohydrate per 100 g but no glycemic index (GI), so they leave glycemic load incomplete wherever they appear, and can&rsquo;t be suggested as lower-GI swaps. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, click look up a GI and pick the matching row from the reference table. If its GI doesn&rsquo;t matter to you, tick not needed (the same as &ldquo;don&rsquo;t prompt me&rdquo; on its Annotate page)."}] if not gi_opt_out else []) %}
 {% set open_rows = sec.rows | rejectattr("ignored") | list %}
 <hr class="mt-5">
 <details id="{{ sec.id }}" class="mt-4">
@@ -346,13 +350,13 @@ in the section above.</small></p>
     <input type="hidden" name="back" value="{{ sec.id }}">
     <div class="table-responsive mb-2">
       <table class="table table-sm align-middle" style="max-width:52rem">
-        <thead class="table-light"><tr><th>Food</th><th>Used in</th>{% if sec.key == "aa" %}<th class="text-end">Protein / 100&thinsp;g</th>{% endif %}<th>Not needed</th></tr></thead>
+        <thead class="table-light"><tr><th>Food</th><th>Used in</th>{% if sec.key == "aa" %}<th class="text-end">Protein / 100&thinsp;g</th>{% elif sec.key == "gi" %}<th class="text-end">Carbs / 100&thinsp;g</th>{% endif %}<th>Not needed</th></tr></thead>
         <tbody>
           {% for r in rows %}
           <tr>
-            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% endif %}</td>
+            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% endif %}</td>
             <td>{{ _uses(r.use) }}</td>
-            {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% endif %}
+            {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% elif sec.key == "gi" %}<td class="text-end">{{ "%.1f"|format(r.carbs) }}&thinsp;g</td>{% endif %}
             <td><input type="hidden" name="shown" value="{{ r.fdc_id }}:{{ sec.key }}">
                 <input type="checkbox" class="form-check-input" name="ignore" value="{{ r.fdc_id }}:{{ sec.key }}" {{ "checked" if r.ignored }} aria-label="{{ r.name }} not needed"></td>
           </tr>

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-09:1637* / Reading time: 7 hours, 22 minutes
+*Updated 2026-10-10:2326* / Reading time: 8 hours, 10 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -204,8 +204,9 @@ Use this list the first time you run NuMa. Use it again if your computer was wip
 Go to **Settings**. Until these three are done, NuMa's results are either blank or quietly misleading.
 
 1. **Your Profile (section 1).** Enter your age, sex, weight, height and activity level. Without them, every "% of daily target" column is blank. On the same form, also set:
-    - the **Glycemic index lookup default** — choose impaired glucose tolerance if you have diabetes, pre-diabetes or insulin resistance; otherwise leave it searching both;
-    - the **oxalate lookup** checkbox, if oxalates matter to you (for kidney stones, say).
+    - **Your glucose tolerance** — choose impaired glucose tolerance if you have diabetes, pre-diabetes or insulin resistance, normal if you don't. It sets which [GI](#gloss-gi) values the lookup shows first, and tailors the note NuMa shows beside a [GI](#gloss-gi) [measured in people with diabetes](#gi-impaired);
+    - the **oxalate lookup** checkbox, if oxalates matter to you (for kidney stones, say);
+    - optionally, a **daily glycemic load target**, if you want each day's [GL](#gloss-gl) checked against a ceiling ([more](#gl-target)).
 2. **Dietary Preferences (section 3).** Choose all foods, vegetarian, or plant-based only. This filters *every* search and suggestion in NuMa, so a wrong setting hides foods you'd expect to see.
 3. **[USDA](#gloss-usda) [API](#gloss-api) Key (section 5).** NuMa gets most of its food data from the US government's FoodData Central website. That site asks every program that uses it to identify itself with a **key**: a long code, like a password, that USDA gives out free to anyone who asks. Until you enter your own, NuMa uses one shared key for all its users, and when that shared key gets overused your food searches can fail for a while. Getting your own takes about a minute and costs nothing — see [how to get a USDA key](#food-data).
 
@@ -240,10 +241,10 @@ Here's the problem: NuMa cannot work with data it doesn't have. Foods from relia
 
 NuMa never fills in GI values by itself; each one is a choice you make from the reference table. You don't need GI for everything, only for the **carbohydrate foods you eat most often**: grains, bread, rice, pasta, oats and breakfast cereals; potatoes and other starchy vegetables; beans and lentils; fruit; sweeteners. Skip foods with little carbohydrate (oils, most nuts, tofu, meat, fish, eggs, cheese) — a GI number means little for them.
 
-For each food, go to **Foods → Annotate**, click **Edit**, and use **Look up a GI value from the published reference table**. When choosing between results, prefer, in this order:
+For each food, go to **Foods → Annotate**, click **Edit**, and use **Look up a GI value from the published reference table**. When choosing between results (fuller guidance: [Choosing a GI value](#choosing-gi-values)), prefer, in this order:
 
 1. **The same food, prepared the same way.** Boiled versus baked, whole grain versus flour, and cooking time all change GI a lot.
-2. **The population that matches you** — normal or impaired glucose tolerance.
+2. **The population that matches you** — normal or impaired glucose tolerance ([which to use](#choosing-gi-values)).
 3. **Rows not flagged as "non-ISO method"** — that is, studies that didn't follow the international measuring standard, [ISO](#gloss-iso) (International Organization for Standardization) 26642 ([more](#gi-method-quality)).
 4. **More recent studies, with more people tested and a smaller ± (standard error).**
 
@@ -410,7 +411,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 42 minutes)*
+*(Reading time: 43 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -582,6 +583,13 @@ To fill real gaps, check **ask AI** under each gap you want help with — one fo
 - **Missing calories are filled in.** When a food arrives — from USDA, Open Food Facts, a [CSV](#gloss-csv) file, Claude AI, or typed in by you — with protein, carbs and fat but no calories, NuMa works the calories out from those three and marks the figure as an *estimate*. If the food's source later supplies a real figure (a Refresh from USDA, say), that replaces it. If you change the food's protein, carbs or fat, the estimate follows. A food missing even one of the three can't be estimated; it stays missing.
 - **Calories that don't add up are flagged.** A stored figure far from what the food's own protein, carbs and fat imply (more than about a quarter off) is flagged, never changed. Sometimes the gap is real: alcohol, sugar alcohols and very high fiber all carry energy that the 4-4-9 rule doesn't model. Otherwise it usually means the food's data is wrong. When you know a food's calories are right, the **These calories are right — stop flagging them** button on its page turns this check off for that food (**Check them again** turns it back on).
 
+**Turning the calorie check off for a food.**{: #calorie-check-off} For some foods calories don't matter — a vitamin or mineral supplement, a herb or spice used by the pinch. To stop NuMa listing such a food in a **Calories** note, open the food's page (click its name in the note) and use whichever button it shows:
+
+- **Macronutrients not needed for this food — stop flagging**, if the food has *no* calorie value (or no protein, carbs or fat). NuMa then stops checking that food's calories altogether, and it no longer counts toward the "no calorie value" warning on any meal, recipe or day. This is the one for supplements.
+- **These calories are right — stop flagging them**, if the food has calories that NuMa calls doubtful but you know are correct.
+
+Each has an undo on the same page: an **(undo)** link beside a group marked not needed, or **Check them again**. A food whose calories are only *estimated* needs nothing turned off — that line is information, not a warning.
+
 The same page (Foods → 9) has a section, **Food data problems**, listing every food in either situation (along with any food holding an [impossible value](#data-checks-list)), plus every food whose calories are estimated, for information. Foods whose macronutrients you've marked "not needed" (a supplement, a spice) aren't checked for calories. A meal, recipe or daily summary that includes such a food shows a short **Calories** note above its Nutritional Analysis table: it leads with how much of the calorie total comes from measured values, then names each food, so you know when the total is approximate or too low. See [Checking your data](#checking-your-data) for every other check. To fix a food, open it and use **Refresh from USDA** (for a USDA food), **Fill in nutrients from another food**, or edit its values directly.
 
 **Fetching missing data with Claude [AI](#gloss-ai).**{: #fetch} Some foods — especially branded or prepared items — arrive without amino acid data, and a few arrive missing even calories or protein. Check the boxes next to the foods you want (or click "Select all missing [AA](#gloss-aa) data" to grab every food currently missing it), then click **Fetch missing data from Claude AI**. (You can also start from the [missing nutrient data check](#data-completeness), or from the warning on a food's own page.) This builds a ready-to-send prompt and shows it on its own page with a **Copy prompt to clipboard** button.
@@ -649,7 +657,7 @@ Both Food Use pages have a **Substitute a food or recipe** panel for bulk-replac
 ### I. Using the Settings menu {: #settings}
 Settings is organized into thirteen numbered, collapsible sections:
 
-- **1. [Your Profile](#profile-setup)** — age, sex, weight, height, activity level (this drives all your daily nutrient targets), plus a checkbox enabling [oxalate](#oxalate) lookup and the [glycemic index lookup default](#gi).
+- **1. [Your Profile](#profile-setup)** — age, sex, weight, height, activity level (this drives all your daily nutrient targets), plus a checkbox enabling [oxalate](#oxalate) lookup, your [glucose tolerance](#gi-impaired) (the [GI](#gloss-gi) lookup default, and which advice [GI](#gloss-gi) notes give you), and an optional [daily glycemic load target](#gl-target).
 - **2. Computed Daily Targets** — see [Part 6](#daily-nutrient-targets).
 - **3. Dietary Preferences** — affects complement suggestions, [B12/iron/zinc guidance](#diet-bioavailability), and (see [Dietary Preferences](#diet)) every search and lookup in the program.
 - **4. Keyboard Shortcuts** — see [Finding your way around](#web-shortcuts).
@@ -723,7 +731,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 1 hour, 21 minutes)*
+*(Reading time: 1 hour, 40 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
 Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
@@ -762,6 +770,10 @@ The amino acid completeness categories NuMa uses are derived from the work of th
 
 These foods can mathematically close a specific amino acid gap with a practical amount (up to 300 g). A gap closer has a high enough ratio of the [limiting amino acid](#gloss-limiting-amino-acid) to protein that adding it to the base food brings that amino acid's score to 1.0 (the [FAO](#gloss-fao) reference floor).
 
+To work out the amount, NuMa counts each food at its own digestibility: your meal at its own, and the added food at its own. A well-digested food like soy protein isolate therefore isn't undercounted when it's added to a less digestible meal. NuMa tries the gaps in order, most limiting first, and the amount shown is for the first gap that food can close. If a food can't close the main gap in a practical amount, but can close another one, the suggestion says which gap its amount is for.
+
+**How much of a food NuMa will suggest.** Every suggestion stays within a most-per-meal amount for that food, so you're never told to add four cups of nutritional yeast. If you've saved your own limit for the food, that's what's used. Otherwise it's three of the food's label servings (two servings for a recipe). Failing that, it's a default for the kind of food: 15 g for seasonings and nutritional yeast, 40 g for protein powders and for seeds and nuts, 60 g for cheese, and 300 g for anything else. If closing the gap would take more than that, the suggestion shows the food at its limit, says how much full closure would take, and shows how far the limit gets you. A **Use the full amount this time** box lifts the limit for that page only. To set the limit for good, type it in the **Most I'd add to a meal** box under the suggestion and press **Save limit for this food**. Clear the box and save to go back to the default. The booster steps under DIAAS-Boosting Options stop at the same limit.
+
 Each suggestion shows:
   - The food's or recipe's name, linked to its own page (it opens in a new tab, so the analysis stays as it was; a generic estimate from the built-in list has no page and isn't linked)
   - Grams to add
@@ -773,7 +785,7 @@ Each suggestion shows:
 
 A **Sort by** dropdown above the list lets you pick how Tier 1 options are ranked:
 
-  - **Greatest [DCP](#gloss-dcp) achieved** (the default) — the option that leaves the most total bioavailable complete protein after adding it.
+  - **Greatest [DCP](#gloss-dcp) achieved** (the default) — the option that leaves the most total bioavailable complete protein after adding it, at the amount shown. The ranking uses exactly the figure each option displays as its total digestible complete protein. On a meal, day or recipe that figure is recalculated from every ingredient's own amino acids and digestibility. A note under the list says how it was worked out.
   - **Most digestible protein added** — the option contributing the most digestible protein on its own, regardless of how well it targets the limiting amino acid.
   - **Greatest effect on amino acid gap** — the option closing the most amino acid gaps, then (as a tiebreaker) improving the limiting amino acid's score the most.
   - **Smallest addition (in grams)** — the option needing the fewest grams.
@@ -851,7 +863,7 @@ See also [complement suggestions](#comp) for the full complement suggestion syst
 
 
 ### E. Protein Completeness {: #complete}
-A protein is "complete" when it supplies all nine essential amino acids at or above the [FAO](#gloss-fao) 2013 reference amounts, adjusted for digestibility. Essential amino acids cannot be made by the body — they must come from food.
+A protein is "complete" when it supplies all nine essential amino acids at or above the [FAO](#gloss-fao) 2013 reference amounts, adjusted for digestibility[^16]. Essential amino acids cannot be made by the body — they must come from food.
 
 Most animal proteins are complete. Most plant proteins are not, but combining plant foods across a day can produce a complete profile — see [Protein Complement Suggestions](#comp).
 
@@ -872,9 +884,40 @@ A food with 30 g of protein but a [DIAAS](#gloss-diaas) of 0.70 and several amin
 
 NuMa shows [DCP](#gloss-dcp) in the bioavailability section of food and recipe analysis. See also [DIAAS](#diaas) and [Protein Completeness](#complete).
 
+#### Protein per meal {: #protein-per-meal}
+<span id="protein-distribution"></span><span id="protein-per-meal-amount"></span>
+*Search terms: protein per meal, protein distribution, how much protein in one meal, leucine threshold, muscle protein synthesis.* For **when** to eat it — around exercise, before sleep, at breakfast — see [When to eat protein](#protein-timing).
+
+How much protein you eat in a day matters most. But how it's spread across the day matters too: muscle is built and repaired in bursts after each meal, and a meal with too little protein triggers only a small burst. So besides the daily target, it helps if most meals carry a worthwhile amount.
+
+**The per-meal amount NuMa uses** comes from your profile ([Settings](#settings) → 1. Your Profile):
+
+| You | Per meal | Leucine per meal | Source |
+|---|---|---|---|
+| Under 65 | 0.25–0.4 g per kg of body weight (for 70 kg: 17.5–28 g) | 0.7–3 g | lower end: International Society of Sports Nutrition[^65]; upper end: Schoenfeld & Aragon[^66] |
+| 65 and over | 25–30 g | about 2.5–2.8 g | [PROT-AGE Study Group](#gloss-prot-age)[^67] |
+| No profile set | 20–40 g | 0.7–3 g | International Society of Sports Nutrition[^65] |
+
+Older bodies respond less to a small dose of protein (sometimes called *anabolic resistance*), which is why the 65-and-over figure is higher and isn't scaled down for lighter people.
+
+**Where NuMa shows it.**
+
+- **A meal's page**, under **Protein Summary**: the meal's protein and leucine, and whether it reaches the lower end of your per-meal amount.
+- **A day's pages** (the day view and the Daily Summary for a date), under **Protein Quality — Full Day**: each meal's protein and leucine, and how many of the day's meals reached it.
+
+**Why it uses DCP.** The studies behind these figures used high-quality protein — dairy, egg, meat, soy. [DCP](#gloss-dcp) is NuMa's measure of exactly that: the protein that's both digestible and complete. So a meal of 30 g raw protein from foods with a low [DIAAS](#gloss-diaas) can fall short while its raw figure looks ample. Where a meal's [DCP](#gloss-dcp) can't be worked out (its foods lack amino acid data), NuMa compares raw protein instead and says so. Leucine is the amino acid most closely tied to switching on muscle building, which is why it's shown alongside; it's the raw amount in the meal's foods.
+
+**What it doesn't do.**
+
+- **It never flags a meal as "too much".** The long-held idea that the body can only use 20–25 g of protein at once has been overturned: a large dose produces a larger and longer-lasting response[^68]. A big meal is fine; the point is not to have meals with too little.
+- **It doesn't check timing.** The sports guidance suggests such meals every 3–4 hours[^65], but NuMa doesn't record what time you ate, so it counts meals, not hours. What the research says about timing is in [When to eat protein](#protein-timing).
+- **It's about muscle, not your daily total.** Meeting the per-meal amount doesn't replace your daily protein target — see [Daily Nutrient Goals](#goals).
+
+These figures come mostly from studies of muscle protein synthesis in healthy adults, many of them active. They're a sensible guide for anyone wanting to keep or build muscle — especially older adults — not a medical prescription. If you have kidney disease or another condition that limits protein, follow your clinician's advice instead.
+
 
 ### G. DIAAS — Digestible Indispensable Amino Acid Score {: #diaas}
-[DIAAS](#gloss-diaas) measures how well your body can actually use the protein in a food. A score of **1.0** means the protein fully meets the [FAO 2013 amino acid reference standard](#fao) after accounting for digestibility. Scores above 1.0 are excellent; below 1.0 means one or more amino acids fall short.
+[DIAAS](#gloss-diaas) measures how well your body can actually use the protein in a food. A score of **1.0** means the protein fully meets the [FAO 2013 amino acid reference standard](#fao) after accounting for digestibility[^16]. Scores above 1.0 are excellent; below 1.0 means one or more amino acids fall short.
 
 Animal proteins typically score 1.0 or above. Most plant proteins score below 1.0, though some (pea protein, soy) come close. Digestibility matters because some protein in food is never absorbed — it passes through unchanged or is broken down by gut bacteria rather than used by your body.
 
@@ -987,6 +1030,28 @@ The [FAO](#gloss-fao) (Food and Agriculture Organization of the United Nations) 
 NuMa uses this pattern as the benchmark for all protein quality scoring: completeness, gaps, and complement calculations. A score of **1.0** for an amino acid means the food exactly meets the [FAO](#gloss-fao) reference for that amino acid; above 1.0 exceeds it; below 1.0 falls short.
 
 The [FAO](#gloss-fao) 2013 pattern replaced an older 1991 standard and is the current international reference for protein quality assessment.
+
+#### The reference values {: #fao-reference-values}
+<span id="fao-values"></span>
+These are the nine numbers every protein-quality figure in NuMa is measured against — the 2013 report's scoring pattern for older children (over 3), adolescents and adults[^16]:
+
+| Essential amino acid | mg per g of protein |
+|---|---:|
+| Histidine | 16 |
+| Isoleucine | 30 |
+| Leucine | 61 |
+| Lysine | 48 |
+| Sulfur amino acids ([Met+Cys](#gloss-met-cys)) | 23 |
+| Aromatic amino acids ([Phe+Tyr](#gloss-phe-tyr)) | 41 |
+| Threonine | 25 |
+| Tryptophan | 6.6 |
+| Valine | 40 |
+
+**How to read it.** A protein meets the reference for leucine if each gram of it supplies at least 61 mg of leucine — after [digestibility](#gloss-tid) is taken into account. Divide what a food actually supplies by these figures and you get the score for each amino acid; the lowest score is the food's [DIAAS](#gloss-diaas), and that amino acid is its [limiting amino acid](#gloss-limiting-amino-acid). [Appendix F](#appendix-diaas-validation) works a real meal through every step.
+
+**Why pairs.** Methionine and cysteine are scored together, as are phenylalanine and tyrosine, because the body makes cysteine from methionine and tyrosine from phenylalanine — what matters is the pair's total.
+
+**One pattern, for everyone over 3.** The report also gives higher patterns for infants and for children from six months to three years, whose growth needs more of each amino acid per gram of protein. NuMa uses the over-3 pattern throughout; it isn't meant for planning a young child's diet.
 
 
 ### K. Amino Acid Gaps {: #gap}
@@ -1135,11 +1200,13 @@ For background on [oxalates](#gloss-oxalate) and kidney health, see the Harvard 
 
 
 ### N. Glycemic Index {: #gi}
+<!-- t:26-10-10 -->
+
 The glycemic index ([GI](#gloss-gi)) measures how quickly a carbohydrate-containing food raises blood glucose compared to pure glucose ([GI](#gloss-gi) = 100). Low-[GI](#gloss-gi) foods (55 or below) produce a slower, more gradual rise; high-[GI](#gloss-gi) foods (70 and above) cause a faster spike.
 
 **Every [GI](#gloss-gi) figure NuMa shows is one you put there.** Nothing looks [GI](#gloss-gi) up automatically, because no nutrient [database](#gloss-database) NuMa draws on carries it — so a food shows a [GI](#gloss-gi) if, and only if, you supplied one, either by typing it in or by picking a row from the bundled reference table (see [Where GI values come from](#gi-source-para) below). Choosing which published value fits a food is a judgment call, and it stays yours; NuMa won't make it for you. Once saved, the value appears in the **GI** column wherever that food is listed — Food Cache, Pantry, food search, a meal's add-food panel — on the food's own page, and in any glycemic load NuMa computes from it.
 
-**What it's good for.** [GI](#gloss-gi) is at its most reliable comparing like with like, where the two foods differ in one respect you're choosing between — this bread against that bread, parboiled rice against sticky rice. But it is genuinely useful across categories too, whenever two foods are candidates for the same job: bread and rice at breakfast really do behave differently, largely because of physical form, and [GI](#gloss-gi) is what tells you so. What *doesn't* survive the comparison is quantity. [GI](#gloss-gi) is measured on a fixed dose of available carbohydrate (usually 50 g) rather than on a serving of food, so two foods with the same [GI](#gloss-gi) can have very different effects at the amounts you'd actually eat. That's what glycemic load is for — see [Glycemic Load](#gl).
+**What it's good for.** [GI](#gloss-gi) is at its most reliable comparing like with like, where the two foods differ in one respect you're choosing between — this bread against that bread, parboiled rice against sticky rice. But it is genuinely useful across categories too, whenever two foods are candidates for the same job: bread and rice at breakfast really do behave differently, largely because of physical form, and [GI](#gloss-gi) is what tells you so. What *doesn't* survive the comparison is quantity. [GI](#gloss-gi) is measured on a fixed dose of available carbohydrate (usually 50 g) rather than on a serving of food, so two foods with the same [GI](#gloss-gi) can have very different effects at the amounts you'd actually eat. That's what the glycemic load number is for — see [Glycemic Load](#gl).
 
 **What it doesn't capture.** [GI](#gloss-gi) describes a food eaten alone. Combining foods in a meal (especially adding fat, protein, or fiber) physiologically blunts the blood glucose response to the carbohydrates present, by slowing gastric emptying and glucose absorption. However, this effect is not fully captured by glycemic load ([GL](#gloss-gl)) either — see [Glycemic Load](#gl) for why.
 
@@ -1147,7 +1214,7 @@ NuMa displays [GI](#gloss-gi) for reference only and does not use it in protein 
 
 **Where [GI](#gloss-gi) values come from.**{: #gi-source-para} Neither [USDA](#gloss-usda) nor Open Food Facts[^3] tracks [GI](#gloss-gi), so NuMa can't look it up automatically the way it does for calories or protein — you have to supply it, but NuMa makes that easy. Every food's [Food Cache](#food-cache-web) → **Annotate** page has a **"Look up a GI value from the published reference table"** section: type the food's name (already pre-filled for you), pick which subject population you want — normal glucose tolerance, impaired glucose tolerance/diabetes, or both — and NuMa searches the full published reference table[^8] — about 2,500 foods as shipped, or over 4,000 if you [add the newer edition](#gi-editions) — and lists every plausible match, not just its single best guess. Click **Use this GI value** next to whichever one actually matches your food and its value fills the [GI](#gloss-gi) field; nothing is written until you save the annotation.
 
-The first time you add a new food to your Pantry or a meal, NuMa also offers to prompt you for its [GI](#gloss-gi) value right there, so your data builds up naturally through normal use even without visiting Annotate directly.
+When you add a food to your Pantry or a meal and it has no [GI](#gloss-gi) or [DIAAS](#gloss-diaas) estimate yet, NuMa offers to take you to its Annotate page to add them — and keeps offering each time until you save that page once (leaving a value blank on purpose counts). Adding a food to a recipe doesn't prompt. That way your data builds up naturally through normal use, even without visiting Annotate directly.
 
 #### Normal and impaired — which people a value was measured in {: #gi-populations}
 
@@ -1155,15 +1222,86 @@ Every search result is labelled with the subject group the value was actually me
 
 * **Normal glucose tolerance** — ordinary healthy volunteers. This is the bulk of the table and the default assumption behind any [GI](#gloss-gi) figure you see quoted anywhere.
 
-* **Impaired glucose tolerance** — people with type 1 or type 2 diabetes, gestational diabetes, or diagnosed impaired glucose tolerance. Where the table gives the number of subjects, NuMa shows that too (`Type 2, n=9`), because a nine-person study and a thirty-person study do not deserve equal weight.
+* **Impaired glucose tolerance** — people with type 1 or type 2 diabetes, gestational diabetes, or diagnosed impaired glucose tolerance ([what this covers, and how to use such a value](#gi-impaired)). Where the table gives the number of subjects, NuMa shows that too (`Type 2, n=9`), because a nine-person study and a thirty-person study do not deserve equal weight.
 
 * **Subject group not stated** — the table didn't record who the value was measured in. These appear in *both* the normal and impaired lists rather than being hidden from both, since a value with an unrecorded population is still a real measurement; the label tells you to treat it cautiously.
 
-**If you have normal glucose tolerance**, prefer a normal-tolerance result whenever one exists for your food. Use an impaired one when it's all there is, and treat it as a rough indication rather than a number to plan around.
+Which of these to pick for your own foods is covered next.
 
-**If you have diabetes, pre-diabetes or insulin resistance**, the impaired-tolerance values are the ones measured in people like you, and are worth preferring where they exist. See also the [GI](#gloss-gi) caveats in [Appendix C](#appendix-gl-comparison).
+#### Choosing a GI value — which result to use for a food {: #choosing-gi-values}
+<span id="gi-value-choice"></span><span id="choosing-gi-value"></span><span id="which-gi-value"></span><span id="picking-a-gi-value"></span><span id="gi-population-choice"></span>
+*Search terms: choosing GI values, GI value choice, which GI value to use, picking or selecting a GI, best GI result, normal or impaired glucose tolerance, GI for diabetes.*
 
-By default the lookup searches both populations at once. If you'd rather it default to just one — say, you have diabetes and always want the impaired-tolerance values shown first — set **Glycemic index lookup default** under [Settings](#settings). You can still switch populations for any individual lookup regardless of that default.
+A lookup on a food's Annotate page often lists several plausible results with different [GI](#gloss-gi) values. Which one you save matters more than anything else about your [GI](#gloss-gi) data: every [glycemic load](#gl) NuMa shows for that food, and for every meal and recipe that uses it, follows from it.
+
+**First, pick the population that matches you.**
+
+- **If you have normal glucose tolerance**, prefer a normal-tolerance result whenever one exists for your food. Use an impaired one when it's all there is, and treat it as a rough indication rather than a number to plan around — see [using such a value](#gi-impaired).
+- **If you have diabetes, pre-diabetes or insulin resistance**, the impaired-tolerance values are the ones measured in people like you, and are worth preferring where they exist — best of all those whose subjects had your own type (type 1 or type 2).
+
+Setting **Your glucose tolerance** under [Settings](#settings) → 1. Your Profile makes the lookup show your population's results first, and tailors the notes NuMa shows beside impaired-tolerance values.
+
+**Then, among the results for your population, prefer in this order:**
+
+1. **The same food, prepared the same way.** Boiled versus baked, whole grain versus flour, and cooking time all change [GI](#gloss-gi) a lot.
+2. **Rows not flagged "non-ISO method"** — studies that followed the international measuring standard, [ISO](#gloss-iso) 26642 ([more](#gi-method-quality)).
+3. **More recent studies, with more people tested and a smaller ± (standard error).** See [How to read a lookup result](#gi-result-row).
+
+**If nothing is a genuine match, leave the value blank.** No value is better than a wrong one: a blank shows up honestly as a gap ("at least…", "covers N% of the carbohydrate"), while a wrong number looks exactly like a right one.
+
+See also the [GI](#gloss-gi) caveats in [Appendix C](#appendix-gl-comparison).
+
+#### Daily glycemic load target {: #gl-target}
+
+An optional personal ceiling for a whole day's [GL](#gloss-gl), set under **Settings → 1. Your Profile** (**Daily glycemic load target**; leave it blank to turn it off). It's a *limit*, shown the way a nutrient's maximum is: under it is good. Not sure what number to use? **Help me choose a target**, right under the box, offers three starting points with their reasons — see [Choosing a daily glycemic load target](#gl-target-choose).
+
+Where it shows, once set:
+
+- **A day's pages** (the day view, the Daily Summary for a date, the day printout) — under the Glycemic Load figure: "Your daily target: 80 — 64%", or "— over it" in the over-limit colour, or "close to it" from 80% up.
+- **Recent Days** — the **Day GL** figure is coloured against the target; hover for the percentage.
+- **Nutrient averages across days** — how many days in the window were over it.
+- **[What-if: Meals](#whatif-gl)** — days over it *before and after* your changes. An average can sit comfortably under the target while several days are over it; this count shows those days, and whether a change fixes them.
+
+**Days with missing GI values.** A day's [GL](#gloss-gl) counts only foods with a [GI](#gloss-gi), so it's a lower bound when some are missing. If that lower bound is already over the target, the day is over for certain and is shown so. If it's under, NuMa says it can't tell yet rather than calling it under — the missing foods could push it over.
+
+Like the rest of your profile, the target is [pinned to each day](#day-profile) as it's logged, so changing it later doesn't rewrite how past days were scored.
+
+#### Choosing a daily glycemic load target {: #gl-target-choose}
+
+**There is no official number.** No diabetes or nutrition guideline sets a daily [GL](#gloss-gl) target. The American Diabetes Association's Standards of Care set none, and the UK's NICE (National Institute for Health and Care Excellence) and Diabetes Canada recommend low-[GI](#gloss-gi) carbohydrate choices without giving a figure[^64]. The research shows a slope, not a line: across large long-term studies, the risk of type 2 diabetes rises steadily with daily [GL](#gloss-gl), with no level below which it stops mattering[^63]. So any target is a point you choose on that slope — lower is better, on average — and the useful question is which starting point suits you.
+
+**Help me choose a target**, under the target box in [Settings](#settings) → 1. Your Profile, offers three. Click one to fill the box, then save.
+
+1. **Scaled to your calorie target (recommended).** 80 × your daily calorie target ÷ 2,000 — for example, 96 for 2,400 kcal, 64 for 1,600. *Who it suits:* most people. It starts from the University of Sydney GI Foundation's description of a "moderate" [GL](#gloss-gl) diet, an average daily [GL](#gloss-gl) under 80 per 2,000 kcal[^61], and scales it to how much you actually eat, so a large or active person isn't held to a small person's number. NuMa takes your calorie target from your profile (see [Daily Nutrient Goals](#goals)). *Limits:* the Foundation states the figure without saying what study it comes from.
+2. **The common convention: 80.** *Who it suits:* anyone who wants the figure most often quoted for a "low glycemic load day", the same for everyone. *Limits:* it's widely repeated — for example by the UK's advertising regulator — but nobody cites a study for it[^62], and it doesn't allow for body size or activity. For someone eating well over 2,000 kcal, option 1 is fairer.
+3. **A step down from where you are.** Your own average daily [GL](#gloss-gl) over the last 30 days, minus 10–20% (NuMa fills in the middle of that range). *Who it suits:* someone who wants a gradual, achievable change rather than a jump to an outside number — and whose current average is already near or below the others, who'd learn nothing from them. *Limits:* it's not a published target; it rests only on the finding that lower is better on average[^63]. It needs at least 7 days in those 30 with a complete [GL](#gloss-gl) (every food with carbohydrate has a [GI](#gloss-gi)); fewer, and NuMa doesn't offer it, since the average would mean little.
+
+**If you have diabetes, pre-diabetes or insulin resistance**, set the number with your doctor or dietitian. Any of the three can be a starting point for that conversation, but none is a treatment target, and your own glucose readings ([CGM](#gloss-cgm), if you use one) are the better guide — see [Appendix C](#appendix-gl-comparison).
+
+#### What "impaired glucose tolerance" means here, and using such a value {: #gi-impaired}
+
+**It's NuMa's umbrella label, not one condition.** Strictly, IGT (impaired glucose tolerance) is a specific finding: blood glucose two hours after a standard glucose drink of 7.8–11.0 mmol/L (140–199 mg/dL) — higher than normal, below the diabetes threshold, one of the forms of "pre-diabetes". NuMa uses the phrase more broadly, for every value *not* measured in people with normal glucose tolerance. In the 2021 tables that means rows whose subjects had:
+
+* **type 2 diabetes** — the large majority;
+* **type 1 diabetes** — about one row in five;
+* **gestational diabetes** (diabetes first appearing in pregnancy), **IGT** in the strict sense, or a **mixed** group — a handful each.
+
+The lookup result shows which (`Type 2, n=9`), and so does "Value taken from" on the food's page once you've saved it. In the 2008 tables, the whole second list of values (measured in "subjects with impaired glucose tolerance or diabetes") gets this label; that edition doesn't break it down further.
+
+**Why the group matters, and why it often matters less than you'd think.** A [GI](#gloss-gi) is a *ratio*: each subject's blood-glucose rise after the food, divided by the same subject's rise after pure glucose. Because each person is their own yardstick, much of the difference between people cancels out, and comparisons of the same foods in people with and without diabetes have generally found the average values broadly similar. But "broadly similar on average" isn't "the same": results vary more from person to person in people with diabetes, and in type 1 diabetes the result also depends on the insulin given with the test meal. The international standard for measuring [GI](#gloss-gi) ([ISO](#gloss-iso) 26642) calls for healthy subjects, so normal-tolerance values are the reference ones.
+
+**If you do *not* have diabetes, pre-diabetes or insulin resistance**, and the only value for a food was measured in this group:
+
+1. **Look for a normal-tolerance row first** — the same food, or a very close one. If there is one, use it instead.
+2. **Otherwise, use the value as an approximation.** It's usually in the right range — good enough to tell a low-[GI](#gloss-gi) food from a high one — but don't read much into small differences. Two foods 5–10 points apart may not really differ for you.
+3. **Prefer type 2 over type 1 rows**, and larger studies (higher *n*) over smaller ones, when you have a choice.
+4. **When comparing two foods, try to use values from the same group** for both, so the comparison isn't skewed by the groups rather than the foods.
+
+**If you do have diabetes, pre-diabetes or insulin resistance**, these are the values measured in people like you — prefer them, and the closer the match (type 2 rows if you have type 2), the better. Whatever group a value comes from, your own response is the final word: see [Continuous Glucose Monitoring](#appendix-gl-comparison) in Appendix C.
+
+**Where NuMa reminds you.** Once you've saved a value picked from an impaired-tolerance row, NuMa marks it wherever it matters: a note under the value on the Annotate page and the food's own page; a **†** beside its [GI](#gloss-gi) in Top Contributors ranked by glycemic load and in [lower-GI swap](#gl-swaps) suggestions; and, under a meal's, recipe's or day's Glycemic Load figure, a line naming each food whose [GI](#gloss-gi) came from such a row. What the note says depends on **Your glucose tolerance** under [Settings](#settings) → 1. Your Profile: set to impaired, it tells you the value fits you (best when the study's subjects had your own type); set to normal, it tells you to treat the value as an approximation and prefer a normal-tolerance one where the table has it; not set, it gives both readings and offers a link to set it. A value you typed by hand, or picked from a normal-tolerance or not-stated row, isn't marked.
+
+By default the lookup searches both populations at once. If you'd rather it default to just one — say, you have diabetes and always want the impaired-tolerance values shown first — set **Your glucose tolerance** under [Settings](#settings). You can still switch populations for any individual lookup regardless of that default.
 
 #### Method quality, and why some rows are flagged {: #gi-method-quality}
 
@@ -1259,7 +1397,7 @@ But they differ in ways that matter for a bulk local lookup table. The published
 That's why NuMa's built-in table comes from the published tables, and why glycemicindex.com is listed in [Internet resources](#internet-resources) as a manual look-up fallback rather than something NuMa imports from directly.
 
 ### O. Glycemic Load {: #gl}
-Glycemic load ([GL](#gloss-gl)) improves on the glycemic index by accounting for both the quality and the quantity of carbohydrate in a serving. The formula is:
+Glycemic load ([GL](#gloss-gl)) improves on the glycemic index by accounting for both the quality and the quantity of carbohydrate in a serving[^69]. The formula is:
 
 ```
 GL = (GI × grams of available carbohydrate) / 100
@@ -1299,6 +1437,25 @@ NuMa shows [GL](#gloss-gl) for every food (per 100 g, and for the exact portion 
 
 For a discussion of how [GL](#gloss-gl) compares to other approaches for evaluating the blood glucose impact of different meal choices — particularly relevant for people managing diabetes — see [Appendix C: GL and Blood Glucose Comparison](#appendix-gl-comparison).
 
+
+#### What you can do with GI and GL {: #gl-uses}
+
+[GI](#gloss-gi) values are only worth entering if they help you choose. Here's how NuMa puts them to work, roughly in the order you'd use them.
+
+1. **Read a meal's or recipe's [GL](#gloss-gl) and its band.** It's under **Glycemic Load** on the meal or recipe page (one serving for a recipe), against the per-serving scale; a whole day's, on the day's pages and in the **Day GL** column of Recent Days, against the larger day scale. A line under every band says which scale it's on.
+2. **See which foods drive it.** The **Which foods drive it, and lower-GI swaps to try** link under the figure ranks the foods by their share of the [GL](#gloss-gl) ([Top Contributors](#top-contributors)). Usually one or two foods carry most of it.
+3. **Change one of those.** Three levers, in rough order of effect: a **smaller portion** of the top food ([GL](#gloss-gl) halves when the portion does); a **swap** to a similar food with a lower [GI](#gloss-gi) — NuMa [suggests some](#gl-swaps) from your own foods; or **pairing** it with fat, protein, fiber or acid (vinegar, lemon), which slows absorption — real, but not something the [GL](#gloss-gl) number can show (see [why](#gl)).
+4. **Check the whole picture before you commit.** Every swap suggestion opens [What-if](#whatif-gl) with the swap filled in: [GL](#gloss-gl) before and after, and every other nutrient too, for one meal, the last 30 days, or a recipe. Nothing changes until you choose to apply it.
+5. **Compare candidates side by side.** [Compare](#compare-gl) shows [GI](#gloss-gi) and [GL](#gloss-gl) per 100 g for up to 8 foods and recipes, lowest [GL](#gloss-gl) highlighted.
+6. **Set a daily target, if it helps.** An optional [daily glycemic load target](#gl-target) checks every day against a ceiling of your choosing — and What-if counts the days over it before and after a change.
+7. **Watch the trend, not the day.** Average daily [GL](#gloss-gl) over a week or more ([Nutrient averages across days](#trend)), or the [GL](#gloss-gl) line in the Nutrient Plot, says more than any single day.
+8. **Keep the figures honest.** A [GL](#gloss-gl) only counts foods with a [GI](#gloss-gi); "at least" and "covers N% of the carbohydrate" mean some are missing. [Foods you use with no GI](#missing-gi) on Foods → 9 lists them, most-used first. And a value measured in people with diabetes is marked — [what that means for you](#gi-impaired).
+
+**A worked example.** Say a dinner is 200 g of cooked white rice with chicken and broccoli. Chicken and broccoli have almost no carbohydrate, so the rice is the whole story. Cooked white rice is about 28 g carbohydrate per 100 g ([USDA](#gloss-usda)), so 200 g is about 56 g. The bundled table's "Medium grain white rice, boiled 12 mins" has a [GI](#gloss-gi) of 75: [GL](#gloss-gl) = 75 × 56 ÷ 100 ≈ **42 — High** (20 or more).
+
+Cooked pearled barley also has about 28 g carbohydrate per 100 g, and the table's "Barley, pearled, boiled 60 min" has a [GI](#gloss-gi) of 35. The same 200 g: 35 × 56 ÷ 100 ≈ **20** — less than half, on the High/Medium line. Same amount of food, same carbohydrate; only the kind of carbohydrate changed. (Halving the rice to 100 g instead would give about 21 — similar, but by eating less.)
+
+To try it on your own data: give both foods a [GI](#gloss-gi) from the lookup on their Annotate pages, rank the meal's Top Contributors by glycemic load, and follow the barley suggestion's **see the full effect in What-if** link — it shows the same drop in [GL](#gloss-gl), plus what the swap does to fiber, protein and the rest. Your figures will differ a little with the exact foods and values you pick.
 
 ### P. Recommended Dietary Allowances {: #rda}
 [RDA](#gloss-rda) values in NuMa come from the Dietary Reference Intakes ([DRI](#gloss-dri)) published by the U.S. National Academies of Sciences, by way of the **NIH** (National Institutes of Health) **ODS** (Office of Dietary Supplements)[^9]. Here is the ODS's own definition, word for word:
@@ -1723,9 +1880,45 @@ Until then, an ingredient without amino acid data is simply left out of the prot
 
 ---
 
+### Z. When to eat protein {: #protein-timing}
+<span id="when-to-eat-protein"></span><span id="protein-timing-exercise"></span><span id="nutrient-timing"></span>
+*Search terms: protein timing, when to eat protein, protein before or after exercise, anabolic window, workout, resistance training, endurance, protein before bed, pre-sleep protein, breakfast protein, time of day, meal timing.*
+
+What the research says about *when* to eat protein, as distinct from [how much per meal](#protein-per-meal). Most of it comes from studies of muscle building in healthy, often young and trained, adults; where a finding is narrower than that, it says so.
+
+#### First: the daily total matters most
+
+Before any question of timing, the biggest single factor is how much protein you eat over the day. The International Society of Sports Nutrition (ISSN) puts meeting the daily total — "preferably with evenly spaced protein feedings" — as the primary emphasis[^70]. When studies of protein "timing" are corrected for the fact that the timed group often simply ate more protein, most of the timing effect disappears[^71]. And extra protein stops adding muscle at around 1.6 g per kg of body weight a day in people doing resistance training[^72]. So: get the daily total right first; timing is the refinement.
+
+#### Spread it across the day
+
+The best-supported timing advice is to **spread protein fairly evenly over your meals**, rather than eating most of it at dinner. In a controlled study, the same daily protein eaten as about 30 g at each of three meals produced 25% more muscle protein synthesis over 24 hours than the typical pattern of little at breakfast and a lot at dinner[^73]. The [ISSN](#gloss-issn) suggests 20–40 g every 3–4 hours[^70]. This is what NuMa's [protein per meal](#protein-per-meal) check helps with: aim for most meals to reach your per-meal amount.
+
+#### Around exercise
+
+- **After resistance exercise** (weights, bodyweight strength work): protein "immediately to 2 hours" afterwards strongly stimulates muscle building[^70]. But the old idea of a narrow "anabolic window" — a 30–60-minute window you must not miss — hasn't held up: once total protein is matched, protein eaten within an hour of training shows no clear advantage over protein eaten at other times[^71]. In practice, having a protein-containing meal within a couple of hours either side of a session covers it.
+- **Before exercise**: protein (or protein with carbohydrate) before *or* after training can both support strength gains[^70]; if you train soon after a meal that already contained protein, there's no need for more right after.
+- **After endurance exercise** (running, cycling, swimming): the priorities shift. Carbohydrate to refill muscle glycogen comes first, especially if you'll train again within the day; adding protein to it helps repair. When recovery time is short, the [ISSN](#gloss-issn) suggests carbohydrate with 0.2–0.4 g protein per kg per hour[^70]. In trained endurance athletes after a long ride, about 30 g of protein (roughly 0.5 g/kg) gave the maximum muscle-protein response, and more didn't help[^74]. Protein did not, however, increase the building of new mitochondria (the muscle's energy machinery) beyond what carbohydrate alone did — that adaptation comes from the training itself.
+- **Does the kind of exercise matter?** Yes, in what you pair protein with and why. After strength work, the goal is muscle building, and protein is the main lever. After long or hard endurance work, refuelling with carbohydrate matters most, with protein supporting repair. For mixed training, a meal with both covers both.
+
+#### Before sleep
+
+A dose of slowly digested protein before sleep can keep muscle building going overnight. The [ISSN](#gloss-issn) cites about 30–40 g of casein (the main protein in milk; cottage cheese and Greek yogurt are rich in it)[^70]. In young men doing a 12-week resistance programme, about 27.5 g of protein each night before sleep led to greater gains in muscle size and strength than a placebo[^75]. Most of this evidence is from young, training men; it's a reasonable option if your evening meal was light on protein, not a requirement.
+
+#### Time of day: is breakfast special?
+
+There's emerging evidence that protein early in the day may matter more for muscle than the same protein late in the day, linked to the muscle's own daily (circadian) clock. In mice, protein at the first meal of their active period built more muscle than protein at the last, an effect that vanished in mice with a disrupted muscle clock; and among 60 women aged 65 and over, those who ate a larger share of their protein at breakfast had better muscle function[^76]. The human part of that evidence is observational, so it shows association, not cause. But it points the same way as the distribution advice above: since breakfast is usually the lowest-protein meal, raising it is a good first step.
+
+#### What NuMa shows, and doesn't
+
+NuMa's [protein per meal](#protein-per-meal) check tells you which meals reached a worthwhile amount, and how many did each day — the practical heart of the advice above. NuMa doesn't record the time you ate or when you exercised, so it can't check timing around a workout or before sleep. A meal named for its role ("Post-workout", "Bedtime snack") at least lets you see those meals' protein at a glance in the day's per-meal list.
+
+These are guides for keeping and building muscle, not medical advice. If you have kidney disease or another condition that limits protein, follow your clinician's advice.
+
+
 ## Part 5 — Reading Your Results
 
-*(Reading time: 59 minutes)*
+*(Reading time: 1 hour, 4 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -1942,26 +2135,45 @@ A food logged more than once in the same meal — eaten twice on its own, or app
 Ranking by **Protein** is special: instead of raw protein grams, it ranks each food by its own standalone [digestible complete protein](#dcp) ([DCP](#gloss-dcp)) — what that food alone would contribute after accounting for amino acid digestibility and completeness, using the same [DIAAS](#diaas) math as Protein Summary above it, applied to that one food in isolation. A note below the table explains this distinction and links back to Protein Summary. Because combining foods can raise a meal's *actual* DCP above what any single food scores alone — [protein complementarity](#comp) is the whole point of [DIAAS](#gloss-diaas) — this table's total will typically be lower than, and should not be read as equal to, the real meal DCP shown in Protein Summary. Foods with no amino acid data on file don't score a DCP and are omitted from the ranking when Protein is selected.
 
 
+Ranking by **Glycemic load (GI × carbs)** (listed under Macronutrients, below Carbohydrate) ranks the foods by their [glycemic load](#gl): each food's [GI](#gloss-gi) times its carbohydrate grams, divided by 100, for the amount used. Each row shows the food's [GI](#gloss-gi) and how many grams of it are in the meal or recipe. Unlike protein quality, [GL](#gloss-gl) adds up, so these rows total the meal's or recipe's [GL](#gloss-gl). On a recipe, foods inside sub-recipes are listed individually, since a [GI](#gloss-gi) belongs to a food. Foods with carbohydrate but no [GI](#gloss-gi) can't be ranked; they're named underneath, each linked to its Annotate page so you can [look one up](#gi-source-para), with how much of the carbohydrate the ranking covers. The **Which foods drive it, and lower-GI swaps to try** link under a meal's or recipe's Glycemic Load figure opens this view directly.
+
+#### Lower-glycemic swaps {: #gl-swaps}
+When a meal's or recipe's [glycemic load](#gl) is Medium or High and you rank Top Contributors by glycemic load, NuMa suggests swaps for the one or two foods contributing most. A suggestion is a food in your own Food Cache that:
+
+- has a [GI](#gloss-gi) recorded, at least 5 points lower (published [GI](#gloss-gi) values vary by a few points between tests, so a smaller difference isn't a real improvement);
+- has similar carbohydrate per 100 g — within half again either way — so swapping the same weight changes the *kind* of carbohydrate, not how much you eat;
+- cuts the [GL](#gloss-gl) by at least 0.5 for the amount used.
+
+Foods that share a word with the original's name come first (brown rice for white rice), then the biggest cut. Each shows its [GI](#gloss-gi) and the [GL](#gloss-gl) it would have at the same weight.
+
+NuMa only knows the numbers. Whether barley belongs in your risotto is your call — so each suggestion has a **see the full effect in What-if** link that opens [What-if](#whatif) with that Replace already filled in, for this meal or recipe (on a meal, also **last 30 days**, across every meal you logged). There you see every nutrient before and after — fiber, protein, calories, not just [GL](#gloss-gl) — and nothing changes until you choose to apply it. See [Glycemic load in a what-if](#whatif-gl).
+
+Suggestions come only from foods you've given a [GI](#gloss-gi), and NuMa says so under them: how many foods that is, and how many foods you use have carbohydrate but no [GI](#gloss-gi), with a link to [that list](#missing-gi) on Foods → 9 so you can add some. If no suggestion qualifies, the same line appears in place of the suggestions.
+
 #### Protein Quality Table {: #protein-quality}
 Shows how a food's amino acid profile compares to the [FAO](#gloss-fao) 2013 reference pattern. Appears below the nutrient table when amino acid data is available.
 
-The header line tells you whether the protein is Complete (all nine essential amino acids at or above the [FAO](#gloss-fao) reference) or Incomplete (at least one is limiting), and which amino acid is most limiting.
+Above the table:
+
+  - **Digestibility** — the share of this food's protein your body absorbs (0.79 = 79%).
+  - **DIAAS** — the lowest score in the table's "After digestion" column. 1.0 or more means every amino acid meets the reference per gram of protein eaten.
+  - **Digestible protein** and **digestible complete protein** ([DCP](#gloss-dcp)), with what limits the DCP.
+  - Whether the protein is Complete (every amino acid at or above the reference after digestion) or Incomplete, and which amino acid is most limiting.
 
 Columns:
 
-    Amino Acid   Name, using FAO pair notation where applicable
-                 (Met+Cys, Phe+Tyr).
-    Raw ratio    Milligrams of this amino acid per gram of protein, divided
-                 by the FAO reference value. 1.0 = exactly meets the
-                 reference. Below 1.0 = limiting. Above 1.0 = surplus.
-    Adj.         Raw ratio multiplied by the food's DIAAS digestibility
-                 coefficient. Appears only when a DIAAS value is saved.
-                 The bar chart and completeness classification use this
-                 adjusted value when it is available.
-    Bar          Visual indicator: each full block represents 0.10, capped
-                 at 2.0 (20 blocks).
+    Amino Acid       Name, using FAO pair notation where applicable
+                     (Met+Cys, Phe+Tyr).
+    In the food      Milligrams of this amino acid per gram of the food's
+                     protein, divided by the FAO reference value. 1.0 =
+                     exactly meets the reference.
+    After digestion  The same, multiplied by the food's digestibility --
+                     what you actually absorb per gram eaten. This is the
+                     DIAAS way of scoring.
+    Status           Met (1.0 or more after digestion) or Short. Whether
+                     the protein counts as complete follows this column.
 
-Color: Green = at or above 1.0 (after adjustment if Adj. is present). Yellow = below 1.0.
+A food can have every amino acid met in the food and still be incomplete. Buckwheat is an example: its amino acids are all in the right proportion, but only 79% of its protein is absorbed, so per gram eaten Leucine and Lysine fall short. When that happens, a note under the table explains it. In that case all of the absorbed protein still counts as digestible complete protein. What limits the food is digestibility, not any one amino acid.
 
 See [DIAAS](#diaas) for the [DIAAS](#gloss-diaas) concept. See [limiting amino acid](#gap) to understand what "limiting" means. See [FAO reference values](#fao) for the [FAO](#gloss-fao) reference values used for each amino acid.
 
@@ -2443,6 +2655,18 @@ each row opens this page with that ingredient already entered, for the
 recipes that use it.
 
 
+#### Glycemic load in a what-if {: #whatif-gl}
+
+Both what-if pages show [glycemic load](#gl) before and after your changes, worked out from the same changed foods as every nutrient, at every depth.
+
+- **What-if: Meals** adds a **Glycemic load** column to the *Average per day* table: the average whole-day [GL](#gloss-gl), over the days that have carbohydrate. A line under the table gives its band on the day scale (Low under 80, Moderate 80–120, High over 120), before and after — and, if you've set a [daily glycemic load target](#gl-target), how many days were over it before and after, each day against its own pinned target.
+- **What-if: Recipes** adds a **Glycemic load** row at the end of the Macronutrients rows: [GL](#gloss-gl) per serving for each recipe, with its band on the per-serving scale (Low 10 or below, Medium 11–19, High 20 or above), and "(was …)" when the band changed.
+
+**Watch the coverage.** [GL](#gloss-gl) counts only foods with a [GI](#gloss-gi) value. Swap a food that has one for a food that doesn't, and the "after" figure drops — not because the new food is better, but because NuMa can't count it. So whenever some carbohydrate has no [GI](#gloss-gi), NuMa says how much of it the figure covers, before and after: "It covers 100% of the carbohydrate before and 0% after… the 'after' looks better than it is." The foods with no [GI](#gloss-gi) after the change are named, each linked to its Annotate page, where you can [look one up](#gi-source-para); on the Recipes page, a cell reads **≥** and "covers N% of carbs" (hover it for the foods). Add the missing [GI](#gloss-gi) and run the what-if again for a fair comparison.
+
+A typical use: on What-if: Meals, replace a High-[GI](#gloss-gi) staple you eat often (white rice, say) with a lower one (barley, say) at the same weight, and see what it does to your day's [GL](#gloss-gl) band — and, in the same table, to fiber, protein and everything else.
+
+
 #### Saving, downloading and applying a what-if {: #whatif-apply}
 Once a what-if is showing results, on either What-if page, a bar under the
 list of changes offers three things.
@@ -2496,7 +2720,7 @@ The daily bands are a convention rather than a validated clinical target, and a 
 
 **Where you see it:** a food's page shows [GL](#gloss-gl) per 100 g and for the portion you're analyzing; a recipe's page, for one serving (or however many servings you ask for); a meal's page, for the whole meal; and a day's pages, for the whole day. A recipe's [GL](#gloss-gl) is worked out from its ingredients, including any recipes used inside it, so it changes as soon as an ingredient or a [GI](#gloss-gi) value does.
 
-**When a figure reads "at least 14.2 — incomplete, missing GI data",** some foods in it have carbohydrate but no [GI](#gloss-gi) value, so their share couldn't be counted. The number is the [GL](#gloss-gl) of everything that *could* be counted, so the true figure is higher. The foods left out are listed underneath, each with the reason:
+**When a figure reads "at least 14.2 — incomplete, missing GI data",** some foods in it have carbohydrate but no [GI](#gloss-gi) value, so their share couldn't be counted. The number is the [GL](#gloss-gl) of everything that *could* be counted, so the true figure is higher. A line says how much of the carbohydrate the figure does cover — "GL covers 72% of the carbohydrate here (28 of 39 g)" — so you can tell a nearly complete figure from a rough one; foods marked "don't prompt me" are left out of that share. The foods left out are listed underneath, each with the reason:
 
 - **no GI recorded yet** — with an **add a GI** link to that food's Annotate page.
 - **no GI (marked "don't prompt me")** — you've told NuMa not to ask for this food's [GI](#gloss-gi), or turned GI off in Settings. It still can't be counted, so the figure is still incomplete; **add one anyway** is there if you change your mind.
@@ -2556,6 +2780,8 @@ Inside a recipe: ingredients that are part of a recipe you logged.
     Edit) and replacing the problematic ingredient there.
 
 It's safe to ignore when the affected food contributes negligible protein (garnish, spice, a small amount of fruit). It matters more when the food is a significant protein source in your meal. Foods contributing less than 1 g of protein are treated as negligible and left off this list entirely (a footnote tells you when items were omitted this way).
+
+**Turning this check off for a food.**{: #missing-aa-off} Some foods carry a little protein that doesn't matter for protein quality — a supplement, a seasoning blend, a food you eat for something else entirely. To stop NuMa listing one here, click **Amino acids not needed for this food — stop listing it** beside its name. NuMa marks the food's amino acids "not needed", the same mark as the **not needed** box on Foods → 9, so it also drops off that page's list of foods with no amino acid data and out of Claude AI prompts. It applies everywhere the food is used, not just this meal or recipe; a short line under the list counts the foods hidden this way. The food is still left out of the [DIAAS](#gloss-diaas) calculation — the mark stops the warning, it doesn't supply data. To undo it, open the food's own page and click **(undo)** beside *Amino Acids* under "Marked not needed for this food". The button works for a food inside a recipe too, since the mark belongs to the food.
 
 The [DIAAS](#gloss-diaas) calculation runs on whichever ingredients do have [AA](#gloss-aa) data. The result is flagged as an estimate, and the [DCP](#gloss-dcp) figure reflects only the protein from data-complete ingredients.
 
@@ -2707,7 +2933,7 @@ See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. 
 
 
 #### Comparison Tables {: #comparison}
-Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to three tables: an ingredient table, a protein-quality table, and a nutrient table. Every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so rather than ask you to pick amounts that don't match across items, the page fixes every item at the same 100 g footing.
+Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to four tables: an ingredient table, a protein-quality table, a glycemic table, and a nutrient table. Every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so rather than ask you to pick amounts that don't match across items, the page fixes every item at the same 100 g footing.
 
 **How a recipe's 100 g figure is worked out.**{: #comparison-estimate} A food's per-100g nutrients come straight from its cached data — no estimation involved. A recipe has no single "100 g" anything, so NuMa derives one: it adds up the raw weight of every ingredient in the recipe (each direct food ingredient contributes its own entered gram amount; a sub-recipe ingredient contributes its *own* recorded total weight ÷ its own servings, × how many of those servings this recipe uses), then scales the recipe's total nutrients — and, for the ingredient table, each ingredient's own amount — by 100 divided by that summed weight. This is always a fresh sum of the ingredients as entered; it does **not** read the recipe's own "total weight" field on its detail page (a figure you may have set by hand to account for cooking loss, water evaporating, etc.) — only a *sub*-recipe's own total weight feeds in, one level down, when it's used as an ingredient.
 
@@ -2716,6 +2942,8 @@ If any ingredient's weight can't be determined — a direct ingredient with a bl
 The **ingredient table** has one row per distinct ingredient name across the items you're comparing, one column per item, showing how much of that ingredient goes into 100 g of the finished item (or "--" if it isn't used, or if a recipe's ingredient weights are incomplete). A food entry shows itself as its own single "ingredient" — always "100 g," by definition. Ingredients shared by two or more items are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much, per 100 g of the finished dish. A sub-recipe used as an ingredient shows its (rescaled) serving count rather than being expanded into its own raw ingredients.
 
 The **protein-quality table** ([DIAAS](#diaas)-based) appears when at least one item has enough amino acid data to score: composite [DIAAS](#gloss-diaas) score, raw protein, digestible complete protein (DCP), DCP as % of raw protein, and the limiting amino acid — all per 100 g of the item, highest value per row highlighted, "--" for an item without enough data.
+
+The **glycemic table**{: #compare-gl} appears when at least one item has a [GI](#gloss-gi) or a [GL](#gloss-gl) to show: each food's [GI](#gloss-gi) (a recipe has no single [GI](#gloss-gi), so it shows —) and each item's [glycemic load](#gl) per 100 g — [GI](#gloss-gi) × carbohydrate ÷ 100, counting only foods with a [GI](#gloss-gi). Here **lowest** is highlighted, since less is better. A figure missing some foods' [GI](#gloss-gi) reads "≥" with how much of the carbohydrate it covers, and is never highlighted, since its true value is higher. A **†** marks a [GI](#gloss-gi) [measured in people with diabetes](#gi-impaired). Per 100 g suits comparing kinds of food; for what a real portion does, see the meal or recipe page.
 
 The **nutrient table** covers Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients), and Amino Acids (groups appear only when at least one item has data for that category), every value per 100 g, highest value per row highlighted in green, sortable by checked nutrients, rows where every item shows "--" hidden automatically. The items you chose are listed above the table — each also shows an **[AA](#gloss-aa)** column indicating at a glance whether it has amino acid data (✓) or not (✗).
 
@@ -2862,7 +3090,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 38 minutes)*
+*(Reading time: 40 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -3081,6 +3309,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 | [Amounts converted with a generic density](#generic-density) | A volume amount ("2 T") for a food with no cup or spoon weight of its own, converted with a generic density for that kind of food | Recipe and meal pages ("≈ generic" mark), Foods → 9 | Measure the food's cup or spoon weight and add it on its Portions page, then correct the amounts |
 | [Old USDA copies](#old-copies) | USDA foods not refreshed in over a year | Foods → 9 | **Refresh from USDA** shows what changed and lets you choose |
 | [Missing amino acid data](#missing-aa) | Foods with protein but no amino acid figures, left out of protein quality ([DCP](#gloss-dcp), [DIAAS](#gloss-diaas)) | Foods → 9 (foods you use, most-used first); meal, recipe and food pages; the [AA](#gloss-aa) column in search results, Food Cache and Pantry | Find a Foundation or [SR](#gloss-sr) Legacy version, refresh from USDA, or estimate from a similar food; or tick "not needed" |
+| [Missing GI values](#missing-gi) | A food you use with carbohydrate (5 g or more per 100 g) but no [GI](#gloss-gi), so [glycemic load](#gl) is incomplete wherever it appears and it can't be suggested as a [lower-GI swap](#gl-swaps) | Foods → 9 (foods you use, most-used first); any incomplete [GL](#gloss-gl) figure; Top Contributors ranked by glycemic load | Look one up on the food's Annotate page; or tick "not needed" (the same as "don't prompt me") |
 | [Missing portion weights](#ts-no-volume-portion) | A food with no cup, spoon or piece weight, so a volume or count can't become grams | Foods → 9 (foods you use, most-used first); recipe pages ("No portion/weight data exists"); when you type an amount | Add the weight once on the food's Portions page; or tick "not needed" if you always weigh it |
 | [Duplicate foods](#duplicate-foods) | Two or more foods with the same name, so a fix to one doesn't reach what uses the other | Foods → 9 → **Find duplicate foods** (on request) | Compare them, keep one (the rest are replaced by it everywhere), or mark "not duplicates" |
 | [Recipe weight unknown](#recipe-servings-grams) | A logged recipe whose serving weight can't be worked out; a recipe whose serving size changed after you logged it | Meal pages | Enter the recipe's total weight; review the meal as the page suggests |
@@ -3112,6 +3341,8 @@ The food's own **Portions page** shows the same list for that one food, right af
 **Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a generic density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages, Edit Recipe and meal pages mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
 
 **Foods you use with no amino acid data, or no portion weights.** These two lists on Foods → 9 could be long — dozens of foods for a well-used install — so each starts folded up, showing only its count, and lists only foods you actually use in a recipe, a meal or your pantry (an unused food affects no result), most-used first. Open one when you want to work through it. Tick **not needed** for a food that doesn't matter — a sprinkle of cheese with no amino acid data, a food you always weigh — and it stops being counted. Neither list raises the Home page reminder: they're improvements to make when you have time, not errors.
+
+**Foods you use with no GI.**{: #missing-gi} A third folded-up list on Foods → 9, built the same way: foods you use with 5 g or more carbohydrate per 100 g and no [GI](#gloss-gi) recorded, most-used first, with each one's carbohydrate per 100 g. Each one leaves [glycemic load](#gl) incomplete wherever it appears, and can't be offered as a [lower-GI swap](#gl-swaps) — swap suggestions only come from foods with a [GI](#gloss-gi), so this list is also how to get more and better suggestions. Click **look up a GI** beside a food to open its Annotate page with the reference-table lookup ([how](#gi-source-para)); saving brings you back to the list. Tick **not needed** for a food whose [GI](#gloss-gi) doesn't matter to you: it is the same as **don't prompt me** on its Annotate page, so the food stops being listed and a glycemic load that includes it says "marked don't prompt me" instead of asking you to add one. The list is hidden if you've turned GI off in Settings. Like the other two, it never raises the Home page reminder.
 
 **Duplicate foods.**{: #duplicate-foods} Two copies of one food split your data: correct one and the recipes and meals using the other don't see it. **Find duplicate foods** on Foods → 9 lists foods whose names match once capitals, punctuation, a "\* " starter prefix, "Copy of" and "([FDC](#gloss-fdc) …)" are ignored — names that are merely similar ("Peanut butter, creamy" and "Peanut butter powder") aren't matched. For each group it shows each copy's type, how many nutrient values it has, and where it's used. Click **Compare nutrition** to see them side by side, then **Keep this one** on the better copy (usually the one with more values, or the one you've corrected): every recipe, logged meal and pantry entry using the others switches to it and the others are deleted. Each line keeps its own name and amount, and "what this change did" shows how totals moved. If two foods really are different (raw and cooked, say), click **Not duplicates** and they won't be listed together again; **Show groups marked "not duplicates"** brings them back if you change your mind. A "\* " food is part of NuMa's [starter data](#starter-data); keeping your own copy instead deletes the starter one.
 
@@ -3187,7 +3418,7 @@ After saving a food, its page shows any problem NuMa can see straight away; [Che
 
 ## Part 7 — Essential resources
 
-*(Reading time: 28 minutes)*
+*(Reading time: 29 minutes)*
 
 ---
 
@@ -3379,6 +3610,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **ISO**{: #gloss-iso}  —  International Organization for Standardization. The independent international body that publishes agreed standards for how things are measured, tested and made. In NuMa it matters for one standard, ISO 26642:2010, which sets out how a [GI](#gloss-gi) study must be run: how much carbohydrate the test portion contains, how many people are tested, and when blood is sampled. Rows in the GI reference tables from studies that deviated from it are flagged **non-ISO method** — a warning about the evidence, not the food. See [Method quality, and why some rows are flagged](#gi-method-quality).
 
+**ISSN**{: #gloss-issn}  —  International Society of Sports Nutrition. A professional society of sports-nutrition researchers whose published position stands summarise the evidence on protein intake and timing for people who exercise. NuMa uses its per-meal protein and timing figures — see [Protein per meal](#protein-per-meal) and [When to eat protein](#protein-timing).
+
 **IU**{: #gloss-iu}  —  International Units. A dosage measurement used for vitamins A, D, and E on supplement labels. On a [custom food profile](#custom-foods), you can type these vitamins' amounts directly in IU and NuMa converts them automatically.
 
 **LDL**{: #gloss-ldl}  —  Low-Density Lipoprotein. The particle that carries cholesterol in the blood; high levels of this "LDL cholesterol" are linked to heart disease. Mentioned in the [Full Nutrient Key](#nutrient-key).
@@ -3410,6 +3643,8 @@ Abbreviations and key terms used in NuMa output and this manual.
 **PNG**{: #gloss-png}  —  Portable Network Graphics. An image file made of a fixed grid of dots, so it blurs if enlarged a lot. The friendlier of the two plot download formats — it opens anywhere. See [Plot File Formats](#plot-file-formats).
 
 **Pooled DIAAS**{: #gloss-pooled-diaas}  —  The meal-level protein quality score computed by summing digestible amino acids across all ingredients before scoring. This captures how foods complement each other in a way that single-food DIAAS cannot. See the section [How NuMa scores meal and recipe protein quality](#protein-scoring).
+
+**PROT-AGE**{: #gloss-prot-age}  —  The PROT-AGE Study Group: an international group of experts in geriatrics and nutrition whose 2013 position paper set out protein recommendations for people over 65 — at least 1.0–1.2 g per kg of body weight a day, and a higher amount per meal than younger adults need. NuMa uses its per-meal figure for profiles aged 65 and over. See [Protein per meal](#protein-per-meal).
 
 **RDA**{: #gloss-rda}  —  Recommended Dietary Allowance. The average daily intake sufficient to meet the needs of most healthy adults in a given age and sex group. See [RDA](#rda).
 
@@ -3682,7 +3917,7 @@ This is extremely easy, and we want you to do it. When you're having a problem t
 
 ## Part 9 — Possible Additional Features
 
-*(Reading time: 5 minutes)*
+*(Reading time: 7 minutes)*
 
 Ideas below are listed in their current likely probability of being implemented. User feedback has a major effect on these probabilities!
 
@@ -3691,7 +3926,7 @@ Ideas below are listed in their current likely probability of being implemented.
 ### Expanding Revised Optimal (Recent Research) targets {: #expand-revised-optimal}
 ☑ **Age/sex-banded [RDA](#gloss-rda) (completed, existing feature)** and ☑ **research-backed maximum nutrient levels (completed 2026-08-11)** are both done — see [Daily Nutrient Goals](#goals) for the full RDA age/sex band table and [Maximum Nutrient Limits](#maxlimits) for all 12 built-in Tolerable Upper Intake Levels, each sourced to the [NIH](#gloss-nih) DRI tables[^9].
 
-☐ **What's still open:** the [Revised Optimal (Recent Research)](#optimal) tier — the *above-RDA* targets, as distinct from the RDA itself — only has built-in defaults for three nutrients today: vitamin D[^12] and [EPA](#gloss-epa)+DHA[^13]. Candidates for a future addition, each needing its own specific citation the way those two already have (not a bulk table import like the RDA/[UL](#gloss-ul) work, since there's no single unified source for "beyond-RDA" targets — see the tradeoff discussed when this feature was scoped):
+☐ **What's still open:** the [Revised Optimal (Recent Research)](#optimal) tier — the *above-RDA* targets, as distinct from the RDA itself — only has built-in defaults for three nutrients today: vitamin D[^12], [EPA](#gloss-epa) and [DHA](#gloss-dha)[^13]. Candidates for a future addition, each needing its own specific citation the way those two already have (not a bulk table import like the RDA/[UL](#gloss-ul) work, since there's no single unified source for "beyond-RDA" targets — see the tradeoff discussed when this feature was scoped):
 
 - **Magnesium** — some research suggests intakes above the RDA support better sleep and muscle function in older adults, though evidence is mixed enough that a single number is harder to defend than vitamin D's.
 - **Vitamin K2** (as distinct from K1, which the RDA already covers) — emerging research on cardiovascular and bone benefits, not yet reflected in an official [DRI](#gloss-dri).
@@ -3699,49 +3934,40 @@ Ideas below are listed in their current likely probability of being implemented.
 
 Each addition means the same three-part exercise done for vitamin D and EPA/[DHA](#gloss-dha): find the specific research consensus (or best available expert-body statement), a real number, and a citation good enough to stand next to the DRI-sourced RDA/UL figures without embarrassment.
 
-### Nesting Carbohydrate and Fat subtypes under their parent nutrient {: #nesting-carb-subtypes}
-
-☑ **Completed 2026-09-19.** Two of NuMa's macronutrient rows are actually parent totals with subordinate rows underneath — Fiber and Sugar are subsets of Carbohydrates, and Saturated/Monounsaturated/Polyunsaturated fat are subsets of Fat, the same relationship a Nutrition Facts label shows by indenting "Dietary Fiber" and "Total Sugars" under "Total Carbohydrate." Every nutrient table in NuMa (food, recipe, meal, daily-summary, and the printable report) now shows those five rows visually indented under their parent instead of as flat, same-looking rows — raised while building the [Full Nutrient Key](#nutrient-key) appendix, which surfaced the same gap. (The Top Contributors nutrient picker and the manual nutrient-entry form were left as-is — a dropdown and a data-entry form don't carry the same visual hierarchy concern a comparison table does.)
-
 ### Suggested optimum nutrition profiles by age group
 
 A step beyond the per-nutrient targets above: a small number of pre-built *bundles* of Revised Optimal settings, one per major life stage (e.g. "Adults 65+ bone health," "Endurance athlete") that a user could load all at once instead of setting each nutrient individually. Lower priority than the per-nutrient expansion above, since it depends on that work existing first for enough nutrients to make a bundle meaningfully different from just the [RDA](#gloss-rda).
 
-### Source citations for major assertions in the manual
+### Source citations for major assertions in the manual {: #citations-progress}
 
-This is basic. Claims must be backed up, and source citations are how it's done. NuMa is designed around nutrition research findings. To move quickly, these findings have not been referenced in the manual. They will be as soon as possible, which is to say as soon as the program is reliably working for a number of serious users.
+This is basic. Claims must be backed up, and source citations are how it's done. NuMa is designed around nutrition research findings, and at first, to move quickly, many of them went unreferenced. That is now being worked through, area by area; this list tracks where things stand (last reviewed 2026-10-10).
 
-### FAO 2013 Amino Acid Reference Values {: #fao-values}
+**☑ Sourced** — each with footnotes giving the source and what it does and doesn't support:
 
-Under development.
+- Daily targets and upper limits ([RDA](#rda), [Maximum Nutrient Limits](#maxlimits)) — the [NIH](#gloss-nih) Dietary Reference Intake tables.
+- [Revised Optimal](#optimal) defaults for vitamin D, [EPA](#gloss-epa) and [DHA](#gloss-dha).
+- [Diet-aware notes](#diet-bioavailability) on iron, zinc and B12.
+- The [FAO 2013 reference values](#fao-reference-values), and the definitions of [DIAAS](#diaas) and [complete protein](#complete) that rest on them.
+- [Digestible complete protein](#dcp).
+- The [glycemic index tables](#gi) and their subject populations, the [definition of glycemic load](#gl), and [choosing a daily GL target](#gl-target-choose).
+- [Protein per meal](#protein-per-meal) and [when to eat protein](#protein-timing).
 
-[//]: # "develop section"
+**☐ Still to source** — research claims stated without a reference:
 
-### Full Nutrient Key
+- [Essential amino acids](#aa) — the nine essential amino acids, and the Met+Cys and Phe+Tyr pairings.
+- [Protein complement suggestions](#comp) — the complementarity principle itself is partly sourced; its specific claims need checking one by one.
+- [Antinutrients](#antinutrients) — phytate's effect on iron and zinc absorption, bound niacin and nixtamalization, and the other effects described.
+- [Oxalate data](#oxalate) — the Harvard source table is named but not formally cited.
+- [Omega-3 fatty acids](#omega3) — how poorly [ALA](#gloss-ala) converts to [EPA](#gloss-epa) and [DHA](#gloss-dha).
+- [Glycemic load](#gl) caveats — fat, protein and fiber blunting the blood-glucose response of a mixed meal.
+- Appendices A–C — each needs a pass for claims of fact.
 
-Moved to [Appendix G — Full Nutrient Key](#nutrient-key) now that it's real, not proposed — all five nutrient groups (Macronutrients, Omega Fatty Acids, Minerals, Vitamins, Phytonutrients) are covered there.
+**☐ NuMa's own choices, to be labelled as such** — these are design decisions, not research findings, so the fix is to say so plainly where they're described rather than to cite anything:
 
-[//]: # "develop section"
-
-### Protein ingestion timing
-
-Under development.
-
-[//]: # "develop section"
-
-Resources:
-
-* https://runningmagazine.ca/health-nutrition/could-you-be-timing-your-protein-all-wrong/
-
-### Meal timing
-
-Under development.
-
-[//]: # "develop section"
-
-Resources:
-
-* https://www.theguardian.com/commentisfree/2026/may/05/game-changer-good-health-scientists-we-are-when-we-eat - article by expert
+- The 0.95 "near-adequate" floor below which a complement is suggested ([Amino Acid Gaps](#gap)).
+- The absorbed-protein ceiling on [DCP](#dcp-cap).
+- The default digestibility used when a food has no measured value.
+- The 1 g floors below which a food's missing amino acid data, or missing [GI](#gloss-gi), is ignored.
 
 ### What else? Well, know this...
 
@@ -3762,7 +3988,21 @@ There's no such thing as a request that's not worth mentioning. If you're not su
 
 ### Additional features now implemented
 
-Ideas from this Part that have since been fully built, moved here (heading levels demoted) so the list above stays focused on what's still open.
+Ideas from this Part that have since been fully built, moved here (heading levels demoted) so the list above stays focused on what's still open. Two more that were listed here have moved to where they now live: the Full Nutrient Key is [Appendix G](#nutrient-key), and the [FAO](#gloss-fao) 2013 amino acid reference values are in [Part 4, J](#fao-reference-values).
+
+#### ☑ When to eat protein (completed 2026-10-10) {: #meal-timing-done}
+
+Listed here before as "Meal timing". The research on *when* to eat protein — the daily total first, spreading it across meals, around resistance and endurance exercise, before sleep, and at breakfast — is now its own section: [When to eat protein](#protein-timing). Not yet covered: wider "meal timing" questions beyond protein, such as time-restricted eating.
+
+[//]: # "Earlier resource for the wider topic: https://www.theguardian.com/commentisfree/2026/may/05/game-changer-good-health-scientists-we-are-when-we-eat (Guardian opinion piece by a scientist; not a primary source)"
+
+#### ☑ Protein per meal (completed 2026-10-10) {: #protein-timing-done}
+
+Listed here before as "Protein ingestion timing". Each meal's page now shows whether it carries the per-meal protein amount research associates with muscle maintenance and building — personalised from your weight and age, and judged on digestible complete protein — and each day's pages show how many meals reached it. See [Protein per meal](#protein-per-meal). Clock-time spacing between meals isn't tracked, since NuMa doesn't record when you ate.
+
+#### ☑ Nesting Carbohydrate and Fat subtypes under their parent nutrient (completed 2026-09-19) {: #nesting-carb-subtypes}
+
+Two of NuMa's macronutrient rows are actually parent totals with subordinate rows underneath — Fiber and Sugar are subsets of Carbohydrates, and Saturated/Monounsaturated/Polyunsaturated fat are subsets of Fat, the same relationship a Nutrition Facts label shows by indenting "Dietary Fiber" and "Total Sugars" under "Total Carbohydrate." Every nutrient table in NuMa (food, recipe, meal, daily-summary, and the printable report) now shows those five rows visually indented under their parent instead of as flat, same-looking rows — raised while building the [Full Nutrient Key](#nutrient-key) appendix, which surfaced the same gap. (The Top Contributors nutrient picker and the manual nutrient-entry form were left as-is — a dropdown and a data-entry form don't carry the same visual hierarchy concern a comparison table does.)
 
 #### ☑ CSV export and import for foods and recipes (completed 2026-08-11)
 
@@ -3774,11 +4014,11 @@ The [Nutrient Plot](#nutrient-plot) plots one or more nutrients over a chosen da
 
 #### ☑ Glycemic index lookup against the full published reference table, by subject population (completed 2026-09-20)
 
-Every food's [Annotate](#gi) page can now search the full ~2,487-entry Foster-Powell glycemic index table[^8] directly — pick normal glucose tolerance, impaired glucose tolerance/diabetes, or both, and NuMa lists every plausible match for you to choose from, rather than a single auto-picked guess. [Settings](#settings) has a matching default so this defaults to your own population without you having to pick it each time. See [Where GI values come from](#gi) and footnote 8 for the full source detail.
+Every food's [Annotate](#gi) page can search the published glycemic index tables directly — the 2008 edition shipped with NuMa (about 2,500 foods), or the 2021 edition of over 4,000 foods, which you can [add to your own copy](#gi-editions)[^8] — by normal glucose tolerance, impaired glucose tolerance/diabetes, or both, and NuMa lists every plausible match for you to choose from, rather than a single auto-picked guess. **Your glucose tolerance** in [Settings](#settings) makes your own population's results come first. See [Choosing a GI value](#choosing-gi-values) for which result to pick, and [Where GI values come from](#gi-source-para) for the full source detail.
 
 ## Part 10 — Appendices
 
-*(Reading time: 1 hour)*
+*(Reading time: 1 hour, 1 minute)*
 
 
 ### A. Raw protein, protein quality, and protein digestibility {: #appendix-protein-quality}
@@ -4119,7 +4359,7 @@ BEFORE GOING ANY FURTHER: You should know that the two most useful foods below (
 Glycemic load is a useful approximation, but no single formula-derived figure reliably predicts an individual's blood glucose response to a mixed meal. Three reasons account for this:
 
 - The fat and protein suppression effect varies by person, by degree of insulin resistance, and by the specific foods involved.
-- Most published [GI](#gloss-gi) values were measured in subjects with normal glucose tolerance and may not translate directly to someone with diabetes or insulin resistance. NuMa's built-in reference table[^8] does include a separate set of values measured specifically in subjects with impaired glucose tolerance — see [Where GI values come from](#gi) — but that set is smaller and doesn't exist for every food, so this caveat still applies whenever only a normal-tolerance value is available.
+- Most published [GI](#gloss-gi) values were measured in subjects with normal glucose tolerance and may not translate directly to someone with diabetes or insulin resistance. NuMa's built-in reference table[^8] does include a separate set of values measured specifically in subjects with impaired glucose tolerance — see [Where GI values come from](#gi) — ([what that group covers](#gi-impaired)), but that set is smaller and doesn't exist for every food, so this caveat still applies whenever only a normal-tolerance value is available.
 - Individual glucose responses to identical meals vary substantially, even in the same person on different days.
 
 [GL](#gloss-gl) is therefore most reliable when comparing meals of broadly similar composition — two different grain-based breakfasts, for example. When meals differ significantly in fat or protein content, the calculated [GL](#gloss-gl) will understate the difference in actual glycemic impact.
@@ -4411,7 +4651,7 @@ To apply: multiply each food's IAA total by its coefficient. For example, for pi
 
 The [DIAAS](#gloss-diaas) method scores each pooled digestible [IAA](#gloss-iaa) against how much of that IAA a *reference protein* of equal weight would provide. The reference values, from [FAO](#gloss-fao) Food and Nutrition Paper 92 (2013), Table 6, are expressed in **mg of IAA per gram of total protein** for older children, adolescents, and adults.
 
-The full table is in [FAO 2013 Amino Acid Reference Values](#fao-values), in Part 9. The relevant values are:
+The full table, with how to read it, is in [The reference values](#fao-reference-values) (Part 4, J). The relevant values are:
 
 | IAA | [FAO](#gloss-fao) reference (mg/g protein) |
 |-----|-----------------------------:|
@@ -4729,7 +4969,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 6 minutes)*
+*(Reading time: 1 hour, 17 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4742,6 +4982,363 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Many entries also carry a fenced "Scope:" block underneath, with the technical detail (menu path, files touched, root cause). It is developer-facing only: the next comment explains why it is wrapped in an HTML comment and therefore never reaches a reader of the built manual. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
+
+#### Next release summary to this point (dated details below)
+
+- **18.** A food's Protein Quality table shows each amino acid in the food and after digestion, with Met / Short following the after-digestion score; a note explains a food that is incomplete despite every amino acid being met in the food; "DIAAS" there now shows the real DIAAS, with digestibility beside it.
+- **17.** A complement suggestion's "% increase" now measures from the real current DCP, named under each table, so small amounts no longer show a false decrease; capped foods' rows say "per-meal limit", not "full".
+- **16.** Complement suggestions sorted by DCP achieved now follow exactly the figure each one shows, with a note explaining it; single-food pages no longer overstate that figure.
+- **15.** Complement suggestions stay within a most-per-meal amount for each food (yours, saved right under the suggestion, or a default by food type), and show what that amount achieves; the limit can be lifted for one page.
+- **14.** Protein complement amounts now count each food at its own digestibility, so well-digested foods like soy isolate get a realistic amount for the main gap; a suggestion sized for a different gap now says which.
+- **13.** MANUAL: New section "When to eat protein" (Part 4, Z): the daily total first, spreading protein across meals, around resistance and endurance exercise, before sleep, and at breakfast — each point sourced.
+- **12.** MANUAL: The FAO 2013 amino acid reference values now have their own table in Part 4, J; Part 9 is tidied, and its source-citation item is now a checklist of what's sourced and what isn't yet.
+- **11.** Meal pages show whether the meal carries the per-meal protein amount research recommends for muscle (personalised from your weight and age, judged on digestible complete protein), and day pages show how many meals reached it.
+- **10.** Settings has a **Help me choose a target** panel for the daily glycemic load target: three starting points — scaled to your calories, the common 80, or a step down from your own average — each explained, with sources, in the manual.
+- **9.** The note beside a GI value measured in people with diabetes now follows your profile's glucose tolerance: it says whether the value fits you or is an approximation for you.
+- **8.** You can set an optional daily glycemic load target in your profile; day pages, Recent Days, day averages and What-if show each day against it. Also, saving your profile in Settings now keeps the active profile's name.
+- **7.** MANUAL: New sections "What you can do with GI and GL", with a worked example, and "What 'impaired glucose tolerance' means here" — what that label covers and how to use such a value if you don't have diabetes; every place NuMa marks such a value now links to it.
+- **6.** Compare shows each item's GI and glycemic load per 100 g; Recent Days has a Day GL column; every glycemic load band now has a one-line note on how to read it.
+- **5.** A GI value measured in people with impaired glucose tolerance or diabetes is now marked wherever it's used — the food and Annotate pages, glycemic load figures, Top Contributors and swap suggestions.
+- **4.** Foods → 9 has a new list, foods you use with carbohydrate but no GI, and lower-GI swap suggestions now say they come only from foods with a GI, with a link to that list.
+- **3.** Top Contributors can rank a meal's or recipe's foods by glycemic load, and when that load is Medium or High, NuMa suggests lower-GI foods from your Food Cache to swap in, each opening What-if with the swap filled in.
+- **2.** What-if pages now show glycemic load before and after your changes, and say when a swap to a food with no GI makes the "after" look better than it is; every incomplete GL figure now says how much of the carbohydrate it covers.
+- **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
+
+#### October 10 updates
+
+**PROGRAM: PROTEIN QUALITY TABLE SHOWS SCORES AFTER DIGESTION**
+
+A food's Protein Quality table now has two score columns: each amino acid in the food itself, and after digestion. Its Met / Short status follows the after-digestion column, the one that decides whether the protein is complete. So a food the page calls incomplete no longer shows every amino acid as met. When every amino acid is met in the food but the protein is still incomplete (buckwheat, for one), a note explains why. The figure that used to be labelled DIAAS is now correctly called digestibility, and the real DIAAS is shown beside it. [learn more...](#protein-quality)
+
+<!--
+
+```
+Scope: food page Protein Summary + Protein Quality, and the food print view.
+web/backend.py _protein_section: aa_rows gain dig_score (score x TID) and
+"met" now follows it (as pc["complete"] already did); "diaas" was the TID
+itself -- now "digestibility" = TID and "diaas" = min raw score x TID (the
+real DIAAS; bar + colour follow it); new limiting_dig_score,
+digestion_limited (incomplete but every raw score >= 1.0),
+short_after_digestion, digestibility_pct. DCP formula unchanged. Templates:
+food_detail.html, print.html, new _protein_quality_note.html. Found on
+USDA 170686 buckwheat: raw Leucine 1.028 / Lysine 1.060 all "Met", verdict
+Incomplete at TID 0.79 (0.812 / 0.838 after digestion).
+```
+
+-->
+
+**PROGRAM: COMPLEMENT "% INCREASE" MEASURED FROM THE REAL STARTING DCP**
+
+Each complement suggestion's "% increase" now measures from your meal's (or day's, or recipe's) actual current DCP, and the line under the table says what that starting figure is. Small amounts no longer show a misleading negative increase. When a food is held to its per-meal limit, its last row and summary lines say "per-meal limit" rather than "full". [learn more...](#tier-1-gap-closers)
+
+<!--
+
+```
+Scope: every Protein Complement Suggestions section. complements.py: new
+base_dcp(ingredients) (diaas.meal_level_diaas on the base's own ingredients)
+is build_complement_display's base_digestible; without ingredients,
+protein x min(1, limiting score). It was protein x digestibility, which
+ignores the limiting AA: meal 182 at TID 0.84 / Lysine 0.69 -> 76.8 g vs a
+real 63.7 g, so 10 g soy (74.2 g) showed -3.3% instead of +16%. Feeds
+pct_increase (gap-closer and booster rows), the two-step dcp_before/net_gain,
+and the no-new_scores fallbacks. _fmt_pair's estimate now matches _total_dig
+(protein x pooled limiting score, not x new/old ratio). Result carries
+base_dcp; the "% increase" explanation line names it. "(full)" -> "(per-meal
+limit)" and "at full serving" -> "at the per-meal limit" when capped.
+```
+
+-->
+
+**PROGRAM: COMPLEMENT RANKING MATCHES THE NUMBERS SHOWN**
+
+When complement suggestions are sorted by DCP achieved, the order now follows exactly the "total digestible complete protein" figure each option shows, so a higher number is never listed below a lower one. A note under the list explains how that figure is worked out. On single-food pages that figure is also corrected: it no longer counts all the protein as complete whenever an option helps at all. [learn more...](#tier-1-gap-closers)
+
+<!--
+
+```
+Scope: every Protein Complement Suggestions section. complements.py:
+_achieved_dcp() (memoized exact_dcp at the shown amount, else _total_dig) is
+now both the "dcp" sort key and _fmt's total_dig; the sort used the
+_total_dig estimate while the page showed exact_dcp (meal 182: soy 105.8 g
+ranked below Tiger Soup 0607 at 102.8 g). _total_dig's estimate was
+(protein) x min(1, new_limiting / old_limiting), which is 1.0 for any
+improvement; now (protein) x min(1, new_limiting), matching _dcp_at_frac and
+the README formula. New dcp_note footer before exhausted_msg in all six
+templates; ranking note names the figure.
+```
+
+-->
+
+**PROGRAM: COMPLEMENT SUGGESTIONS STAY WITHIN A SENSIBLE AMOUNT PER MEAL**
+
+Protein complement suggestions no longer tell you to add impossible amounts, like four cups of nutritional yeast. Each food now has a most-per-meal amount: your own, if you save one right there under the suggestion, or else a sensible default for that kind of food. When closing a gap would take more, the suggestion shows what the limit gets you and how much full closure would take. You can lift the limit for that page only. [learn more...](#tier-1-gap-closers)
+
+<!--
+
+```
+Scope: every Protein Complement Suggestions section; the food, meal and recipe
+pages get the save-limit box and the one-time checkbox (they have the
+#complements-form), day/summary/recipe-portion pages show the capped note only.
+usda_nutrients.complement_meal_limit (user > 3x label serving / 2x recipe
+serving > type default > 300 g), _score_one_complement(max_grams) -> capped
+result at the limit with closing_grams, suggest_complements(uncap_names),
+improver steps capped, pair legs must close within limits; gaps still tried
+most-limiting first so a capped partial on the main gap wins over a token
+amount closing a minor one. db: food_annotations.max_meal_g,
+food_meal_limits() (tolerates a missing column, since the candidate builders'
+catch-all would otherwise drop the whole pantry), set_food_meal_limit().
+POST /complement-limit (button formaction inside the GET form; field
+limit_g_<fdc_id>). New _complement_limit.html; complements.label_serving_g.
+Not a user edit: has_user_annotation ignores max_meal_g.
+```
+
+-->
+
+**PROGRAM: COMPLEMENT AMOUNTS COUNT EACH FOOD AT ITS OWN DIGESTIBILITY**
+
+Protein complement suggestions now work out how much of a food to add by counting your meal and the added food each at its own digestibility. Well-digested foods like soy protein isolate now get a realistic amount for closing the main gap, rather than being sized against a different gap. When a suggestion's amount is for a gap other than the main one, it now says so. [learn more...](#tier-1-gap-closers)
+
+<!--
+
+```
+Scope: every Protein Complement Suggestions section (food, recipe, meal, day,
+daily summary, recipe-portion analysis). usda_nutrients._score_one_complement,
+_build_pairs; numa_app/services/complements.py (two_step_combo, _fmt);
+new web/templates/_complement_target_note.html.
+
+Found on meal 182: soy isolate showed 106 g "full" with Lysine left at 0.87.
+Root cause: the grams solve assumed the whole pool, candidate included, was at
+the base's digestibility (R = ref / base_dig), so soy (TID 0.95) against a
+meal at 0.84 "needed" 621 g for Lysine (> 300 g cap), was rejected for
+Isoleucine by the reduction guard, and fell through to the Leucine gap. Fixes:
+(1) solve (D_base + alpha*X*tid) / (P + beta*X) = ref per source; new_scores
+are pooled scores / base_dig so callers' "x digestibility" rescale still holds;
+uniform math kept when base_dig is the 1.0 no-data default. (2) The reduction
+guard compared the new pooled DIAAS against the base's digestibility (0.84);
+now against the base's own pooled DIAAS (0.69). (3) Result carries target_aa;
+the page names the gap when it isn't the primary. Pairs: post-A pool is now
+per-source too, and A is skipped only when it leaves no gaps (was: "opens no
+new gap", which mis-skipped an A that leaves an original gap). Two-step step 2
+also draws from the sub-call's gap-closers, since strong boosters now land
+there. Meal 182: soy 165 g closes Lysine, yeast 181 g (was 256 g).
+```
+
+-->
+
+**MANUAL: WHEN TO EAT PROTEIN**
+
+A new section, Part 4, Z, sets out what research says about *when* to eat protein: why the daily total comes first, why spreading it across meals helps, what matters around resistance and endurance exercise (and why the "anabolic window" is wider than once thought), protein before sleep, and the emerging case for protein at breakfast — each point with its source and its limits. Day pages' protein-per-meal note links to it. [learn more...](#protein-timing)
+
+**PROGRAM: PROTEIN PER MEAL**
+
+A meal's page now says, under Protein Summary, whether the meal carries the per-meal protein amount research associates with keeping and building muscle — 0.25–0.4 g per kg of your weight, or 25–30 g if you're 65 or over — judged on digestible complete protein, with its leucine alongside. A day's pages list each meal and how many reached it. A big meal is never flagged as too much. [learn more...](#protein-per-meal)
+
+<!--
+
+```
+Scope: meal page Protein Summary; day view and Daily Summary date page
+(Protein Quality - Full Day). New numa_app/services/protein_per_meal.py
+(per_meal_amount, meal_check); _protein_per_meal.html (meal_line,
+day_table); backend _protein_per_meal_day() from stored bcp_g + nutrients
+snapshot. Manual #protein-per-meal (Part 4, F) with footnotes [^65]-[^68]
+(ISSN 2017, Schoenfeld & Aragon 2018, PROT-AGE 2013, Trommelen 2023);
+glossary PROT-AGE. Tests: tests/test_protein_per_meal.py.
+```
+
+-->
+
+**MANUAL: FAO REFERENCE VALUES, PART 9 TIDIED, CITATION CHECKLIST**
+
+The nine FAO 2013 amino acid reference values every protein score in NuMa is measured against now have their own table, with how to read it, in Part 4, J. Part 9's finished items moved to its "implemented" list, its stale entries were updated, and its source-citation item is now a checklist of which areas are sourced, which still need sources, and which are NuMa's own design choices. DIAAS, complete protein and glycemic load gained citations. [learn more...](#citations-progress)
+
+**PROGRAM: HELP CHOOSING A DAILY GLYCEMIC LOAD TARGET**
+
+Under the daily glycemic load target box in Settings → Your Profile, **Help me choose a target** offers three starting points, each filled in with one click: 80 per 2,000 kcal scaled to your own calorie target (recommended), the commonly quoted 80, or 10–20% below your own average over the last 30 days. The manual explains who each suits, its limits, and its sources — and that no guideline sets an official number. [learn more...](#gl-target-choose)
+
+<!--
+
+```
+Scope: Settings -> 1 (#gl-target-help details panel, js-gl-target-pick
+buttons fill #gl_day_target). glycemic_load.gl_target_options(calories,
+recent_avg, recent_days) + constants GL_MODERATE_PER_2000_KCAL,
+GL_CONVENTIONAL_DAY_TARGET, GL_STEP_DOWN, GL_STEP_DOWN_MIN_DAYS (7).
+settings_get: calories from compute_rda, recent average from
+average_day_gl(day_gl_totals(last 30 days' meal dates)). Manual
+#gl-target-choose with footnotes [^61]-[^64] (Barclay 2021 GI Foundation;
+ASA 2025; Livesey et al. 2019 Nutrients; AND summary of ADA/NICE/Diabetes
+Canada positions). Tests: TestGlTargetOptions, settings page test.
+```
+
+-->
+
+**PROGRAM: GI NOTES TAILORED TO YOUR GLUCOSE TOLERANCE**
+
+The note NuMa shows beside a GI value measured in people with diabetes now follows **Your glucose tolerance** in Settings → Your Profile (the setting formerly labelled "Glycemic index lookup default"). Set to impaired, it says the value fits you; set to normal, it says to treat it as an approximation and prefer a normal-tolerance value; not set, it gives both readings and a link to set it. [learn more...](#gi-impaired)
+
+<!--
+
+```
+Scope: _gl_result.html gi_impaired_advice(links, plural) — the one place the
+advice is worded; used by gi_population_note, _top_contributors gi_dagger_note,
+compare footnote, food_detail, food_annotate. Jinja global
+user_glucose_tolerance() (web/backend.py, active profile). Settings label and
+help text reworded. Test: test_impaired_value_note_is_tailored_to_profile.
+```
+
+-->
+
+**PROGRAM: OPTIONAL DAILY GLYCEMIC LOAD TARGET**
+
+Settings → Your Profile has a new **Daily glycemic load target**. Set one and every day's glycemic load is checked against it: on the day's pages, coloured in Recent Days' Day GL column, as "days over" in Nutrient averages across days, and in What-if: Meals as days over it before and after your changes — so an average under the target can't hide days that aren't. A day missing some GI values is called over only when it already is; otherwise NuMa says it can't tell yet. [learn more...](#gl-target)
+
+**PROGRAM: SAVING YOUR PROFILE KEEPS ITS NAME**
+
+Saving Settings → Your Profile now saves to the profile you're using. Before, a profile with any name other than "Default" had its changes written to a separate "Default" profile instead, so they seemed not to stick.
+
+<!--
+
+```
+Scope: Settings -> 1 (profile.UserProfile.gl_day_target, _positive_or_none;
+settings_post also passes name=existing.name — previously defaulted to
+"Default", writing a second file when the active profile had another name).
+glycemic_load.gl_target_status() (rda_status "limit"; "unknown" when an
+incomplete day is still under). Day contexts (meal day, summary date, day
+print) -> gl_target, _gl_result.html gl_target_line via gl_figure(target=).
+Recent Days row day_gl_target (pinned profile per day). Trend: gl_days_over /
+gl_target_days. whatif._gl_cell(targets=) -> days_over_target_before/after,
+target_unknown_*. Speed check 2026-10-10 on a copy of the real DB: 90 days
+(87 meals) 0.74 s total, GL cell 0.04 s; DB checksum unchanged. GI-USE-PLAN
+item 7, step 5; WHATIF-PLAN Phase 5 complete.
+```
+
+-->
+
+**MANUAL: WHAT YOU CAN DO WITH GI AND GL; WHAT "IMPAIRED GLUCOSE TOLERANCE" MEANS**
+
+Two new sections. "What you can do with GI and GL" walks through using glycemic load — read it, see which foods drive it, change one, check the whole picture in What-if — with a worked example: 200 g of white rice versus pearled barley. "What 'impaired glucose tolerance' means here" explains that NuMa's label covers people with type 2 or type 1 diabetes, gestational diabetes and pre-diabetes, and how to use such a value if you don't have diabetes. Every place NuMa marks such a value now links to it. [learn more...](#gi-impaired)
+
+**PROGRAM: GLYCEMIC LOAD IN COMPARE AND RECENT DAYS, AND HOW TO READ A BAND**
+
+Compare has a new glycemic table: each food's GI and each item's glycemic load per 100 g, the lowest highlighted. Recent Days has a **Day GL** column with its band, and a link to plot it over time. Under every glycemic load band, one line now says which scale it's on and links to what you can do with it. [learn more...](#gl-uses)
+
+<!--
+
+```
+Scope: Compare (_build_gl_compare_rows; entries carry gi, gi_impaired, gl via
+food_gl / gl_for_leaves over expand_recipe_ingredients scaled to 100 g);
+Recent Days (_build_day_rows -> day_gl via new glycemic_load.day_gl();
+show_gl_col = not gi opt-out); _gl_result.html gl_band_help(scope) called in
+gl_figure, food_detail, trend - replaces the separate gl_band_caveat lines on
+meal_day, summary, print, trend. Impaired-mark links -> #gi-impaired on food,
+Annotate (also beside the lookup's population chooser), GL figure,
+Top Contributors/swaps, Compare. GI-USE-PLAN items 1-3, 6, 8.
+```
+
+-->
+
+**PROGRAM: GI VALUES MEASURED IN PEOPLE WITH DIABETES ARE MARKED**
+
+When a food's GI was picked from a reference-table row measured in people with impaired glucose tolerance or diabetes, NuMa now says so wherever that value is used: on the food's page and its Annotate page, with a † in Top Contributors ranked by glycemic load and in lower-GI swap suggestions, and in a line under any meal's, recipe's or day's glycemic load naming those foods. That's the right value if it describes you; if not, your own response may differ. [learn more...](#gi-populations)
+
+<!--
+
+```
+Scope: food page, Annotate page, every GL figure (_gl_result.html), GL Top
+Contributors and swap suggestions. glycemic_load.gi_measured_impaired(src)
+looks for the "Impaired glucose tolerance" label the lookup JS writes into
+gi_source; _food_share() tallies counted foods (>= 1 g carbs) into result
+"impaired" (combine_gl merges, de-duplicated); accumulators now a dict
+(_new_acc). rank_contributors_by_gl and gl_swaps items carry "impaired";
+db.foods_with_gi() returns gi_source. Jinja filter gi_impaired. Annotate
+JS toggles #gi-pop-note on pick. GI-USE-PLAN item 11. Tests:
+TestImpairedPopulation (test_glycemic_load.py), test_gl_swaps.py.
+```
+
+-->
+
+**PROGRAM: FOODS YOU USE WITH NO GI, AND WHERE SWAP SUGGESTIONS COME FROM**
+
+Foods → 9 has a new folded-up list, **Foods you use with no GI**: foods in your recipes, meals or pantry with carbohydrate but no glycemic index, most-used first, each with a **look up a GI** link and a **not needed** box. Lower-GI swap suggestions now say they come only from the foods you've given a GI, and how many foods you use still have none, with a link to that list. [learn more...](#missing-gi)
+
+<!--
+
+```
+Scope: Foods -> 9 (#missing-gi); meal/recipe Top Contributors ranked by GL.
+data_quality.missing_gi_in_use() (carbs >= GI_LIST_MIN_CARBS = 5 g/100 g,
+no gi_estimate; ignored = gi_no_prompt). Completeness save route: group "gi"
+-> db.upsert_food_annotation(gi_no_prompt=0/1); back anchor "missing-gi".
+List hidden when GI opted out. _build_contributors adds gl_pool_n
+(db.foods_with_gi) and gl_missing_in_use_n for Medium/High GL;
+_top_contributors.html gl_pool_note() under shown swaps and in the
+no-suggestion message. Tests in tests/test_gl_swaps.py.
+```
+
+-->
+
+**PROGRAM: SEE WHICH FOODS DRIVE GLYCEMIC LOAD, AND LOWER-GI SWAPS TO TRY**
+
+On a meal or recipe page, Top Contributors can now rank the foods by glycemic load, showing each food's GI and amount; the rows add up to the meal's or recipe's glycemic load, and foods with no GI are named with a link to add one. When the load is Medium or High, NuMa suggests lower-GI foods from your Food Cache with similar carbohydrate, each with a link that opens What-if with the swap filled in, so you can see every nutrient's change first. A new link under each Glycemic Load figure takes you straight there. [learn more...](#gl-swaps)
+
+<!--
+
+```
+Scope: meal and recipe pages -> Top Contributors (rank=gl); GL section link.
+top_contributors.rank_contributors_by_gl(): leaf foods by GI x carbs/100,
+merged per food, with gi/grams/carbs_100g, no-GI gaps and coverage. New
+numa_app/services/gl_swaps.py suggest_swaps(): pool = db.foods_with_gi()
+(non-archived); GI >= 5 lower, carbs/100 g within 1.5x, GL saving >= 0.5,
+shared name words first. backend: _GL_RANK_KEY option after carbs_g,
+_build_contributors(gl_scope=...) adds gl_gaps/gl_coverage/gl_band/gl_swaps
+(swaps only for Medium/High), _gl_swap_whatif_url() (meal ids / last 30
+days / recipe ids). Recipe page ranks GL over calorie_leaves (sub-recipes
+opened). _top_contributors.html gl_contributor_notes(). GI-USE-PLAN step 2.
+Tests: tests/test_gl_swaps.py.
+```
+
+-->
+
+**PROGRAM: GLYCEMIC LOAD IN WHAT-IF, AND HOW MUCH A GL FIGURE COVERS**
+
+What-if: Meals now shows your average daily glycemic load before and after your changes, with its band (Low, Moderate, High); What-if: Recipes shows glycemic load per serving for each recipe. When some carbohydrate comes from foods with no GI, NuMa says how much of it the figure covers, before and after, and names the foods with no GI so you can add one — otherwise swapping in such a food would look like an improvement. Every incomplete GL figure elsewhere (meal, recipe, day pages) now gets the same coverage line. [learn more...](#whatif-gl)
+
+<!--
+
+```
+Scope: Analysis -> What-if: meals / recipes; every incomplete GL figure.
+glycemic_load.py: _food_share() tallies carbohydrate with a GI vs carbohydrate
+that counts (negligible and "don't prompt" excluded); _result() adds
+carbs_with_gi_g, carbs_g, coverage_pct; combine_gl() sums them; new
+gl_for_leaves() computes GL from already-expanded leaf foods, so what-if's
+edits reach GL without a second expansion path. whatif.py: "gl" summary cell
+(_gl_cell: average day GL over days with carbs, day bands, coverage before/
+after, no-GI gaps after); recipes get a per-serving GL row at the end of the
+carbohydrate section (_recipe_gl_row). gi_opt_out passed from backend.
+_gl_result.html gl_coverage() macro. WHATIF-PLAN Phase 5 first item; GI-USE-PLAN
+step 1. Tests: TestGlycemicLoad + page test in test_whatif.py, coverage and
+gl_for_leaves tests in test_glycemic_load.py.
+```
+
+-->
+
+**PROGRAM: TURN OFF THE MISSING-AMINO-ACID AND CALORIE WARNINGS FROM WHERE THEY APPEAR**
+
+Beside each food in a meal's or recipe's **Missing Amino Acid Profiles** section there is now an **Amino acids not needed for this food — stop listing it** button, for a food whose protein doesn't matter, such as a supplement. The food stops being listed there and on Foods → 9, and a short line counts foods hidden this way. That section and the **Calories** note above the Nutritional Analysis table both link to the manual's instructions for turning their check off. [learn more...](#missing-aa-off)
+
+<!--
+
+```
+Scope: meal and recipe pages -> Missing Amino Acid Profiles; Calories note.
+web/backend.py _build_diaas_display(): drops missing-AA names whose food has
+the "aa" group in food_data_ignores; adds missing_fdc_ids and
+missing_aa_not_needed. POST /food/{fdc_id}/data-ignore takes an optional
+local-path `next` (rejects // and backslashes) to return to the meal/recipe.
+New partial web/templates/_aa_not_needed.html (button, footer, manual link);
+_calorie_note.html links to new anchor #calorie-check-off. Manual anchors
+#missing-aa-off, #calorie-check-off. Test:
+test_missing_aa_not_needed_button_hides_food.
+```
+
+-->
 
 #### Release v2026-10-09-1637 summary (dated details below)
 
@@ -7609,6 +8206,38 @@ paragraph promoted to a heading). No behaviour change beyond the new panel.
 [^59]: US National Institutes of Health, Office of Dietary Supplements. *Choline – Consumer*. https://ods.od.nih.gov/factsheets/Choline-Consumer/
 
 [^60]: Institute of Medicine (US), Food and Nutrition Board. *Dietary Reference Intakes for Energy, Carbohydrate, Fiber, Fat, Fatty Acids, Cholesterol, Protein, and Amino Acids*. National Academies Press, 2005. The protein RDA of 0.8 g/kg/day is specified for protein of mixed quality as typically consumed, and the report notes that requirements may differ for diets based on less-digestible plant protein sources. https://nap.nationalacademies.org/catalog/10490/
+
+[^61]: Barclay, A. "How to enjoy a moderate glycemic load diet." *GI News*, Glycemic Index Foundation / University of Sydney, November 2021. https://glycemicindex.com/2021/11/how-to-enjoy-a-moderate-glycemic-load-diet/ — States that "an average daily GL of less than 80 g per 2000 calories ... is considered a moderate GL diet", alongside 130–230 g of available carbohydrate a day and an average [GI](#gloss-gi) under 45. This is the best-sourced daily figure available, and its "per 2,000 calories" wording is what lets NuMa scale it to a person's own calorie target. Even so, the article gives no study behind the 80; its own references concern fibre and blood lipids, not a [GL](#gloss-gl) cut-off.
+
+[^62]: Advertising Standards Authority (UK). "Weight control: Glycaemic index (GI)." Advice Online, updated 25 November 2025. https://www.asa.org.uk/advice-online/weight-control-glycaemic-index-gi.html — Lists "Low GL for the day: 80 or less" and "High GL for the day: 120 or more" as the classifications advertisers should use. It attributes them to no source; they are the same widely repeated day bands NuMa uses (see [Glycemic Load](#gl)), which is why NuMa calls them a convention rather than a clinical target.
+
+[^63]: Livesey, G., Taylor, R., Livesey, H. F. et al. "Dietary Glycemic Index and Load and the Risk of Type 2 Diabetes: A Systematic Review and Updated Meta-Analyses of Prospective Cohort Studies." *Nutrients* 11(6):1280, 2019. https://pmc.ncbi.nlm.nih.gov/articles/PMC6627334/ — Pooling long-term cohort studies, type 2 diabetes risk rose by 26% (risk ratio 1.26, 95% CI 1.15–1.37) for every additional 80 g/day of [GL](#gloss-gl) in a 2,000 kcal diet, across intakes from about 73 to 257 g/day. The relationship is continuous: the paper identifies no threshold below which risk stops falling and no "safe" level. It supports "lower is better, on average", not any particular target — and as observational evidence it shows association, not proof that lowering [GL](#gloss-gl) alone lowers risk.
+
+[^64]: Academy of Nutrition and Dietetics. "Glycemic index." *Practice trends*, eatrightpro.org. https://eatrightpro.org/news-center/practice-trends/glycemic-index — Summarises the guideline position: the American Diabetes Association's annual *Standards of Care in Diabetes* gives no specific recommendation on [GI](#gloss-gi) or [GL](#gloss-gl); the UK's National Institute for Health and Care Excellence (NICE) recommends that adults with type 2 diabetes choose high-fibre, low-[GI](#gloss-gi) carbohydrate sources; Diabetes Canada's Clinical Practice Guidelines advise choosing low-[GI](#gloss-gi) carbohydrates. None sets a numeric daily [GL](#gloss-gl) target.
+
+[^65]: Jäger, R., Kerksick, C. M., Campbell, B. I. et al. "International Society of Sports Nutrition Position Stand: protein and exercise." *Journal of the International Society of Sports Nutrition* 14:20, 2017. https://doi.org/10.1186/s12970-017-0177-8 (free full text: https://pmc.ncbi.nlm.nih.gov/articles/PMC5477153/) — Point 5: "General recommendations are 0.25 g of a high-quality protein per kg of body weight, or an absolute dose of 20–40 g." Point 6: "Acute protein doses should strive to contain 700–3000 mg of leucine." Point 7: doses "should ideally be evenly distributed, every 3–4 h, across the day." Point 2: 1.4–2.0 g/kg/day overall for most exercisers. Written for people who exercise; NuMa uses its per-dose figures as the lower end for everyone under 65, and its absolute 20–40 g when no profile is set.
+
+[^66]: Schoenfeld, B. J. & Aragon, A. A. "How much protein can the body use in a single meal for muscle-building? Implications for daily protein distribution." *Journal of the International Society of Sports Nutrition* 15:10, 2018. https://doi.org/10.1186/s12970-018-0215-1 — Concludes that "to maximize anabolism one should consume protein at a target intake of 0.4 g/kg/meal across a minimum of four meals in order to reach a minimum of 1.6 g/kg/day", with 0.55 g/kg/meal at the upper end of daily intakes. A review aimed at people training for muscle growth; NuMa uses 0.4 g/kg as the upper end of its range, not a requirement.
+
+[^67]: Bauer, J., Biolo, G., Cederholm, T. et al. "Evidence-based recommendations for optimal dietary protein intake in older people: a position paper from the PROT-AGE Study Group." *Journal of the American Medical Directors Association* 14(8):542–559, 2013. https://www.jamda.com/article/S1525-8610(13)00326-5/fulltext — Recommends at least 1.0–1.2 g/kg/day for people over 65, more with acute or chronic illness, and notes that the per-meal threshold for stimulating muscle protein synthesis is higher in older people than in young adults: 25–30 g of protein per meal, containing about 2.5–2.8 g of leucine. The group also says the evidence on per-meal amounts was not yet strong enough for firm recommendations — NuMa presents the figure as a guide accordingly.
+
+[^68]: Trommelen, J., van Lieshout, G. A. A., Nyakayiru, J. et al. "The anabolic response to protein ingestion during recovery from exercise has no upper limit in magnitude and duration in vivo in humans." *Cell Reports Medicine* 4(12):101324, 2023. https://pmc.ncbi.nlm.nih.gov/articles/PMC10772463/ — In 36 healthy, recreationally active young men after whole-body resistance exercise, 100 g of milk protein produced a larger and longer (over 12 hours) anabolic response than 25 g; the authors conclude the response "is not restricted and has previously been underestimated". They caution it was a single session, in young men only, with one protein source — but it is why NuMa never treats a large meal as wasted protein.
+
+[^69]: Salmerón, J., Manson, J. E., Stampfer, M. J. et al. "Dietary fiber, glycemic load, and risk of non-insulin-dependent diabetes mellitus in women." *JAMA* 277(6):472–477, 1997. — The Nurses' Health Study analysis that introduced glycemic load — a food's GI multiplied by its carbohydrate content — as a single measure of both the quality and the quantity of carbohydrate eaten. NuMa computes GL the same way, from each food's own carbohydrate and the amount eaten; the per-serving classification bands come with the international GI tables (footnote 8).
+
+[^70]: Kerksick, C. M., Arent, S., Schoenfeld, B. J. et al. "International society of sports nutrition position stand: nutrient timing." *Journal of the International Society of Sports Nutrition* 14:33, 2017. https://pmc.ncbi.nlm.nih.gov/articles/PMC5596471/ — The position points used here: meeting the total daily protein intake, "preferably with evenly spaced protein feedings", should be "a primary area of emphasis" (point 6); a 20–40 g protein dose every three to four hours "appears to most favorably affect" muscle protein synthesis (point 11); "post-exercise ingestion (immediately to 2-h post) of high-quality protein sources stimulates robust increases" in it (point 9); pre- and/or post-exercise carbohydrate + protein or protein alone may support strength gains (point 8); about 30–40 g of casein before sleep "can acutely increase" overnight muscle protein synthesis (point 12); and, when glycogen must be restored quickly, carbohydrate at 0.8 g/kg/h with protein at 0.2–0.4 g/kg/h (point 3). A position stand from a sports-nutrition society — aimed at people who exercise.
+
+[^71]: Schoenfeld, B. J., Aragon, A. A. & Krieger, J. W. "The effect of protein timing on muscle strength and hypertrophy: a meta-analysis." *Journal of the International Society of Sports Nutrition* 10:53, 2013. https://pmc.ncbi.nlm.nih.gov/articles/PMC3879660/ — Pooling 23 studies, protein taken within an hour of resistance exercise appeared to add muscle at first sight, but the effect "all but disappeared" once total protein intake was controlled for: the timed groups had simply eaten more protein. Total intake was the strongest predictor of muscle gain. It argues against a narrow post-exercise "window", not against eating protein after training.
+
+[^72]: Morton, R. W., Murphy, K. T., McKellar, S. R. et al. "A systematic review, meta-analysis and meta-regression of the effect of protein supplementation on resistance training-induced gains in muscle mass and strength in healthy adults." *British Journal of Sports Medicine* 52(6):376–384, 2018. https://pubmed.ncbi.nlm.nih.gov/28698222/ — Across 49 randomised trials (1,863 people), protein supplementation increased gains in strength and lean mass during resistance training of 6 weeks or more, but intakes beyond about 1.62 g/kg/day gave no further lean-mass gain. The benefit was smaller with increasing age.
+
+[^73]: Mamerow, M. M., Mettler, J. A., English, K. L. et al. "Dietary protein distribution positively influences 24-h muscle protein synthesis in healthy adults." *Journal of Nutrition* 144(6):876–880, 2014. https://pmc.ncbi.nlm.nih.gov/articles/PMC4018950/ — In 8 healthy adults eating the same daily protein two ways, an even spread (about 31, 30 and 33 g at breakfast, lunch and dinner) gave 25% higher 24-hour muscle protein synthesis than a skewed one (about 11, 16 and 63 g), and the difference held after a week on each diet. A small study, but a direct test of distribution with total intake held equal.
+
+[^74]: Churchward-Venne, T. A., Pinckaers, P. J. M., Smeets, J. S. J. et al. "Dose-response effects of dietary protein on muscle protein synthesis during recovery from endurance exercise in young men: a double-blind randomized trial." *American Journal of Clinical Nutrition* 112(2):303–317, 2020. https://pmc.ncbi.nlm.nih.gov/articles/PMC7398777/ — In 48 endurance-trained young men (cyclists and triathletes) after 90 minutes of cycling, with carbohydrate, "30 g of a high-quality protein (or a mean of ∼0.49 g protein/kg) is sufficient to maximize" myofibrillar protein synthesis; doses up to 45 g did not raise it further, and protein "did not result in greater" mitochondrial protein synthesis than carbohydrate alone.
+
+[^75]: Snijders, T., Res, P. T., Smeets, J. S. J. et al. "Protein ingestion before sleep increases muscle mass and strength gains during prolonged resistance-type exercise training in healthy young men." *Journal of Nutrition* 145(6):1178–1184, 2015. — 44 young men on a 12-week resistance programme took either a drink with 27.5 g protein (casein), 15 g carbohydrate and 0.1 g fat every night before sleep, or a non-caloric placebo; the protein group gained more muscle size and strength. Young, training men only.
+
+[^76]: Aoyama, S., Kim, H.-K., Hirooka, R. et al. "Distribution of dietary protein intake in daily meals influences skeletal muscle hypertrophy via the muscle clock." *Cell Reports* 36(1):109336, 2021. — In mice, protein concentrated at the first meal of the active period produced more muscle growth than the same protein at the last meal, and the effect was absent in mice with mutations in muscle clock genes; branched-chain amino acids were involved. In a cross-sectional study of 60 healthy women aged 65 and over, a larger share of protein at breakfast was associated with better muscle function. The human data show association, not cause.
 
 
 ---

@@ -57,6 +57,7 @@ class UserProfile:
     name: str = "Default"          # profile display name; also used as filename stem
     use_oxalate_data: bool = False  # enable Harvard oxalate data lookup for foods
     glucose_tolerance: str = ""    # "", "normal", or "impaired" — default population for GI table lookup
+    gl_day_target: float | None = None  # personal daily glycemic load budget (a limit); None = off
     optimal_targets: dict = field(default_factory=dict)  # nutrient_key -> per-day target, native unit
     max_limits: dict = field(default_factory=dict)       # nutrient_key -> per-day cap, native unit
 
@@ -253,11 +254,21 @@ def load_profile(name: str | None = None) -> Optional[UserProfile]:
             name=str(data.get("name", name)),
             use_oxalate_data=bool(data.get("use_oxalate_data", False)),
             glucose_tolerance=str(data.get("glucose_tolerance", "")),
+            gl_day_target=_positive_or_none(data.get("gl_day_target")),
             optimal_targets=dict(data.get("optimal_targets") or {}),
             max_limits=dict(data.get("max_limits") or {}),
         )
     except (KeyError, ValueError, json.JSONDecodeError):
         return None
+
+
+def _positive_or_none(value) -> float | None:
+    """A stored optional number: a positive float, else None (off)."""
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
 
 
 def save_profile(profile: UserProfile) -> None:

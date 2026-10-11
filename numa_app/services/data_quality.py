@@ -29,6 +29,10 @@ read from here, so they can't drift apart. The checks themselves:
   (recipe, meal or pantry) with no amino-acid figures / no portion weights,
   most-used first. Only used foods: an unused one affects no result, and the
   full lists run to dozens. Improvements, not errors — no reminder keys.
+- missing_gi_in_use(): foods you use with carbohydrate (5 g/100 g or more)
+  but no GI, most-used first — they leave glycemic load incomplete and can't
+  be offered as lower-GL swaps. "Not needed" here is the GI "don't prompt me"
+  flag (food_annotations.gi_no_prompt), the one glycemic load already honours.
 - duplicate_groups(): foods with the same name once case, a "* " starter
   prefix, "Copy of " and "(FDC n)" are ignored; run on request only.
 - scan(): the whole database — the checks above plus the existing
@@ -418,6 +422,28 @@ def missing_portions_in_use(conn) -> list[dict]:
             rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "use": use,
                          "ignored": PORTIONS_IGNORE_KEY in ign})
     rows.sort(key=lambda r: (-r["use"]["total"], r["name"].lower()))
+    return rows
+
+
+# A food with less carbohydrate than this per 100 g isn't listed as missing a
+# GI: a GI is barely meaningful for it, and in any normal amount its GL is tiny.
+GI_LIST_MIN_CARBS = 5.0
+
+
+def missing_gi_in_use(conn) -> list[dict]:
+    """Used foods with GI_LIST_MIN_CARBS g or more carbohydrate per 100 g and
+    no GI recorded, most-used then most carbohydrate first. "ignored" = GI
+    marked "don't prompt me"."""
+    ann = {r["fdc_id"]: r for r in conn.execute(
+        "SELECT fdc_id, gi_estimate, gi_no_prompt FROM food_annotations")}
+    rows = []
+    for row, n, _p, use, _ign in _foods_in_use(conn):
+        carbs = float(n.get("carbs_g") or 0)
+        a = ann.get(row["fdc_id"])
+        if carbs >= GI_LIST_MIN_CARBS and (a is None or a["gi_estimate"] is None):
+            rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "carbs": carbs,
+                         "use": use, "ignored": bool(a is not None and a["gi_no_prompt"])})
+    rows.sort(key=lambda r: (-r["use"]["total"], -r["carbs"], r["name"].lower()))
     return rows
 
 

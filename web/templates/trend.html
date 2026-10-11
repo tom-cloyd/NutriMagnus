@@ -80,7 +80,8 @@
     </div>
   </div>
 </div>
-<p class="muted"><small>{{ gl_band_caveat("day") }}</small></p>
+{% if gl_target_days %}<p class="mb-1"><small><span class="{{ 'rda-over' if gl_days_over else 'rda-met' }}">{{ gl_days_over }} of {{ gl_target_days }} day(s)</span> over your daily glycemic load target (each day against the target pinned to it). {{ manual_link("gl-target") }}</small></p>{% endif %}
+{% import "_gl_result.html" as _glr %}{{ _glr.gl_band_help("day") }}
 {% if gl_unknown_dates %}
 <p class="muted"><small>No GL for {{ gl_unknown_dates | length }} day(s) in this window ({{ gl_unknown_dates | join(", ") }}) &mdash; something logged on each lacks a GI annotation, or is a recipe with no computed GL yet. <a href="/food/annotate">Annotate a food</a> to close the gap.</small></p>
 {% endif %}

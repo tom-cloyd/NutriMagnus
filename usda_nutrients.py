@@ -22,6 +22,45 @@ Nutrients = dict[str, float]
 # hard limit which only ever caught outright-impossible amounts.
 MAX_PRACTICAL_GAP_CLOSER_GRAMS = 300
 
+# Most of one food a complement suggestion will add to a meal. 300 g of lentils
+# is a big but real meal; 300 g of nutritional yeast is 5 cups. Resolved per
+# candidate by complement_meal_limit(): the user's own per-food limit
+# (food_annotations.max_meal_g), else a multiple of the food's label serving,
+# else a default by food type, else MAX_PRACTICAL_GAP_CLOSER_GRAMS.
+MEAL_LIMIT_SERVING_MULTIPLE = 3   # label servings are small (2 tbsp, 1 scoop)
+MEAL_LIMIT_RECIPE_SERVINGS = 2    # a recipe serving is already a meal portion
+_MEAL_LIMIT_DEFAULTS: list[tuple[str, float, str]] = [
+    # (regex on the lowercased name, grams, label) — first match wins.
+    (r"nutritional yeast|yeast flakes|brewer'?s yeast|yeast extract|spirulina|chlorella"
+     r"|seasoning|\bspices?\b", 15, "seasonings and yeast"),
+    (r"protein powder|\bisolate\b|\bconcentrate\b|\bpowder\b", 40, "protein powders"),
+    (r"\bseeds?\b|\bnuts?\b|hemp|almond|walnut|cashew|pecan|pistachio|hazelnut|peanut"
+     r"|nut butter|tahini", 40, "seeds and nuts"),
+    (r"cheese|parmesan|cheddar", 60, "cheese"),
+]
+
+
+def complement_meal_limit(
+    name: str,
+    *,
+    user_g: float | None = None,
+    serving_g: float | None = None,
+    is_recipe: bool = False,
+) -> tuple[float, str]:
+    """Most grams of a food a complement suggestion will add to one meal, and
+    where that figure came from (shown beside a capped suggestion)."""
+    if user_g and user_g > 0:
+        return float(user_g), "your limit for this food"
+    if serving_g and serving_g > 0:
+        n = MEAL_LIMIT_RECIPE_SERVINGS if is_recipe else MEAL_LIMIT_SERVING_MULTIPLE
+        g = min(serving_g * n, MAX_PRACTICAL_GAP_CLOSER_GRAMS)
+        return g, f"{n} servings of {serving_g:g} g"
+    low = name.lower()
+    for pattern, g, label in _MEAL_LIMIT_DEFAULTS:
+        if re.search(pattern, low):
+            return float(g), f"the default for {label}"
+    return float(MAX_PRACTICAL_GAP_CLOSER_GRAMS), "the general limit"
+
 # Nutrient groupings for the multi-food compare feature (web/backend.py) —
 # kept here as the single source of truth for which nutrients are grouped
 # together.
@@ -682,96 +721,137 @@ def _score_one_complement(
     cand_diaas: float | None,
     target_aa: str,
     cand_digestibility: float | None = None,
+    base_dig_aa: dict[str, float] | None = None,
+    max_grams: float | None = None,
 ) -> dict | None:
     """
     Compute suggestion metrics for one candidate food targeting a specific AA gap
     in base_nutrients.  Returns None if the candidate cannot close that gap.
 
     cand_digestibility: the candidate's TRUE ILEAL DIGESTIBILITY (diaas.get_digestibility),
-        used to weight its amino acids in the pooled-DIAAS projection below.  This must
-        not be the candidate's DIAAS score: DIAAS already folds in the food's own
+        used to weight its amino acids in the pooled solve below.  This must not be
+        the candidate's DIAAS score: DIAAS already folds in the food's own
         limiting-AA shortfall, so using it as a digestibility factor double-counts that
         shortfall and makes plant complements look like they drag the pool down when they
-        don't (sesame TID 0.84 vs DIAAS 0.44).  Falls back to cand_diaas, then 1.0, when
-        the caller has no name to look it up from.
+        don't (sesame TID 0.84 vs DIAAS 0.44).  When None (a caller with no name to look
+        it up from), the solve treats the candidate at base_digestibility — the older
+        uniform-pool math — and predicted_diaas falls back to cand_diaas, then 1.0.
 
-    Solves for grams X: (base_aa + alpha*X) / (base_protein + beta*X) = R
-    where alpha = cand_aa/100, beta = cand_protein/100, R = digestibility-adjusted
-    reference ratio.  Valid only when alpha > R*beta (candidate AA/protein ratio
-    exceeds the reference).
+    base_dig_aa: the base pool's DIGESTIBLE amino acids (g, paired AAs already
+        combined), when the base is itself a mix of sources at different
+        digestibilities — _build_pairs passes base*base_digestibility + food A at
+        A's own TID.  Default: base_nutrients' AAs × base_digestibility.
+
+    Solves the pooled equation for grams X, each source at its own digestibility:
+        (D_base + alpha*X*d_cand) / (base_protein + beta*X) = r
+    where D_base = base digestible target AA, alpha = cand_aa/100, beta =
+    cand_protein/100, r = reference ratio.  Valid only when alpha*d_cand > r*beta.
+    (This used to assume the whole pool, candidate included, was at the base's
+    digestibility — which undercounted a well-digested complement such as soy
+    isolate, TID 0.95, against a 0.84 meal and sized it out of range.)
+
+    The resulting scores are pooled digestible scores; new_scores carries them
+    divided by base_digestibility, so callers' existing "new_scores × digestibility"
+    rescaling lands on the pooled value.  target_aa is returned so the display can
+    say which gap the amount was sized to close.
+
+    max_grams: the food's per-meal limit (complement_meal_limit).  When closing
+    the gap would take more than that (but no more than
+    MAX_PRACTICAL_GAP_CLOSER_GRAMS), the result is evaluated AT the limit
+    instead: "capped": True, "closing_grams" = what full closure would take,
+    and the target gap left only partly closed.
 
     Extracted from the _score_candidate closure inside suggest_complements so that
     _build_pairs can re-use the same formula with a different base (post-first-food).
     """
-    if target_aa in _AA_PAIRS:
-        pair_key = _AA_PAIRS[target_aa]
-        alpha = (cand_nutrients.get(target_aa, 0.0) + cand_nutrients.get(pair_key, 0.0)) / 100.0
-    else:
-        alpha = cand_nutrients.get(target_aa, 0.0) / 100.0
+    bd = max(base_digestibility, 0.01)
+    # base_digestibility 1.0 is the "no digestibility data" default; pooling a
+    # real candidate TID against it would penalize every candidate, so that
+    # case keeps the uniform math (as the reduction guard below always has).
+    pooled = cand_digestibility is not None and base_digestibility < 1.0
+    solve_dig = cand_digestibility if pooled else bd
+    base_protein = base_nutrients.get("protein_g", 0.0)
+    if base_protein <= 0:
+        return None
+
+    def _aa(n: Nutrients, k: str) -> float:
+        v = n.get(k, 0.0)
+        if k in _AA_PAIRS:
+            v += n.get(_AA_PAIRS[k], 0.0)
+        return v
+
+    if base_dig_aa is None:
+        base_dig_aa = {k: _aa(base_nutrients, k) * bd for k in ESSENTIAL_AMINO_ACIDS
+                       if k in base_nutrients}
+
+    alpha = _aa(cand_nutrients, target_aa) / 100.0
     beta = cand_nutrients.get("protein_g", 0.0) / 100.0
-    R = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0 / max(base_digestibility, 0.01)
-    denom = alpha - R * beta
+    r = AA_REFERENCE_MG_PER_G_PROTEIN[target_aa] / 1000.0
+    denom = alpha * solve_dig - r * beta
     if denom <= 0:
         return None
-    if target_aa in _AA_PAIRS:
-        base_aa = base_nutrients.get(target_aa, 0.0) + base_nutrients.get(_AA_PAIRS[target_aa], 0.0)
-    else:
-        base_aa = base_nutrients.get(target_aa, 0.0)
-    base_protein = base_nutrients.get("protein_g", 0.0)
-    grams = (R * base_protein - base_aa) / denom
+    grams = (r * base_protein - base_dig_aa.get(target_aa, 0.0)) / denom
     if grams <= 0 or grams > MAX_PRACTICAL_GAP_CLOSER_GRAMS:
         return None
-    added = scale_nutrients(cand_nutrients, grams)
-    combined = sum_nutrients(base_nutrients, added)
-    new_pc = protein_completeness(combined, digestibility=base_digestibility)
-    new_gaps = get_aa_gaps(combined, digestibility=base_digestibility)
-    gaps_closed = len(base_gaps) - len(new_gaps)
-    target_still_gapped = any(aa == target_aa for aa, _, _ in new_gaps)
-    if target_still_gapped:
+    closing_grams = grams
+    capped = max_grams is not None and grams > max_grams
+    if capped:
+        grams = max_grams
+
+    def _pooled(X: float, d: float) -> dict[str, float]:
+        """Digestible score per AA for base + X g of the candidate at digestibility d."""
+        P = base_protein + beta * X
+        out: dict[str, float] = {}
+        for k in ESSENTIAL_AMINO_ACIDS:
+            b = base_dig_aa.get(k)
+            c = _aa(cand_nutrients, k) * X / 100.0
+            if b is None and c <= 0:
+                continue
+            out[k] = ((b or 0.0) + c * d) / (AA_REFERENCE_MG_PER_G_PROTEIN[k] / 1000.0 * P)
+        return out
+
+    new_adj = _pooled(grams, solve_dig)
+    if not capped:
+        # The solve lands the target exactly on 1.0; guard against float shortfall.
+        new_adj[target_aa] = max(new_adj.get(target_aa, 1.0), 1.0)
+    new_gaps = sorted((k for k, v in new_adj.items() if v < _MIN_GAP_SCORE),
+                      key=lambda k: new_adj[k])
+    if target_aa in new_gaps and not capped:
         return None
+    gaps_closed = len(base_gaps) - len(new_gaps)
     original_gap_set = {aa for aa, _, _ in base_gaps}
-    new_gap_set = {aa for aa, _, _ in new_gaps}
-    opens_new_gap = bool(new_gap_set - original_gap_set)
+    opens_new_gap = bool(set(new_gaps) - original_gap_set)
     closes_primary = (target_aa == base_gaps[0][0]) if base_gaps else False
     protein_added = cand_nutrients.get("protein_g", 0) * grams / 100
     dig_added = protein_added * (cand_diaas if cand_diaas is not None else 1.0)
-    # Predicted DIAAS for the combined pool using per-source digestibility.
-    # base_nutrients scaled by base_digestibility; complement scaled by its own DIAAS.
-    # This is more accurate than applying base_digestibility uniformly to the combined
-    # raw pool, which overestimates DCP when adding a high-DIAAS complement.
-    # comp_dig is a true ileal digestibility (see cand_digestibility above), matching
-    # the basis base_digestibility arrives on and the one _diaas_improver_score uses.
+    # Predicted DIAAS for the combined pool, per-source digestibility.  With a TID
+    # this is the same pool the solve used; without one it keeps the older
+    # cand_diaas fallback (see cand_digestibility above).
     if cand_digestibility is not None:
         comp_dig = cand_digestibility
     else:
         comp_dig = cand_diaas if cand_diaas is not None else 1.0
-    total_raw_protein = combined.get("protein_g", 0)
-    predicted_diaas: float | None = None
-    if total_raw_protein > 0:
-        dig_scores: dict[str, float] = {}
-        for aa_key in ESSENTIAL_AMINO_ACIDS:
-            pair_key = _AA_PAIRS.get(aa_key)
-            base_aa = base_nutrients.get(aa_key, 0.0)
-            comp_aa = cand_nutrients.get(aa_key, 0.0) * grams / 100
-            if pair_key:
-                base_aa += base_nutrients.get(pair_key, 0.0)
-                comp_aa += cand_nutrients.get(pair_key, 0.0) * grams / 100
-            if base_aa <= 0 and comp_aa <= 0:
-                continue
-            ref_g = AA_REFERENCE_MG_PER_G_PROTEIN[aa_key] / 1000.0 * total_raw_protein
-            if ref_g > 0:
-                dig_scores[aa_key] = (base_aa * base_digestibility + comp_aa * comp_dig) / ref_g
-        if dig_scores:
-            predicted_diaas = min(dig_scores.values())
-    # Reject if adding this complement would reduce total DCP (pooled DIAAS
-    # below the base meal's digestibility).  Only meaningful when we have real
-    # digestibility data; skip when base_digestibility is the 1.0 default.
-    if predicted_diaas is not None and base_digestibility < 1.0 and predicted_diaas < base_digestibility:
+    pred_scores = new_adj if comp_dig == solve_dig else _pooled(grams, comp_dig)
+    predicted_diaas: float | None = min(pred_scores.values()) if pred_scores else None
+    # Reject if the addition would leave the pool's DIAAS lower than it is now —
+    # i.e. it closes the target gap only by opening a worse one.  Compared against
+    # the base's own pooled DIAAS (same measure), not its digestibility: a meal at
+    # TID 0.84 but DIAAS 0.69 is improved by anything that lifts it above 0.69.
+    base_scores = _pooled(0.0, solve_dig)
+    base_diaas = min(base_scores.values()) if base_scores else None
+    if (predicted_diaas is not None and base_diaas is not None and base_digestibility < 1.0
+            and predicted_diaas < base_diaas):
         return None
+    if capped and base_diaas is not None and predicted_diaas is not None \
+            and predicted_diaas <= base_diaas:
+        return None  # at the limit it doesn't help at all
     return {
         "grams":                    round(grams),
-        "new_scores":               new_pc.get("scores", {}),
-        "new_complete":             new_pc.get("complete", False),
+        "capped":                   capped,
+        "closing_grams":            round(closing_grams),
+        "target_aa":                target_aa,
+        "new_scores":               {k: v / bd for k, v in new_adj.items()},
+        "new_complete":             bool(new_adj) and all(v >= 1.0 for v in new_adj.values()),
         "gaps_closed":              gaps_closed,
         "opens_new_gap":            opens_new_gap,
         "closes_primary":           closes_primary,
@@ -793,6 +873,7 @@ def suggest_complements(
     max_improver_grams: float = 300,
     cache_candidates: list[dict] | None = None,
     exclude_names: set[str] | None = None,
+    uncap_names: set[str] | None = None,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -814,6 +895,12 @@ def suggest_complements(
         and diaas_improvers tiers.
     base_food_name: used to look up true ileal digestibility for DIAAS-improver
         calculations; falls back to base_digestibility if None.
+    Per-meal limits: each candidate may carry "max_meal_g" (the user's own
+        limit) and "serving_g" (label serving, grams); see complement_meal_limit().
+        A gap-closer that needs more than its limit is offered AT the limit,
+        marked "capped" and ranked after the ones that close within theirs.
+    uncap_names: suggestion names (case-insensitive) whose limit the user has
+        lifted for this one page view — they get the full closing amount.
 
     Any candidate (pantry or general) that has real nutrient data but lacks its
     own amino acid panel is auto-estimated via the curated table (scaled to its
@@ -852,13 +939,33 @@ def suggest_complements(
         return _get_dig(name)[0]
 
     def _score_candidate(nutrients_100g: dict, diaas: float | None,
-                         target_aa: str, cand_name: str | None = None) -> dict | None:
+                         target_aa: str, cand_name: str | None = None,
+                         max_grams: float | None = None) -> dict | None:
         """Delegate to the module-level helper using this closure's base context."""
         return _score_one_complement(
             base_nutrients, gaps, base_digestibility,
             nutrients_100g, diaas, target_aa,
             cand_digestibility=_cand_tid(cand_name),
+            max_grams=max_grams,
         )
+
+    uncap_lower = {n.lower() for n in (uncap_names or ())}
+
+    def _limit_for(cand: dict) -> tuple[float, str, bool]:
+        """(per-meal limit, where it came from, set by the user?) for a candidate."""
+        user_g = cand.get("max_meal_g")
+        g, src = complement_meal_limit(
+            cand["name"], user_g=user_g,
+            serving_g=cand.get("serving_weight_g") if cand.get("recipe_id") else cand.get("serving_g"),
+            is_recipe=bool(cand.get("recipe_id")),
+        )
+        return g, src, bool(user_g)
+
+    def _cap_for(cand: dict) -> float | None:
+        """The limit to apply, or None when the user lifted it for this page view."""
+        if cand["name"].lower() in uncap_lower:
+            return None
+        return _limit_for(cand)[0]
 
     def _diaas_improver_score(
         comp_nutrients: dict,
@@ -925,6 +1032,9 @@ def suggest_complements(
         else:
             all_steps = [30, 60, 100, 150, 200, 300]
         step_sizes = [s for s in all_steps if s <= max_grams]
+        if max_grams < all_steps[-1] and (not step_sizes or step_sizes[-1] < max_grams):
+            # A per-food limit between the standard steps is itself a step.
+            step_sizes.append(round(max_grams))
 
         # Evaluate pooled DIAAS at each step.
         steps: list[dict] = []
@@ -986,25 +1096,33 @@ def suggest_complements(
                     estimated = True
             if cand_nutrients is None:
                 continue
-            # Try gap-closer first (targeted AA-ratio formula)
+            # Try gap-closer first (targeted AA-ratio formula), most limiting
+            # gap first. A food that would need more than its per-meal limit
+            # comes back capped — partway on that gap at the limit — which
+            # still beats fully closing a minor gap with a token amount.
+            cap = _cap_for(cand)
+            limit_g, limit_src, user_limit = _limit_for(cand)
             metrics = None
             for target_aa, _score, _deficit in gaps:
-                metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa, name)
+                metrics = _score_candidate(cand_nutrients, cand_diaas, target_aa, name, max_grams=cap)
                 if metrics is not None:
                     break
-            extra = {"recipe_id": recipe_id, "serving_weight_g": serving_weight_g, "estimated": estimated}
+            extra = {"recipe_id": recipe_id, "serving_weight_g": serving_weight_g, "estimated": estimated,
+                     "limit_g": round(limit_g), "limit_source": limit_src, "user_limit": user_limit,
+                     "uncapped": cap is None and metrics is not None
+                                 and metrics["closing_grams"] > limit_g}
             if metrics is not None:
                 seen_names.add(name)
                 gap_closers.append({"name": name, "fdc_id": fdc_id, **extra, **metrics})
             else:
                 # Try DIAAS-improver (pooled DIAAS formula with per-food digestibilities)
                 imp = _diaas_improver_score(cand_nutrients, name, cand_diaas,
-                                           max_grams=max_improver_grams)
+                                           max_grams=min(max_improver_grams, cap or max_improver_grams))
                 if imp is not None:
                     seen_names.add(name)
                     diaas_improvers.append({"name": name, "fdc_id": fdc_id, **extra, **imp})
         # Sort gap-closers: primary-gap first, then most gaps closed, then smallest grams.
-        gap_closers.sort(key=lambda r: (not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
+        gap_closers.sort(key=lambda r: (r["capped"], not r.get("closes_primary"), -r["gaps_closed"], r["grams"]))
         # Sort DIAAS-improvers: best resulting DIAAS first, then smallest grams.
         diaas_improvers.sort(key=lambda r: (-r["new_diaas"], r["grams"]))
         return gap_closers, diaas_improvers
@@ -1063,6 +1181,7 @@ def suggest_complements(
             general_candidates.append({
                 "name": real["name"], "fdc_id": real.get("fdc_id"),
                 "nutrients": real.get("nutrients"), "diaas": real.get("diaas") or c["diaas"],
+                "max_meal_g": real.get("max_meal_g"), "serving_g": real.get("serving_g"),
             })
         else:
             general_candidates.append(
@@ -1109,6 +1228,7 @@ def suggest_complements(
                     "recipe_id": c.get("recipe_id"),
                     "serving_weight_g": c.get("serving_weight_g"),
                     "nutrients": cand_n, "diaas": cand_d,
+                    "max_meal_g": c.get("max_meal_g"), "serving_g": c.get("serving_g"),
                 })
     for c in general_candidates:
         if c["name"] not in all_candidate_names and c.get("nutrients"):
@@ -1138,18 +1258,42 @@ def suggest_complements(
                 base_nutrients, gaps, base_digestibility,
                 a_nutrients, a_diaas, primary_aa,
                 cand_digestibility=_cand_tid(a_name),
+                max_grams=_cap_for(cand_a),
             )
-            if a_m is None:
+            if a_m is None or a_m["capped"]:
                 continue
-            # Skip A if it alone achieves completeness — it's already a strong
-            # single-food suggestion and pairing adds no value.
-            if not a_m["opens_new_gap"]:
+            # Skip A if it alone leaves no gaps — it's already a strong
+            # single-food suggestion and pairing adds no value.  (Not "opens no
+            # new gap": A can close the primary gap yet leave an original one.)
+            if a_m["remaining_gaps"] == 0:
                 continue
 
             combined_after_a: Nutrients = sum_nutrients(
                 base_nutrients, scale_nutrients(a_nutrients, a_m["grams"])
             )
-            gaps_after_a: list = get_aa_gaps(combined_after_a, digestibility=base_digestibility)
+            # Pool after A with each source at its own digestibility, so B is
+            # sized against what A actually leaves behind (a_m's own scores).
+            a_tid = _cand_tid(a_name)
+            a_dig = (a_tid if a_tid is not None and base_digestibility < 1.0
+                     else max(base_digestibility, 0.01))
+            dig_aa_after_a: dict[str, float] = {}
+            for k in ESSENTIAL_AMINO_ACIDS:
+                pk = _AA_PAIRS.get(k)
+                b_v = base_nutrients.get(k, 0.0) + (base_nutrients.get(pk, 0.0) if pk else 0.0)
+                a_v = a_nutrients.get(k, 0.0) + (a_nutrients.get(pk, 0.0) if pk else 0.0)
+                if k in base_nutrients or a_v > 0:
+                    dig_aa_after_a[k] = (b_v * max(base_digestibility, 0.01)
+                                         + a_v * a_m["grams"] / 100.0 * a_dig)
+            p_after_a = combined_after_a.get("protein_g", 0.0)
+            gaps_after_a: list = sorted(
+                (
+                    (k, v / (AA_REFERENCE_MG_PER_G_PROTEIN[k] / 1000.0 * p_after_a), None)
+                    for k, v in dig_aa_after_a.items()
+                    if p_after_a > 0
+                ),
+                key=lambda g: g[1],
+            )
+            gaps_after_a = [g for g in gaps_after_a if g[1] < _MIN_GAP_SCORE]
             if not gaps_after_a:
                 continue
 
@@ -1173,8 +1317,10 @@ def suggest_complements(
                     combined_after_a, gaps_after_a, base_digestibility,
                     b_nutrients, b_diaas, b_target_aa,
                     cand_digestibility=_cand_tid(b_name),
+                    base_dig_aa=dig_aa_after_a,
+                    max_grams=_cap_for(cand_b),
                 )
-                if b_m is None:
+                if b_m is None or b_m["capped"]:
                     continue
                 # Only accept B if it closes all remaining gaps without opening new ones.
                 if b_m["remaining_gaps"] > 0 or b_m["opens_new_gap"]:

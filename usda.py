@@ -24,6 +24,7 @@ from usda_nutrients import (  # noqa: F401
     Nutrients,
     COMPARE_GROUPS,
     MAX_PRACTICAL_GAP_CLOSER_GRAMS,
+    complement_meal_limit,
     scale_nutrients,
     sum_nutrients,
     has_amino_acid_data,

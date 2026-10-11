@@ -263,18 +263,22 @@ class TestTwoStepCombo:
         # the curated table (verified stable across repeated runs) — pin
         # every field, not just a couple, per the comprehensive-field-test
         # technique from the previous round (proved far more efficient than
-        # one narrow test per mutant sampled).
+        # one narrow test per mutant sampled). Since 2026-10-10 the step-1
+        # pool is solved with each source at its own digestibility, so soy
+        # (TID 0.95) would close the remaining Lysine gap outright at 132 g,
+        # so it comes in as a gap-closer — capped at the 40 g protein-powder
+        # per-meal default (usda_nutrients.complement_meal_limit).
         assert step2["name"] == "Soy protein isolate"
         assert step2["fdc_id"] == 174276
         assert step2["estimated"] is False
         assert step2["diaas"] == pytest.approx(0.97)
-        assert step2["grams"] == 30
-        assert step2["amount_note"] == _amount_note(30, "Soy protein isolate", fdc_id=174276)
-        assert step2["new_diaas"] == pytest.approx(0.57)
+        assert step2["grams"] == 40
+        assert step2["amount_note"] == _amount_note(40, "Soy protein isolate", fdc_id=174276)
+        assert step2["new_diaas"] == pytest.approx(0.66)
         # step2's "dcp_before" must be exactly step1's "dcp_after" — the pool
         # after step1 is the starting point step2 improves on.
         assert step2["dcp_before"] == combo["step1"]["dcp_after"]
-        assert step2["dcp_after"] == pytest.approx(32.0)
+        assert step2["dcp_after"] == pytest.approx(42.6)
         assert step2["net_gain"] == pytest.approx(round(step2["dcp_after"] - 20.0, 1))
 
     def test_step2_dcp_after_uses_real_exact_dcp_when_ingredients_provided(self):
@@ -412,11 +416,15 @@ class TestBuildComplementDisplay:
 
     def test_no_estimate_flag_when_all_suggestions_are_real_or_curated_with_fdc(self):
         # SAMPLE_NUTRIENTS' gap is closed by curated entries that happen to carry
-        # a real fdc_id (Tempeh, Egg, Whey, Tofu, Soy protein isolate) — none
-        # should be flagged as estimated or generic.
+        # a real fdc_id (Cheddar, Soy protein isolate, Hemp, Pumpkin seeds) — none
+        # should be flagged as estimated or generic. The curated table's two
+        # no-fdc_id entries also qualify here, so they're excluded.
         nutrients = dict(SAMPLE_NUTRIENTS)
         nutrients["aa_lysine_g"] = 0.6
-        result = _complements.build_complement_display(nutrients, [], digestibility=0.5, diet_pref="all")
+        result = _complements.build_complement_display(
+            nutrients, [], digestibility=0.5, diet_pref="all",
+            exclude_names={"pea protein powder", "nutritional yeast"},
+        )
         assert result["has_estimate_or_generic"] is False
         assert result["estimate_note"] is None
 
@@ -479,12 +487,13 @@ class TestBuildComplementDisplay:
         # Need a suggestion needing > _GRAD_THRESHOLD (30g) to get any grad_steps at all.
         with_grad_steps = [s for s in result["general"] if s["grad_steps"]]
         assert with_grad_steps, "no suggestion needed enough grams to produce grad_steps"
-        # base_digestible = base protein_g * digestibility(1.0) = 20.0 — pinning
-        # this also guards against base_nutrients.get("protein_g") silently
-        # reading the wrong key (a survived mutant did exactly that), since a
-        # wrong/zero base_protein would make base_digestible 0 and this whole
-        # formula check fail.
-        base_digestible = 20.0
+        # base DCP = base protein_g × min(1, limiting score) — the base's own
+        # current DCP (before 2026-10-10: protein × digestibility, which ignored
+        # the limiting amino acid). Pinning it independently also guards
+        # against base_nutrients.get("protein_g") silently reading the wrong
+        # key (a survived mutant did exactly that).
+        base_digestible = 20.0 * min(1.0, _usda.get_aa_gaps(nutrients)[0][1])
+        assert result["base_dcp"] == round(base_digestible, 1)
         for s in with_grad_steps:
             for step in s["grad_steps"]:
                 assert step["dcp"] is not None
@@ -703,13 +712,12 @@ class TestSortModes:
         }
         self._stub(monkeypatch, pairs=[pair])
         result = _complements.build_complement_display({"protein_g": 20.0}, [])
-        # base_digestible = 20.0 (protein_g * digestibility 1.0);
-        # old_adj_min = gaps[0][1] = 0.5 (stubbed); new_adj_min = 0.3
-        # scale = 0.3/0.5 = 0.6; total_raw = 20.0 + 5.0 = 25.0
-        # total_dig_complete = round(25.0 * 0.6, 1) = 15.0 -- NOT 41.7,
-        # which is what round(25.0 / 0.6, 1) (the mutant) would give.
+        # new_adj_min = 0.3 × digestibility 1.0; total_raw = 20.0 + 5.0 = 25.0
+        # total_dig_complete = round(25.0 * min(1.0, 0.3), 1) = 7.5 -- NOT 83.3,
+        # which is what round(25.0 / 0.3, 1) (the mutant) would give. (Before
+        # 2026-10-10 it used new/old limiting score, 0.3/0.5 -> 15.0.)
         fmt_pair = result["pairs"][0]
-        assert fmt_pair["total_dig_complete"] == pytest.approx(15.0)
+        assert fmt_pair["total_dig_complete"] == pytest.approx(7.5)
         assert fmt_pair["total_grams"] == 50
         assert fmt_pair["gaps_closed"] is True
         assert fmt_pair["new_complete"] is False
@@ -781,8 +789,9 @@ class TestSortModes:
         assert fmt["opens_new_gap"] is True
         assert fmt["estimated"] is True
         # new_scores={} (falsy) -> _total_dig() falls to the
-        # base_digestible + dig branch: round(20.0 + 3.456, 1) = 23.5
-        assert fmt["total_dig"] == pytest.approx(23.5)
+        # base DCP + dig branch: base DCP = 20.0 × min(1, 0.5 stubbed limiting
+        # score) = 10.0; round(10.0 + 3.456, 1) = 13.5
+        assert fmt["total_dig"] == pytest.approx(13.5)
         # new_scores={} -> aa_effects() falls back to gaps' own orig_score
         # (stubbed gaps = [("aa_lysine_g", 0.5, 2.0)]).
         assert fmt["aa_effects"] == [
@@ -804,11 +813,34 @@ class TestSortModes:
         }
         self._stub(monkeypatch, pantry=[s])
         result = _complements.build_complement_display({"protein_g": 20.0}, [])
-        # gaps=[("aa_lysine_g", 0.5, 2.0)] (stubbed) -> old_adj_min=0.5
         # new_adj_min = min(0.4) * digestibility(1.0) = 0.4
-        # scale = 0.4 / 0.5 = 0.8 -> min(1.0, 0.8) = 0.8
-        # total_dig = round((20.0 + 10.0) * 0.8, 1) = 24.0
-        assert result["pantry"][0]["total_dig"] == pytest.approx(24.0)
+        # total_dig = round((20.0 + 10.0) * min(1.0, 0.4), 1) = 12.0
+        # (Before 2026-10-10 this multiplied by new/old limiting score,
+        # 0.4/0.5 -> 24.0, which hits 1.0 on any improvement at all.)
+        assert result["pantry"][0]["total_dig"] == pytest.approx(12.0)
+
+    def test_dcp_ranking_uses_the_displayed_exact_figure(self, monkeypatch):
+        # With an ingredient list, each suggestion displays exact_dcp(); the
+        # "dcp" ranking must use that same number, not the _total_dig
+        # estimate. Constructed so the two disagree: by estimate "Estimate
+        # winner" leads (15 g digestible added vs 2 g), by exact figure
+        # "Exact winner" does.
+        pantry = [
+            {**self._RAW_PANTRY[1], "name": "Estimate winner", "comp_nutrients": {"protein_g": 1.0}},
+            {**self._RAW_PANTRY[0], "name": "Exact winner", "comp_nutrients": {"protein_g": 1.0}},
+        ]
+        self._stub(monkeypatch, pantry=pantry)
+        exact = {"Estimate winner": 40.0, "Exact winner": 55.0}
+        monkeypatch.setattr(_complements, "exact_dcp",
+                            lambda ings, extra: exact.get(extra[0][0]) if extra else None)
+        result = _complements.build_complement_display(
+            {"protein_g": 20.0}, [], comp_sort="dcp",
+            ingredients=[{"food_name": "Base", "nutrients_100g": {"protein_g": 20.0}, "grams": 100}],
+        )
+        names = [s["name"] for s in result["pantry"]]
+        assert names == ["Exact winner", "Estimate winner"]
+        assert [s["total_dig"] for s in result["pantry"]] == [55.0, 40.0]
+        assert "same calculation as the DCP shown" in result["dcp_note"]
 
     def test_dcp_at_frac_weighted_pool_formula_across_all_grad_steps(self, monkeypatch):
         # _dcp_at_frac() (the weighted-pool IAA formula behind _grad_steps()'s
@@ -928,10 +960,11 @@ class TestSortModes:
         # new_diaas truthy -> round((20.0 + 6.789) * min(1.0, 0.85), 1) = 22.8
         assert fmt["total_dig"] == pytest.approx(22.8)
         # step_dcp falls back to step["dcp"]=99.9 (exact_dcp also None here):
-        # pct_increase = round((99.9 - 20.0) / 20.0 * 100, 1) = 399.5
+        # base DCP = 20.0 × min(1, 0.5 stubbed limiting score) = 10.0
+        # pct_increase = round((99.9 - 10.0) / 10.0 * 100, 1) = 899.0
         assert len(fmt["steps"]) == 1
         assert fmt["steps"][0]["dcp"] == pytest.approx(99.9)
-        assert fmt["steps"][0]["pct_increase"] == pytest.approx(399.5)
+        assert fmt["steps"][0]["pct_increase"] == pytest.approx(899.0)
         assert fmt["steps"][0]["amount_note"] == _amount_note(40, "ImproverFood", fdc_id=55)
 
     def test_top_level_summary_fields_match_hand_calculation(self, monkeypatch):

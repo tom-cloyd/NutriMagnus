@@ -55,6 +55,12 @@ from numa_app.services import aa_estimate as _aa_estimate
 from numa_app.services import incoming_review as _incoming_review
 from numa_app.services.glycemic_load import (average_day_gl, combine_gl, day_gl_totals, food_gl,
                                              gl_band, gl_band_caveat, meal_gl, recipe_gl)
+from numa_app.services.glycemic_load import day_gl as _day_gl
+from numa_app.services.glycemic_load import gl_target_status as _gl_target_status
+from numa_app.services.glycemic_load import gl_target_options as _gl_target_options
+from numa_app.services import protein_per_meal as _ppm
+from numa_app.services.glycemic_load import gi_measured_impaired as _gi_measured_impaired
+from numa_app.services.glycemic_load import gl_for_leaves as _gl_for_leaves
 from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
@@ -75,7 +81,8 @@ from numa_app.services.recipe_nutrients import (
     atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients,
     recipe_aa_indicator, recipe_serving_grams, recipe_total_nutrients,
 )
-from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp
+from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp, rank_contributors_by_gl
+from numa_app.services.gl_swaps import suggest_swaps as _suggest_gl_swaps
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
 from numa_app.services import search_suggest as _search_suggest
@@ -1139,6 +1146,19 @@ templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 templates.env.filters["ftin_ft"]  = lambda cm: _profile.cm_to_ftin(cm)[0]
 templates.env.filters["ftin_in"]  = lambda cm: round(_profile.cm_to_ftin(cm)[1], 1)
 templates.env.filters["fromjson"] = json.loads
+# A saved GI's source says it was measured in people with impaired glucose
+# tolerance or diabetes (glycemic_load.gi_measured_impaired()).
+templates.env.filters["gi_impaired"] = lambda src: _gi_measured_impaired(src)
+
+
+def _user_glucose_tolerance() -> str:
+    """The active profile's glucose tolerance ("normal", "impaired" or "" —
+    Settings -> 1), which tailors the notes on impaired-tolerance GI values."""
+    p = _profile.load_profile()
+    return p.glucose_tolerance if p else ""
+
+
+templates.env.globals["user_glucose_tolerance"] = _user_glucose_tolerance
 
 
 def _small_amount(value, places: int = 1) -> str:
@@ -1622,6 +1642,8 @@ def _contributor_rank_options(nutrients: dict) -> list[tuple[str, list[tuple[str
             if key == "protein_g":
                 label = "Protein — Digestible Complete"
             opts.append((key, f"{label} ({unit})"))
+            if key == "carbs_g":
+                opts.append((_GL_RANK_KEY, "Glycemic load (GI × carbs)"))
         if opts:
             groups.append((group_name, opts))
     return groups
@@ -1639,6 +1661,28 @@ def _default_rank_key(options: list[tuple[str, list[tuple[str, str]]]]) -> str |
 
 
 _CONTRIBUTOR_TOP_N_OPTIONS = ["5", "10", "15", "20", "30", "all"]
+# Top Contributors' "rank by glycemic load" option; not a nutrient key.
+_GL_RANK_KEY = "gl"
+
+
+def _contributor_unit(rank: str | None) -> str:
+    return "" if not rank or rank == _GL_RANK_KEY else _usda.nutrient_label(rank)[1]
+
+
+def _gl_swap_whatif_url(scope: dict, item_fdc: int, swap_fdc: int, recent: bool = False) -> str:
+    """What-if URL with "replace item with swap, same weight" filled in, for
+    this meal (or, recent=True, the last 30 days) or this recipe."""
+    from urllib.parse import urlencode
+    item_code = (_classify_food_id(item_fdc) or (str(item_fdc),))[0]
+    swap_code = (_classify_food_id(swap_fdc) or (str(swap_fdc),))[0]
+    edit = {"e_op": "replace", "e_item": item_code, "e_with": swap_code, "e_amt": "", "e_basis": "grams"}
+    if scope.get("recipe_id"):
+        return "/analysis/whatif-recipes?" + urlencode({"mode": "ids", "recipe_ids": str(scope["recipe_id"]), **edit})
+    if recent:
+        today = datetime.date.today()
+        return "/analysis/whatif?" + urlencode({"mode": "range", "meal_ids": "", "days": "all",
+                                                "ranges_raw": f"{today - datetime.timedelta(days=29)}:{today}", **edit})
+    return "/analysis/whatif?" + urlencode({"mode": "ids", "meal_ids": str(scope["meal_id"]), "ranges_raw": "", **edit})
 _DEFAULT_CONTRIBUTOR_TOP_N = "10"
 
 
@@ -1646,7 +1690,8 @@ def _resolve_contributor_top_n(value: str | None) -> str:
     return value if value in _CONTRIBUTOR_TOP_N_OPTIONS else _DEFAULT_CONTRIBUTOR_TOP_N
 
 
-def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, conn) -> dict:
+def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, conn,
+                        gl_scope: dict | None = None) -> dict:
     """Rank + slice ingredients for the Top Contributors table.
 
     Returns {"items", "total", "count", "top_n", "top_n_options", "is_dcp"} —
@@ -1661,12 +1706,42 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
     Ranking by protein_g is special-cased to rank by each food's own
     standalone digestible complete protein (DCP) instead of raw protein
     grams — see rank_contributors_by_dcp() for why that's not the same as
-    each food's share of the meal's real (complementarity-boosted) DCP."""
+    each food's share of the meal's real (complementarity-boosted) DCP.
+
+    Ranking by _GL_RANK_KEY ranks leaf foods by glycemic load and adds
+    "gl_gaps", "gl_coverage", "gl_band" and, when that band is Medium or
+    High, "gl_swaps" (lower-GL suggestions, each with What-if links built
+    from gl_scope: {"meal_id"} or {"recipe_id"})."""
     if not rank:
         return {"items": [], "total": 0.0, "count": 0, "top_n": "all",
-                "top_n_options": ["all"], "is_dcp": False}
+                "top_n_options": ["all"], "is_dcp": False, "is_gl": False}
     is_dcp = rank == "protein_g"
-    result = rank_contributors_by_dcp(ingredients, conn) if is_dcp else rank_contributors(ingredients, rank)
+    is_gl = rank == _GL_RANK_KEY
+    gl_extra = {}
+    if is_gl:
+        result = rank_contributors_by_gl(ingredients, conn, gi_opt_out=_gi_opt_out())
+        band = gl_band(result["total"]) if result["items"] else None
+        swaps = []
+        if band in ("Medium", "High") and gl_scope:
+            swaps = _suggest_gl_swaps(conn, result["items"])
+            for group in swaps:
+                for sw in group["swaps"]:
+                    sw["whatif_url"] = _gl_swap_whatif_url(gl_scope, group["item"]["fdc_id"], sw["fdc_id"])
+                    if gl_scope.get("meal_id"):
+                        sw["whatif_recent_url"] = _gl_swap_whatif_url(gl_scope, group["item"]["fdc_id"],
+                                                                      sw["fdc_id"], recent=True)
+        gl_extra = {"gl_gaps": result["gaps"], "gl_coverage": result["coverage_pct"],
+                    "gl_band": band, "gl_swaps": swaps}
+        if band in ("Medium", "High"):
+            # Suggestions only come from foods with a GI; say how many that
+            # is, and how many foods in use could join them (Foods -> 9).
+            gl_extra["gl_pool_n"] = len(_db.foods_with_gi(conn))
+            gl_extra["gl_missing_in_use_n"] = sum(
+                1 for r in _data_quality.missing_gi_in_use(conn) if not r["ignored"])
+    elif is_dcp:
+        result = rank_contributors_by_dcp(ingredients, conn)
+    else:
+        result = rank_contributors(ingredients, rank)
     items = result["items"]
     count = len(items)
     top_n_options = [o for o in _CONTRIBUTOR_TOP_N_OPTIONS if o == "all" or int(o) < count] or ["all"]
@@ -1677,7 +1752,8 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
     if top_n != "all":
         items = items[:int(top_n)]
     return {"items": items, "total": result["total"], "count": count,
-            "top_n": top_n, "top_n_options": top_n_options, "is_dcp": is_dcp}
+            "top_n": top_n, "top_n_options": top_n_options, "is_dcp": is_dcp,
+            "is_gl": is_gl, **gl_extra}
 
 
 def _load_rda(profile=None) -> dict | None:
@@ -1996,11 +2072,18 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
     if not pc["has_data"]:
         return None
     limiting_label = _usda.nutrient_label(pc["limiting_aa"])[0] if pc["limiting_aa"] else None
+    # Two scores per amino acid: "score" is in the food itself (vs. the FAO
+    # reference), "dig_score" is after digestion (score × digestibility) —
+    # the DIAAS-style figure the complete/incomplete verdict is judged on, so
+    # Status follows dig_score. Showing only the first used to leave every row
+    # "Met" on a food the page called incomplete (buckwheat: Leucine 1.028 in
+    # the food, 0.812 after digestion at 0.79).
     aa_rows = [
         {
-            "label": _usda.nutrient_label(k)[0],
-            "score": round(v, 3),
-            "met": v >= 1.0,
+            "label":     _usda.nutrient_label(k)[0],
+            "score":     round(v, 3),
+            "dig_score": round(v * digestibility, 3),
+            "met":       v * digestibility >= 1.0,
         }
         for k, v in sorted(pc["scores"].items(), key=lambda x: x[1])
     ]
@@ -2010,13 +2093,26 @@ def _protein_section(food_name: str, nutrients: dict) -> dict | None:
     dcp_g = None
     if limiting_score is not None:
         dcp_g = round(protein_digestible * min(1.0, limiting_score), 1)
+    # True DIAAS: the lowest after-digestion score. (This dict's "diaas" used
+    # to hold the digestibility itself, labelled DIAAS on the page.)
+    diaas = limiting_score * digestibility if limiting_score is not None else None
+    # Incomplete only because of digestion: every amino acid meets the
+    # reference in the food, so the absorbed protein is fully in proportion
+    # (all of it counts as DCP) — but per gram eaten, some fall short.
+    digestion_limited = (not pc["complete"] and limiting_score is not None
+                         and limiting_score >= 1.0)
     return {
-        "diaas":              digestibility,
-        "diaas_pct":          min(100, round(digestibility * 100)),
-        "diaas_level":        "good" if digestibility >= 0.90 else ("ok" if digestibility >= 0.70 else "low"),
+        "digestibility":      digestibility,
+        "diaas":              diaas,
+        "diaas_pct":          min(100, round((diaas or 0) * 100)),
+        "diaas_level":        ("good" if (diaas or 0) >= 0.90 else ("ok" if (diaas or 0) >= 0.70 else "low")),
         "complete":           pc["complete"],
         "limiting_aa":        limiting_label,
         "limiting_score":     round(limiting_score, 3) if limiting_score is not None else None,
+        "limiting_dig_score": round(diaas, 3) if diaas is not None else None,
+        "digestion_limited":  digestion_limited,
+        "short_after_digestion": [r["label"] for r in aa_rows if not r["met"]],
+        "digestibility_pct":  round(digestibility * 100),
         "aa_rows":            aa_rows,
         "protein_raw":        round(protein_raw, 1),
         "protein_digestible": protein_digestible,
@@ -2052,7 +2148,8 @@ def _parse_anchor_overrides(anchor_name: list[str], anchor_grams: list[str]) -> 
 
 def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set[str] | None = None,
                               comp_sort: str | None = None, diaas_sort: str | None = None,
-                              anchor_overrides: dict[str, float] | None = None) -> dict:
+                              anchor_overrides: dict[str, float] | None = None,
+                              uncap_names: set[str] | None = None) -> dict:
     """Complement suggestions for a single food, using its own digestibility (diaas.get_digestibility, same table meal-level DIAAS uses)."""
     if not _usda.has_amino_acid_data(nutrients) or nutrients.get("protein_g", 0) <= 0:
         return {"no_data": True}
@@ -2072,6 +2169,7 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
         comp_sort=comp_sort,
         diaas_sort=diaas_sort,
         anchor_overrides=anchor_overrides,
+        uncap_names=uncap_names,
     )
 
 
@@ -3481,6 +3579,7 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         old_copies = _data_quality.old_usda_copies(conn)
         missing_aa = _data_quality.missing_aa_in_use(conn)
         missing_portions = _data_quality.missing_portions_in_use(conn)
+        missing_gi = [] if _gi_opt_out() else _data_quality.missing_gi_in_use(conn)
         generic_density = _data_quality.generic_density_in_use(conn)
     # Opening this page counts as reviewing every current problem: the Home
     # page reminder only raises ones that appear after this (_data_check_reminder()).
@@ -3505,6 +3604,8 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         "old_copies": old_copies,
         "missing_aa": missing_aa,
         "missing_portions": missing_portions,
+        "missing_gi": missing_gi,
+        "gi_opt_out": _gi_opt_out(),
         "show_ignored_lists": show_ignored,
         "old_copy_days": _data_quality.OLD_COPY_DAYS,
         "amounts_fixed": amounts_fixed,
@@ -3521,15 +3622,20 @@ async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
                                        back: str = Form("completeness")):
     """Save the Data Completeness table's "not needed" checkboxes. `shown`
     is every "fdc_id:group" cell the page displayed, so unchecking one
-    removes its ignore; cells not on the page are left alone."""
+    removes its ignore; cells not on the page are left alone. Group "gi" (the
+    no-GI list) sets the food's GI "don't prompt me" flag instead."""
     wanted = set(ignore)
     with _db.get_db() as conn:
         for cell in shown:
             fid, _, group = cell.partition(":")
-            if ((group in _data_completeness.GROUP_LABELS or group == _data_quality.PORTIONS_IGNORE_KEY)
-                    and fid.lstrip("-").isdigit()):
+            if not fid.lstrip("-").isdigit():
+                continue
+            if group == "gi":
+                if _db.get_cached_food(conn, int(fid)):
+                    _db.upsert_food_annotation(conn, int(fid), gi_no_prompt=1 if cell in wanted else 0)
+            elif group in _data_completeness.GROUP_LABELS or group == _data_quality.PORTIONS_IGNORE_KEY:
                 _db.set_food_data_ignore(conn, int(fid), group, cell in wanted)
-    anchor = back if back in ("completeness", "missing-aa", "missing-portions") else "completeness"
+    anchor = back if back in ("completeness", "missing-aa", "missing-portions", "missing-gi") else "completeness"
     return RedirectResponse(f"/food/cache/db-check?saved=1#{anchor}", status_code=303)
 
 
@@ -3643,14 +3749,19 @@ async def food_cache_duplicates_dismiss(group_key: str = Form(...)):
 
 
 @app.post("/food/{fdc_id}/data-ignore", response_class=RedirectResponse)
-async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1)):
+async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1),
+                           next: str = Form(default="")):
     """Mark (or unmark) one nutrient group not needed for this food, from
     its own page. Also takes data_quality.CALORIES_OK_KEY, "these calories
-    are right", from the food's data-problem note."""
+    are right", from the food's data-problem note. `next` (a local path)
+    returns to the page the button was on — a meal's or recipe's Missing
+    Amino Acid Profiles section."""
     if group in _data_completeness.GROUP_LABELS or group == _data_quality.CALORIES_OK_KEY:
         with _db.get_db() as conn:
             if _db.get_cached_food(conn, fdc_id):
                 _db.set_food_data_ignore(conn, fdc_id, group, bool(ignored))
+    if next.startswith("/") and not next.startswith("//") and "\\" not in next:
+        return RedirectResponse(next, status_code=303)
     return RedirectResponse(f"/food/{fdc_id}", status_code=303)
 
 
@@ -4717,6 +4828,7 @@ def _food_detail_context(
     anchor_name: list[str] | None = None,
     anchor_grams: list[str] | None = None,
     off_code: str = "",
+    uncap: list[str] | None = None,
 ) -> dict:
 
     try:
@@ -4834,7 +4946,7 @@ def _food_detail_context(
                                                  dcp_g=protein_section["dcp_g"] if protein_section else None),
         "dcp_missing_names":  [],
         "protein":            protein_section,
-        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or [])),
+        "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or []), uncap_names=set(uncap or [])),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "antinutrients":      antinutrient_flags,
         "has_profile":        rda is not None,
@@ -4874,13 +4986,14 @@ async def food_detail(
     anchor_grams: list[str] = Query(default=[]),
     from_context: str = Query(default=""),
     off_code: str = Query(default=""),
+    uncap: list[str] = Query(default=[]),
 ):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _food_detail_context(fdc_id, amount, portion_str, ignore_complements, unignore,
                                 comp_sort=comp_sort, diaas_sort=diaas_sort,
                                 anchor_name=anchor_name, anchor_grams=anchor_grams,
-                                off_code=off_code)
+                                off_code=off_code, uncap=uncap)
     if "error" in ctx:
         return templates.TemplateResponse(request, "search.html", {
             "results": [], "query": "", "error": ctx["error"],
@@ -5420,6 +5533,22 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
     all_missing = diaas_result.get("missing_aa_names", [])
     missing_with_protein = [n for n in all_missing if protein_by_name.get(n, 0.0) >= 1.0]
     omitted_zero_protein_missing = len(missing_with_protein) < len(all_missing)
+    # Foods whose amino acids are marked "not needed" (Foods -> 9, or the
+    # button in the Missing Amino Acid Profiles section) stop being listed;
+    # they stay out of the DIAAS pool either way.
+    fdc_by_name = {
+        ing.get("food_name", ""): ing.get("fdc_id")
+        for ing in diaas_result.get("ingredients", [])
+        if ing.get("fdc_id") and not ing.get("recipe_id")
+    }
+    missing_aa_not_needed = 0
+    if missing_with_protein:
+        with _db.get_db() as conn:
+            ignores = _db.food_data_ignores(conn)
+        kept = [n for n in missing_with_protein
+                if "aa" not in ignores.get(fdc_by_name.get(n), set())]
+        missing_aa_not_needed = len(missing_with_protein) - len(kept)
+        missing_with_protein = kept
     return {
         "score":           round(score, 3),
         "total_protein_g": round(total_p, 1),
@@ -5434,6 +5563,8 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
         "ing_rows":        ing_rows,
         "omitted_low_protein": omitted_low_protein,
         "missing":         missing_with_protein,
+        "missing_fdc_ids": {n: fdc_by_name[n] for n in missing_with_protein if n in fdc_by_name},
+        "missing_aa_not_needed": missing_aa_not_needed,
         "omitted_zero_protein_missing": omitted_zero_protein_missing,
         "has_complete":    diaas_result.get("has_complete_data", False),
         "phe_tyr_gap":     diaas_result.get("phe_tyr_gap", False),
@@ -5441,6 +5572,21 @@ def _build_diaas_display(diaas_result: dict | None) -> dict | None:
 
 
 _REFERENCE_ADULT_PROTEIN_G = 56.0  # 0.8 g/kg × 70 kg WHO/FAO reference adult
+
+def _protein_per_meal_day(meals: list[dict], profile) -> dict:
+    """A day's meals against the per-meal protein amount (protein_per_meal.py),
+    from each meal's stored DCP and nutrient snapshot — no re-expansion."""
+    amount = _ppm.per_meal_amount(profile)
+    rows = []
+    for m in meals:
+        try:
+            snap = json.loads(m.get("nutrients_snapshot_json") or "{}") or {}
+        except (TypeError, ValueError):
+            snap = {}
+        check = _ppm.meal_check(m.get("bcp_g"), snap.get("protein_g") or 0.0, snap.get("aa_leucine_g"), amount)
+        rows.append({"id": m["id"], "name": m.get("name") or f"Meal {m['id']}", **check})
+    return {"amount": amount, "rows": rows, "reached": sum(1 for r in rows if r["reached"])}
+
 
 def _protein_adequacy(nutrients: dict, diaas_dcp_g: float | None, rda: dict | None) -> dict:
     """Build protein adequacy dict. Uses DCP when available, else raw protein.
@@ -5467,19 +5613,24 @@ def _web_pantry_candidates() -> list[dict]:
     try:
         with _db.get_db() as conn:
             rows = _db.pantry_list(conn)
+            limits = _db.food_meal_limits(conn)
         candidates = []
         for row in rows:
             nutrients = None
+            serving_g = None
             if row["fdc_id"] is not None:
                 with _db.get_db() as conn:
                     cached = _db.get_cached_food(conn, row["fdc_id"])
                 if cached and cached["nutrients_json"]:
                     nutrients = json.loads(cached["nutrients_json"])
+                serving_g = _complements.label_serving_g(cached)
             candidates.append({
-                "name":      row["food_name"] or "",
-                "fdc_id":    row["fdc_id"],
-                "nutrients": nutrients,
-                "diaas":     _usda.get_diaas(row["food_name"] or ""),
+                "name":       row["food_name"] or "",
+                "fdc_id":     row["fdc_id"],
+                "nutrients":  nutrients,
+                "diaas":      _usda.get_diaas(row["food_name"] or ""),
+                "max_meal_g": limits.get(row["fdc_id"]),
+                "serving_g":  serving_g,
             })
         return candidates
     except Exception:
@@ -5551,6 +5702,7 @@ def _complement_suggestions(
     comp_sort: str | None = None,
     diaas_sort: str | None = None,
     anchor_overrides: dict[str, float] | None = None,
+    uncap_names: set[str] | None = None,
 ) -> dict:
     """Build complement suggestion data. Returns no_data sentinel if AA data unavailable.
 
@@ -5596,6 +5748,7 @@ def _complement_suggestions(
         comp_sort=comp_sort,
         diaas_sort=diaas_sort,
         anchor_overrides=anchor_overrides,
+        uncap_names=uncap_names,
     )
 
 
@@ -6272,6 +6425,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                      comp_sort: str | None = None, diaas_sort: str | None = None,
                      anchor_name: list[str] = Query(default=[]),
                      anchor_grams: list[str] = Query(default=[]),
+                     uncap: list[str] = Query(default=[]),
                      rank: str | None = None, top_n: str | None = None,
                      aa_refreshed: int | None = None, aa_differs: str = "", added_check: str = ""):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
@@ -6311,7 +6465,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
     if not rank or rank not in {k for _, opts in contributor_options for k, _ in opts}:
         rank = _default_rank_key(contributor_options)
     with _db.get_db() as conn:
-        contributor_result = _build_contributors(meal_ingredients, rank, top_n, conn)
+        contributor_result = _build_contributors(meal_ingredients, rank, top_n, conn,
+                                                 gl_scope={"meal_id": meal_id})
 
     # Search results for add-food panel
     search_results = []
@@ -6411,7 +6566,12 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "diaas":               diaas_display,
         "dcp_missing_names":   diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":    _protein_adequacy(total_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name, anchor_grams)),
+        "protein_per_meal":    _ppm.meal_check(diaas_display["dcp_g"] if diaas_display else None,
+                                               total_nutrients.get("protein_g") or 0.0,
+                                               total_nutrients.get("aa_leucine_g"),
+                                               _ppm.per_meal_amount(day_profile_obj)) if total_nutrients else None,
+        "protein_per_meal_amount": _ppm.per_meal_amount(day_profile_obj),
+        "complements":         _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="meal", ingredients=meal_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name, anchor_grams), uncap_names=set(uncap)),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                  gl,
         "item_antinutrients":  item_antinutrients,
@@ -6434,7 +6594,8 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "add_error":           add_error,
         "contributor_options": contributor_options,
         "contributor_rank":    rank,
-        "contributor_unit":    _usda.nutrient_label(rank)[1] if rank else "",
+        "contributor_unit":    _contributor_unit(rank),
+        "contributor_gl":      contributor_result if contributor_result.get("is_gl") else None,
         "contributors":        contributor_result["items"],
         "contributor_total":   contributor_result["total"],
         "contributor_count":   contributor_result["count"],
@@ -7044,8 +7205,11 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "diaas":             diaas_display,
         "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
+        "protein_per_meal_day": _protein_per_meal_day(meals, day_profile_obj),
         "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
         "gl":                gl,
+        "gl_target":         _gl_target_status(gl["total"], gl["complete"],
+                                               day_profile_obj.gl_day_target if day_profile_obj else None),
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
         "has_ul":             bool(max_limits),
@@ -7200,8 +7364,19 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
     if not gi_build["running"]:
         _gi_table_build.clear_status()
 
+    # "Help me choose" daily GL targets: calories from this profile's targets,
+    # the step-down option from the last 30 days' known day GLs.
+    today = datetime.date.today()
+    with _db.get_db() as conn:
+        recent_dates = sorted({m["meal_date"] for m in _db.meal_list_by_date_range(
+            conn, (today - datetime.timedelta(days=29)).isoformat(), today.isoformat())})
+        recent_avg, recent_n = average_day_gl(day_gl_totals(conn, recent_dates))
+    gl_target_options = _gl_target_options(rda["calories"][0] if rda and "calories" in rda else None,
+                                           recent_avg, recent_n)
+
     return templates.TemplateResponse(request, "settings.html", {
         "data_check_reminder":  _data_check_reminder_prefs(),
+        "gl_target_options":    gl_target_options,
         "profile":              profile,
         "rda_rows":             rda_rows,
         "activity_labels":      _profile.ACTIVITY_LABELS,
@@ -7256,6 +7431,7 @@ async def settings_post(
     activity_level: str   = Form(...),
     use_oxalate_data: str | None = Form(None),
     glucose_tolerance: str = Form(""),
+    gl_day_target: str = Form(""),
 ):
     if height_unit == "imperial":
         height_cm_val = _profile.ftin_to_cm(height_ft, height_in)
@@ -7266,6 +7442,9 @@ async def settings_post(
 
     existing = _profile.load_profile()
     profile = _profile.UserProfile(
+        # Keep the active profile's own name: without it the dataclass default
+        # ("Default") saved the edits to a different file than the one in use.
+        name=existing.name if existing else _profile.get_active_profile_name(),
         age=age,
         sex=sex,
         weight_kg=round(weight_kg, 2),
@@ -7275,6 +7454,7 @@ async def settings_post(
         height_unit=height_unit,
         use_oxalate_data=bool(use_oxalate_data),
         glucose_tolerance=glucose_tolerance if glucose_tolerance in ("normal", "impaired") else "",
+        gl_day_target=_profile._positive_or_none(gl_day_target.strip().replace(",", "")),
         optimal_targets=dict(existing.optimal_targets) if existing else {},
         max_limits=dict(existing.max_limits) if existing else {},
     )
@@ -7289,6 +7469,37 @@ async def settings_diet_post(diet_pref: str = Form(...), next: str = Form(None))
     if next and next.startswith("/") and not next.startswith("//"):
         return RedirectResponse(next, status_code=303)
     return RedirectResponse("/settings?saved=diet", status_code=303)
+
+
+@app.post("/complement-limit", response_class=RedirectResponse)
+async def complement_limit_post(request: Request):
+    """Save (or clear, when left blank) a food's per-meal complement limit —
+    the most of it a protein complement suggestion may add to one meal
+    (usda_nutrients.complement_meal_limit). Posted from the "Save limit"
+    button inside a page's #complements-form, so the grams field is named
+    per food (limit_g_<fdc_id>) and the button carries which food it is."""
+    form = await request.form()
+    try:
+        fdc_id = int(form.get("limit_fdc", ""))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="No food given for the limit.")
+    raw = str(form.get(f"limit_g_{fdc_id}", "")).strip()
+    grams: float | None = None
+    if raw:
+        try:
+            grams = float(raw)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Couldn't read {raw!r} as grams.")
+        if grams <= 0:
+            raise HTTPException(status_code=400, detail="The limit must be more than 0 g.")
+    with _db.get_db() as conn:
+        if _db.get_cached_food(conn, fdc_id) is None:
+            raise HTTPException(status_code=404, detail="That food isn't in the Food Cache.")
+        _db.set_food_meal_limit(conn, fdc_id, grams)
+    next_url = str(form.get("limit_next", ""))
+    if not (next_url.startswith("/") and not next_url.startswith("//")):
+        next_url = f"/food/{fdc_id}"
+    return RedirectResponse(f"{next_url}#limit-{fdc_id}", status_code=303)
 
 
 @app.post("/update-notice/ack-banner", response_class=RedirectResponse)
@@ -7874,7 +8085,12 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
             except Exception:
                 diaas_result = None
             diaas_display = _build_diaas_display(diaas_result)
+        ann = _db.get_food_annotation(conn, id_) if cached else None
         return {
+            "gi":              ann["gi_estimate"] if ann else None,
+            "gi_impaired":     _gi_measured_impaired(_ann_source(ann)) if ann else False,
+            "gl":              food_gl(name, id_, nutrients_100g, 100.0, ann, gi_opt_out=_gi_opt_out())
+                               if nutrients_100g else None,
             "kind":            "food",
             "id":              id_,
             "name":            name,
@@ -7897,7 +8113,10 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
     nutrients: dict = {}
     ingredients: list[dict] = []
     diaas_display = None
+    gl = None
     if scale:
+        gl = _gl_for_leaves(expand_recipe_ingredients(id_, conn, portion_factor=scale), conn,
+                            gi_opt_out=_gi_opt_out())
         batch_nutrients = recipe_total_nutrients(id_, conn)
         nutrients = {k: v * scale for k, v in batch_nutrients.items()}
         for ing in _db.recipe_get_ingredients(conn, id_):
@@ -7923,6 +8142,9 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
         "id":              id_,
         "name":            recipe["name"],
         "data_type":       "Recipe",
+        "gi":              None,
+        "gi_impaired":     False,
+        "gl":              gl,
         "nutrients":       nutrients,
         "ingredients":     ingredients,
         "diaas":           diaas_display,
@@ -7985,6 +8207,35 @@ def _build_protein_quality_rows(entries: list[dict]) -> list[dict]:
     return rows if any(e["diaas"] for e in entries) else []
 
 
+def _build_gl_compare_rows(entries: list[dict]) -> list[dict]:
+    """Glycemic rows for Compare, per 100 g like the rest of the page: GI
+    (foods only — a recipe has no single GI) and glycemic load per 100 g, the
+    lowest GL flagged. An incomplete GL (some carbohydrate with no GI) is a
+    lower bound: shown as "≥ x" with its coverage, and never flagged lowest.
+    [] when no item has a GI or a GL to show."""
+    gi_cells, gl_cells = [], []
+    for e in entries:
+        gi_cells.append({"value": round(e["gi"]) if e.get("gi") is not None else None,
+                         "impaired": e.get("gi_impaired", False), "is_max": False})
+        gl = e.get("gl")
+        gl_cells.append({"value": gl["total"] if gl else None,
+                         "complete": bool(gl and gl["complete"]),
+                         "coverage": gl["coverage_pct"] if gl else None,
+                         "no_carbs": bool(gl and gl["complete"] and not gl["carbs_g"]),
+                         "is_max": False})
+    complete = [c["value"] for c in gl_cells if c["complete"] and c["value"] is not None]
+    if len(complete) >= 2:
+        low = min(complete)
+        for c in gl_cells:
+            c["is_max"] = c["complete"] and c["value"] == low
+    rows = []
+    if any(c["value"] is not None for c in gi_cells):
+        rows.append({"key": "gi", "label": "Glycemic index (GI)", "unit": "", "cells": gi_cells})
+    if any(c["value"] is not None for c in gl_cells):
+        rows.append({"key": "gl", "label": "Glycemic load per 100 g", "unit": "", "cells": gl_cells})
+    return rows
+
+
 def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
     """Union of ingredient names across the given entries into one row per
     distinct ingredient, one cell per entry holding its (already 100g-scaled)
@@ -8021,6 +8272,7 @@ async def compare_get(
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
     ingredient_rows = _build_recipe_ingredient_rows(entries) if len(entries) >= 2 else []
     protein_quality_rows = _build_protein_quality_rows(entries) if len(entries) >= 2 else []
+    gl_rows = _build_gl_compare_rows(entries) if len(entries) >= 2 else []
     items_str = _compare_items_str(item_list)
 
     # Local matches render now; online ones fill in via /search-rows/compare
@@ -8034,6 +8286,7 @@ async def compare_get(
         "compare_groups":       compare_groups,
         "ingredient_rows":      ingredient_rows,
         "protein_quality_rows": protein_quality_rows,
+        "gl_rows":              gl_rows,
         "items_str":            items_str,
         "error":                error,
         **search_ctx,
@@ -8200,7 +8453,8 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
                             comp_sort: str | None = None, diaas_sort: str | None = None,
                             rank: str | None = None, top_n: str | None = None,
                             anchor_name: list[str] | None = None,
-                            anchor_grams: list[str] | None = None) -> dict | None:
+                            anchor_grams: list[str] | None = None,
+                            uncap: list[str] | None = None) -> dict | None:
     top_n = _resolve_contributor_top_n(top_n)
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
@@ -8269,7 +8523,10 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
     if not rank or rank not in {k for _, opts in contributor_options for k, _ in opts}:
         rank = _default_rank_key(contributor_options)
     with _db.get_db() as conn:
-        contributor_result = _build_contributors(diaas_ingredients, rank, top_n, conn)
+        # GL belongs to foods, so rank by it over every leaf food (sub-recipes
+        # opened up); diaas_ingredients keeps a sub-recipe whole.
+        contributor_result = _build_contributors(calorie_leaves if rank == _GL_RANK_KEY else diaas_ingredients,
+                                                 rank, top_n, conn, gl_scope={"recipe_id": recipe_id})
 
     return {
         "recipe":                   dict(recipe),
@@ -8278,7 +8535,8 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "servings":                 servings,
         "contributor_options":      contributor_options,
         "contributor_rank":         rank,
-        "contributor_unit":         _usda.nutrient_label(rank)[1] if rank else "",
+        "contributor_unit":         _contributor_unit(rank),
+        "contributor_gl":           contributor_result if contributor_result.get("is_gl") else None,
         "contributors":             contributor_result["items"],
         "contributor_total":        contributor_result["total"],
         "contributor_count":        contributor_result["count"],
@@ -8291,7 +8549,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "diaas":                    diaas_display,
         "dcp_missing_names":        diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":         _protein_adequacy(scaled, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or [])),
+        "complements":              _complement_suggestions(recipe_total_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="recipe", exclude_recipe_id=recipe_id, ingredients=full_diaas_ingredients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or []), uncap_names=set(uncap or [])),
         "ignored_complements":      sorted(_effective_ignored(ignore_complements, unignore)),
         "gl":                       _recipe_gl_web(recipe_id, servings),
         "has_profile":              rda is not None,
@@ -8310,12 +8568,13 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
                          comp_sort: str | None = None, diaas_sort: str | None = None,
                          anchor_name: list[str] = Query(default=[]),
                          anchor_grams: list[str] = Query(default=[]),
+                         uncap: list[str] = Query(default=[]),
                          rank: str | None = None, top_n: str | None = None):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore,
                                   comp_sort=comp_sort, diaas_sort=diaas_sort, rank=rank, top_n=top_n,
-                                  anchor_name=anchor_name, anchor_grams=anchor_grams)
+                                  anchor_name=anchor_name, anchor_grams=anchor_grams, uncap=uncap)
     if ctx is None:
         return RedirectResponse("/recipes", status_code=303)
     with _db.get_db() as conn:
@@ -9178,6 +9437,14 @@ async def summary_trend(request: Request, days: int = Query(7)):
     # the average.
     with _db.get_db() as conn:
         gl_by_date = day_gl_totals(conn, sorted(daily_totals))
+        # Days over the daily GL target pinned to each day (a target can
+        # change, and is pinned per day like the rest of the profile).
+        gl_targets = {}
+        for d, v in gl_by_date.items():
+            p = _day_profile.get_profile_for_date(conn, d) if v is not None else None
+            if p and p.gl_day_target:
+                gl_targets[d] = p.gl_day_target
+    gl_days_over = sum(1 for d, t in gl_targets.items() if gl_by_date[d] > t)
     avg_gl, avg_gl_days = average_day_gl(gl_by_date)
     gl_unknown_dates = sorted(d for d, v in gl_by_date.items() if v is None)
 
@@ -9227,6 +9494,8 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "avg_gl_days":       avg_gl_days,
         "gl_by_date":        gl_by_date,
         "gl_unknown_dates":  gl_unknown_dates,
+        "gl_days_over":      gl_days_over,
+        "gl_target_days":    len(gl_targets),
     })
 
 
@@ -10013,6 +10282,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
     all_keys = MANDATORY_DAY_KEYS + nutrient_keys
     diet_pref = _current_diet_pref()
     day_complete_map = _db.day_completion_map(conn)
+    gi_opt_out = _gi_opt_out()
     day_rows = []
     for r in rows:
         d = r["meal_date"]
@@ -10028,6 +10298,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
         rda = _profile.compute_rda(day_profile_obj, diet_pref=diet_pref) if day_profile_obj else None
         goal = rda.get("protein_g", (None,))[0] if rda else None
         raw_totals = day_nutrient_raw_totals(conn, d, all_keys) if rda else {}
+        day_gl = None if gi_opt_out else _day_gl(conn, d)
         pct_goal_map = {}
         for key in all_keys:
             if not rda or key not in rda or key not in raw_totals:
@@ -10051,6 +10322,10 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
             "mandatory_values": day_nutrient_values(conn, d, MANDATORY_DAY_KEYS),
             "nutrient_values": day_nutrient_values(conn, d, nutrient_keys),
             "pct_goal_map":   pct_goal_map,
+            "day_gl":         day_gl,
+            "day_gl_target":  _gl_target_status(day_gl["total"], day_gl["complete"],
+                                                day_profile_obj.gl_day_target if day_profile_obj else None)
+                              if day_gl else None,
         })
     mandatory_day_cols = [{"key": k, "label": lbl, "title": tip} for k, lbl, tip in MANDATORY_DAY_COLUMNS]
     return day_rows, [{"key": k, "label": _meal_label_for(k)} for k in nutrient_keys], mandatory_day_cols
@@ -10068,6 +10343,7 @@ async def summary_index(request: Request):
         "day_nutrient_cols": day_nutrient_cols,
         "mandatory_day_cols": mandatory_day_cols,
         "show_profile_col": len(_profile.list_profiles()) > 1,
+        "show_gl_col":    not _gi_opt_out(),
         "today":          datetime.date.today().isoformat(),
         "date_detail":    None,
     })
@@ -10122,6 +10398,7 @@ async def summary_date(request: Request, meal_date: str):
         "mandatory_day_cols": mandatory_day_cols,
         "day_nutrient_cols": day_nutrient_cols,
         "show_profile_col":  len(_profile.list_profiles()) > 1,
+        "show_gl_col":       not _gi_opt_out(),
         "today":             datetime.date.today().isoformat(),
         "date_detail":       meal_date,
         "meals":             meals,
@@ -10132,8 +10409,11 @@ async def summary_date(request: Request, meal_date: str):
         "diaas":             diaas_display,
         "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
+        "protein_per_meal_day": _protein_per_meal_day(meals, day_profile_obj),
         "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
         "gl":                gl,
+        "gl_target":         _gl_target_status(gl["total"], gl["complete"],
+                                               day_profile_obj.gl_day_target if day_profile_obj else None),
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
         "has_ul":             bool(max_limits),
@@ -10517,7 +10797,7 @@ def _whatif_meals_compute(conn, mode: str, ranges_raw: str, meal_ids: str,
         try:
             result = _whatif.evaluate_meals(conn, list(meals_by_id.values()), edits,
                                             groups=_NUTRIENT_GROUPS, diet_pref=_current_diet_pref(),
-                                            days=days)
+                                            days=days, gi_opt_out=_gi_opt_out())
         except _whatif.WhatIfError as exc:
             errors = [str(exc)]
     return {"meals_by_id": meals_by_id, "ranges": ranges, "missing_ids": missing_ids,
@@ -10533,7 +10813,8 @@ def _whatif_recipes_compute(conn, mode: str, ranges_raw: str, recipe_ids: str,
     if edits and not errors:
         try:
             result = _whatif.evaluate_recipes(conn, list(recipes_by_id.values()), edits,
-                                              groups=_NUTRIENT_GROUPS, max_columns=max_columns)
+                                              groups=_NUTRIENT_GROUPS, max_columns=max_columns,
+                                              gi_opt_out=_gi_opt_out())
         except _whatif.WhatIfError as exc:
             errors = [str(exc)]
     return {"recipes_by_id": recipes_by_id, "ranges": ranges, "missing_ids": missing_ids,

@@ -154,6 +154,18 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
     {% for c in result.summary if c.key == "dcp" and c.days < c.of_days %}
     <p class="small muted mb-0">Protein (DCP) is averaged over {{ c.days }} of the {{ c.of_days }} days: it needs amino-acid data, and the other days don't have enough.</p>
     {% endfor %}
+    {% for c in result.summary if c.key == "gl" %}
+    <p class="small muted mb-0">
+      {% if c.days %}<strong>Glycemic load</strong> (whole day, counting only foods with a GI): {{ c.band_before }}{% if c.band_after != c.band_before %} &rarr; <strong>{{ c.band_after }}</strong>{% else %}, unchanged{% endif %} on the day scale{% if c.days < c.of_days %}, averaged over the {{ c.days }} of {{ c.of_days }} days with carbohydrate{% endif %}.
+      {% if c.coverage_before is not none and c.coverage_after is not none and (c.coverage_before < 100 or c.coverage_after < 100) %}
+      <span class="text-warning">It covers {{ c.coverage_before }}% of the carbohydrate before{% if c.coverage_after != c.coverage_before %} and {{ c.coverage_after }}% after{% else %} and after{% endif %}, so the true figures are higher{% if c.coverage_after < c.coverage_before %} &mdash; and the &ldquo;after&rdquo; looks better than it is{% endif %}.</span>
+      {% if c.gaps_after %}No GI after the change for: {% for g in c.gaps_after %}<a href="/food/annotate/{{ g.fdc_id }}">{{ g.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %} (click to add one).{% endif %}
+      {% endif %}
+      {% if c.target_days %}<br><strong>Days over your daily glycemic load target:</strong> {{ c.days_over_target_before }} of {{ c.target_days }} before &rarr; <strong class="{{ 'rda-over' if c.days_over_target_after else 'rda-met' }}">{{ c.days_over_target_after }}</strong> after{% if c.target_unknown_after %} (plus {{ c.target_unknown_after }} day(s) under it so far but missing some GI values, so not certain){% endif %} &mdash; an average under the target can still hide days over it. {{ manual_link("gl-target") }}{% endif %}
+      {% else %}<strong>Glycemic load:</strong> none of these days has carbohydrate from a food with a GI.{% endif %}
+      {{ manual_link("whatif-gl") }}
+    </p>
+    {% endfor %}
   </div>
 
   {% set qs = request.url.query %}

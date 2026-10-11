@@ -1,6 +1,6 @@
 # What-if analysis — implementation plan
 
-Drafted 2026-10-04. Phases 1-3 built 2026-10-06; Phase 4 built 2026-10-08; Phase 5 not started. Non-destructive "what if I removed / added /
+Drafted 2026-10-04. Phases 1-3 built 2026-10-06; Phase 4 built 2026-10-08; Phase 5 built 2026-10-10. Non-destructive "what if I removed / added /
 replaced / scaled X" analysis across a chosen set of meals (by date ranges,
 dates, or meal IDs) or a chosen set of recipes, showing nutrient profiles
 before and after.
@@ -156,9 +156,16 @@ Both pages: Replace basis "factor" (a multiple of the old weight, 1.1 or
 
 ## Phase 5 — deeper analysis
 
+**Phase 5 done 2026-10-10.** GL before/after (with carbohydrate coverage and no-GI foods named; `glycemic_load.gl_for_leaves()` on what-if's own leaves); days over the daily GL target before/after; speed check on a copy of the real DB — 90 days (87 meals) 0.74 s total, GL 0.04 s of it, so no request-level cache was needed.
+
+
 - GL before and after (DCP done 2026-10-06 in the summary table: ~0.4 s for 118 days;
   fast enough that it did not need to be opt-in). 
 - Speed check on a 90-day range; cache recipe totals for the length of one request.
+- GL ties (added 2026-10-10, see GI-USE-PLAN.md "Ties to what-if Phase 5"): build
+  GL before/after with GL coverage first, since lower-GL swap suggestions open
+  what-if pre-filled with a Replace edit; when a daily GL target is set, show days
+  over it before and after; a swap to a food with no GI must report the coverage drop.
 
 ## Later (agreed 2026-10-06, after the first working version)
 

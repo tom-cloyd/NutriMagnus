@@ -1057,13 +1057,15 @@ class TestSuggestComplementsAutoEstimate:
         # scale to the real food's own protein, not silently reuse the
         # curated table's own gram figure.
         curated_result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [])
+        # Both are capped at the 15 g yeast per-meal default, so compare the
+        # amount full closure would take (closing_grams), not the shown grams.
         curated_grams = next(
-            s["grams"] for s in curated_result["general"] if s["name"] == "Nutritional yeast"
+            s["closing_grams"] for s in curated_result["general"] if s["name"] == "Nutritional yeast"
         )
         pantry = [{"name": "Nutritional Yeast Flakes", "fdc_id": 42,
                    "nutrients": {"protein_g": 45.0}, "diaas": None}]
         result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, pantry)
-        assert result["pantry"][0]["grams"] > curated_grams
+        assert result["pantry"][0]["closing_grams"] > curated_grams
 
     def test_pantry_food_missing_aa_with_no_curated_match_is_dropped(self):
         # Real macros, no AA data, and no keyword match in the curated table —
@@ -1388,14 +1390,15 @@ class TestScoreOneComplement:
 
     def test_predicted_diaas_guard_rejects_pairing_below_base_digestibility(self):
         # The final guard rejects a candidate whose predicted pooled DIAAS
-        # would fall below the base meal's own digestibility — but only
+        # would fall below the base's own pooled DIAAS (before 2026-10-10:
+        # below its digestibility) — but only
         # when base_digestibility < 1.0 (every other test in this class
         # uses the 1.0 default, where the guard is a no-op by design). A
         # mutation flipping "is not None" to "is None" here, or "<" to
         # "<=", survived because nothing exercised the actual rejection
         # path. This candidate closes the lysine gap in raw terms but its
         # own poor digestibility (0.2) drags the pooled prediction (~0.21)
-        # below the base's 0.9 — must be rejected.
+        # below the base's own DIAAS (~0.56) — must be rejected.
         base = {
             "protein_g": 10.0, "aa_lysine_g": 0.30,
             "aa_methionine_g": 0.10, "aa_cystine_g": 0.06,
@@ -1541,14 +1544,79 @@ class TestComplementCandidateDigestibilityBasis:
         assert rejected is None
 
     def test_explicit_none_falls_back_to_the_diaas_score(self):
-        """Callers with no candidate name keep the previous behavior."""
+        """Callers with no candidate name project predicted_diaas with the DIAAS
+        score — lower than the TID projection. (It used to be rejected outright;
+        since 2026-10-10 the guard compares against the base's own DIAAS, which
+        sesame still improves on.)"""
         base = self._lentils()
         dig, _ = _diaas.get_digestibility("Lentils, cooked")
         gaps = get_aa_gaps(base, digestibility=dig)
         sesame = _usda.get_complement_nutrients("Sesame seeds")
-        assert _score_one_complement(
+        sesame_tid, _ = _diaas.get_digestibility("Sesame seeds")
+        no_name = _score_one_complement(base, gaps, dig, sesame, 0.44, "aa_methionine_g")
+        with_tid = _score_one_complement(
             base, gaps, dig, sesame, 0.44, "aa_methionine_g",
-        ) is None
+            cand_digestibility=sesame_tid,
+        )
+        assert no_name is not None and with_tid is not None
+        assert no_name["predicted_diaas"] < with_tid["predicted_diaas"]
+        assert no_name["predicted_diaas"] > gaps[0][1]
+
+
+class TestComplementPooledSolve:
+    """Gap-closing grams are solved with each source at its own digestibility
+    (2026-10-10). The older solve assumed the whole pool, candidate included,
+    sat at the base's digestibility, which sized a well-digested complement out
+    of range: on a real meal at TID 0.84 / Lysine 0.69, soy isolate (TID 0.95)
+    "needed" 621 g to close Lysine, fell through to the Leucine gap at 106 g,
+    and the page showed it leaving Lysine at 0.87 with nothing saying why."""
+
+    _BASE = {"protein_g": 100.0, "aa_lysine_g": 3.0}
+    _CAND = {"protein_g": 100.0, "aa_lysine_g": 6.0}
+
+    def test_grams_match_pooled_hand_calculation(self):
+        # base digestible lysine = 3.0 * 0.8 = 2.4 g; reference 48 mg/g.
+        # (2.4 + 0.06*X*0.95) / (100 + X) = 0.048
+        #   -> X = (4.8 - 2.4) / (0.057 - 0.048) = 266.67
+        bd = 0.8
+        gaps = get_aa_gaps(self._BASE, digestibility=bd)
+        m = _score_one_complement(self._BASE, gaps, bd, self._CAND, 0.9, "aa_lysine_g",
+                                  cand_digestibility=0.95)
+        assert m is not None
+        assert m["grams"] == 267
+        assert m["target_aa"] == "aa_lysine_g"
+        # new_scores stay on the "raw" basis callers rescale by digestibility.
+        assert m["new_scores"]["aa_lysine_g"] * bd == pytest.approx(1.0)
+        assert m["predicted_diaas"] == pytest.approx(1.0)
+
+    def test_uniform_solve_without_tid_cannot_close_it(self):
+        # Same candidate at the base's 0.8: 0.06*0.8 == 0.048 — no surplus ratio.
+        bd = 0.8
+        gaps = get_aa_gaps(self._BASE, digestibility=bd)
+        assert _score_one_complement(self._BASE, gaps, bd, self._CAND, 0.9, "aa_lysine_g") is None
+
+    def test_default_digestibility_keeps_uniform_math(self):
+        # base_digestibility 1.0 means "no digestibility data"; a candidate TID
+        # must not be pooled against it (that would penalize every candidate).
+        gaps = get_aa_gaps(self._BASE)
+        with_tid = _score_one_complement(self._BASE, gaps, 1.0, self._CAND, 0.9, "aa_lysine_g",
+                                         cand_digestibility=0.5)
+        without = _score_one_complement(self._BASE, gaps, 1.0, self._CAND, 0.9, "aa_lysine_g")
+        assert with_tid["grams"] == without["grams"] == 150
+
+    def test_guard_compares_against_base_diaas_not_its_digestibility(self):
+        # Closing Lysine dilutes Met+Cys to ~0.54: below the base's 0.8
+        # digestibility (the old comparator, which rejected this) but above
+        # the base's own DIAAS of 0.5 — the meal is better off, so it's kept.
+        base = {"protein_g": 100.0, "aa_lysine_g": 3.0, "aa_methionine_g": 2.5}
+        cand = {"protein_g": 100.0, "aa_lysine_g": 6.0, "aa_methionine_g": 1.0}
+        bd = 0.8
+        gaps = get_aa_gaps(base, digestibility=bd)
+        assert gaps[0][1] == pytest.approx(0.5)
+        m = _score_one_complement(base, gaps, bd, cand, 0.9, "aa_lysine_g",
+                                  cand_digestibility=0.95)
+        assert m is not None
+        assert gaps[0][1] < m["predicted_diaas"] < bd
 
 
 class TestComplementPairs:
@@ -1766,7 +1834,9 @@ class TestComplementPairs:
         from diaas import get_digestibility
 
         dig = 0.8
-        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [], base_digestibility=dig)
+        # Cheddar's B leg needs more than its 60 g per-meal default; lift it.
+        result = _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [], base_digestibility=dig,
+                                           uncap_names={"cheese, cheddar"})
         pair_keys = [tuple(f["name"] for f in p["foods"]) for p in result["pairs"]]
         assert ("Oats", "Cheese, cheddar") in pair_keys
 

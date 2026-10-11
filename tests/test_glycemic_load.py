@@ -62,7 +62,8 @@ class TestGlForItems:
         db_conn.commit()
         r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)
         # carbs_g=28 per 100g * 70 GI / 100 = 19.6
-        assert r == {"total": 19.6, "complete": True, "gaps": []}
+        assert r == {"total": 19.6, "complete": True, "gaps": [],
+                     "carbs_with_gi_g": 28.0, "carbs_g": 28.0, "coverage_pct": 100, "impaired": []}
 
     def test_food_without_gi_is_not_available_not_zero(self, db_conn, rice_food):
         r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)
@@ -79,6 +80,18 @@ class TestGlForItems:
         assert r["complete"] is False
         assert _gaps(r) == [("Bread", 2, None, GAP_NO_GI)]
 
+    def test_coverage_is_share_of_carbs_from_foods_with_gi(self, db_conn, rice_food):
+        _add_food(db_conn, 2, "Bread", json.dumps({"carbs_g": 49.0}))
+        _add_food(db_conn, 3, "Toast", json.dumps({"carbs_g": 50.0}))
+        _annotate(db_conn, rice_food, 70.0)
+        _db.set_food_annotation(db_conn, 3, gi_estimate=None, gi_no_prompt=True, diaas_estimate=None,
+                                diaas_no_prompt=False, prep_context=None)
+        db_conn.commit()
+        r = gl_for_items([_food_item(rice_food, "Rice", 100.0), _food_item(2, "Bread", 100.0),
+                          _food_item(3, "Toast", 100.0)], db_conn)
+        # 28 g with GI of 28 + 49 counted; Toast's GI is "not wanted", so left out.
+        assert (r["carbs_with_gi_g"], r["carbs_g"], r["coverage_pct"]) == (28.0, 77.0, 36)
+
     def test_dont_prompt_food_is_reported_as_not_wanted(self, db_conn, rice_food):
         _db.set_food_annotation(db_conn, rice_food, gi_estimate=None, gi_no_prompt=True, diaas_estimate=None,
                                 diaas_no_prompt=False, prep_context=None)
@@ -93,14 +106,14 @@ class TestGlForItems:
     def test_negligible_carbohydrate_without_gi_counts_as_zero(self, db_conn, rice_food):
         # 3 g of rice holds 0.84 g carbohydrate: under the 1 g floor.
         r = gl_for_items([_food_item(rice_food, "Rice", 3.0)], db_conn)
-        assert r == {"total": 0.0, "complete": True, "gaps": []}
+        assert r == {"total": 0.0, "complete": True, "gaps": [], "carbs_with_gi_g": 0.0, "carbs_g": 0.0, "coverage_pct": None, "impaired": []}
         # 4 g holds 1.12 g: now it matters.
         assert gl_for_items([_food_item(rice_food, "Rice", 4.0)], db_conn)["complete"] is False
 
     def test_food_with_no_carbs_value_contributes_zero(self, db_conn):
         _add_food(db_conn, 4, "Oil", json.dumps({"fat_g": 100.0}))
         db_conn.commit()
-        assert gl_for_items([_food_item(4, "Oil", 100.0)], db_conn) == {"total": 0.0, "complete": True, "gaps": []}
+        assert gl_for_items([_food_item(4, "Oil", 100.0)], db_conn) == {"total": 0.0, "complete": True, "gaps": [], "carbs_with_gi_g": 0.0, "carbs_g": 0.0, "coverage_pct": None, "impaired": []}
 
     def test_food_with_no_nutrient_data_is_a_gap(self, db_conn):
         _add_food(db_conn, 3, "Mystery", "")
@@ -216,7 +229,52 @@ class TestFoodGl:
         assert r["total"] is None and _gaps(r) == [("Rice", 1, None, GAP_NO_GI)]
 
 
+class TestGlForLeaves:
+    def test_matches_gl_for_items(self, db_conn, rice_food):
+        from numa_app.services.glycemic_load import gl_for_leaves
+        _add_food(db_conn, 2, "Bread", json.dumps({"carbs_g": 49.0}))
+        _annotate(db_conn, rice_food, 70.0)
+        db_conn.commit()
+        leaves = [{"food_name": "Rice", "fdc_id": rice_food, "nutrients_100g": {"carbs_g": 28.0}, "grams": 100.0},
+                  {"food_name": "Bread", "fdc_id": 2, "nutrients_100g": {"carbs_g": 49.0}, "grams": 100.0}]
+        r = gl_for_leaves(leaves, db_conn)
+        assert r == gl_for_items([_food_item(rice_food, "Rice", 100.0), _food_item(2, "Bread", 100.0)], db_conn)
+        assert r["coverage_pct"] == 36
+
+
+class TestImpairedPopulation:
+    IMPAIRED_SRC = ("Atkinson 2021 international GI tables, Supplemental Table 1: \u201cRice\u201d"
+                    " \u00b7 Impaired glucose tolerance (Type 2, n=9)")
+
+    def test_counted_food_measured_in_impaired_is_named(self, db_conn, rice_food):
+        _db.set_food_annotation(db_conn, rice_food, gi_estimate=70.0, gi_no_prompt=False, diaas_estimate=None,
+                                diaas_no_prompt=False, prep_context=None, gi_source=self.IMPAIRED_SRC)
+        db_conn.commit()
+        assert gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)["impaired"] == ["Rice"]
+        # A negligible amount isn't worth a warning.
+        assert gl_for_items([_food_item(rice_food, "Rice", 3.0)], db_conn)["impaired"] == []
+
+    def test_normal_population_is_not_named(self, db_conn, rice_food):
+        _db.set_food_annotation(db_conn, rice_food, gi_estimate=70.0, gi_no_prompt=False, diaas_estimate=None,
+                                diaas_no_prompt=False, prep_context=None,
+                                gi_source="Atkinson 2021 ...: \u201cRice\u201d \u00b7 Normal glucose tolerance")
+        db_conn.commit()
+        assert gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)["impaired"] == []
+
+    def test_combine_keeps_each_name_once(self):
+        r = combine_gl([{"total": 1.0, "complete": True, "gaps": [], "impaired": ["Rice"]},
+                        {"total": 1.0, "complete": True, "gaps": [], "impaired": ["Rice", "Bread"]}])
+        assert r["impaired"] == ["Rice", "Bread"]
+
+
 class TestCombineGl:
+    def test_coverage_sums_carbs(self):
+        r = combine_gl([
+            {"total": 10.0, "complete": True, "gaps": [], "carbs_with_gi_g": 20.0, "carbs_g": 20.0},
+            {"total": 5.0, "complete": True, "gaps": [], "carbs_with_gi_g": 10.0, "carbs_g": 40.0},
+        ])
+        assert r["coverage_pct"] == 50
+
     def test_sums_totals_and_merges_gaps(self):
         gap = {"name": "Bread", "fdc_id": 2, "recipe_id": None, "reason": GAP_NO_GI}
         r = combine_gl([
@@ -224,7 +282,7 @@ class TestCombineGl:
             {"total": 5.0, "complete": False, "gaps": [gap]},
             {"total": None, "complete": False, "gaps": [dict(gap)]},
         ])
-        assert r == {"total": 15.0, "complete": False, "gaps": [gap]}
+        assert r["total"] == 15.0 and r["complete"] is False and r["gaps"] == [gap]
 
 
 class TestMealLineItems:
@@ -425,3 +483,16 @@ class TestGlMutationGaps:
         db_conn.commit()
         r = gl_for_items([_recipe_item(rid, "Bowl", 1.0), _food_item(rice_food, "Rice", 100.0)], db_conn)
         assert r["total"] == 39.2
+
+
+class TestGlTargetOptions:
+    def test_scaled_fixed_and_step_down(self):
+        from numa_app.services.glycemic_load import gl_target_options
+        o = gl_target_options(2400.0, 100.0, 12)
+        assert o["scaled"] == 96 and o["fixed"] == 80
+        assert o["step_down_range"] == (80, 90) and o["step_down"] == 85
+
+    def test_missing_inputs_withhold_options(self):
+        from numa_app.services.glycemic_load import gl_target_options
+        o = gl_target_options(None, 100.0, 6)        # no calories; too few days
+        assert o["scaled"] is None and o["step_down"] is None and o["fixed"] == 80

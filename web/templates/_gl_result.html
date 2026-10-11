@@ -1,5 +1,5 @@
 {# Glycemic load figure from a glycemic_load.py result dict
-   ({"total", "complete", "gaps"}) — shared by the food, recipe, meal, day and
+   ({"total", "complete", "gaps", coverage fields}) — shared by the food, recipe, meal, day and
    print pages so an incomplete GL reads the same everywhere.
    scope: "serving" or "day" (which GL bands apply). label: optional bold text
    before the figure. links: False on printouts. #}
@@ -15,17 +15,60 @@
 </ul>
 {% endmacro %}
 
-{% macro gl_figure(gl, scope="serving", label="", links=True) %}
+{# "GL covers 72% of the carbohydrate here (28 of 39 g). " — empty when the
+   result has no coverage figure. #}
+{% macro gl_coverage(gl) %}{% if gl.coverage_pct is not none and gl.coverage_pct < 100 %}GL covers {{ gl.coverage_pct }}% of the carbohydrate here ({{ gl.carbs_with_gi_g | round | int }} of {{ gl.carbs_g | round | int }}&thinsp;g). {% endif %}{% endmacro %}
+
+{# What a GI measured in people with impaired glucose tolerance or diabetes
+   means for this user, from their profile's glucose tolerance (Settings -> 1):
+   it fits them, it's an approximation for them, or (not set) either. The
+   only place this advice is worded — every impaired-value note calls it. #}
+{% macro gi_impaired_advice(links=True, plural=False) %}{% set tol = user_glucose_tolerance() %}
+{%- if tol == "impaired" -%}
+Your profile says you have impaired glucose tolerance or diabetes, so {{ "these fit" if plural else "this fits" }} you &mdash; best of all when the study&rsquo;s subjects had your own type (type 1 or type 2).{% if links %} {{ manual_link("gi-impaired", "More about these values") }}{% endif %}
+{%- elif tol == "normal" -%}
+Your profile says normal glucose tolerance, so treat {{ "these" if plural else "it" }} as an approximation: a value measured in people with normal glucose tolerance, if the table has one for the same food, fits you better.{% if links %} {{ manual_link("gi-impaired", "How to use such a value") }}{% endif %}
+{%- else -%}
+If that describes you, {{ "these are the right values" if plural else "it's the right value" }}; if not, treat {{ "them" if plural else "it" }} as an approximation.{% if links %} {{ manual_link("gi-impaired", "What this means, and how to use it if you don't have diabetes") }} &middot; <a href="/settings#glucose_tolerance">Set your glucose tolerance</a> to tailor this note.{% endif %}
+{%- endif %}{% endmacro %}
+
+{# Names foods whose GI was measured in people with impaired glucose
+   tolerance or diabetes, with advice tailored by gi_impaired_advice(). #}
+{% macro gi_population_note(names, links=True) %}{% if names %}
+<p class="muted mb-1"><small>&#9432; GI measured in people with impaired glucose tolerance or diabetes for: {{ names | join(", ") }}. {{ gi_impaired_advice(links, plural=True) }}</small></p>
+{% endif %}{% endmacro %}
+
+{# One line under any GL band saying how to read it: the per-serving scale
+   for a food, meal or recipe portion; the day scale (with gl_band_caveat())
+   for a whole day. The only place this text lives — every page that shows
+   a band calls this, directly or through gl_figure(). #}
+{% macro gl_band_help(scope="serving", links=True) %}
+<p class="muted mb-1"><small>{% if scope == "day" %}{{ gl_band_caveat("day") }} A single meal or recipe is read on the separate per-serving scale (Low 10 or under, Medium 11&ndash;19, High 20 or more).{% else %}Per-serving scale: Low 10 or under, Medium 11&ndash;19, High 20 or more &mdash; roughly how much this amount raises blood glucose, compared with eating pure glucose. A whole day is read on a separate, larger scale.{% endif %}{% if links %} {{ manual_link("gl-uses", "What you can do with it") }}{% endif %}</small></p>
+{% endmacro %}
+
+{# A day's GL against the profile's daily target (glycemic_load.gl_target_status()). #}
+{% macro gl_target_line(st, links=True) %}{% if st %}
+<p class="mb-1"><small>Your daily target: {{ "%g"|format(st.target) }} &mdash;
+  {% if st.status == "unknown" %}<span class="muted">{{ st.pct }}% so far, but some foods have no GI, so whether you&rsquo;re under it can&rsquo;t be told yet</span>
+  {% elif st.over %}<span class="rda-over">{{ st.pct }}% &mdash; over it</span>
+  {% else %}<span class="rda-{{ st.status }}">{{ st.pct }}%{% if st.status == "near" %} &mdash; close to it{% endif %}</span>{% endif %}
+  {% if links %}{{ manual_link("gl-target") }}{% endif %}</small></p>
+{% endif %}{% endmacro %}
+
+{% macro gl_figure(gl, scope="serving", label="", links=True, target=None) %}
 {% if gl.complete %}
 <p>{% if label %}<strong>{{ label }}</strong> {% endif %}<strong>{{ gl.total }}</strong>
   <small class="muted">&mdash; {{ gl_band(gl.total, scope) }}</small></p>
 {% elif gl.total is not none %}
 <p>{% if label %}<strong>{{ label }}</strong> {% endif %}<strong>at least {{ gl.total }}</strong>
   <small class="muted">&mdash; incomplete, missing GI data{% if gl_band(gl.total, scope) == "High" %} (already High without it){% endif %}</small></p>
-<p class="muted mb-1"><small>These foods have carbohydrate but no GI value, so their share isn&rsquo;t counted and the true figure is higher:</small></p>
+<p class="muted mb-1"><small>{{ gl_coverage(gl) }}These foods have carbohydrate but no GI value, so their share isn&rsquo;t counted and the true figure is higher:</small></p>
 {{ gl_gaps(gl, links) }}
 {% else %}
 <p class="muted mb-1">{% if label %}<strong>{{ label }}</strong> {% endif %}Not available &mdash; none of the foods with carbohydrate here has a GI value:</p>
 {{ gl_gaps(gl, links) }}
 {% endif %}
+{{ gl_target_line(target, links) }}
+{% if gl.total is not none %}{{ gl_band_help(scope, links) }}{% endif %}
+{{ gi_population_note(gl.impaired, links) }}
 {% endmacro %}

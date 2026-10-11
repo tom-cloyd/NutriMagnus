@@ -179,7 +179,7 @@ class TestOperations:
 class TestSummary:
     def test_summary_has_dcp_and_sugars(self, data):
         keys = [c["key"] for c in run(data, [])["summary"]]
-        assert keys == ["calories", "protein_g", "dcp", "carbs_g", "sugar_g", "fat_g", "fiber_g"]
+        assert keys == ["calories", "protein_g", "dcp", "carbs_g", "sugar_g", "fat_g", "fiber_g", "gl"]
 
     def test_dcp_matches_daily_summary_and_drops_with_removal(self, data, db_conn):
         import web.backend as wb
@@ -198,6 +198,63 @@ class TestSummary:
         assert before["before"] == pytest.approx(sum(page) / len(page), abs=0.1)
         after = {c["key"]: c for c in run(data, [Edit("remove", ("food", OATS))])["summary"]}["dcp"]
         assert after["after"] < after["before"]
+
+
+def _with_carbs_and_gi(db_conn):
+    """Oats 66 g carbs (GI 55), lentils 20 g carbs (no GI), milk none."""
+    for fid, carbs in ((OATS, 66.0), (LENTILS, 20.0)):
+        nuts = json.loads(db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (fid,)).fetchone()[0])
+        db_conn.execute("UPDATE foods SET nutrients_json = ? WHERE fdc_id = ?",
+                        (json.dumps({**nuts, "carbs_g": carbs}), fid))
+    _db.set_food_annotation(db_conn, OATS, gi_estimate=55.0, gi_no_prompt=False, diaas_estimate=None,
+                            diaas_no_prompt=False, prep_context=None)
+    db_conn.commit()
+
+
+class TestGlycemicLoad:
+    def test_gl_before_and_after_reaches_every_depth(self, data, db_conn):
+        _with_carbs_and_gi(db_conn)
+        res = run(data, [Edit("scale", ("food", OATS), amount=0.5)])
+        gl = next(c for c in res["summary"] if c["key"] == "gl")
+        # Day 1: 250 g oats -> 165 g carbs x 55 / 100 = 90.75; day 2 has no carbs.
+        assert gl["before"] == pytest.approx(90.75, abs=0.1)
+        assert gl["after"] == pytest.approx(90.75 / 2, abs=0.1)
+        assert (gl["days"], gl["of_days"]) == (1, 2)
+        assert gl["band_before"] == "Moderate" and gl["band_after"] == "Low"
+        assert gl["coverage_before"] == 100 and gl["gaps_after"] == []
+
+    def test_days_over_daily_gl_target_before_and_after(self, data, db_conn):
+        import profile as _profile
+        _with_carbs_and_gi(db_conn)
+        p = _profile.load_profile()
+        p.gl_day_target = 60.0
+        _profile.save_profile(p)
+        gl = next(c for c in run(data, [Edit("scale", ("food", OATS), amount=0.5)])["summary"] if c["key"] == "gl")
+        # Day 1: 90.75 -> 45.4, against 60; day 2 has no carbohydrate.
+        assert gl["target_days"] == 2
+        assert (gl["days_over_target_before"], gl["days_over_target_after"]) == (1, 0)
+
+    def test_swap_to_a_food_with_no_gi_reports_coverage_drop(self, data, db_conn):
+        _with_carbs_and_gi(db_conn)
+        res = run(data, [Edit("replace", ("food", OATS), ("food", LENTILS))])
+        gl = next(c for c in res["summary"] if c["key"] == "gl")
+        assert gl["coverage_before"] == 100 and gl["coverage_after"] == 0
+        assert [g["name"] for g in gl["gaps_after"]] == ["Lentils"]
+        assert gl["complete_after"] is False
+
+    def test_recipe_gl_row_ends_the_carbs_section(self, data, db_conn):
+        _with_carbs_and_gi(db_conn)
+        with _db.get_db() as conn:
+            rows = [dict(r) for r in _db.recipe_list(conn) if r["id"] == data["bowl"]]
+            res = _wi.evaluate_recipes(conn, rows, [Edit("scale", ("food", OATS), amount=0.5)],
+                                       groups=[("Macronutrients", ["carbs_g"])])
+        macros = next(sec for sec in res["sections"] if sec["name"] == "Macronutrients")
+        assert [r["key"] for r in macros["rows"]] == ["carbs_g", "gl"]
+        c = cell(res, "gl", data["bowl"])
+        # Bowl serving: 150 g oats -> 99 g carbs x 55 / 100 = 54.45.
+        assert c["before"] == pytest.approx(54.4, abs=0.1)
+        assert c["after"] == pytest.approx(27.2, abs=0.1)
+        assert c["band_before"] == "High"
 
 
 class TestWhichDays:
@@ -489,3 +546,27 @@ def test_apply_refuses_a_non_matching_scenario(data, web, db_conn):
     before = db_conn.execute("SELECT * FROM meal_items ORDER BY id").fetchall()
     web.post("/analysis/whatif/apply", data={"page": "meals", "query": _meals_query(op="remove")})
     assert [dict(r) for r in db_conn.execute("SELECT * FROM meal_items ORDER BY id")] == [dict(r) for r in before]
+
+
+def test_pages_show_gl_before_after_and_coverage_drop(data, web, db_conn):
+    _with_carbs_and_gi(db_conn)
+    text = web.get("/analysis/whatif?" + _meals_query()).text
+    assert "Glycemic load" in text
+    assert "covers 100% of the carbohydrate before and 0% after" in text
+    assert f'href="/food/annotate/{LENTILS}"' in text
+    assert "#whatif-gl" in text
+    text = web.get("/analysis/whatif-recipes?" + _meals_query().replace("mode=range", "mode=all")).text
+    # Bowl after oats -> lentils: all its carbohydrate now has no GI.
+    assert 'comes from a food with a GI">no GI</span>' in text
+    assert "(was High)" not in text
+
+
+def test_whatif_page_shows_days_over_gl_target(data, web, db_conn):
+    import profile as _profile
+    _with_carbs_and_gi(db_conn)
+    p = _profile.load_profile()
+    p.gl_day_target = 60.0
+    _profile.save_profile(p)
+    text = web.get("/analysis/whatif?" + _meals_query(op="remove", with_="")).text
+    assert "Days over your daily glycemic load target:</strong> 1 of 2 before" in text
+    assert "#gl-target" in text

@@ -633,7 +633,65 @@ def test_food_detail_protein_summary_uses_default_digestibility_without_diaas_re
     assert resp.status_code == 200
     assert "No amino acid data" not in resp.text
     assert "Digestible Complete Protein (DCP)" in resp.text
-    assert "DIAAS&thinsp;0.82" in resp.text or "DIAAS 0.82" in resp.text
+    # 0.82 is the digestibility (it was labelled "DIAAS" before 2026-10-10).
+    assert "digestibility&thinsp;0.82" in resp.text or "digestibility 0.82" in resp.text
+
+
+def _insert_aa_food(db_conn, fdc_id: int, name: str, nutrients: dict) -> None:
+    db_conn.execute("""
+        INSERT OR REPLACE INTO foods
+            (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (fdc_id, name, "SR Legacy", None, 100.0, "g", json.dumps(nutrients), json.dumps([])))
+    db_conn.commit()
+
+
+# Buckwheat groats (USDA 170686), per 100 g: every amino acid meets the FAO
+# reference in the food (Leucine lowest, 1.028), but at digestibility 0.79
+# Leucine and Lysine fall short after digestion — incomplete by DIAAS.
+_BUCKWHEAT = {
+    "protein_g": 3.38, "aa_tryptophan_g": 0.052, "aa_threonine_g": 0.129,
+    "aa_isoleucine_g": 0.127, "aa_leucine_g": 0.212, "aa_lysine_g": 0.172,
+    "aa_methionine_g": 0.044, "aa_cystine_g": 0.058, "aa_phenylalanine_g": 0.132,
+    "aa_tyrosine_g": 0.064, "aa_valine_g": 0.173, "aa_histidine_g": 0.079,
+}
+
+
+def test_protein_section_scores_after_digestion():
+    """The amino acid table's Status follows the after-digestion score (what
+    the complete/incomplete verdict is judged on), and "diaas" is the real
+    DIAAS — the lowest after-digestion score — not the digestibility."""
+    p = backend._protein_section("Buckwheat groats, roasted, cooked", _BUCKWHEAT)
+    dig = p["digestibility"]
+    assert dig == pytest.approx(0.79)
+    assert p["complete"] is False
+    assert all(r["score"] >= 1.0 for r in p["aa_rows"])          # all met in the food
+    for r in p["aa_rows"]:
+        assert r["dig_score"] == pytest.approx(r["score"] * dig, abs=1e-3)
+        assert r["met"] == (r["score"] * dig >= 1.0)
+    assert p["diaas"] == pytest.approx(min(r["score"] for r in p["aa_rows"]) * dig, abs=1e-3)
+    assert p["digestion_limited"] is True
+    assert p["short_after_digestion"][:2] == ["Leucine", "Lysine"]
+
+
+def test_food_page_explains_incomplete_with_every_amino_acid_met(client: TestClient, db_conn) -> None:
+    _insert_aa_food(db_conn, 170686, "Buckwheat groats, roasted, cooked", _BUCKWHEAT)
+    resp = client.get("/food/170686")
+    assert resp.status_code == 200
+    assert "After digestion" in resp.text
+    assert "Why &ldquo;incomplete&rdquo; when every amino acid is met in the food?" in resp.text
+    assert "limited by digestion, not by any one amino acid" in resp.text
+
+
+def test_food_page_no_digestion_note_when_an_amino_acid_is_short_in_the_food(
+    client: TestClient, db_conn
+) -> None:
+    lysine_poor = dict(_BUCKWHEAT, aa_lysine_g=0.08)   # Lysine short even before digestion
+    _insert_aa_food(db_conn, 170687, "Buckwheat groats, lysine-poor test", lysine_poor)
+    resp = client.get("/food/170687")
+    assert "After digestion" in resp.text
+    assert "Why &ldquo;incomplete&rdquo;" not in resp.text
+    assert "score in the food" in resp.text
 
 
 def test_food_detail_ul_column_has_footnote(client: TestClient, cached_food) -> None:
@@ -6573,6 +6631,44 @@ def test_calorie_note_on_meal_page_and_db_check(client: TestClient, db_conn) -> 
     assert "Almond test" in html and "Broken salt test" in html
     assert "1000 g of carbohydrate per 100 g" in html   # impossible value
     assert "calories estimated from its protein" in html
+
+
+def test_missing_aa_not_needed_button_hides_food(client: TestClient) -> None:
+    """Missing Amino Acid Profiles: each food gets an "amino acids not
+    needed" button that returns to the meal; once marked, the food is no
+    longer listed and a footnote counts it."""
+    import db as _dbm
+    aa = {k: 1.0 for k in ("aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g",
+                           "aa_lysine_g", "aa_methionine_g", "aa_phenylalanine_g", "aa_valine_g",
+                           "aa_histidine_g")}
+    with _dbm.get_db() as conn:
+        _dbm.cache_food(conn, 998811, "Lentil test", "Foundation", None, 100.0, "g",
+                        {"calories": 350, "protein_g": 25, "carbs_g": 60, "fat_g": 1, **aa})
+        _dbm.cache_food(conn, 998812, "Supplement test", "Branded", None, 100.0, "g",
+                        {"calories": 300, "protein_g": 20, "carbs_g": 50, "fat_g": 2})
+    meal_id = int(client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-12"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    for fid, name in ((998811, "Lentil test"), (998812, "Supplement test")):
+        client.post(f"/meal/{meal_id}/add", data={"fdc_id": fid, "food_name": name, "portion_str": "50 g"},
+                    follow_redirects=False)
+    html = client.get(f"/meal/{meal_id}").text
+    section = html[html.index('id="sec-missing-aa"'):]
+    assert "Supplement test" in section
+    assert 'action="/food/998812/data-ignore"' in section
+    assert "#missing-aa-off" in section
+
+    r = client.post("/food/998812/data-ignore",
+                    data={"group": "aa", "next": f"/meal/{meal_id}#sec-missing-aa"},
+                    follow_redirects=False)
+    assert r.headers["location"] == f"/meal/{meal_id}#sec-missing-aa"
+    html = client.get(f"/meal/{meal_id}").text
+    assert 'id="sec-missing-aa"' not in html
+
+    # An off-site `next` falls back to the food page.
+    r = client.post("/food/998812/data-ignore",
+                    data={"group": "aa", "ignored": 0, "next": "//evil.example"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/food/998812"
 
 
 def test_small_amount_never_shows_a_nonzero_value_as_zero() -> None:

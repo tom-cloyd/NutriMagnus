@@ -314,6 +314,8 @@
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
     <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
+    {% include "_complement_target_note.html" %}
+    {% with limit_readonly=true %}{% include "_complement_limit.html" %}{% endwith %}
     {% if s.aa_effects %}
     <p class="mb-1 muted"><small>Effect:
       {% for e in s.aa_effects %}
@@ -345,6 +347,7 @@
   {% for s in complements.general %}{{ suggest_card(s, "Add alongside") }}{% endfor %}
   {% endif %}
 
+  <p class="muted mt-2 mb-1"><small>{{ complements.dcp_note }}</small></p>
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
   {% if complements.has_estimate_or_generic %}
   <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
@@ -403,7 +406,7 @@
       {% endfor %}
       </tbody>
     </table>
-    <p class="mb-1 muted"><small>Recipe DIAAS: the pooled digestibility-adjusted amino acid score for the whole recipe, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP.</small></p>
+    <p class="mb-1 muted"><small>Recipe DIAAS: the pooled digestibility-adjusted amino acid score for the whole recipe, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP{% if complements.base_dcp is not none %} of {{ complements.base_dcp }}&thinsp;g{% endif %}.</small></p>
     {% else %}
     <p class="mb-1 muted"><small>Add: <strong>{{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} ({{ s.amount_note }}){% endif %}</strong></small></p>
     {% endif %}

@@ -1,0 +1,22 @@
+{# Missing Amino Acid Profiles helpers (meal, recipe pages). `diaas` from
+   web/backend.py's _build_diaas_display(); `back` is the path to return to
+   after the button's POST. #}
+{% macro button(diaas, name, back) %}
+{% set fid = diaas.missing_fdc_ids.get(name) if diaas.missing_fdc_ids else none %}
+{% if fid %}
+<form method="post" action="/food/{{ fid }}/data-ignore" style="display:inline">
+  <input type="hidden" name="group" value="aa">
+  <input type="hidden" name="next" value="{{ back }}#sec-missing-aa">
+  <button type="submit" class="btn btn-link btn-sm p-0 ms-2 align-baseline"
+          title="For a food whose protein doesn't matter here, such as a supplement. Undo it on the food's own page.">Amino acids not needed for this food &mdash; stop listing it</button>
+</form>
+{% endif %}
+{% endmacro %}
+
+{% macro footer(diaas) %}
+{% if diaas.missing_aa_not_needed %}
+<p class="muted mb-1"><small>{{ diaas.missing_aa_not_needed }} food{{ "s" if diaas.missing_aa_not_needed != 1 }} marked "amino acids not needed" {{ "are" if diaas.missing_aa_not_needed != 1 else "is" }} not listed.</small></p>
+{% endif %}
+{% endmacro %}
+
+{% macro off_link() %}<small>{{ manual_link("missing-aa-off", "How to turn this check off for a food whose protein doesn't matter, such as a supplement") }}</small>{% endmacro %}

@@ -117,15 +117,54 @@
     </div>
 
     <div class="mb-3">
-      <label for="glucose_tolerance" class="form-label">Glycemic index lookup default {{ manual_link("gi") }}</label>
+      <label for="glucose_tolerance" class="form-label">Your glucose tolerance (glycemic index lookup default) {{ manual_link("gi-impaired") }}</label>
       <select class="form-select" id="glucose_tolerance" name="glucose_tolerance" style="max-width:28rem">
         <option value="" {{ 'selected' if not profile or not profile.glucose_tolerance }}>Not set — show both when looking up a food's GI</option>
         <option value="normal" {{ 'selected' if profile and profile.glucose_tolerance == 'normal' }}>Normal glucose tolerance</option>
         <option value="impaired" {{ 'selected' if profile and profile.glucose_tolerance == 'impaired' }}>Impaired glucose tolerance / diabetes</option>
       </select>
       <p class="muted mt-1"><small>Sets which population's values the glycemic index lookup (on each food's Annotate page)
-      shows first. You can still switch to the other population, or see both, for any individual lookup — this only
-      sets the default.</small></p>
+      shows first — you can still switch for any individual lookup — and tailors the note NuMa shows beside a GI
+      measured in people with diabetes: whether that value fits you, or is an approximation for you.</small></p>
+    </div>
+
+    <div class="mb-3">
+      <label for="gl_day_target" class="form-label">Daily glycemic load target (optional) {{ manual_link("gl-target") }}</label>
+      <input type="number" class="form-control" id="gl_day_target" name="gl_day_target" min="1" step="1"
+             style="max-width:10rem" placeholder="e.g. 80"
+             value="{{ '%g'|format(profile.gl_day_target) if profile and profile.gl_day_target else '' }}">
+      <p class="muted mt-1"><small>A personal ceiling for a whole day&rsquo;s glycemic load. When set, day pages, Recent Days,
+      day averages and What-if show each day against it, the way a nutrient&rsquo;s maximum is shown. Leave blank to turn it off.
+      No guideline sets a number; if you have diabetes, set it with your care team.</small></p>
+      {% set o = gl_target_options %}
+      <details class="mt-1" id="gl-target-help">
+        <summary class="small">Help me choose a target</summary>
+        <div class="small mt-2" style="max-width:44rem">
+          <p class="mb-2">Three starting points. Click one to put its number in the box, then <strong>Save profile</strong>.
+          {{ manual_link("gl-target-choose", "Each option's criteria and sources") }}</p>
+          <ol class="mb-2 ps-3">
+            <li class="mb-2"><strong>Scaled to your calorie target (recommended).</strong>
+              {% if o.scaled %}<button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1 js-gl-target-pick" data-value="{{ o.scaled }}">Use {{ o.scaled }}</button><br>
+              80 per 2,000 kcal &mdash; a &ldquo;moderate&rdquo; glycemic load diet in the University of Sydney GI Foundation&rsquo;s terms &mdash; scaled to your daily calorie target.
+              {% else %}<br><span class="muted">Needs your profile above saved first, so NuMa knows your calorie target.</span>{% endif %}</li>
+            <li class="mb-2"><strong>The common convention.</strong>
+              <button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1 js-gl-target-pick" data-value="{{ o.fixed }}">Use {{ o.fixed }}</button><br>
+              The widely quoted &ldquo;low glycemic load day&rdquo;, the same for everyone. A convention, not a researched cut-off.</li>
+            <li><strong>A step down from where you are.</strong>
+              {% if o.step_down %}<button type="button" class="btn btn-sm btn-outline-primary py-0 ms-1 js-gl-target-pick" data-value="{{ o.step_down }}">Use {{ o.step_down }}</button><br>
+              Your average day over the last 30 days was {{ "%.0f"|format(o.recent_avg) }} ({{ o.recent_days }} day{{ "s" if o.recent_days != 1 }} with a complete figure); 10&ndash;20% lower is {{ o.step_down_range[0] }}&ndash;{{ o.step_down_range[1] }}. For a gradual change.
+              {% else %}<br><span class="muted">Needs at least 7 days in the last 30 with a complete glycemic load (every food with carbohydrate has a GI){% if o.recent_days %} &mdash; you have {{ o.recent_days }}{% endif %}.</span>{% endif %}</li>
+          </ol>
+        </div>
+      </details>
+      <script>
+      document.querySelectorAll('.js-gl-target-pick').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var box = document.getElementById('gl_day_target');
+          box.value = b.dataset.value; box.focus();
+        });
+      });
+      </script>
     </div>
 
     <button type="submit" class="btn btn-primary">Save profile</button>

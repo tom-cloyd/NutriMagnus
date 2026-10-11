@@ -1,4 +1,4 @@
-VERSION = "2026-10-09:1637"
+VERSION = "2026-10-10:2326"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.26"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "USDA foods get back the zeros USDA measured, which earlier versions dropped; 17 starter foods are updated to match"
+NEW_VERSION_NOTE = "Protein per meal on meal and day pages; protein complement suggestions now count each food at its own digestibility and stay within a sensible amount per meal"

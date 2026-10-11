@@ -1,0 +1,16 @@
+{# Under a single food's amino acid table (food page and its print view).
+   Expects `protein` from web/backend.py's _protein_section. #}
+<p class="muted mt-1 mb-2" style="max-width:42rem"><small>
+  <strong>In the food</strong>: each amino acid's amount per gram of this food's protein, against the FAO reference.
+  <strong>After digestion</strong>: the same &times; this food's digestibility ({{ "%.2f"|format(protein.digestibility) }}) &mdash; what you actually absorb per gram eaten. Status, and whether the protein counts as complete, follow this column, as DIAAS does.
+</small></p>
+{% if protein.digestion_limited %}
+<div class="alert alert-info py-2" style="max-width:42rem"><small>
+  <strong>Why &ldquo;incomplete&rdquo; when every amino acid is met in the food?</strong>
+  This food has every amino acid in the right proportion, but only {{ protein.digestibility_pct }}% of its protein is absorbed.
+  So per gram eaten, {{ protein.short_after_digestion|join(" and ") if protein.short_after_digestion|length <= 2 else (protein.short_after_digestion[:-1]|join(", ") ~ " and " ~ protein.short_after_digestion[-1]) }}
+  {{ "falls" if protein.short_after_digestion|length == 1 else "fall" }} short of the reference. That is what makes it incomplete by the DIAAS standard.
+  The protein that <em>is</em> absorbed is complete: all {{ protein.dcp_g }}&thinsp;g of it counts as digestible complete protein.
+  What limits this food is digestibility, not any one amino acid. Pairing it with a more digestible protein (the complement suggestions below) raises the DIAAS of the combination; nothing changes how much of this food&rsquo;s own protein is absorbed.
+</small></div>
+{% endif %}

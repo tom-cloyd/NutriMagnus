@@ -1,0 +1,5 @@
+{# One gap-closer suggestion `s`: say which gap its amount closes when that
+   isn't the main one (see complements._target_label). #}
+{% if s.target_label %}
+<p class="mb-1 muted"><small>This amount closes the <strong>{{ s.target_label }}</strong> gap. This food can't close {{ s.primary_label }}, the main gap, in a practical amount on its own.</small></p>
+{% endif %}

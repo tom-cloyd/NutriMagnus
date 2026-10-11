@@ -383,7 +383,7 @@
 <section id="sec-contributors" class="analysis-section">
   {{ _contrib.render("/recipe/" ~ recipe.id, contributor_options, contributor_rank, contributors,
                       contributor_total, contributor_count, contributor_unit,
-                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp,
+                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl,
                       extra_hidden='<input type="hidden" name="servings" value="' ~ servings ~ '">') }}
 </section>
 {% endif %}
@@ -577,19 +577,22 @@
 {% if diaas and diaas.missing %}
 <section id="sec-missing-aa" class="analysis-section">
   <h3 class="section-heading">Missing Amino Acid Profiles {{ manual_link("missing-aa") }}</h3>
-  <p class="muted mt-2">&#9888; These ingredients lacked AA data and were excluded from DIAAS. Search for a Foundation Foods replacement to fix this:</p>
+  {% import "_aa_not_needed.html" as aa_nn %}
+  <p class="muted mt-2">&#9888; These ingredients lacked AA data and were excluded from DIAAS. Search for a Foundation Foods replacement to fix this. {{ aa_nn.off_link() }}</p>
   <ul class="list-unstyled ms-2">
     {% for name in diaas.missing %}
     <li class="mb-1">
       <small>&#9888; {{ name }}</small>
       <a href="/recipe/{{ recipe.id }}/edit?q={{ name | urlencode }}"
          class="btn btn-outline-warning btn-sm ms-2">Find Foundation Food replacement</a>
+      {{ aa_nn.button(diaas, name, "/recipe/" ~ recipe.id) }}
     </li>
     {% endfor %}
   </ul>
   {% if diaas.omitted_zero_protein_missing %}
   <p class="muted"><small>Foods with no protein are omitted from this list.</small></p>
   {% endif %}
+{{ aa_nn.footer(diaas) }}
 </section>
 {% endif %}
 
@@ -617,7 +620,7 @@
     <tbody>
     {% for step in s.grad_steps %}
     <tr{% if loop.last %} class="table-success"{% endif %}>
-      <td><strong>{{ step.grams }}&thinsp;g</strong>{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.full_closure_grams %}100% of your amount{% else %}full{% endif %})</span>{% endif %}</td>
+      <td><strong>{{ step.grams }}&thinsp;g</strong>{{ per_serving_note(step.grams) }}{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.full_closure_grams %}100% of your amount{% elif s.capped %}per-meal limit{% else %}full{% endif %})</span>{% endif %}</td>
       <td>{{ step.dig_protein }}&thinsp;g</td>
       <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
       <td>{% if step.pct_increase is not none %}{{ "%+.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
@@ -628,12 +631,14 @@
     {% endfor %}
     </tbody>
   </table>
-  <p class="mb-1 muted"><small>DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP.</small></p>
+  <p class="mb-1 muted"><small>DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP{% if complements.base_dcp is not none %} of {{ complements.base_dcp }}&thinsp;g{% endif %}.</small></p>
   {% include "_complement_anchor.html" %}
   {% else %}
   <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{{ per_serving_note(s.grams) }}{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
   {% include "_complement_anchor.html" %}
   {% endif %}
+  {% include "_complement_target_note.html" %}
+  {% include "_complement_limit.html" %}
   {% if s.aa_effects %}
   <p class="mb-1 muted"><small>Effect:
     {% for e in s.aa_effects %}
@@ -641,8 +646,8 @@
     {% endfor %}
   </small></p>
   {% endif %}
-  <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at full serving (from {{ s.protein_added }}&thinsp;g raw protein in this addition)</small></p>
-  <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong>{% if recipe.servings and recipe.servings > 1 %} <span class="muted">(single serving: {{ "%.1f"|format(s.total_dig / recipe.servings) }}&thinsp;g)</span>{% endif %}</small></p>
+  <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at {% if s.capped %}the per-meal limit{% else %}full serving{% endif %} (from {{ s.protein_added }}&thinsp;g raw protein in this addition)</small></p>
+  <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with {% if s.capped %}the per-meal limit{% else %}full serving{% endif %}: <strong>{{ s.total_dig }}&thinsp;g</strong>{% if recipe.servings and recipe.servings > 1 %} <span class="muted">(single serving: {{ "%.1f"|format(s.total_dig / recipe.servings) }}&thinsp;g)</span>{% endif %}</small></p>
   {% if s.new_complete and s.grad_steps %}
   <p class="mb-0 muted"><small>The complement fills amino acid gaps in the base protein, making previously wasted raw protein utilizable. DCP rises faster than the complement alone because it unlocks the base protein too.</small></p>
   {% endif %}
@@ -716,6 +721,7 @@
   {% for s in complements.general %}{{ suggest_card(s, "Add to recipe") }}{% endfor %}
   {% endif %}
 
+  <p class="muted mt-2 mb-1"><small>{{ complements.dcp_note }}</small></p>
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
   {% if complements.has_estimate_or_generic %}
   <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
@@ -783,6 +789,7 @@
       {% if not s.fdc_id and not s.recipe_id %}<small class="muted"> generic estimate</small>{% elif s.estimated %}<small class="muted"> estimated</small>{% endif %}
       {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
     </p>
+    {% include "_complement_limit.html" %}
     {% if s.steps %}
     <table class="table table-sm mb-1 mt-1" style="max-width:36rem">
       <thead><tr><th>Add to recipe</th><th>Recipe DIAAS</th><th>DCP<br>achieved</th><th>%<br>increase</th></tr></thead>
@@ -797,7 +804,7 @@
       {% endfor %}
       </tbody>
     </table>
-    <p class="mb-1 muted"><small>Recipe DIAAS: the pooled digestibility-adjusted amino acid score for the whole recipe, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP.</small></p>
+    <p class="mb-1 muted"><small>Recipe DIAAS: the pooled digestibility-adjusted amino acid score for the whole recipe, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the recipe after adding this amount. % increase: DCP achieved's rise over the recipe's current DCP{% if complements.base_dcp is not none %} of {{ complements.base_dcp }}&thinsp;g{% endif %}.</small></p>
     {% else %}
     <p class="mb-1"><strong>Add to recipe:</strong> {{ s.grams | round | int }}&thinsp;g{{ per_serving_note(s.grams) }}{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% if s.current_diaas is not none and s.new_diaas is not none %}
@@ -847,7 +854,7 @@
 </form>
 <script>
 document.getElementById('complements-form').addEventListener('change', function (e) {
-  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore' || e.target.name === 'anchor_grams') {
+  if (e.target.name === 'ignore_complements' || e.target.name === 'unignore' || e.target.name === 'anchor_grams' || e.target.name === 'uncap') {
     document.getElementById('recalc-complements-btn').disabled = false;
   }
 });
@@ -861,6 +868,7 @@ document.getElementById('complements-form').addEventListener('change', function 
   <h3 class="section-heading">Glycemic Load {{ manual_link("glycemic") }}</h3>
   <div class="protein-meta mt-2">
     {{ _gl.gl_figure(gl, "serving", "Per serving:" if servings == 1 else "For " ~ ("%g" | format(servings)) ~ " servings:") }}
+    {% if gl.total %}<p class="mb-1"><small><a href="/recipe/{{ recipe.id }}?rank=gl&amp;servings={{ servings }}#sec-contributors">Which foods drive it, and lower-GI swaps to try &rarr;</a></small></p>{% endif %}
   </div>
 </section>
 {% endif %}

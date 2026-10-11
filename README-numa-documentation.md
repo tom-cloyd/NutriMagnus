@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-09:1637
+UPDATED: 2026-10-10:2326
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -164,7 +164,21 @@ numa/
                                        two-scale banding (gl_band/gl_band_caveat — "serving"
                                        vs "day", which are NOT interchangeable); and day-level
                                        totals for the GL trend and plot (day_gl_total,
-                                       day_gl_totals, average_day_gl)
+                                       day_gl_totals, average_day_gl); day_gl() keeps a day's
+                                       partial total for Recent Days' Day GL column;
+                                       gl_target_status() checks a day against the
+                                       profile's gl_day_target (rda_status "limit");
+                                       gl_target_options() = Settings' "Help me choose"
+                                       (calorie-scaled 80/2000 kcal, fixed 80, 10-20%
+                                       below the 30-day average; sources: manual
+                                       #gl-target-choose);
+                                       gl_for_leaves() for already-expanded leaves (what-if,
+                                       Compare, GL Top Contributors); every result carries
+                                       carbohydrate coverage and "impaired" (GI measured in
+                                       people with diabetes, gi_measured_impaired()).
+                                       Band help text lives only in _gl_result.html's
+                                       gl_band_help(scope), called by gl_figure() and the
+                                       food page / trend page
       manual_build.py                — rebuild_manual_if_stale(), used by the web app's /manual route
       manual_update.py               — check for, download (Ed25519-verified) and serve a newer User
                                       Manual than the baked-in one, independent of program updates
@@ -194,7 +208,17 @@ numa/
                                        cofid_lookup.py etc. are thin wrappers around it
       update_check.py                — GitHub latest-release check for the "update available" banner
       top_contributors.py            — rank a meal's/recipe's ingredients by contribution to one
-                                      nutrient (or DCP), for the "Top Contributors" analysis section
+                                      nutrient (or DCP, or glycemic load via rank_contributors_by_gl()),
+                                      for the "Top Contributors" analysis section
+      protein_per_meal.py            — per-meal protein amount from the profile (0.25-0.4 g/kg under
+                                      65, 25-30 g at 65+, 20-40 g with no profile; leucine too) and
+                                      meal_check() on DCP (raw protein if no DCP); meal page line and
+                                      day pages' per-meal table (_protein_per_meal.html; the day table
+                                      reads each meal's stored bcp_g + nutrients snapshot). Sources:
+                                      manual #protein-per-meal
+      gl_swaps.py                    — lower-GL swap suggestions (suggest_swaps()) from cached foods
+                                      with a GI (db.foods_with_gi()): GI >= 5 lower, carbs/100 g within
+                                      1.5x, shared name words first; links open What-if pre-filled
       whatif.py                      — non-destructive what-if analysis across a set of meals or
                                       recipes: Edit (remove/add/replace/scale), evaluate_meals(),
                                       evaluate_recipes(); edits reach
@@ -289,7 +313,8 @@ numa/
       analysis_whatif_apply.html   — Confirmation page before a replace-only what-if is applied for real
       recipe_translate.html, recipe_translate_import.html
                                     — Recipe translation for printing: build the prompt, paste the reply
-      summary.html                 — Daily summary landing page (Recent Days list)
+      summary.html                 — Daily summary landing page (Recent Days list; fixed Day GL
+                                     column, hidden when GI is opted out in Settings)
       trend.html                   — nutrient averages across days view
       nutrient_plot.html           — Nutrient trend line-plot picker/display
       nutrient_plot_print.html     — Print-formatted nutrient plot
@@ -708,7 +733,7 @@ UI: `/food/cache/db-check` sections *Food data problems* (`#calories`), *Amounts
 
 **Change impact.** `_impact_targets()` (`db.recipes_using_food` — recursive over sub-recipes — and `db.meals_using_food`), `_impact_snapshot()` before and after a write, `_impact_store()` diffs calories/protein/carbs/fat and keeps the summary under a one-time token (in-process dict) for `_impact_note.html`. Wired into the incoming-data review POST (Refresh from USDA / Fill in nutrients from another food), the custom-food editor save, and the stale-amount fix. **Recalculation log:** `meal_recalc_log` (`meal_id`, `reason`, `logged_at`), written by `recipe_dcp.cascade_food_change()` and the stale-amount fix, shown by `_recalc_note.html` on meal and Daily Summary pages.
 
-**Generic-density amounts:** `generic_density_in_use()` — see the portions.py section. **In-use gaps and duplicates.** `missing_aa_in_use()` / `missing_portions_in_use()` list only foods with a recipe, meal or pantry use (`usage_counts()`), most-used first; "not needed" uses `food_data_ignores` keys `aa` / `portions` through the completeness save route (`back=` picks the return anchor). No reminder keys. `duplicate_groups()` normalises names (`_dup_name`: case, punctuation, "* ", "Copy of ", "(FDC n)") — exact matches only; `/food/cache/duplicates` (on request), `POST .../keep` → `db.merge_food_into()` per dropped food then `cascade_food_change(keep)` with an impact summary, `POST .../dismiss` → `food_duplicate_dismissals` (group key = sorted fdc_ids, so a new copy re-raises the group). The Claude import confirm also records an impact summary (shown on the Food Cache page); the Food Cache CSV import only creates new foods, so there's nothing to diff.
+**Generic-density amounts:** `generic_density_in_use()` — see the portions.py section. **In-use gaps and duplicates.** `missing_aa_in_use()` / `missing_portions_in_use()` / `missing_gi_in_use()` list only foods with a recipe, meal or pantry use (`usage_counts()`), most-used first; "not needed" uses `food_data_ignores` keys `aa` / `portions` through the completeness save route (`back=` picks the return anchor) — except the GI list (carbs ≥ `GI_LIST_MIN_CARBS` per 100 g, hidden when GI is opted out in Settings), whose "not needed" is `food_annotations.gi_no_prompt` (group `gi` in that route), the flag glycemic load already reports as "not wanted". Population: `glycemic_load.gi_measured_impaired()` reads the "Impaired glucose tolerance" label the Annotate lookup saves into `gi_source`; GL results carry `impaired` (counted foods with such a GI), shown by `_gl_result.html`'s `gi_population_note` (advice worded once, in `gi_impaired_advice()`, tailored by the Jinja global `user_glucose_tolerance()` — the profile's glucose tolerance), the food/Annotate pages (Jinja filter `gi_impaired`), and as † in GL Top Contributors and swaps. GL Top Contributors' swap notes count `db.foods_with_gi()` and the open rows of this list, linking to `#missing-gi`. No reminder keys. `duplicate_groups()` normalises names (`_dup_name`: case, punctuation, "* ", "Copy of ", "(FDC n)") — exact matches only; `/food/cache/duplicates` (on request), `POST .../keep` → `db.merge_food_into()` per dropped food then `cascade_food_change(keep)` with an impact summary, `POST .../dismiss` → `food_duplicate_dismissals` (group key = sorted fdc_ids, so a new copy re-raises the group). The Claude import confirm also records an impact summary (shown on the Food Cache page); the Food Cache CSV import only creates new foods, so there's nothing to diff.
 
 **Trust indicator.** `_calorie_warnings()` returns `estimated_pct` (share of the calorie total from estimated values) alongside its items; `_calorie_note.html` leads with it.
 
@@ -817,9 +842,21 @@ Wherever protein is analyzed, NuMa checks for essential amino acid gaps and offe
 2. **General table** — a curated built-in table of common plant protein sources (protein + nine EAAs only; not usable in search/recipes).
 3. The user can page through both lists interactively.
 
-**Scoring formula for total DCP:** `(base_protein + complement_protein) × min(1.0, base_digestibility × new_pool_raw_min)`, where `new_pool_raw_min` is the minimum raw AA score (vs. FAO reference) across all essential amino acids in the combined pool. For DIAAS-improver suggestions: `(base_protein + raw) × min(1.0, new_diaas)` — sourced directly from `suggest_complements()` in `usda_nutrients.py`.
+**Scoring formula for total DCP:** `(base_protein + complement_protein) × min(1.0, base_digestibility × new_pool_raw_min)`, where `new_pool_raw_min` is the minimum raw AA score (vs. FAO reference) across all essential amino acids in the combined pool. For DIAAS-improver suggestions: `(base_protein + raw) × min(1.0, new_diaas)` — sourced directly from `suggest_complements()` in `usda_nutrients.py`. When the base has an ingredient list (meal, day, recipe), the figure shown and ranked is instead `exact_dcp()`: the per-ingredient `diaas.meal_level_diaas` recalculation with the suggestion added at its shown amount. `_achieved_dcp()` computes it once and feeds both the "dcp" sort and the display, so the order can't contradict the numbers. Every "% increase", "DCP before" and net gain is measured from the base's own current DCP (`base_dcp()`, the same per-ingredient figure; without ingredients, `base_protein × min(1, limiting score)`). It's not `protein × digestibility`, which ignores the limiting amino acid and once made a real gain show as a negative increase.
 
-A complement that closes the primary gap but dilutes a different amino acid will show a lower total DCP — the pooled DIAAS drops because the new limiting AA is weaker than the base alone. A qualifying complement must bring the most limiting AA to exactly 1.0 (the FAO floor) in a practical serving (≤ 500 g).
+A complement that closes the primary gap but dilutes a different amino acid will show a lower total DCP — the pooled DIAAS drops because the new limiting AA is weaker than the base alone.
+
+**How a gap-closer's amount is found** (`_score_one_complement()` in `usda_nutrients.py`): the gaps are tried in order, most limiting first, and the first one the food can close sets the amount. The amount is solved with each source at its own true ileal digestibility — the base at its pooled digestibility, the complement at its own TID — bringing that amino acid to exactly 1.0 (the FAO floor). It must come in at a practical amount (`MAX_PRACTICAL_GAP_CLOSER_GRAMS`, 300 g). When the base digestibility is the 1.0 "no data" default, the older uniform-pool solve is kept. An addition that would leave the pool's DIAAS lower than the base's own DIAAS (it closes one gap by opening a worse one) is rejected. When the amount was sized for a gap other than the main one, the page says so (`_complement_target_note.html`), so it doesn't read as closing the main gap.
+
+Before 2026-10-10 the solve assumed the whole pool, complement included, sat at the base's digestibility, and the rejection compared the new DIAAS against the base's *digestibility* rather than its DIAAS. Together these undercounted well-digested complements: on a meal at TID 0.84 / Lysine 0.69, soy isolate (TID 0.95) "needed" 621 g to close Lysine and fell through to the Leucine gap at 106 g. Pooled correctly, it closes Lysine at 165 g.
+
+**Per-meal limits** (`complement_meal_limit()` in `usda_nutrients.py`): each candidate has a most-per-meal amount, so a suggestion never offers, say, 4½ cups of nutritional yeast. The limit comes from, in order:
+1. the user's own limit for that food (`food_annotations.max_meal_g`, saved from the suggestion itself via `POST /complement-limit`);
+2. 3 × the food's label serving (`label_serving_g()`, grams only), or 2 × a recipe's serving;
+3. a default by food type (`_MEAL_LIMIT_DEFAULTS`): seasonings and yeast 15 g, protein powders 40 g, seeds and nuts 40 g, cheese 60 g;
+4. otherwise `MAX_PRACTICAL_GAP_CLOSER_GRAMS` (300 g).
+
+A gap-closer that needs more than its limit, but no more than 300 g, is offered **at** the limit: `capped`, `closing_grams` = what full closure would take, with the gap only partly closed. Gaps are still tried most limiting first, so a capped partial on the main gap beats fully closing a minor gap with a token amount. DIAAS-booster steps stop at the limit too, and the limit itself becomes the last step. Pair legs must close within their limits. `?uncap=<name>` (`uncap_names`) lifts a food's limit for one page view: the "use the full amount this time" checkbox in `_complement_limit.html`. The user's limit is a preference, not a data edit, so `has_user_annotation()` ignores it.
 
 ### Dietary preferences
 
@@ -1489,7 +1526,7 @@ Analysis pages under the Analysis dropdown: frequency of a given food's use acro
 
 #### `analysis_whatif.html`
 
-Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across a set of meals (dates — ranges or single dates — or meal IDs), before and after a list of changes: remove, add (once per logged day), replace (same weight / same servings / stated amount, at every depth) and scale. Read-only by design (`numa_app/services/whatif.py`; meals keep nutrient snapshots and recipe edits trigger DCP recomputes, so nothing here may call a write helper — a test checks the DB file is byte-identical afterwards). The whole scenario lives in the query string (`e_op`/`e_item`/`e_with`/`e_amt`/`e_basis`, one entry per change row), so it can be bookmarked. Shows a calories/macros summary, per-edit "found in N meals" report, % of target before and after from each day's pinned profile (read without pinning), days target not met and days over max, and a "?" where an added item has no value for a nutrient. Result rows come from `_NUTRIENT_GROUPS` plus an "Other" group for any non-AA key present, so newly tracked nutrients appear without changes here. Food Use in Meals links each row here ("try removing"). Plan for later phases: `WHATIF-PLAN.md`.
+Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across a set of meals (dates — ranges or single dates — or meal IDs), before and after a list of changes: remove, add (once per logged day), replace (same weight / same servings / stated amount, at every depth) and scale. Read-only by design (`numa_app/services/whatif.py`; meals keep nutrient snapshots and recipe edits trigger DCP recomputes, so nothing here may call a write helper — a test checks the DB file is byte-identical afterwards). The whole scenario lives in the query string (`e_op`/`e_item`/`e_with`/`e_amt`/`e_basis`, one entry per change row), so it can be bookmarked. Shows a calories/macros summary, per-edit "found in N meals" report, % of target before and after from each day's pinned profile (read without pinning), days target not met and days over max, and a "?" where an added item has no value for a nutrient. Glycemic load before/after (both pages) comes from the same leaf foods via `glycemic_load.gl_for_leaves()`, so edits reach it with no second expansion path; it reports carbohydrate coverage before and after and names foods with no GI after the change, since a swap to such a food would otherwise look like a GL improvement. With a daily GL target in the profile (`UserProfile.gl_day_target`, Settings → 1), `_gl_cell(targets=)` also counts days over each day's pinned target before and after (an incomplete day counts as over only when its counted GL already is). Speed, 2026-10-10, copy of the real DB: 90 days / 87 meals in 0.74 s, GL 0.04 s of it. Result rows come from `_NUTRIENT_GROUPS` plus an "Other" group for any non-AA key present, so newly tracked nutrients appear without changes here. Food Use in Meals links each row here ("try removing"). Plan for later phases: `WHATIF-PLAN.md`.
 
 #### `analysis_whatif_recipes.html`, `_whatif_changes.html`
 
@@ -1610,7 +1647,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**1,810 tests**, all passing (1,805 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**1,883 tests**, all passing (1,878 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1627,11 +1664,14 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_diaas_properties.py` | Property-based tests for `diaas.py`'s `meal_level_diaas()`/`get_digestibility()`, complementing `test_diaas.py`'s known-combination checks |
 | `tests/test_profile.py` | `load_profile`, `save_profile`, `bmr`, `compute_rda` (sex/age/activity variants), `compute_optimal`, `get_max_limits`, unit conversion helpers |
 | `tests/test_web.py` | FastAPI `TestClient` tests: every parameter-free page render, food search/detail, and all mutating POST workflows — pantry, meals (create/add/complete/delete/rename/merge/refresh-aa/add-recipe), recipes (new/edit/delete/copy/ingredient add-edit-move), custom profiles, settings (profile/DIAAS-override), food-cache delete/prune, annotate, and compare (add/add-multiple/remove/amounts/save/load/rename/delete) |
+| `tests/test_complement_limits.py` | Per-meal complement limits: `complement_meal_limit()` precedence and type defaults, capped scoring (`max_grams`), main-gap-first choice, `uncap_names`, `label_serving_g()`, `db.set_food_meal_limit()`, and `POST /complement-limit` |
 | `tests/test_complements.py` | `numa_app/services/complements.py`: `aa_effects()` digestibility rescaling, `two_step_combo()`, `build_complement_display()` gap detection |
 | `tests/test_complements_properties.py` | Property-based tests for `numa_app/services/complements.py`, complementing `test_complements.py`'s hand-picked cases |
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_recipe_csv.py` | `numa_app/services/recipe_csv.py`: recipe CSV export/import, sub-recipe closure collection, two-pass dedup-and-create import |
-| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL worked out live through sub-recipes (cycles, deleted sub-recipes), partial totals with gaps and their reasons (no GI / "don't prompt" / no data), the 1 g negligible-carbohydrate floor, serving-vs-day band boundaries, day totals and multi-day averaging; multi-item accumulation, items after each blocker kind, and `meal_line_items()` shape (from the 2026-09-30 mutation run) |
+| `tests/test_protein_per_meal.py` | `numa_app/services/protein_per_meal.py`: per-meal amount by age/weight (adult g/kg, 65+ PROT-AGE, no-profile general), DCP preferred over raw protein, a large meal never flagged; meal page line and day page per-meal table |
+| `tests/test_gl_swaps.py` | `top_contributors.rank_contributors_by_gl()` (sums to the meal GL, merges a food reached twice, names no-GI foods, coverage) and `numa_app/services/gl_swaps.py` (shared-name-words ordering, carbohydrate-similarity and minimum-GI-drop filters, archived foods excluded); meal and recipe pages' "rank by glycemic load" view, swap links that open a working What-if (this meal and last 30 days; recipe); the swap notes' count of foods with a GI and link to Foods → 9's no-GI list; `data_quality.missing_gi_in_use()` and its "not needed" (GI "don't prompt me") save; impaired-tolerance GI values marked on the food, Annotate and meal pages and in swaps; Compare's glycemic table (GI, GL per 100 g, lowest complete GL highlighted, "≥" with coverage for a recipe missing a GI); Recent Days' Day GL column; links from every impaired-tolerance mark to `#gi-impaired`; the daily GL target (Settings save keeps the active profile's name; day page line, Recent Days colour, trend days-over, blank turns it off; Settings' "Help me choose" panel and its manual link) |
+| `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL worked out live through sub-recipes (cycles, deleted sub-recipes), partial totals with gaps and their reasons (no GI / "don't prompt" / no data), the 1 g negligible-carbohydrate floor, impaired-tolerance GI values named (`impaired`), carbohydrate coverage (`coverage_pct`, summed by `combine_gl()`), daily GL target suggestions (`gl_target_options()`), `gl_for_leaves()` matching `gl_for_items()`, serving-vs-day band boundaries, day totals and multi-day averaging; multi-item accumulation, items after each blocker kind, and `meal_line_items()` shape (from the 2026-09-30 mutation run) |
 | `tests/test_meal_bcp.py` | `numa_app/services/meal_bcp.py`: `recipe_dcp_fallback()` sums precomputed recipe `dcp_g` when ingredient-level AA data is unavailable |
 | `tests/test_rda_status.py` | `numa_app/services/rda_status.py`: `rda_status()` tier boundaries for minimum/target and limit-type nutrients; `limit_warning()` 90%/100% thresholds |
 | `tests/test_food_import.py` | `numa_app/services/food_import.py`: `VALID_NUTRIENT_KEYS` completeness, `convert_per_serving()` scaling/validation, `validate_and_strip()` key/type filtering |
@@ -1643,7 +1683,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
 | `tests/test_diet_aware.py` | `numa_app/services/diet_aware.py`: diet-preference-aware RDA-comparison notes (vegetarian/plant-based) |
 | `tests/test_nutrient_trend.py` | `numa_app/services/nutrient_trend.py`: multi-day nutrient averaging for the N-day trend view |
-| `tests/test_whatif.py` | `numa_app/services/whatif.py`: what-if analysis for meals and recipes — each operation (remove/add/replace/scale) at every depth, add-on-logged-days-only, missing-value flags, "Other" nutrient rows, validation (circular replacement, servings vs weight), and a byte-identical-DB no-write check; saved scenarios, CSV export, and Apply for real (which scenarios qualify, direct-only meal changes, recipe changes, refusal leaves data untouched) |
+| `tests/test_whatif.py` | `numa_app/services/whatif.py`: what-if analysis for meals and recipes — each operation (remove/add/replace/scale) at every depth, add-on-logged-days-only, missing-value flags, "Other" nutrient rows, glycemic load before/after (meals: average day GL and day band; recipes: per-serving row ending the carbohydrate section) with the coverage drop a swap to a no-GI food causes, days over the daily GL target before/after, validation (circular replacement, servings vs weight), and a byte-identical-DB no-write check; saved scenarios, CSV export, and Apply for real (which scenarios qualify, direct-only meal changes, recipe changes, refusal leaves data untouched) |
 | `tests/test_csv_import.py` | `numa_app/services/csv_import.py`: Food Cache CSV import parsing |
 | `tests/test_claude_fetch.py` | `numa_app/services/claude_fetch.py`: prompt-building and response-parsing for the Claude AI fetch/import workflow |
 | `tests/test_incoming_review.py` | `numa_app/services/incoming_review.py` and its review screen: fill/differs/same/dropped classification and default ticks, USDA Refresh keeping an edited food's own values, portions only ever added, fill-from-another-food marking the food edited (not custom), amino acids scaled to this food's (or the ticked incoming) protein, estimated values yielding to USDA's measured ones, and the meal page's blanks-only "Refresh from USDA" |

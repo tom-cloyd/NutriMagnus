@@ -123,6 +123,7 @@
       {% else %}based on standard adult reference (0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
     </small></p>
     {% endif %}
+    {% import "_protein_per_meal.html" as _ppm %}{{ _ppm.day_table(protein_per_meal_day) }}
     {% endif %}
     {% if diaas.missing %}
     <p class="muted"><small>&#9888; Missing AA data for: {{ diaas.missing | join("; ") }}</small></p>
@@ -232,6 +233,8 @@
       {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
     </p>
     <p class="mb-1"><strong>{{ verb }}:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
+    {% include "_complement_target_note.html" %}
+    {% with limit_readonly=true %}{% include "_complement_limit.html" %}{% endwith %}
     {% if s.aa_effects %}
     <p class="mb-1 muted"><small>
       Effect:
@@ -264,6 +267,7 @@
   {% for s in complements.general %}{{ suggest_card(s, "Add to meal") }}{% endfor %}
   {% endif %}
 
+  <p class="muted mt-2 mb-1"><small>{{ complements.dcp_note }}</small></p>
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
   {% if complements.has_estimate_or_generic %}
   <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
@@ -325,7 +329,7 @@
       {% endfor %}
       </tbody>
     </table>
-    <p class="mb-1 muted"><small>Day DIAAS: the pooled digestibility-adjusted amino acid score for the whole day, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the day after adding this amount. % increase: DCP achieved's rise over the day's current DCP.</small></p>
+    <p class="mb-1 muted"><small>Day DIAAS: the pooled digestibility-adjusted amino acid score for the whole day, before &rarr; after adding this amount. DCP achieved: total digestible complete protein in the day after adding this amount. % increase: DCP achieved's rise over the day's current DCP{% if complements.base_dcp is not none %} of {{ complements.base_dcp }}&thinsp;g{% endif %}.</small></p>
     {% else %}
     <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% if s.current_diaas is not none and s.new_diaas is not none %}
@@ -377,11 +381,7 @@
 <details>
   <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
-    {{ _gl.gl_figure(gl, "day", "Glycemic load:") }}
-    {% if gl.total is not none %}
-    <p class="muted"><small>{{ gl_band_caveat("day") }}</small></p>
-    <p class="muted"><small>Per-meal figures are banded on the separate per-serving scale &mdash; low 10 or under, medium 11&ndash;19, high 20 or more &mdash; so a day total and a meal total are not read against the same numbers.</small></p>
-    {% endif %}
+    {{ _gl.gl_figure(gl, "day", "Glycemic load:", target=gl_target) }}
   </div>
 </details>
 {% endif %}

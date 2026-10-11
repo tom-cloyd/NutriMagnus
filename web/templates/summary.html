@@ -110,6 +110,7 @@
         {% if show_pct_col %}
         <th class="num-col" style="white-space:nowrap;line-height:1.2" title="Day DCP ÷ that date's own protein target">{{ pct_goal_header() }}</th>
         {% endif %}
+        {% if show_gl_col %}<th class="num-col nutrient-group" style="white-space:nowrap;line-height:1.2" title="Glycemic load of the whole day, banded on the day scale (Low under 80, Moderate 80-120, High over 120)">Day GL</th>{% endif %}
         {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
         {% for col in day_nutrient_cols %}
         <th class="num-col nutrient-group" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
@@ -152,6 +153,17 @@
           {% endif %}
         </td>
         {% endif %}
+        {% if show_gl_col %}
+        <td class="num-col nutrient-group" style="white-space:nowrap">
+          {% set g = r.day_gl %}
+          {% if g and g.total is not none %}
+            {% set t = r.day_gl_target %}
+            {% if g.complete %}<span{% if t %} class="rda-{{ t.status }}" title="{{ t.pct }}% of your daily target of {{ '%g'|format(t.target) }}"{% endif %}>{{ "%.0f"|format(g.total) }}</span><br><small class="muted">{{ gl_band(g.total, "day") }}</small>
+            {% else %}<span{% if t and t.over %} class="rda-over"{% endif %} title="Some foods that day have carbohydrate but no GI ({{ g.coverage_pct }}% of the carbohydrate is covered), so the true figure is higher{% if t and t.over %} &mdash; already over your daily target of {{ '%g'|format(t.target) }}{% endif %}">&ge;&thinsp;{{ "%.0f"|format(g.total) }}</span><br><small class="muted">{{ g.coverage_pct }}% covered</small>{% endif %}
+          {% elif g and g.gaps %}<span class="muted" title="No food with carbohydrate that day has a GI">no GI</span>
+          {% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endif %}
         {% if show_profile_col %}
         <td><small class="muted">{{ r.profile_name or "—" }}</small></td>
         {% endif %}
@@ -172,6 +184,7 @@
     — = not yet computed (open a meal and click <em>Compute DCP</em> from the <a href="/meals">Meals</a> page) &middot;
     Complete &#10003; = every meal logged that date is marked complete; &middot; = at least one isn't yet — click it to jump to <a href="/meals">Meals &amp; Log</a> around that date
     {% if not show_pct_col %}&middot; Set a profile in <a href="/settings">Settings</a> to see your daily protein goal{% endif %}
+    {% if show_gl_col %}&middot; Day GL = the whole day&rsquo;s glycemic load, banded on the day scale, and coloured against your daily target if you&rsquo;ve set one ({{ manual_link("gl-target") }}); &ge; = some foods that day have no GI, so the true figure is higher (see <a href="/food/cache/db-check#missing-gi">foods you use with no GI</a>). <a href="/summary/nutrient-plot?nutrients=gl&amp;submitted=1">Plot it over time</a> {{ manual_link("glycemic") }}{% endif %}
   </small></p>
   {% else %}
   <p class="muted mt-2">No meals logged yet.</p>
@@ -264,6 +277,7 @@
       {% else %}(standard adult reference 0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
     </small></p>
     {% endif %}
+    {% import "_protein_per_meal.html" as _ppm %}{{ _ppm.day_table(protein_per_meal_day) }}
     {% endif %}
     {% if diaas.missing %}
     <p class="muted"><small>&#9888; Missing AA data for: {{ diaas.missing | join("; ") }}</small></p>
@@ -375,7 +389,7 @@
       <tbody>
         {% for step in s.grad_steps %}
         <tr{% if loop.last %} class="table-success"{% endif %}>
-          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">(full)</span>{% endif %}</td>
+          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.capped %}per-meal limit{% else %}full{% endif %})</span>{% endif %}</td>
           <td>{{ step.dig_protein }}&thinsp;g</td>
           <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
           <td>{% if step.pct_increase is not none %}{{ "%+.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
@@ -386,6 +400,8 @@
     {% else %}
     <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
     {% endif %}
+    {% include "_complement_target_note.html" %}
+    {% with limit_readonly=true %}{% include "_complement_limit.html" %}{% endwith %}
     {% if s.aa_effects %}
     <p class="mb-1 muted"><small>Effect:
       {% for e in s.aa_effects %}
@@ -394,7 +410,7 @@
     </small></p>
     {% endif %}
     <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw protein in this addition)</small></p>
-    <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with full serving: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
+    <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with {% if s.capped %}the per-meal limit{% else %}full serving{% endif %}: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
     {% if s.new_complete and s.grad_steps %}
     <p class="mb-0 muted"><small>The complement fills amino acid gaps in the base protein, making previously wasted raw protein utilizable. DCP rises faster than the complement alone because it unlocks the base protein too.</small></p>
     {% endif %}
@@ -417,6 +433,7 @@
   <h4 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h4>
   {% for s in complements.general %}{{ suggest_card(s) }}{% endfor %}
   {% endif %}
+  <p class="muted mt-2 mb-1"><small>{{ complements.dcp_note }}</small></p>
   <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
   {% if complements.has_estimate_or_generic %}
   <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
@@ -457,11 +474,7 @@
 <details id="sec-gl" data-remember="glycemic-load">
   <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
-    {{ _gl.gl_figure(gl, "day", "Glycemic load:") }}
-    {% if gl.total is not none %}
-    <p class="muted"><small>{{ gl_band_caveat("day") }}</small></p>
-    <p class="muted"><small>Per-meal figures are banded on the separate per-serving scale &mdash; low 10 or under, medium 11&ndash;19, high 20 or more &mdash; so a day total and a meal total are not read against the same numbers.</small></p>
-    {% endif %}
+    {{ _gl.gl_figure(gl, "day", "Glycemic load:", target=gl_target) }}
   </div>
 </details>
 {% endif %}

@@ -280,11 +280,11 @@
   {% if protein.complete %}
   <span class="status-met">&#10003; Complete protein</span>
   {% else %}
-  <span class="status-gap">&#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}{% if protein.limiting_score is not none %} ({{ "%.3f"|format(protein.limiting_score) }}){% endif %}</span>
+  <span class="status-gap">&#9888; Incomplete — limiting AA: {{ protein.limiting_aa }}{% if protein.limiting_dig_score is not none %} ({{ "%.3f"|format(protein.limiting_dig_score) }} after digestion){% endif %}</span>
   {% endif %}
 </p>
-{% if protein.diaas is not none and protein.protein_raw is not none %}
-<p class="muted">{{ protein.protein_raw }}&thinsp;g raw protein &times; DIAAS {{ "%.2f"|format(protein.diaas) }}{% if protein.protein_digestible is not none %} = {{ protein.protein_digestible }}&thinsp;g digestible &rarr; {{ protein.dcp_g }}&thinsp;g DCP{% endif %}</p>
+{% if protein.digestibility is not none and protein.protein_raw is not none %}
+<p class="muted">{{ protein.protein_raw }}&thinsp;g raw protein &times; digestibility {{ "%.2f"|format(protein.digestibility) }}{% if protein.protein_digestible is not none %} = {{ protein.protein_digestible }}&thinsp;g digestible &rarr; {{ protein.dcp_g }}&thinsp;g DCP{% endif %}</p>
 {% endif %}
 {% elif protein.diaas is not none %}
 <p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(DCP not computed for this food)</span></p>
@@ -293,11 +293,14 @@
 
 {% if "protein_quality" in enabled and protein %}
 <h2>Protein Quality</h2>
+{% if protein.digestibility is not none %}
+<p><strong>Digestibility:</strong> {{ "%.2f"|format(protein.digestibility) }} <span class="muted">(share of this protein the body absorbs: {{ protein.digestibility_pct }}%)</span></p>
+{% endif %}
 {% if protein.diaas is not none %}
-<p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(protein digestibility score; if completely digestible, DIAAS would = 1.0)</span></p>
+<p><strong>DIAAS:</strong> {{ "%.2f"|format(protein.diaas) }} <span class="muted">(the lowest after-digestion amino acid score below; 1.0 or more means every amino acid meets the reference per gram of protein eaten)</span></p>
 {% endif %}
 {% if protein.protein_digestible is not none %}
-<p><strong>Digestible protein:</strong> {{ protein.protein_digestible }}&thinsp;g <span class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; DIAAS {{ "%.2f"|format(protein.diaas) }})</span></p>
+<p><strong>Digestible protein:</strong> {{ protein.protein_digestible }}&thinsp;g <span class="muted">(from {{ protein.protein_raw }}&thinsp;g raw &times; digestibility {{ "%.2f"|format(protein.digestibility) }})</span></p>
 {% endif %}
 <p>
   {% if protein.complete %}
@@ -307,17 +310,19 @@
   {% endif %}
 </p>
 <table>
-  <thead><tr><th>Amino Acid</th><th class="num">Score vs. ref.</th><th>Status</th></tr></thead>
+  <thead><tr><th>Amino Acid</th><th class="num">In the food</th><th class="num">After digestion</th><th>Status</th></tr></thead>
   <tbody>
     {% for aa in protein.aa_rows %}
     <tr>
       <td>{{ aa.label }}</td>
       <td class="num">{{ "%.3f"|format(aa.score) }}</td>
-      <td>{% if aa.met %}<span class="status-met">&#10003; Met</span>{% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}</td>
+      <td class="num">{{ "%.3f"|format(aa.dig_score) }}</td>
+      <td>{% if aa.met %}<span class="status-met">&#10003; Met</span>{% else %}<span class="status-gap">&#9888; Short</span>{% endif %}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% include "_protein_quality_note.html" %}
 {% endif %}
 
 {% if "protein_summary" in enabled and diaas %}
@@ -379,8 +384,7 @@
 {% if "glycemic_load" in enabled and gl %}
 <h2>Glycemic Load</h2>
 {% set _gl_scope = gl_scope | default("serving") %}
-{{ _gl.gl_figure(gl, _gl_scope, links=False) }}
-{% if gl.total is not none and gl_band_caveat(_gl_scope) %}<p class="muted"><small>{{ gl_band_caveat(_gl_scope) }}</small></p>{% endif %}
+{{ _gl.gl_figure(gl, _gl_scope, links=False, target=gl_target) }}
 {% endif %}
 
 {% if "antinutrients" in enabled and (oxalate_agg or ingredient_antinutrients) %}
