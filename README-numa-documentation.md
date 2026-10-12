@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-11:1940
+UPDATED: 2026-10-11:2044
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -209,7 +209,8 @@ numa/
       update_check.py                — GitHub latest-release check for the "update available" banner
       top_contributors.py            — rank a meal's/recipe's ingredients by contribution to one
                                       nutrient (or DCP, or glycemic load via rank_contributors_by_gl()),
-                                      for the "Top Contributors" analysis section
+                                      for the "Top Contributors" analysis section; missing_contributors()
+                                      lists the foods with no data for it (absent key, not 0)
       protein_per_meal.py            — per-meal protein amount from the profile (0.25-0.4 g/kg under
                                       65, 25-30 g at 65+, 20-40 g with no profile; leucine too) and
                                       meal_check() on DCP (raw protein if no DCP); meal page line and
@@ -947,6 +948,8 @@ OFF nutrient keys (`energy-kcal_100g`, `proteins_100g`, etc.) are mapped to the 
 
 Returns `None` on unrecognized input; `(None, vol_display)` when volume is recognized but density is unavailable (caller then prompts for grams). `_PIECE_UNITS` is a frozenset of the recognized piece-unit words. `amount_note()` (also in this file) renders a cups/tbsp/tsp approximation for a gram amount, used by complement suggestions and elsewhere. `web/backend.py` builds its own portion-picker UI around `_parse_portion_input()` directly.
 
+**Recipe amounts on a meal page and for sub-recipes** (added 2026-10-11). `parse_recipe_amount(raw, recipe, serving_g) -> (servings, typed)` reads the one Amount text box on a recipe's add row (`_add_food_row.html`, `POST /meal/{id}/add-recipe`, field `amount`; a bare `servings` field is still read) and a logged recipe's Edit box (`POST /meal/{id}/update/{item}`): servings (`1.125`, `1 1/8`, `2 srv`), a weight through `serving_g` (`recipe_serving_grams()`, so ingredient weights count when Total weight is blank), or a volume through Total yield volume, else through `serving_size` when `_volume_ml()` reads it as a measure ("2/3 cup"). A trailing "(… servings)" note is ignored. Refusals raise `entry_parse.EntryError` and reach the page as `add_error`. Meals still store servings (rounded to 4 places) with unit "N servings". These replaced three `type="number"` boxes with radio switching: the browser held them to 0.01 steps (1.125 was refused) and volume worked only with a Total yield volume. The Jinja global `serving_volume_ml()` lets the add row's hint offer volumes. Edit Recipe's sub-recipe add (`_recipe_search_rows.html`, `POST /recipe/{id}/ingredient/add-recipe`, field `amount`; older `servings` + `amount_unit=g` still read) and a sub-recipe ingredient's Edit box (`/recipe/{id}/ingredient/{ing}/edit`) go through the same parser; the ingredient's unit is stored as "N servings".
+
 **`numa_app/services/aa_estimate.py` — AA copy/estimate:** manually typing or pasting a food's amino acid profile is slow, and copying another food's raw AA grams verbatim silently misestimates whenever the two foods' protein density differs (a food with 2× the protein would otherwise look 2× more complete than it really is). `estimate_aa(target_nutrients, source_nutrients) -> (updated, factor, error)` scales every `usda.ALL_AMINO_ACIDS` key present in `source_nutrients` by `target_protein_g / source_protein_g` before writing it onto a copy of `target_nutrients`; returns an `error` string instead if the source lacks amino acid data (`usda.has_amino_acid_data()`) or either food has no usable `protein_g`. `source_note(name, fdc_id, factor)` renders the "AA data estimated by scaling from X (#id), factor N.NNx, DATE" string used to auto-suggest a Note. `usda.ALL_AMINO_ACIDS` (in `usda_api.py`, re-exported via `usda.py`) is `ESSENTIAL_AMINO_ACIDS` plus `aa_cystine_g`/`aa_tyrosine_g` — the full trackable AA set, as distinct from the 9-key essential set used for completeness scoring. Entry point: an inline picker on `food_custom_edit.html` (search your Food Cache, "Use as source" button) posting to `POST /food/custom-profiles/{fdc_id}/copy-aa` (`web/backend.py`), which fetches-and-caches the source if it isn't cached yet, applies `estimate_aa()`, and redirects back with an `aa_applied` status flag.
 
 ### `db.py` — SQLite database
@@ -1551,7 +1554,7 @@ Analysis pages under the Analysis dropdown: frequency of a given food's use acro
 
 #### `analysis_whatif.html`
 
-Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across a set of meals (dates — ranges or single dates — or meal IDs), before and after a list of changes: remove, add (once per logged day), replace (same weight / same servings / stated amount, at every depth) and scale. Read-only by design (`numa_app/services/whatif.py`; meals keep nutrient snapshots and recipe edits trigger DCP recomputes, so nothing here may call a write helper — a test checks the DB file is byte-identical afterwards). The whole scenario lives in the query string (`e_op`/`e_item`/`e_with`/`e_amt`/`e_basis`, one entry per change row), so it can be bookmarked. Shows a calories/macros summary, per-edit "found in N meals" report, % of target before and after from each day's pinned profile (read without pinning), days target not met and days over max, and a "?" where an added item has no value for a nutrient. Glycemic load before/after (both pages) comes from the same leaf foods via `glycemic_load.gl_for_leaves()`, so edits reach it with no second expansion path; it reports carbohydrate coverage before and after and names foods with no GI after the change, since a swap to such a food would otherwise look like a GL improvement. With a daily GL target in the profile (`UserProfile.gl_day_target`, Settings → 1), `_gl_cell(targets=)` also counts days over each day's pinned target before and after (an incomplete day counts as over only when its counted GL already is). Speed, 2026-10-10, copy of the real DB: 90 days / 87 meals in 0.74 s, GL 0.04 s of it. Result rows come from `_NUTRIENT_GROUPS` plus an "Other" group for any non-AA key present, so newly tracked nutrients appear without changes here. Food Use in Meals links each row here ("try removing"). Plan for later phases: `WHATIF-PLAN.md`.
+Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across a set of meals (dates — ranges or single dates — or meal IDs), before and after a list of changes: remove, add (once per logged day), replace (same weight / same servings / stated amount, at every depth) and scale. Read-only by design (`numa_app/services/whatif.py`; meals keep nutrient snapshots and recipe edits trigger DCP recomputes, so nothing here may call a write helper — a test checks the DB file is byte-identical afterwards). The whole scenario lives in the query string (`e_op`/`e_item`/`e_with`/`e_amt`/`e_basis`, one entry per change row), so it can be bookmarked. Shows a calories/macros summary, per-edit "found in N meals" report, % of target before and after from each day's pinned profile (read without pinning), days target not met and days over max, and a "?" where an added item has no value for a nutrient. Glycemic load before/after (both pages) comes from the same leaf foods via `glycemic_load.gl_for_leaves()`, so edits reach it with no second expansion path; it reports carbohydrate coverage before and after and names foods with no GI after the change, since a swap to such a food would otherwise look like a GL improvement. With a daily GL target in the profile (`UserProfile.gl_day_target`, Settings → 1), `_gl_cell(targets=)` also counts days over each day's pinned target before and after (an incomplete day counts as over only when its counted GL already is). Speed, 2026-10-10, copy of the real DB: 90 days / 87 meals in 0.74 s, GL 0.04 s of it. Result rows come from `_NUTRIENT_GROUPS` plus an "Other" group for any non-AA key present, so newly tracked nutrients appear without changes here. Food Use in Meals links each row here ("try removing"). Original plan (all phases built): `Archive/WHATIF-PLAN.md`, local only.
 
 #### `analysis_whatif_recipes.html`, `_whatif_changes.html`
 
@@ -1672,7 +1675,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**1,975 tests**, all passing (1,970 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**1,995 tests**, all passing (1,990 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1704,7 +1707,8 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_recipe_serving_weight.py` | Logged recipe amounts shown as servings + grams (`_annotate_recipe_amounts`, `_recipe_amount.html`) and the `meal_items.serving_grams` changed-serving-size safeguard |
 | `tests/test_aa_estimate.py` | `numa_app/services/aa_estimate.py`: `estimate_aa()` scaling a food's AA profile from another food's, hand-picked cases |
 | `tests/test_estimate_aa_properties.py` | Property-based tests for `estimate_aa()`, complementing `test_aa_estimate.py` |
-| `tests/test_portions.py` | `numa_app/services/portions.py`: `_ing_amount_display()` and related portion-string formatting |
+| `tests/test_portions.py` | `numa_app/services/portions.py`: `_ing_amount_display()` and related portion-string formatting; `parse_recipe_amount()` (servings, weight or volume typed for a recipe on a meal page) |
+| `tests/test_top_contributors.py` | `top_contributors.missing_contributors()`: absent keys listed, stored zeros not, one row per food (amounts summed), heaviest first, unused foods skipped; DCP mode = protein but no amino acid data |
 | `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
 | `tests/test_food_id_tags.py` | `web/templates/`: static scan enforcing that every food or recipe name shown carries its code (`food_id_tag` / `food_id_short` / `food_code`), with a reasoned exemption list |
 | `tests/test_diet_aware.py` | `numa_app/services/diet_aware.py`: diet-preference-aware RDA-comparison notes (vegetarian/plant-based) |

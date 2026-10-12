@@ -1156,7 +1156,7 @@ def test_recipe_edit_ingredient_search_shows_id_and_brand(client: TestClient, ca
 def test_recipe_edit_search_focus_script_covers_recipe_rows_and_defers(client: TestClient, cached_food) -> None:
     """Regression: the cursor-to-first-result autofocus script used to query
     only input[name="portion_str"] — if the first search result was a
-    recipe (its row uses name="servings" instead), focus landed on whatever
+    recipe (its row uses name="amount" instead — "servings" before 2026-10-11), focus landed on whatever
     later food row happened to have a portion_str field, or nowhere at all.
     It also used to focus synchronously, which base.html's later
     autofocus-to-Search-button script (search box already has a value on
@@ -1174,7 +1174,7 @@ def test_recipe_edit_search_focus_script_covers_recipe_rows_and_defers(client: T
     resp = client.get(f"/recipe/{recipe_id}/edit", params={"q": "chicken"})
     assert resp.status_code == 200
     text = resp.text
-    assert 'input[name="portion_str"], .add-food-form input[name="servings"]' in text
+    assert 'input[name="portion_str"], .add-food-form input[name="amount"]' in text
     assert "setTimeout(focusFirstResultField, 0)" in text
 
 
@@ -3610,7 +3610,8 @@ def test_add_subrecipe_ingredient_by_grams(client: TestClient, db_conn) -> None:
     outer_id = _new("Noodle Bowl", 1)
 
     resp = client.get(f"/recipe/{outer_id}/edit?q=sauce")
-    assert 'name="amount_unit"' in resp.text
+    assert 'name="amount"' in resp.text
+    assert "or a weight: g, oz, lb" in resp.text  # Peanut Sauce has a serving weight
 
     client.post(f"/recipe/{outer_id}/ingredient/add-recipe",
                 data={"ref_recipe_id": sub_id, "servings": 150, "amount_unit": "g"},
@@ -7389,3 +7390,82 @@ def test_profile_save_repins_today_and_apply_to_days_and_day_switch(client: Test
     resp = client.post(f"/day/{past}/profile-mode", data={"mode": "current", "next": "https://x.example/"},
                        follow_redirects=False)
     assert resp.headers["location"] == f"/summary/{past}"
+
+
+def test_meal_recipe_amount_box_takes_fractions_and_volumes(client, db_conn) -> None:
+    """The meal page's recipe Amount box is text, read by parse_recipe_amount():
+    "3/4 c" against a "2/3 cup" serving logs 1.125 servings, and the logged
+    item's own Amount box takes "1 1/8" — both were number boxes held to 0.01
+    steps, with no way to type a cup amount without a Total yield volume."""
+    rid = _db.recipe_create(db_conn, "Marinara", "", 11.74, "", serving_size="2/3 cup",
+                            total_weight=1542.0, total_weight_unit="g")
+    mid = _db.meal_create(db_conn, "Supper", "2026-10-11")
+    db_conn.commit()
+
+    page = client.get(f"/meal/{mid}?q=marinara&source=recipe").text
+    assert 'name="amount" value="1"' in page
+    assert "or a volume: cup (c), T, t, ml (from the serving size)" in page
+
+    client.post(f"/meal/{mid}/add-recipe", data={"recipe_id": rid, "amount": "3/4 c"},
+                follow_redirects=False)
+    item = db_conn.execute("SELECT id, amount FROM meal_items WHERE meal_id=?", (mid,)).fetchone()
+    assert item["amount"] == pytest.approx(1.125)
+
+    client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "1 1/2"}, follow_redirects=False)
+    assert db_conn.execute("SELECT amount FROM meal_items WHERE id=?",
+                           (item["id"],)).fetchone()[0] == pytest.approx(1.5)
+
+    r = client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "2 handfuls"},
+                    follow_redirects=False)
+    assert "add_error" in r.headers["location"]
+    assert db_conn.execute("SELECT amount FROM meal_items WHERE id=?",
+                           (item["id"],)).fetchone()[0] == pytest.approx(1.5)
+
+
+def test_subrecipe_amount_takes_fractions_weights_and_volumes(client: TestClient, db_conn) -> None:
+    """Edit Recipe's sub-recipe Amount box and the ingredient's own Edit box
+    both go through parse_recipe_amount(): "3/4 c" against a "2/3 cup"
+    serving is 1.125 servings, and an edit to "1 1/8" keeps every digit.
+    (Both were number-only; the Edit box's prefill also turned 10.05 into
+    "105" through a replace('.0', '').)"""
+    sub = _db.recipe_create(db_conn, "Marinara", "", 11.74, "", serving_size="2/3 cup")
+    outer = _db.recipe_create(db_conn, "Pasta", "", 4, "")
+    db_conn.commit()
+
+    client.post(f"/recipe/{outer}/ingredient/add-recipe",
+                data={"ref_recipe_id": sub, "amount": "3/4 c"}, follow_redirects=False)
+    ing = _db.recipe_get_ingredients(db_conn, outer)[0]
+    assert ing["amount"] == pytest.approx(1.125)
+    assert ing["unit"] == "1.125 servings"
+
+    client.post(f"/recipe/{outer}/ingredient/{ing['id']}/edit",
+                data={"portion_str": "10.05", "food_name": "Marinara"}, follow_redirects=False)
+    assert _db.recipe_get_ingredients(db_conn, outer)[0]["amount"] == pytest.approx(10.05)
+    assert 'value="10.05"' in client.get(f"/recipe/{outer}/edit").text
+
+    r = client.post(f"/recipe/{outer}/ingredient/{ing['id']}/edit",
+                    data={"portion_str": "200 g", "food_name": "Marinara"}, follow_redirects=False)
+    assert "error=" in r.headers["location"]  # no serving weight known
+    assert _db.recipe_get_ingredients(db_conn, outer)[0]["amount"] == pytest.approx(10.05)
+
+
+def test_top_contributors_offers_foods_with_no_data(client: TestClient, db_conn) -> None:
+    """Under the Top Contributors table, a folded list names the foods with
+    no data for the ranked nutrient (key absent, not a stored 0), so their
+    share isn't silently missing from the total."""
+    for fid, name, nuts in [(990101, "Iron Rich", {"calories": 100, "iron_mg": 5.0}),
+                            (990102, "Iron Zero", {"calories": 100, "iron_mg": 0.0}),
+                            (990103, "Iron Unknown", {"calories": 100})]:
+        _db.cache_food(db_conn, fid, name, "Foundation", None, 100.0, "g", nuts)
+    mid = _db.meal_create(db_conn, "Lunch", "2026-10-11")
+    for fid, name in [(990101, "Iron Rich"), (990102, "Iron Zero"), (990103, "Iron Unknown")]:
+        _db.meal_add_food(db_conn, mid, fid, name, 150.0, "150 g")
+    db_conn.commit()
+
+    page = client.get(f"/meal/{mid}?rank=iron_mg").text
+    i = page.index('id="contrib-missing"')
+    block = page[i:page.index("</details>", i)]
+    assert "Show the 1 food with no data for" in block
+    assert "Iron Unknown" in block
+    assert "Iron Zero" not in block and "Iron Rich" not in block
+    assert "150&thinsp;g" in block

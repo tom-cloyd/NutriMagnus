@@ -14,6 +14,7 @@ import sqlite3
 
 import db as _db
 import diaas as _diaas
+import usda as _usda
 from numa_app.services import glycemic_load as _gl
 
 Nutrients = dict[str, float]
@@ -127,3 +128,34 @@ def rank_contributors_by_gl(ingredients: list[dict], conn: sqlite3.Connection,
     return {"items": contributions, "total": total,
             "gaps": [g for g in whole["gaps"] if g["reason"] == _gl.GAP_NO_GI],
             "coverage_pct": whole["coverage_pct"]}
+
+
+def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: bool = False) -> list[dict]:
+    """Foods in `ingredients` with no data for `nutrient_key` — the key is
+    absent from their per-100 g nutrients (a stored 0 is data, and is not
+    listed). With is_dcp, foods with protein but no amino acid data instead
+    (they score no DCP), or with no protein figure at all. These can't be
+    ranked, so a meal's or recipe's total may be understated by them.
+
+    `ingredients` should be leaf foods, so a sub-recipe's own gaps show.
+    The same food reached twice is one row. Returns [{"food_name", "fdc_id",
+    "recipe_id", "grams"}], heaviest first."""
+    rows: dict = {}
+    for ing in ingredients:
+        grams = ing.get("grams") or 0.0
+        if grams <= 0:
+            continue
+        per100 = ing.get("nutrients_100g") or {}
+        if is_dcp:
+            protein = per100.get("protein_g")
+            lacking = protein is None or (protein > 0 and not _usda.has_amino_acid_data(per100))
+        else:
+            lacking = per100.get(nutrient_key) is None
+        if not lacking:
+            continue
+        rid = ing.get("recipe_id")
+        key = ing.get("fdc_id") or (("r", rid) if rid else ("n", ing["food_name"]))
+        row = rows.setdefault(key, {"food_name": ing["food_name"], "fdc_id": ing.get("fdc_id"),
+                                    "recipe_id": ing.get("recipe_id"), "grams": 0.0})
+        row["grams"] += grams
+    return sorted(rows.values(), key=lambda r: r["grams"], reverse=True)

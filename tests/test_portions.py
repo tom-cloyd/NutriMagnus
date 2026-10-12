@@ -52,3 +52,48 @@ def test_stored_portion_label_reads_back() -> None:
     assert _parse_portion_input("2 × 1 small egg", portions) is None        # portion gone
     # Ordinary input is untouched by the portion-label reading.
     assert _parse_portion_input("150 g", portions)[0] == 150.0
+
+
+# --- parse_recipe_amount(): what can be typed for a recipe in a meal --------
+
+import pytest
+
+from numa_app.services.entry_parse import EntryError
+from numa_app.services.portions import parse_recipe_amount
+
+_MARINARA = {"servings": 11.74, "serving_size": "2/3 cup", "total_weight": 1542.0,
+             "total_weight_unit": "g", "total_volume": None, "total_volume_unit": None}
+
+
+@pytest.mark.parametrize("typed", ["1.125", "1 1/8", "1⅛", "1 1/8 servings", "1.125 srv",
+                                   "1.125 servings (1.13 servings)"])
+def test_recipe_amount_servings(typed) -> None:
+    # The meal page's number box was held to 0.01 steps, so 1.125 couldn't go in.
+    assert parse_recipe_amount(typed, _MARINARA, 131.3)[0] == pytest.approx(1.125)
+
+
+def test_recipe_amount_volume_through_serving_description() -> None:
+    # No Total yield volume, but the serving is "2/3 cup": 3/4 c = 1.125 servings.
+    assert parse_recipe_amount("3/4 c", _MARINARA, None) == (pytest.approx(1.125), "3/4 c")
+
+
+def test_recipe_amount_volume_through_total_volume() -> None:
+    r = dict(_MARINARA, total_volume=2.0, total_volume_unit="l")
+    assert parse_recipe_amount("500 ml", r, None)[0] == pytest.approx(11.74 / 4)
+
+
+def test_recipe_amount_weight_through_serving_grams() -> None:
+    assert parse_recipe_amount("200 g", _MARINARA, 100.0)[0] == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("typed,serving_g,serving_size,needle", [
+    ("200 g", None, "2/3 cup", "weighs"),
+    ("1 cup", 100.0, "1 bowl", "volume"),
+    ("2 handfuls", 100.0, "2/3 cup", "unit"),
+    ("0", 100.0, "2/3 cup", "more than zero"),
+    ("lots", 100.0, "2/3 cup", "isn.t an amount"),
+    ("", 100.0, "2/3 cup", "Nothing"),
+])
+def test_recipe_amount_refusals_say_why(typed, serving_g, serving_size, needle) -> None:
+    with pytest.raises(EntryError, match=needle):
+        parse_recipe_amount(typed, dict(_MARINARA, serving_size=serving_size), serving_g)

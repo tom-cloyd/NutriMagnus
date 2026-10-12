@@ -419,7 +419,7 @@
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
                   <input type="text" name="portion_str"
-                         value="{{ ing.amount_display if not ing.ref_recipe_id else (ing.amount | round(2) | string | replace('.0', '')) }}"
+                         value="{{ ing.amount_display if not ing.ref_recipe_id else '%g' | format(ing.amount) }}"
                          class="form-control form-control-sm" style="width:12rem" required>
                 </div>
                 {% if not ing.ref_recipe_id %}
@@ -479,7 +479,7 @@
   // every synchronous script on the page — including that one — has
   // finished, so this focus wins instead.
   function focusFirstResultField() {
-    var inp = document.querySelector('.add-food-form input[name="portion_str"], .add-food-form input[name="servings"]');
+    var inp = document.querySelector('.add-food-form input[name="portion_str"], .add-food-form input[name="amount"]');
     if (inp) inp.focus();
   }
   setTimeout(focusFirstResultField, 0);

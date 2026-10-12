@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-11:1930* / Reading time: 8 hours, 37 minutes
+*Updated 2026-10-11:2044* / Reading time: 8 hours, 39 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -2192,6 +2192,8 @@ Ranking by **Protein** is special: instead of raw protein grams, it ranks each f
 
 
 Ranking by **Glycemic load (GI × carbs)** (listed under Macronutrients, below Carbohydrate) ranks the foods by their [glycemic load](#gl): each food's [GI](#gloss-gi) times its carbohydrate grams, divided by 100, for the amount used. Each row shows the food's [GI](#gloss-gi) and how many grams of it are in the meal or recipe. Unlike protein quality, [GL](#gloss-gl) adds up, so these rows total the meal's or recipe's [GL](#gloss-gl). On a recipe, foods inside sub-recipes are listed individually, since a [GI](#gloss-gi) belongs to a food. Foods with carbohydrate but no [GI](#gloss-gi) can't be ranked; they're named underneath, each linked to its Annotate page so you can [look one up](#gi-source-para), with how much of the carbohydrate the ranking covers. The **Which foods drive it, and lower-GI swaps to try** link under a meal's or recipe's Glycemic Load figure opens this view directly.
+
+**Foods with no data for the nutrient.** A food with no figure for the nutrient you ranked by can't be ranked, and adds nothing to the total. Under the table, **Show the N foods with no data for …** opens a second table listing them, heaviest first, with the amount used, so you can see what the total may be missing. No data is not the same as a stored zero: a food whose data says 0 counts as data, and isn't listed. When ranking by Protein (DCP), the list is the foods with protein but no amino acid data. Glycemic load already names its foods with no GI, so it has no such list. On a recipe's page the list goes down to the individual foods, even inside a sub-recipe.
 
 #### Lower-glycemic swaps {: #gl-swaps}
 When a meal's or recipe's [glycemic load](#gl) is Medium or High and you rank Top Contributors by glycemic load, NuMa suggests swaps for the one or two foods contributing most. A suggestion is a food in your own Food Cache that:
@@ -4567,11 +4569,13 @@ Every `pN` shortcut above belongs to *foods*. Recipes never have a `p1`, `p2`, �
 
 A food is measured in grams, and `pN` exists purely to hide that gram math: `p1` means "don't make me weigh out 1 medium egg myself, just use the preset." A recipe's native unit, by contrast, is already **servings** — so wherever you enter an amount of a recipe (adding it to a meal, or adding it as a nested ingredient inside another recipe), you get a plain **Servings** field, and typing `1` there already means exactly "1 serving." There's no gram math to shortcut, so there's no `pN` to shortcut it with.
 
+**You can also type a recipe's amount as a weight or a volume** — on a meal page, and when adding a sub-recipe on Edit Recipe. The **Amount** box there (and the Edit box of a recipe already in the meal or recipe) takes servings — `1.125`, `1 1/8`, `1⅛` — or a weight (`200 g`, `8 oz`), or a volume (`3/4 c`, `2 T`, `250 ml`), and turns it into servings for you: a weight through what one serving weighs; a volume through the recipe's **Total yield volume**, or, if that's blank, through its **Serving description** when that is a measure such as `2/3 cup` (so `3/4 c` of a sauce whose serving is 2/3 cup logs 1.125 servings). The hint under the box says which of these that recipe can take. If NuMa can't convert what you typed, it says why and adds nothing. The meal or recipe still records servings.
+
 That doesn't mean a recipe's per-serving weight is undefined — it's derived automatically from two fields on the Edit Recipe page's Recipe details section: **Number of servings** and **Total yield weight**. Divide one by the other and you get grams per serving, live, the moment both are filled in — nothing extra to set. A recipe with `servings = 21` and `total yield weight = 1942.5 g`, for example, already means "1 serving = 92.5 g" everywhere that recipe is used, without you ever typing 92.5 anywhere.
 
 The one place the literal text `p1` *does* work for a recipe is the [Convert](#convert) tool — type `p1` there for a recipe and it resolves to that same auto-derived "1 serving" weight. That isn't a general recipe feature, though: Convert happens to reuse the same portion-parsing code that handles foods' `pN`, and it treats a recipe's one implicit "1 serving" as if it were portion #1. Everywhere else in the app, just use the Servings field directly.
 
-92.5 g is accurate, but it doesn't say what you're actually holding. If a recipe's serving has a natural real-world name — 1 muffin, 1 cookie, 1 slice — set it in the **Serving description** field, right next to Number of servings on the Edit Recipe page. This doesn't change the math at all; it's a label, not a unit conversion. Once set, it shows up as "(1 serving = 1 muffin)" wherever the recipe's serving count is already shown — the recipe's own page, the Recipes list, Convert's named portion, and next to the Servings field anywhere the recipe is added as an ingredient or meal item.
+92.5 g is accurate, but it doesn't say what you're actually holding. If a recipe's serving has a natural real-world name — 1 muffin, 1 cookie, 1 slice — set it in the **Serving description** field, right next to Number of servings on the Edit Recipe page. It's a label, not a unit conversion — with one exception: when it is a measure (`2/3 cup`, `250 ml`), a meal page uses it to turn a volume you type into servings (see above). Once set, it shows up as "(1 serving = 1 muffin)" wherever the recipe's serving count is already shown — the recipe's own page, the Recipes list, Convert's named portion, and next to the Servings field anywhere the recipe is added as an ingredient or meal item.
 
 **Where you see that weight.** Anywhere an amount is given in servings — a recipe added to a meal, or a recipe used as an ingredient inside another recipe (a [sub-recipe](#gloss-sub-recipe)) — NuMa now prints the gram weight beside it, as in "2 servings (500 g)", on screen and on a printed recipe alike. It uses the recipe's stated Total yield weight where you have set one, and otherwise the sum of the ingredients, but only when every ingredient has a usable weight: a partial sum would understate the serving by an unknown amount, so nothing is shown at all in that case.
 
@@ -5049,7 +5053,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 27 minutes)*
+*(Reading time: 1 hour, 28 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5065,6 +5069,9 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **48.** Top Contributors can show, in a second table beneath it, the foods with no data for the ranked nutrient.
+- **47.** A sub-recipe's amount on Edit Recipe can now be typed as servings with fractions, a weight, or a volume, like a recipe in a meal.
+- **46.** A recipe's amount on a meal page can now be typed as servings with fractions (1 1/8, 1.125), a weight, or a volume such as 3/4 c.
 - **45.** A food's page shows its notes, and the prep context from its Annotate page, and they can go on its printout; a recipe's notes also show when you analyze a portion of it.
 - **44.** Food use in recipes can show just the foods and recipes whose name contains the words you type.
 - **43.** Renaming a food now renames it in your recipes, logged meals and pantry too.
@@ -5112,6 +5119,53 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 11 updates
+
+**PROGRAM: TOP CONTRIBUTORS NAMES THE FOODS WITH NO DATA**
+
+Under the Top Contributors table on a meal or recipe page, you can open a second table of the foods that have no data for the nutrient you ranked by (for Protein, no amino acid data), with the amount used, so you can see what the total may be missing. [learn more...](#top-contributors)
+
+<!--
+```
+Scope: meal and recipe pages, Top Contributors. New
+top_contributors.missing_contributors() (absent key = no data; stored 0 is
+data; DCP = protein but no has_amino_acid_data(), or no protein figure);
+_build_contributors() returns "missing", computed over leaf foods (recipe
+page passes calorie_leaves, since its ranking keeps sub-recipes whole);
+_top_contributors.html missing_table() in a folded <details>. Not for GL
+(gl_gaps already covers it). Tests: test_top_contributors.py, test_web.py.
+```
+-->
+
+**PROGRAM: TYPE A SUB-RECIPE'S AMOUNT AS SERVINGS, WEIGHT OR VOLUME**
+
+Adding a recipe as an ingredient on Edit Recipe, or editing one already there, now takes the same amounts as a recipe in a meal: servings with fractions (`1 1/8`), a weight (`150 g`), or a volume (`3/4 c`). [learn more...](#portions-vs-servings)
+
+<!--
+```
+Scope: Edit Recipe search rows (_recipe_search_rows.html) and ingredient Edit
+box (recipe_edit.html); POST /recipe/{id}/ingredient/add-recipe (field amount;
+old servings + amount_unit=g still read) and /recipe/{id}/ingredient/{ing}/edit,
+both through portions.parse_recipe_amount(). The number box + servings/grams
+select is gone. Also fixed: the Edit box prefill used
+round(2)|replace('.0',''), which showed 10.05 servings as "105" and 1.125 as 1.13.
+```
+-->
+
+**PROGRAM: TYPE A RECIPE'S AMOUNT IN A MEAL AS SERVINGS, WEIGHT OR VOLUME**
+
+When you add a recipe to a meal, or edit one already there, its Amount box takes servings with fractions (`1 1/8`, `1.125`), a weight (`200 g`), or a volume (`3/4 c`), converting a volume through the recipe's Total yield volume or, failing that, a serving description such as "2/3 cup". [learn more...](#portions-vs-servings)
+
+<!--
+```
+Scope: meal page add row (_add_food_row.html) and logged recipe Edit box
+(meal.html); POST /meal/{id}/add-recipe (field amount) and /meal/{id}/update/{item}.
+New portions.parse_recipe_amount() + _volume_ml(); Jinja global
+serving_volume_ml(). Root cause: three type="number" boxes held by the browser
+to step 0.01, so 1.125 servings was refused; volume needed Total yield volume
+and took only a bare number in its unit. Radios + recipeAmtSwitch() JS removed.
+Tests: test_portions.py, test_web.py.
+```
+-->
 
 **PROGRAM: A FOOD'S NOTES SHOW WITH ITS ANALYSIS**
 

@@ -45,7 +45,7 @@
 {% if not inline %}<p class="muted mb-1"><small>{% endif %}Suggestions come only from the {{ pool }} food{{ "s" if pool != 1 }} you&rsquo;ve given a GI{% if todo %}; {{ todo }} food{{ "s" if todo != 1 }} you use {{ "have" if todo != 1 else "has" }} carbohydrate but no GI &mdash; <a href="/food/cache/db-check#missing-gi">add GIs to them</a> for more and better suggestions{% else %}; give more foods a GI for more suggestions{% endif %}.{% if not inline %}</small></p>{% endif %}
 {% endmacro %}
 
-{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False, gl=None) %}
+{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False, gl=None, missing=[]) %}
 <div class="d-flex flex-wrap align-items-center gap-3">
   <h3 class="section-heading mb-0">Top Contributors</h3>
   <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2">
@@ -126,5 +126,40 @@
 {{ gl_contributor_notes(gl) }}
 {% else %}
 <p class="muted">No data available for this nutrient.</p>
+{% endif %}
+{{ missing_table(missing, contributor_options, contributor_rank, is_dcp) }}
+{% endmacro %}
+
+{# Foods that can't be ranked because they have no data for the nutrient
+   (DCP: no amino acid data) — top_contributors.missing_contributors().
+   Folded by default: an offer, under the ranking, not part of it. #}
+{% macro missing_table(missing, contributor_options, contributor_rank, is_dcp=False) %}
+{% if missing %}
+{% set ns = namespace(label=contributor_rank) %}
+{% for _g, opts in contributor_options %}{% for key, label in opts %}{% if key == contributor_rank %}{% set ns.label = label %}{% endif %}{% endfor %}{% endfor %}
+<details class="mt-2" id="contrib-missing">
+  <summary class="muted"><small>Show the {{ missing | length }} food{{ "s" if missing | length != 1 }} with no {{ "amino acid data" if is_dcp else "data for " ~ ns.label }}, which {{ "aren't" if missing | length != 1 else "isn't" }} counted above</small></summary>
+  <table class="nutrient-table mt-2">
+    <thead>
+      <tr>
+        <th>Food with no {{ "amino acid data" if is_dcp else "data for " ~ ns.label }}</th>
+        <th class="num-col">Amount used</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in missing %}
+      <tr>
+        <td>
+          {% if m.recipe_id %}<a href="/recipe/{{ m.recipe_id }}">{{ m.food_name }}</a>{{ food_id_tag(None, recipe_id=m.recipe_id) }}
+          {% elif m.fdc_id %}<a href="/food/{{ m.fdc_id }}">{{ m.food_name }}</a>{{ food_id_tag(m.fdc_id) }}
+          {% else %}{{ m.food_name }}{% endif %}
+        </td>
+        <td class="num-col">{{ m.grams | round | int }}&thinsp;g</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted mt-1"><small>No data is not the same as none: the total above may be too low by whatever these foods contain. A food's page shows where its data came from; Foods &rarr; 9 lists every food in use {% if is_dcp %}<a href="/food/cache/db-check#missing-aa">with no amino acid data</a>{% else %}<a href="/food/cache/db-check#completeness">with missing nutrient data</a>{% endif %}.</small></p>
+</details>
 {% endif %}
 {% endmacro %}

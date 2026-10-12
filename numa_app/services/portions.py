@@ -464,3 +464,79 @@ def _parse_portion_input_raw(
         return grams, f"{grams:.4g} gr ({vol_display})"
 
     return None
+
+
+_SERVING_WORDS: frozenset[str] = frozenset({"srv", "serving", "servings"})
+_SERVINGS_NOTE_RE = re.compile(r"\s*\([^()]*serving[^()]*\)\s*$", re.IGNORECASE)
+
+
+def _volume_ml(desc: str | None) -> float | None:
+    """mL in a measure like "2/3 cup" or "250 ml"; None if it isn't one."""
+    if not desc:
+        return None
+    parts = _tokenize_portion(desc.strip())
+    parsed = _parse_number_tokens(parts)
+    if parsed is None:
+        return None
+    number, consumed = parsed
+    rest = parts[consumed:]
+    if len(rest) != 1:
+        return None
+    ml = _VOLUME_TO_ML.get(rest[0]) or _VOLUME_TO_ML.get(rest[0].lower())
+    return number * ml if ml and number > 0 else None
+
+
+def parse_recipe_amount(raw: str, recipe, serving_g: float | None) -> tuple[float, str]:
+    """Servings of *recipe* in an amount typed for it: servings ("1.125",
+    "1 1/8", "2 srv"), a weight ("200 g", "8 oz") through *serving_g* (one
+    serving's grams, from recipe_serving_grams()), or a volume ("3/4 c",
+    "250 ml") through the recipe's Total yield volume, else through its
+    serving description when that is a measure ("2/3 cup"). A trailing
+    "(1.13 servings)" note is ignored, so a shown amount can be re-entered.
+
+    Returns (servings, what was typed, for display). Raises
+    entry_parse.EntryError with a sentence for the person when the amount
+    can't be read or converted."""
+    from numa_app.services.entry_parse import EntryError, normalize
+
+    typed = _SERVINGS_NOTE_RE.sub("", normalize(raw or "")).strip()
+    if not typed:
+        raise EntryError("Nothing was entered.")
+    parts = _tokenize_portion(typed)
+    parsed = _parse_number_tokens(parts)
+    if parsed is None:
+        raise EntryError(f'"{raw}" isn\'t an amount NuMa can read.')
+    number, consumed = parsed
+    rest = parts[consumed:]
+    if number <= 0:
+        raise EntryError("The amount must be more than zero.")
+    if len(rest) > 1:
+        raise EntryError(f'"{raw}" isn\'t an amount NuMa can read.')
+    unit = rest[0] if rest else ""
+    if not unit or unit.lower() in _SERVING_WORDS:
+        return number, typed
+
+    total_servings = float(recipe["servings"] or 1)
+    grams_per = _UNIT_TO_GRAMS.get(unit.lower())
+    if grams_per is not None:
+        if not serving_g:
+            raise EntryError("NuMa doesn't know what one serving of this recipe weighs, so it "
+                             "can't turn a weight into servings. Give the recipe a Total weight "
+                             "on its Edit Recipe page, or enter servings.")
+        return number * grams_per / serving_g, typed
+
+    ml_per = _VOLUME_TO_ML.get(unit) or _VOLUME_TO_ML.get(unit.lower())
+    if ml_per is None:
+        raise EntryError(f'NuMa doesn\'t know the unit "{unit}". Use servings, '
+                         "g, oz, lb, cup (c), tbsp (T), tsp (t), ml or l.")
+    ml = number * ml_per
+    vol_unit_ml = _VOLUME_TO_ML.get((recipe["total_volume_unit"] or "ml").lower())
+    if recipe["total_volume"] and vol_unit_ml:
+        return ml / (float(recipe["total_volume"]) * vol_unit_ml) * total_servings, typed
+    serving_ml = _volume_ml(recipe["serving_size"])
+    if serving_ml:
+        return ml / serving_ml, typed
+    raise EntryError("NuMa doesn't know this recipe's volume, so it can't turn a volume into "
+                     "servings. Give the recipe a Total yield volume on its Edit Recipe page, "
+                     "or a serving description that is a measure (\"2/3 cup\"), or enter "
+                     "servings or a weight.")

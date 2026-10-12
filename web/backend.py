@@ -65,6 +65,8 @@ from numa_app.services.meal_bcp import recipe_dcp_fallback
 from numa_app.services.nutrient_trend import average_from_daily_totals
 from numa_app.services.portions import _ing_amount_display, _parse_portion_input, portion_amount_note
 from numa_app.services.portions import _parse_number_tokens
+from numa_app.services.portions import parse_recipe_amount as _parse_recipe_amount
+from numa_app.services.portions import _volume_ml as _portion_volume_ml
 from numa_app.services import whatif as _whatif
 from numa_app.services.portions import generic_density_kind as _generic_density_kind
 from numa_app.services.portions import match_portion_label as _match_portion_label
@@ -82,6 +84,7 @@ from numa_app.services.recipe_nutrients import (
     recipe_aa_indicator, recipe_serving_grams, recipe_total_nutrients,
 )
 from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp, rank_contributors_by_gl
+from numa_app.services.top_contributors import missing_contributors as _missing_contributors
 from numa_app.services.gl_swaps import suggest_swaps as _suggest_gl_swaps
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
@@ -1269,6 +1272,9 @@ def _is_curator() -> bool:
     return not getattr(sys, "frozen", False)
 
 templates.env.globals["is_curator"] = lambda: _is_curator()
+# Whether a recipe's serving description is a volume ("2/3 cup"), so the
+# meal page's recipe Amount box can say volumes are accepted.
+templates.env.globals["serving_volume_ml"] = _portion_volume_ml
 
 _RELEASE_ANCHOR_RE = re.compile(r'<h4 id="(release-[^"]+-summary[^"]*)"')
 _CHANGELOG_ANCHOR = "updates-log"
@@ -1751,7 +1757,7 @@ def _resolve_contributor_top_n(value: str | None) -> str:
 
 
 def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, conn,
-                        gl_scope: dict | None = None) -> dict:
+                        gl_scope: dict | None = None, leaves: list[dict] | None = None) -> dict:
     """Rank + slice ingredients for the Top Contributors table.
 
     Returns {"items", "total", "count", "top_n", "top_n_options", "is_dcp"} —
@@ -1771,10 +1777,15 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
     Ranking by _GL_RANK_KEY ranks leaf foods by glycemic load and adds
     "gl_gaps", "gl_coverage", "gl_band" and, when that band is Medium or
     High, "gl_swaps" (lower-GL suggestions, each with What-if links built
-    from gl_scope: {"meal_id"} or {"recipe_id"})."""
+    from gl_scope: {"meal_id"} or {"recipe_id"}).
+
+    "missing" lists the foods with no data for the ranked nutrient (or, for
+    DCP, no amino acid data) — top_contributors.missing_contributors(), over
+    `leaves` (leaf foods) when given, else `ingredients`. Empty for GL,
+    whose own "gl_gaps" already name the foods with no GI."""
     if not rank:
         return {"items": [], "total": 0.0, "count": 0, "top_n": "all",
-                "top_n_options": ["all"], "is_dcp": False, "is_gl": False}
+                "top_n_options": ["all"], "is_dcp": False, "is_gl": False, "missing": []}
     is_dcp = rank == "protein_g"
     is_gl = rank == _GL_RANK_KEY
     gl_extra = {}
@@ -1811,9 +1822,11 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
         top_n = "all"
     if top_n != "all":
         items = items[:int(top_n)]
+    missing = ([] if is_gl else
+               _missing_contributors(leaves if leaves is not None else ingredients, rank, is_dcp=is_dcp))
     return {"items": items, "total": result["total"], "count": count,
             "top_n": top_n, "top_n_options": top_n_options, "is_dcp": is_dcp,
-            "is_gl": is_gl, **gl_extra}
+            "is_gl": is_gl, "missing": missing, **gl_extra}
 
 
 def _load_rda(profile=None) -> dict | None:
@@ -6810,6 +6823,7 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
         "contributor_rank":    rank,
         "contributor_unit":    _contributor_unit(rank),
         "contributor_gl":      contributor_result if contributor_result.get("is_gl") else None,
+        "contributor_missing": contributor_result["missing"],
         "contributors":        contributor_result["items"],
         "contributor_total":   contributor_result["total"],
         "contributor_count":   contributor_result["count"],
@@ -7104,32 +7118,27 @@ async def meal_add_recipe_item(
     meal_id: int,
     recipe_id: int = Form(...),
     recipe_name: str = Form(""),
-    servings: float = Form(1.0),
+    amount: str = Form(""),
+    servings: str = Form(""),
     mode: str = Form("recipe"),
-    amount_mode: str = Form("servings"),
-    amount_value_weight: str = Form(""),
-    amount_value_volume: str = Form(""),
 ):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
+        serving_g = recipe_serving_grams(recipe_id, conn) if recipe else None
     if not recipe:
         return RedirectResponse(f"/meal/{meal_id}", status_code=303)
     name = recipe_name or recipe["name"]
 
-    # Convert weight/volume entry to an equivalent servings count. An amount
-    # that can't be read is refused with a message — it used to fall back to
-    # the servings box without a word.
+    # One text box: servings, a weight or a volume ("1 1/8", "200 g",
+    # "3/4 c"), converted to servings by parse_recipe_amount(). An amount
+    # that can't be read or converted is refused with a message. (It used to
+    # be three number boxes, which the browser held to 0.01 steps, so 1.125
+    # servings couldn't be entered, and volume only through a Total volume.)
     try:
-        r_servings = float(recipe["servings"] or 1)
-        if amount_mode == "weight" and amount_value_weight.strip() and recipe["total_weight"]:
-            servings = (_entry_parse.parse_number(amount_value_weight) / float(recipe["total_weight"])) * r_servings
-        elif amount_mode == "volume" and amount_value_volume.strip() and recipe["total_volume"]:
-            servings = (_entry_parse.parse_number(amount_value_volume) / float(recipe["total_volume"])) * r_servings
+        servings_n, _typed = _parse_recipe_amount(amount or servings or "1", recipe, serving_g)
     except _entry_parse.EntryError as e:
-        from urllib.parse import urlencode
         return RedirectResponse(f"/meal/{meal_id}?{urlencode({'add_error': f'{name}: {e}'})}", status_code=303)
-    except ZeroDivisionError:
-        pass
+    servings = round(servings_n, 4)
 
     if mode == "ingredients":
         r_total_servings = float(recipe["servings"] or 1)
@@ -7232,10 +7241,16 @@ async def meal_update_item_post(
         return _redirect()
     notes_val = notes.strip() or None
     if item["item_type"] == "recipe":
-        try:
-            srv = float(amount)
-        except ValueError:
+        with _db.get_db() as conn:
+            recipe = _db.recipe_get(conn, item["recipe_id"]) if item["recipe_id"] else None
+            serving_g = recipe_serving_grams(item["recipe_id"], conn) if recipe else None
+        if not recipe:
             return _redirect()
+        try:
+            srv, _typed = _parse_recipe_amount(amount, recipe, serving_g)
+        except _entry_parse.EntryError as e:
+            return _redirect(error=f"{item['food_name']}: {e}")
+        srv = round(srv, 4)
         if srv > 0:
             unit = f"{srv:g} serving" + ("s" if srv != 1 else "")
             with _db.get_db() as conn:
@@ -8867,7 +8882,8 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         # GL belongs to foods, so rank by it over every leaf food (sub-recipes
         # opened up); diaas_ingredients keeps a sub-recipe whole.
         contributor_result = _build_contributors(calorie_leaves if rank == _GL_RANK_KEY else diaas_ingredients,
-                                                 rank, top_n, conn, gl_scope={"recipe_id": recipe_id})
+                                                 rank, top_n, conn, gl_scope={"recipe_id": recipe_id},
+                                                 leaves=calorie_leaves)
 
     return {
         "recipe":                   dict(recipe),
@@ -8878,6 +8894,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "contributor_rank":         rank,
         "contributor_unit":         _contributor_unit(rank),
         "contributor_gl":           contributor_result if contributor_result.get("is_gl") else None,
+        "contributor_missing":      contributor_result["missing"],
         "contributors":             contributor_result["items"],
         "contributor_total":        contributor_result["total"],
         "contributor_count":        contributor_result["count"],
@@ -9645,15 +9662,17 @@ async def recipe_ingredient_add_recipe(
     recipe_id: int,
     ref_recipe_id: int = Form(...),
     recipe_name: str = Form(""),
-    servings: float = Form(1.0),
+    amount: str = Form(""),
+    servings: str = Form(""),
     amount_unit: str = Form("servings"),
     notes: str = Form(""),
     q: str = Form(""),
 ):
-    """Add a recipe as an ingredient of another recipe. The amount can be
-    typed in servings or in grams; grams are converted to servings through
-    the sub-recipe's serving weight (recipe_serving_grams), since a
-    sub-recipe ingredient is always stored as a servings count."""
+    """Add a recipe as an ingredient of another recipe. The amount is typed
+    as servings, a weight or a volume ("1 1/8", "150 g", "3/4 c") and
+    converted to servings by parse_recipe_amount(), since a sub-recipe
+    ingredient is always stored as a servings count. (servings +
+    amount_unit="g" is the older form of the same thing, still read.)"""
     from urllib.parse import urlencode
 
     def _redirect(error: str | None = None) -> RedirectResponse:
@@ -9665,19 +9684,19 @@ async def recipe_ingredient_add_recipe(
         qs = f"?{urlencode(params)}" if params else ""
         return RedirectResponse(f"/recipe/{recipe_id}/edit{qs}", status_code=303)
 
-    if ref_recipe_id == recipe_id or servings <= 0:
+    if ref_recipe_id == recipe_id:
         return _redirect(error="Invalid recipe ingredient.")
+    raw = amount.strip() or (f"{servings} g" if amount_unit == "g" and servings.strip() else servings) or "1"
     with _db.get_db() as conn:
         sub = _db.recipe_get(conn, ref_recipe_id)
         if not sub:
             return _redirect(error="Recipe not found.")
-        if amount_unit == "g":
-            per_serving_g = recipe_serving_grams(ref_recipe_id, conn)
-            if not per_serving_g:
-                return _redirect(error=f"Can't add \"{sub['name']}\" by grams: its serving weight "
-                                       "is unknown. Give it a total weight, or add it by servings.")
-            servings = round(servings / per_serving_g, 4)
         name = recipe_name or sub["name"]
+        try:
+            servings_n, _typed = _parse_recipe_amount(raw, sub, recipe_serving_grams(ref_recipe_id, conn))
+        except _entry_parse.EntryError as e:
+            return _redirect(error=f"{name}: {e}")
+        servings = round(servings_n, 4)
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
                                    notes.strip() or None, ref_recipe_id=ref_recipe_id)
@@ -9724,11 +9743,19 @@ async def recipe_ingredient_edit(
                   if ing and ing["fdc_id"] and not ing["ref_recipe_id"] else None)
 
     if ing and ing["ref_recipe_id"]:
-        # Sub-recipe ingredients are measured in servings, not grams/portions.
+        # Sub-recipe ingredients are stored in servings; the amount may be
+        # typed as servings, a weight or a volume (parse_recipe_amount()).
+        with _db.get_db() as conn:
+            sub = _db.recipe_get(conn, ing["ref_recipe_id"])
+            sub_serving_g = recipe_serving_grams(ing["ref_recipe_id"], conn) if sub else None
+        if not sub:
+            return _redirect(error="Recipe not found.")
         try:
-            grams, label = float(portion_str.strip()), portion_str.strip()
-        except ValueError:
-            return _redirect(error="Enter a number of servings.")
+            grams, _typed = _parse_recipe_amount(portion_str, sub, sub_serving_g)
+        except _entry_parse.EntryError as e:
+            return _redirect(error=f"{food_name.strip()}: {e}")
+        grams = round(grams, 4)
+        label = f"{grams:g} serving" + ("s" if grams != 1 else "")
     else:
         portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
         grams, label = _parse_portion_str(portion_str.strip(), portions, food_name.strip())

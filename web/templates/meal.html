@@ -381,23 +381,6 @@
             }
           });
         });
-        // amount_mode drives which of the servings/weight/volume input
-        // panels is visible. Match the panel to the restored radio, but
-        // WITHOUT calling recipeAmtSwitch() -- that function also clears
-        // and focuses the newly-active panel's input, which is right for a
-        // user's own click but wrong here: it would wipe out the very value
-        // this restore just wrote back in (e.g. resetting "servings" to
-        // blank on every row, every time the background merge lands, even
-        // when the user never touched that row).
-        var checkedAmt = form.querySelector('input[name="amount_mode"]:checked');
-        var rid = form.querySelector('input[name="recipe_id"]');
-        if (checkedAmt && rid) {
-          var modeMap = {servings: 'srv', weight: 'wt', volume: 'vol'};
-          ['srv', 'wt', 'vol'].forEach(function (key) {
-            var panel = document.getElementById('inp-panel-' + key + '-' + rid.value);
-            if (panel) panel.style.display = (modeMap[checkedAmt.value] === key) ? '' : 'none';
-          });
-        }
       });
     }
 
@@ -561,12 +544,15 @@
                          class="form-control form-control-sm" placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1"
                          style="width:12rem" required>
                   {% else %}
-                  <label class="form-label mb-0 text-nowrap">Servings <span class="text-danger">*</span></label>
-                  <input type="number" name="amount" value="{{ item.amount }}"
-                         class="form-control form-control-sm" min="0.01" max="99" step="0.01"
-                         style="width:7rem" required>
+                  <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
+                  <input type="text" name="amount" value="{{ '%g' | format(item.amount) }}"
+                         class="form-control form-control-sm" placeholder="servings, e.g. 1 1/8; or 200 g, 3/4 c"
+                         style="width:12rem" required>
                   {% endif %}
                 </div>
+                {% if not item.fdc_id %}
+                <div style="font-size:0.75rem" class="muted">servings (1.125, 1 1/8) &middot; or a weight (g, oz, lb) &middot; or a volume (cup, T, tsp, ml), when the recipe has a total volume or a serving size that is a measure</div>
+                {% endif %}
                 {% if item.fdc_id %}
                 <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if item.portions %} &middot; p1, p2… (this food's portions, listed below){% else %} &middot; p1, p2… (USDA portions){% endif %}</div>
                 {% if item.portions %}
@@ -681,7 +667,7 @@
 <section id="sec-contributors" class="analysis-section">
   {{ _contrib.render("/meal/" ~ meal.id, contributor_options, contributor_rank, contributors,
                       contributor_total, contributor_count, contributor_unit,
-                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl,
+                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl, missing=contributor_missing,
                       always_food_level=True) }}
 </section>
 {% endif %}
@@ -1271,23 +1257,6 @@ document.getElementById('complements-form').addEventListener('change', function 
 
 {# ── Sidebar JS ───────────────────────────────────────────────────────── #}
 {% block scripts %}
-<script>
-function recipeAmtSwitch(rid, mode) {
-  // Show the input panel matching the selected radio, hide the others.
-  var panels = ['srv', 'wt', 'vol'];
-  var modeMap = {servings: 'srv', weight: 'wt', volume: 'vol'};
-  panels.forEach(function(key) {
-    var panel = document.getElementById('inp-panel-' + key + '-' + rid);
-    if (!panel) return;
-    var active = (modeMap[mode] === key);
-    panel.style.display = active ? '' : 'none';
-    if (active) {
-      var inp = panel.querySelector('input[type="number"]');
-      if (inp) { inp.value = ''; inp.focus(); }
-    }
-  });
-}
-</script>
 <script>
 (function () {
   function updateActive() {

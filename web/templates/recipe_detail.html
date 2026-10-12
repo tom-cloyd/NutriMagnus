@@ -384,7 +384,7 @@
 <section id="sec-contributors" class="analysis-section">
   {{ _contrib.render("/recipe/" ~ recipe.id, contributor_options, contributor_rank, contributors,
                       contributor_total, contributor_count, contributor_unit,
-                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl,
+                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl, missing=contributor_missing,
                       extra_hidden='<input type="hidden" name="servings" value="' ~ servings ~ '">') }}
 </section>
 {% endif %}
