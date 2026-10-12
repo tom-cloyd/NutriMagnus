@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-11:2044* / Reading time: 8 hours, 39 minutes
+*Updated 2026-10-11:2215* / Reading time: 8 hours, 51 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -1946,12 +1946,13 @@ Going past a water goal gains nothing, so NuMa never shows it as a success: belo
 
 **Protein and water.** Breaking protein down makes urea, which the kidneys clear in urine, so a high-protein diet raises the water your body has to pass. NuMa doesn't change the goal for it, but if you're eating well above the protein target, it's a reason not to run low on drinks. A day's page says so, under the Water rows, when that day's protein comes to one and a half times your protein goal or more (a judgement, not a figure from research). How much it adds is worked out under [Water and older people](#water-older).
 
-**Gaps in the data.** NuMa began recording water in October 2026. Foods you saved before then have no water value yet and show "no data". That makes a day's water total too low, never wrong in any other way. To fill them in:
+**Gaps in the data.**{: #water-gaps} NuMa began recording water in October 2026. Foods you saved before then have no water value yet and show "no data". That makes a day's water total too low, never wrong in any other way. To fill them in:
 
 - For all your USDA foods at once, go to Foods → 9, *Missing nutrient data*, and click **Fill in water for N USDA foods from USDA**. NuMa fetches only the water value, adds it only where a food has none, and changes nothing else; a few hundred foods take well under a minute. If it stops partway (USDA busy, or no internet), click it again and it carries on from where it stopped. A food USDA has no water value for is named afterwards; that's usual for branded (packaged) foods, because food labels don't list water. For those, click **Show these foods in the list below**: it turns on the Water column in the *Missing nutrient data* list (it stays on) and takes you there, where each food has **ask AI** and **not needed** boxes.
+- For one food at a time, click **Find this data** beside it in the list of foods with no data under [Top Contributors](#top-contributors) (rank by Water), or **Fill in nutrients from another food** on its page, and copy the water value from a matching food in USDA or one of the other food tables ([which to try first](#key-sources)).
 - For any other food, tick the **Water** group in that same section and ask Claude AI for the missing values (see [Checking your data](#checking-your-data)).
 
-USDA and the Canadian Nutrient File report water. Most Open Food Facts products don't, and the UK, Australian and French datasets bundled with NuMa don't include it yet.
+USDA, the Canadian Nutrient File and the UK, Australian and French tables bundled with NuMa all report water (the French table for most of its foods, not all). Most Open Food Facts products don't, since food labels don't list it.
 
 #### A wet food picked for a dry one {: #water-wet-dry}
 
@@ -1974,7 +1975,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 7 minutes)*
+*(Reading time: 1 hour, 8 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2194,6 +2195,8 @@ Ranking by **Protein** is special: instead of raw protein grams, it ranks each f
 Ranking by **Glycemic load (GI × carbs)** (listed under Macronutrients, below Carbohydrate) ranks the foods by their [glycemic load](#gl): each food's [GI](#gloss-gi) times its carbohydrate grams, divided by 100, for the amount used. Each row shows the food's [GI](#gloss-gi) and how many grams of it are in the meal or recipe. Unlike protein quality, [GL](#gloss-gl) adds up, so these rows total the meal's or recipe's [GL](#gloss-gl). On a recipe, foods inside sub-recipes are listed individually, since a [GI](#gloss-gi) belongs to a food. Foods with carbohydrate but no [GI](#gloss-gi) can't be ranked; they're named underneath, each linked to its Annotate page so you can [look one up](#gi-source-para), with how much of the carbohydrate the ranking covers. The **Which foods drive it, and lower-GI swaps to try** link under a meal's or recipe's Glycemic Load figure opens this view directly.
 
 **Foods with no data for the nutrient.** A food with no figure for the nutrient you ranked by can't be ranked, and adds nothing to the total. Under the table, **Show the N foods with no data for …** opens a second table listing them, heaviest first, with the amount used, so you can see what the total may be missing. No data is not the same as a stored zero: a food whose data says 0 counts as data, and isn't listed. When ranking by Protein (DCP), the list is the foods with protein but no amino acid data. Glycemic load already names its foods with no GI, so it has no such list. On a recipe's page the list goes down to the individual foods, even inside a sub-recipe.
+
+**Getting the missing data.**{: #contrib-find-data} Beside each food in that list, **Find this data** (for DCP, **Find amino acid data**) opens **Fill in nutrients from another food** already searching for the food's own name, in [USDA](#gloss-usda), the other food tables and your Food Cache, with a note naming the nutrient you came for. Pick a match and copy the values the food lacks (see [Refreshing a food, or filling it in from another food](#review-incoming)). A custom food profile opens on its Edit page instead, which has the same search. Under the list, **where to find it** opens that nutrient's entry in [Appendix G](#nutrient-key), which says which sources to try and in what order ([the general order](#key-sources)).
 
 #### Lower-glycemic swaps {: #gl-swaps}
 When a meal's or recipe's [glycemic load](#gl) is Medium or High and you rank Top Contributors by glycemic load, NuMa suggests swaps for the one or two foods contributing most. A suggestion is a food in your own Food Cache that:
@@ -3496,7 +3499,7 @@ After saving a food, its page shows any problem NuMa can see straight away; [Che
 
 ## Part 7 — Essential resources
 
-*(Reading time: 29 minutes)*
+*(Reading time: 30 minutes)*
 
 ---
 
@@ -3799,6 +3802,19 @@ Use the sidebar search box near the top of the table of contents.
 
 **No matches at all** shows as a yellow box under the checkboxes, naming what you searched for (for example, "No matches for "xyzzy" anywhere in this manual.") and, if a checkbox is ticked, suggesting you untick it.
 
+### E. Finding your way around the table of contents {: #toc-howto}
+The table of contents in the sidebar opens one level at a time, so even the biggest Parts stay easy to get into.
+
+- **Click the small ▸ arrow** beside a title to show the next level down. The entries that appear are still closed, each with its own ▸, so you can keep stepping down until you reach the section you want.
+- **Double-click the ▸ arrow** to open everything below that title at once, at every depth.
+- **Click the ▾ arrow** of an open title to close it again; double-clicking ▾ closes it along with everything below it.
+- **Click a title itself** (not the arrow) to jump to that part of the manual.
+- **Expand all / Collapse all**, the small button to the right of the "Contents" heading, opens or closes every level in one go.
+
+The list starts closed. As you read, it opens just far enough to show where you are, with the current section highlighted.
+
+A short "How to use this list" box sits under the last entry of the table of contents. Its **Got it — hide this** button puts it away for good; the **How to use this list** link beside the "Contents" heading brings it back.
+
 ## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
 *(Reading time: 20 minutes)*
@@ -4100,7 +4116,7 @@ Every food's [Annotate](#gi) page can search the published glycemic index tables
 
 ## Part 10 — Appendices
 
-*(Reading time: 1 hour, 1 minute)*
+*(Reading time: 1 hour, 10 minutes)*
 
 
 ### A. Raw protein, protein quality, and protein digestibility {: #appendix-protein-quality}
@@ -4916,9 +4932,26 @@ The scale factor is capped at 1.0 because a food can never be "more than 100% co
 
 ### G. Full Nutrient Key {: #nutrient-key}
 
-All five nutrient groups from the Nutrient Analysis table are covered below. Each entry gives a plain-language description of one nutrient NuMa tracks, links to where it's discussed elsewhere in this manual, and a link to a respected outside source for anyone who wants to go deeper than a nutrient table can show. Amino acids aren't repeated here — they already have their own extensive treatment; start at [Essential Amino Acids](#aa).
+All the nutrient groups from the Nutrient Analysis table are covered below. Each entry gives a plain-language description of one nutrient NuMa tracks, links to where it's discussed elsewhere in this manual, a link to a respected outside source for anyone who wants to go deeper than a nutrient table can show, and, under **Where to find it**, where to get a value a food is missing. Amino acids aren't repeated here — they already have their own extensive treatment; start at [Essential Amino Acids](#aa).
 
 Every nutrient below matches one of NuMa's own internal data keys one-for-one (shown in *italics*), so a technically inclined reader can cross-reference it directly against the program's data or code.
+
+---
+
+#### When a food has no data for a nutrient {: #key-sources}
+
+A food with no figure for a nutrient adds nothing to a meal's or recipe's total for it, so the total comes out too low. Under [Top Contributors](#top-contributors), the list of foods with no data shows which foods those are, with a **Find this data** button beside each; Foods → 9 lists every food you use that has [missing nutrient data](#data-completeness).
+
+**Try these sources in this order.** Each nutrient's entry below says where it differs.
+
+1. **The same food in [USDA](#gloss-usda)**, in a Foundation or [SR](#gloss-sr) Legacy record — the most complete records there are. Branded USDA records list only what's on the package label. *In NuMa:* **Find this data** (or **Fill in nutrients from another food** on the food's page) searches for the food's own name; pick a USDA match and copy the values it lacks. For a food that is already a USDA food, try **Refresh from USDA** on its page first: USDA sometimes adds values.
+2. **Another national food table**: the Canadian Nutrient File (searched online), and the UK CoFID, Australian AFCD and French CIQUAL tables bundled with NuMa. *In NuMa:* the same search covers all four; their codes say which a result came from: CNF (Canadian Nutrient File), [CoFID](#gloss-cofid), [AFCD](#gloss-afcd) and [CIQUAL](#gloss-ciqual).
+3. **The package label**, for a packaged food: calories, fat, saturated fat, carbohydrate, sugar, fiber, protein and sodium, and on US labels also calcium, iron, potassium and vitamin D. Open Food Facts holds many labels; the same search includes it (code [OFF](#gloss-off)). A label never lists water, amino acids, carotenoids or most vitamins.
+4. **A close, similar food** — tomato purée for a tomato sauce, another bean for a bean. Same search; a value borrowed this way is marked *estimated* on the food's page. A homemade dish is usually better entered as a [recipe](#recipes-menu-web) of its ingredients, so its values come from them.
+5. **Claude AI.** On Foods → 9, tick the food's group in *Missing nutrient data* and [fetch the missing values from Claude](#fetch). Last, because the figures need checking: ask for the source and look at it. An import only fills blanks.
+6. **Nobody has it.** Some nutrients are measured for few foods anywhere (several phytonutrients, below). Then the honest answer is that the total is a minimum. Ticking **not needed** for the food in Foods → 9's *Missing nutrient data* list stops NuMa asking about it there and in Claude prompts; the Top Contributors list still names it, since its share is still missing from the total.
+
+**Amino acids.**{: #key-sources-aa} The same order, with these differences. USDA SR Legacy has full amino acid profiles for thousands of foods, and the Canadian Nutrient File for many; the Australian table has them for about one food in eight; the UK and French tables have none, and labels never list them. When you copy amino acids from a similar food, NuMa scales them to this food's own protein rather than copying them raw (see [Fill in nutrients from another food](#review-incoming)). A food with very little protein can simply be marked **Amino acids not needed** (see [Missing Amino Acid Profiles](#missing-aa-off)).
 
 ---
 
@@ -4929,22 +4962,44 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 ##### Calories {: #key-calories}
 *calories* — The energy a food provides, from protein, carbohydrate, fat, and alcohol combined. NuMa estimates your personal daily calorie target using the Mifflin-St Jeor equation and your activity level — see [Daily Nutrient Goals](#goals) for the full calculation and the [RDA](#gloss-rda)/[DRI](#gloss-dri) framework it draws on[^9].
 
+**Where to find it:** the [usual order](#key-sources); every food table and label has it. A food with protein, carbohydrate and fat but no calories doesn't need a source: NuMa works them out from those three and marks the figure *estimated* (see [food data problems](#calorie-checks)).
+
 ##### Protein {: #key-protein}
 *protein_g* — Builds and repairs every cell in the body and is the nutrient NuMa focuses on most closely, since how much of it your body can actually *use* depends on both digestibility and amino acid completeness, not just the gram total on a label. See [Digestible Complete Protein](#dcp) and [Essential Amino Acids](#aa) for how NuMa scores protein quality beyond this raw figure, and [Recommended Dietary Allowances](#rda) for how your target is set. External: MedlinePlus, *Dietary Proteins*[^17].
+
+**Where to find it:** the [usual order](#key-sources); every food table has it.
 
 ##### Carbohydrates {: #key-carbs}
 *carbs_g* — The body's primary energy source. **Fiber and Sugar below are subsets of this total, not additional to it** — Fiber + Sugar + Starch + a few minor carbohydrate types add up to the Carbohydrates figure, the same relationship a Nutrition Facts label shows by indenting "Dietary Fiber" and "Total Sugars" under "Total Carbohydrate." NuMa uses carbohydrate content, alongside a food's glycemic index, to compute [Glycemic Load](#gl). External: MedlinePlus, *Carbohydrates*[^18].
 
+**Where to find it:** the [usual order](#key-sources); every food table has it. **Watch the definition:** USDA's and the Canadian figure include fiber, but the UK, Australian and French tables give *available* carbohydrate, with fiber left out, so their figure runs lower by the food's fiber. Copying one from those three, add the fiber back if you want it to match USDA's.
+
 - **Fiber**{: #key-fiber} — *fiber_g* — The indigestible part of plant carbohydrate. NuMa's figure is [USDA](#gloss-usda)'s "total dietary fiber" — **soluble and insoluble combined**, not insoluble alone. The two behave differently: soluble fiber (oats, beans, apples, citrus) dissolves into a gel that slows digestion and is linked to lower cholesterol and better blood-sugar control; insoluble fiber (whole grains, vegetable skins, wheat bran) adds bulk and speeds transit, supporting digestive regularity. NuMa doesn't split the two because USDA FoodData Central only reports that breakdown for a small fraction of foods — reliably showing it would mean leaving it blank almost everywhere. Fiber is one of the few macronutrients using an Adequate Intake rather than a full [RDA](#gloss-rda) — see [Daily Nutrient Goals](#goals) for what that distinction means for your target. External: MedlinePlus, *Dietary Fiber*[^20].
+    - **Where to find it:** the [usual order](#key-sources). The UK table has it for only about half its foods; the others for nearly all.
 - **Sugar**{: #key-sugar} — *sugar_g* — Simple carbohydrate — both naturally occurring (fruit, dairy) and added (sweeteners) — that NuMa reports as one combined total. High-sugar foods tend to raise [Glycemic Load](#gl) sharply; see that section for how NuMa weighs sugar's blood-glucose impact against a food's fiber and overall carbohydrate. External: MedlinePlus, *Sweeteners – Sugars*[^21].
+    - **Where to find it:** the [usual order](#key-sources); nearly every table and label has it.
 - *Starch is not tracked as its own row — USDA rarely reports it as a distinct value, so it stays folded into the Carbohydrates total along with everything else that isn't Fiber or Sugar.*
 
 ##### Fat {: #key-fat}
 *fat_g* — Total dietary fat. **Saturated, Monounsaturated, and Polyunsaturated fat below are subsets of this total, not additional to it** — the three add up to (approximately) the Fat figure. Fat itself sits at the same level as Protein and Carbohydrates above, not beneath them — it's a third independent macronutrient, not a subset of either. See [Omega-3 Fatty Acids](#omega3) for the specific unsaturated fatty acids NuMa tracks individually and gives their own goals. External: MedlinePlus, *Dietary fats explained*[^19].
 
+**Where to find it:** the [usual order](#key-sources); every food table and label has it.
+
 - **Saturated fat**{: #key-saturated-fat} — *saturated_fat_g* — The fat subtype most consistently linked to cardiovascular risk when eaten in excess; most dietary guidance favors keeping intake low and replacing it with unsaturated fat where possible. External: Examine.com, *Saturated Fat*[^22].
+    - **Where to find it:** the [usual order](#key-sources); labels give it too.
 - **Monounsaturated fat**{: #key-mono-fat} — *mono_fat_g* — Found mainly in olive oil, avocados, and many nuts; generally considered neutral-to-beneficial for cardiovascular health when it displaces saturated fat in the diet. External: MedlinePlus, *Dietary fats explained*[^19].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label; about three foods in four in the UK and French tables have it.
 - **Polyunsaturated fat**{: #key-poly-fat} — *poly_fat_g* — Includes the omega-3 and omega-6 fatty acids NuMa tracks individually — see [Omega-3 Fatty Acids](#omega3) for [ALA](#gloss-ala), [EPA](#gloss-epa), [DHA](#gloss-dha), and linoleic acid specifically, and why ALA is the only one with an official intake goal. External: MedlinePlus, *Dietary fats explained*[^19].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label; about three foods in four in the UK and French tables have it.
+
+---
+
+#### Water
+
+##### Water {: #key-water}
+*water_g* — The water a food or drink contains, measured as its moisture. NuMa adds it up from everything you log, and splits a meal's or day's total into **Water from drinks** (*water_drinks_g*, from foods and recipes marked as a drink) and **Water from food** (*water_food_g*, everything else); the split isn't stored with a food, so a food's own figure is just its water. See [Water: from drinks and from food](#water) for the goals and what counts as water.
+
+**Where to find it:** the [usual order](#key-sources), and almost always at step 1 or 2: [USDA](#gloss-usda), the Canadian Nutrient File and the UK and Australian tables have it for nearly every food, the French table for most. Labels never list it, so a packaged food needs a matching generic food (a jarred tomato sauce takes a USDA or [CIQUAL](#gloss-ciqual) tomato sauce's value). For all your USDA foods at once, Foods → 9 fills it in from USDA (see [Gaps in the data](#water-gaps)). Make sure the match is in the same state: a dry food (flour, powder, dried beans) has very little water, and the same food cooked or soaked a lot (see [A wet food picked for a dry one](#water-wet-dry)).
 
 ---
 
@@ -4955,12 +5010,16 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 ##### Omega-3
 
 - **[ALA](#gloss-ala)**{: #key-ala} — *omega3_ala_mg* — Alpha-linolenic acid, the plant-based omega-3 (flaxseed, walnuts, chia, canola and soy oils). The only omega-3 with an official Adequate Intake, so it's the only one of the three with a Daily Goal.
+    - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources).
 - **[EPA](#gloss-epa)**{: #key-epa} — *omega3_epa_mg* — Eicosapentaenoic acid. No U.S. [DRI](#gloss-dri) exists for EPA on its own; the body makes some from ALA, inefficiently, or gets it directly from fish, algae, and other seafood. Set your own [Revised Optimal target](#optimal) if you want to track it against a number.
+    - **Where to find it:** USDA Foundation and SR Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources). A plant food missing EPA has essentially none: EPA comes from fish, seafood and algae.
 - **[DHA](#gloss-dha)**{: #key-dha} — *omega3_dha_mg* — Docosahexaenoic acid, the omega-3 most concentrated in the brain and retina. Like EPA, it has no official DRI and can be tracked against a self-set [Revised Optimal target](#optimal) instead.
+    - **Where to find it:** USDA Foundation and SR Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources). A plant food missing DHA has essentially none: DHA comes from fish, seafood and algae.
 
 ##### Omega-6
 
 - **Linoleic acid (LA)**{: #key-la} — *omega6_la_mg* — The essential omega-6 fatty acid. Tracked for completeness; most diets, plant-based or not, comfortably exceed its Adequate Intake, and it has no known deficiency risk in typical eating patterns.
+    - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources).
 
 ---
 
@@ -4971,27 +5030,36 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 ##### Macrominerals
 
 - **Calcium**{: #key-calcium} — *calcium_mg* — Builds and maintains bone, and supports nerve and muscle function. A major dietary source for many people (dairy, fortified plant milks, leafy greens) is undermined by [oxalates](#antinutrients) in some of those same leafy greens — spinach's labeled calcium is largely unabsorbed. External: Linus Pauling Institute, *Calcium*[^24].
+    - **Where to find it:** the [usual order](#key-sources); US labels give it too.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: mainly a supplement risk, not a food risk — getting this much from food alone is difficult. [NIH](#gloss-nih) notes higher-dose calcium supplements are linked to a greater risk of kidney stones, and some research ties them to a higher risk of cardiovascular disease[^48].
 - **Magnesium**{: #key-magnesium} — *magnesium_mg* — Involved in hundreds of enzyme reactions, including energy production and muscle/nerve function. A candidate for a future [Revised Optimal](#optimal) target above the [RDA](#gloss-rda) — see [Part 9](#expand-revised-optimal) — though the evidence for a specific above-RDA number is less settled than for vitamin D. External: Linus Pauling Institute, *Magnesium*[^25].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label.
 - **Phosphorus**{: #key-phosphorus} — *phosphorus_mg* — Works alongside calcium in bone structure and is also central to cellular energy (ATP). Deficiency is rare in any diet with adequate protein, since phosphorus is present in most protein-rich foods. External: Linus Pauling Institute, *Phosphorus*[^26].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: NIH notes high intakes seldom cause problems in otherwise healthy people; the real concern is chronic kidney disease, where the kidneys can't clear excess phosphorus and it builds up in the blood, worsening bone and kidney health[^49].
 - **Potassium**{: #key-potassium} — *potassium_mg* — Supports fluid balance, nerve signaling, and healthy blood pressure; typically under-consumed relative to its Adequate Intake in a typical Western diet. External: Linus Pauling Institute, *Potassium*[^27].
+    - **Where to find it:** the [usual order](#key-sources); US labels give it too.
 - **Sodium**{: #key-sodium} — *sodium_mg* — The one nutrient in NuMa's tables with its own Maximum column entry rather than a Minimum — see [Recommended Dietary Allowances](#rda) for the Maximum-vs-UL distinction and [Maximum Nutrient Limits](#maxlimits) for how NuMa flags approaching it. External: Linus Pauling Institute, *Sodium*[^28].
+    - **Where to find it:** the [usual order](#key-sources); every table and label has it. A label that gives salt instead: sodium is salt ÷ 2.5 (1 g salt = 400 mg sodium).
 
 ##### Trace Minerals
 
 - **Iron**{: #key-iron} — *iron_mg* — Carries oxygen in red blood cells. Plant (non-heme) iron absorbs far less efficiently than animal (heme) iron and is further blocked by [phytates](#antinutrients) — NuMa raises the iron [RDA](#gloss-rda) target 1.8× on a Vegetarian or Plant-based dietary preference to reflect this; see [Diet-Aware Bioavailability Notes](#diet-bioavailability)[^4]<sup>,</sup>[^5]. External: Linus Pauling Institute, *Iron*[^29].
+    - **Where to find it:** the [usual order](#key-sources); US labels give it too.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: acute overdose (often accidental, in children) can cause severe gastrointestinal damage and organ failure; chronically, people with hemochromatosis (an inherited iron-overload condition) should avoid iron and vitamin C supplements, since excess iron builds up and can damage the liver and heart[^50].
 - **Zinc**{: #key-zinc} — *zinc_mg* — Supports immune function and wound healing; absorption is reduced by the same [phytates](#antinutrients) that affect iron. NuMa raises the zinc RDA target 1.5× on a Vegetarian or Plant-based preference — see [Diet-Aware Bioavailability Notes](#diet-bioavailability)[^4]<sup>,</sup>[^6]. External: Linus Pauling Institute, *Zinc*[^30].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label; the French table has it for about two foods in three.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: nausea, vomiting, and gastric distress in the short term. Sustained high doses interfere with copper absorption, which can itself cause neurological problems (loss of coordination, numbness, weakness) if it leads to copper deficiency[^51].
 - **Iodine**{: #key-iodine} — *iodine_mcg* — Required for thyroid hormone production. Iodized salt is the primary dietary source in most Western diets; those avoiding it (and not eating much seafood or dairy) are the main deficiency risk group. External: Linus Pauling Institute, *Iodine*[^31].
+    - **Where to find it:** Often missing. The Australian table has it for every food, the UK table for about half and the French for about a third; USDA records rarely have it and the Canadian file doesn't. Outside NuMa, the [USDA](#gloss-usda), FDA (Food and Drug Administration) and [NIH](#gloss-nih) *Database for the Iodine Content of Common Foods* covers US foods; take a value from it to Claude or a similar food. Then the [usual order](#key-sources).
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: ironically similar to deficiency — high intakes can trigger goiter and thyroid gland inflammation. Very large single doses (gram-range, essentially unreachable from food) can cause burning of the mouth and throat, fever, and vomiting[^52].
 - **Selenium**{: #key-selenium} — *selenium_mcg* — An antioxidant-supporting trace mineral; Brazil nuts are an unusually concentrated source (a couple a day can exceed the daily target). External: Linus Pauling Institute, *Selenium*[^32].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label; the UK table has it for about three foods in five, the French for about one in three.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: chronic over-intake causes selenosis — hair loss, brittle nails, a garlic odor on the breath, and nausea are the classic signs; very high intakes can affect the nervous system and, rarely, the heart[^53].
 
@@ -5004,29 +5072,40 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 ##### Fat-Soluble
 
 - **Vitamin A**{: #key-vitamin-a} — *vitamin_a_mcg* — Supports vision, immune function, and cell growth. NuMa's figure is already expressed in mcg RAE (Retinol Activity Equivalents) — [USDA](#gloss-usda)'s own standardized unit that converts provitamin-A carotenoids (see Beta-carotene and Alpha-carotene under Phytonutrients below) into vitamin-A-equivalent amounts using their own conversion factors, not a simple sum. External: Linus Pauling Institute, *Vitamin A*[^33].
+    - **Where to find it:** the [usual order](#key-sources), with a caution: the Canadian and French figures in NuMa count only retinol, the animal form, so for a plant food they understate it, often to zero. For a plant food prefer USDA, the UK or the Australian table.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9] (that UL applies to preformed vitamin A specifically, a narrower figure than the mcg RAE total NuMa tracks — see the note there; [NIH](#gloss-nih) notes there's no established UL for beta-carotene and other provitamin-A carotenoids).
     - Risk of excess: getting too much preformed vitamin A (usually from supplements, liver, or certain medicines, rarely from food alone) can cause headache, blurred vision, nausea, dizziness, and coordination problems; long-term excess is also linked to reduced bone strength and, in pregnancy, to birth defects[^54].
 - **Vitamin C**{: #key-vitamin-c} — *vitamin_c_mg* — An antioxidant vitamin also needed for collagen synthesis; notably, vitamin C consumed at the same meal significantly improves absorption of non-heme iron from plant foods — see [Antinutrients](#antinutrients). External: Linus Pauling Institute, *Vitamin C*[^34].
+    - **Where to find it:** the [usual order](#key-sources); the French table has it for about half its foods.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: mostly mild — diarrhea, nausea, and stomach cramps at high intakes. In people with hemochromatosis (an iron-overload condition), high-dose vitamin C can worsen iron overload and tissue damage[^55].
 - **Vitamin D**{: #key-vitamin-d} — *vitamin_d_mcg* — Supports calcium absorption and bone health. NuMa's built-in [Revised Optimal](#optimal) default goes above the standard [RDA](#gloss-rda) based on Endocrine Society guidance[^12] — see that section for why. External: Linus Pauling Institute, *Vitamin D*[^35].
+    - **Where to find it:** the [usual order](#key-sources); US labels give it too. Often missing for plant foods because there's almost none to measure; mushrooms grown under ultraviolet (UV) light are the exception, and a fortified food's label has it.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: essentially a supplement-only risk (sun exposure and food don't cause it). Excess vitamin D drives calcium too high in the blood (hypercalcemia) and urine, which in turn can cause nausea, weakness, and mineral deposits in soft tissue and blood vessels[^56].
 - **Vitamin E**{: #key-vitamin-e} — *vitamin_e_mg* — An antioxidant vitamin that protects cell membranes from oxidative damage; found concentrated in nuts, seeds, and vegetable oils. External: Linus Pauling Institute, *Vitamin E*[^36].
+    - **Where to find it:** the [usual order](#key-sources); the French table rarely has it.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: a supplement-only risk — NIH notes no adverse effects from vitamin E in food, only from high-dose supplements. The main concern is bleeding risk, since high doses reduce the blood's ability to clot; this is especially relevant alongside blood-thinning medication like warfarin[^57].
 - **Vitamin K**{: #key-vitamin-k} — *vitamin_k_mcg* — Needed for blood clotting and bone metabolism. NuMa tracks vitamin K1 (from the RDA); vitamin K2, a distinct form with separate emerging research on cardiovascular and bone benefits, is not yet reflected in an official [DRI](#gloss-dri) — see [Part 9](#expand-revised-optimal) for that as a candidate future addition. External: Linus Pauling Institute, *Vitamin K*[^37].
+    - **Where to find it:** USDA [SR](#gloss-sr) Legacy and the Canadian Nutrient File; the French table for about a third of its foods; the UK table rarely and the Australian not at all. Then Claude, as in the [usual order](#key-sources).
 
 ##### Water-Soluble
 
 - **Thiamin (B1)**{: #key-thiamin} — *thiamin_mg* — Needed for converting food into energy and for nerve function. Deficiency (beriberi) is rare in a varied diet but historically arose in populations relying heavily on unenriched white rice. External: Linus Pauling Institute, *Thiamin*[^38].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label (except an enriched or fortified food's).
 - **Riboflavin (B2)**{: #key-riboflavin} — *riboflavin_mg* — Supports energy production and functions as an antioxidant; widely available in dairy, eggs, meat, and fortified grains, so deficiency is uncommon. External: Linus Pauling Institute, *Riboflavin*[^39].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label (except an enriched or fortified food's).
 - **Niacin (B3)**{: #key-niacin} — *niacin_mg* — Involved in energy metabolism and [DNA](#gloss-dna) repair. Corn-based diets can carry a deficiency risk (pellagra) unless the corn is nixtamalized — see **Bound niacin** under [Antinutrients](#antinutrients). External: Linus Pauling Institute, *Niacin*[^40].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label (except an enriched or fortified food's).
 - **Vitamin B6**{: #key-b6} — *b6_mg* — Involved in amino acid metabolism and neurotransmitter synthesis. One of the few water-soluble vitamins where very high long-term supplemental doses (not food intake) carry a real toxicity risk (nerve damage). External: Linus Pauling Institute, *Vitamin B6*[^41].
+    - **Where to find it:** the [usual order](#key-sources), but not from a label.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: people almost never get too much B6 from food. Taking high-dose supplements for a year or longer can cause severe, sometimes irreversible nerve damage (loss of control of body movements), along with painful skin patches and extreme sun sensitivity[^58].
 - **Folate**{: #key-folate} — *folate_mcg* — Essential for cell division and DNA synthesis; especially critical before and during early pregnancy to prevent neural tube defects. External: Linus Pauling Institute, *Folate*[^42].
+    - **Where to find it:** the [usual order](#key-sources); the French table has it for about two foods in five.
 - **Vitamin B12**{: #key-b12} — *b12_mcg* — Needed for nerve function and red blood cell formation. Almost exclusively animal-sourced[^7] — NuMa shows a specific low-intake warning on a Plant-based only dietary preference; see [Diet-Aware Bioavailability Notes](#diet-bioavailability). External: Linus Pauling Institute, *Vitamin B12*[^43].
+    - **Where to find it:** the [usual order](#key-sources). An unfortified plant food missing it has essentially none; a fortified one (plant milk, nutritional yeast, cereal) has it on its label.
 
 ---
 
@@ -5037,23 +5116,30 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 ##### Carotenoids
 
 - **Beta-carotene**{: #key-beta-carotene} — *beta_carotene_mcg* — A provitamin-A carotenoid (orange/red pigment in carrots, sweet potatoes, squash); the body converts it to vitamin A, feeding into the Vitamin A (RAE) figure above via [USDA](#gloss-usda)'s own conversion factor rather than a simple sum.
+    - **Where to find it:** USDA, the Australian table, the UK table (whose figure is total carotene) and the French table for about half its foods. Then Claude, as in the [usual order](#key-sources). Foods that aren't orange, red or green have little.
 - **Alpha-carotene**{: #key-alpha-carotene} — *alpha_carotene_mcg* — A second provitamin-A carotenoid, generally present alongside beta-carotene in orange vegetables, converted to vitamin A less efficiently.
+    - **Where to find it:** Mostly USDA Foundation and [SR](#gloss-sr) Legacy records; the Australian table for about two foods in three; not the other tables. Often measured nowhere: step 6 of the [usual order](#key-sources) is a fair answer.
 - **Lycopene**{: #key-lycopene} — *lycopene_mcg* — The red carotenoid in tomatoes and watermelon; unlike the two above, it has no vitamin A activity — it's tracked purely for its own antioxidant interest.
+    - **Where to find it:** Almost only USDA Foundation and SR Legacy records. Only red foods (tomato, watermelon, pink grapefruit, guava) have much, so a missing value elsewhere is usually near zero; for a tomato product, a USDA tomato match is worth finding.
 - **Lutein + Zeaxanthin**{: #key-lutein} — *lutein_zeaxanthin_mcg* — Carotenoids concentrated in the retina, where they're associated with eye health; found in leafy greens, corn, and eggs. Also no vitamin A activity. External (covers all four carotenoids above): Linus Pauling Institute, *Carotenoids*[^45].
+    - **Where to find it:** Almost only USDA Foundation and SR Legacy records. Often measured nowhere: step 6 of the [usual order](#key-sources) is a fair answer.
 
 ##### Other Phytonutrients
 
 - **Choline**{: #key-choline} — *choline_mg* — Needed for cell membrane structure and neurotransmitter synthesis; a meaningful share of adults fall short of even its Adequate Intake — a candidate for a future [Revised Optimal](#optimal) target, see [Part 9](#expand-revised-optimal). External: Linus Pauling Institute, *Choline*[^44].
+    - **Where to find it:** [USDA](#gloss-usda) [SR](#gloss-sr) Legacy and Foundation records and the Canadian Nutrient File only; none of the other tables or labels. Then Claude, as in the [usual order](#key-sources).
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: a fishy body odor is the classic tell (from a choline metabolite excreted in sweat and urine); [NIH](#gloss-nih) also lists low blood pressure, sweating, and liver damage at high intakes, with some research linking very high intakes to cardiovascular risk[^59].
 - **Beta-sitosterol**{: #key-beta-sitosterol} — *beta_sitosterol_mg* — A plant sterol structurally similar to cholesterol; dietary intake is associated with modestly lower [LDL](#gloss-ldl) cholesterol. External: Linus Pauling Institute, *Phytosterols*[^47].
+    - **Where to find it:** USDA only, and for few foods (nuts, seeds, oils, legumes mainly). Usually measured nowhere: step 6 of the [usual order](#key-sources) is a fair answer.
 - **Isoflavones**{: #key-isoflavones} — *isoflavones_mg* — Plant compounds with mild estrogen-like activity, found mainly in soy; frequently discussed in the context of soy's role in a plant-based diet. External: Linus Pauling Institute, *Soy Isoflavones*[^46].
+    - **Where to find it:** USDA, for soy foods mainly; outside NuMa, USDA's separate *Database for the Isoflavone Content of Selected Foods* is the standard source, worth giving to Claude. A food without soy or other legumes has essentially none.
 
 ---
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 28 minutes)*
+*(Reading time: 1 hour, 30 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5069,6 +5155,8 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **50.** The list of foods with no data under Top Contributors now has a **Find this data** button for each food, and a link to that nutrient's entry in Appendix G, which now says, for every nutrient, which sources to try and in what order; the bundled UK, Australian and French food tables now include water.
+- **49.** MANUAL: The manual's table of contents now opens one level at a time — click a ▸ arrow to see the next level down, double-click it to open everything below.
 - **48.** Top Contributors can show, in a second table beneath it, the foods with no data for the ranked nutrient.
 - **47.** A sub-recipe's amount on Edit Recipe can now be typed as servings with fractions, a weight, or a volume, like a recipe in a meal.
 - **46.** A recipe's amount on a meal page can now be typed as servings with fractions (1 1/8, 1.125), a weight, or a volume such as 3/4 c.
@@ -5119,6 +5207,66 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 11 updates
+
+**PROGRAM: FINDING DATA A FOOD IS MISSING**
+
+When Top Contributors lists foods with no data for a nutrient, each one now has a **Find this data** button. It opens **Fill in nutrients from another food**, already searching USDA, the other food tables and your Food Cache for that food's name, so you can copy the missing value from a match. A **where to find it** link under the list opens that nutrient's entry in Appendix G. Every entry there now has a **Where to find it** line saying which sources have that nutrient and which to try first, and a new section gives the general order: USDA, then the other national tables, the label, a similar food, Claude, and finally accepting that nobody has measured it. The UK, Australian and French food tables bundled with NuMa now include water, so a food missing water can usually take it from one of them. [learn more...](#contrib-find-data)
+
+<!--
+```
+Scope: Top Contributors no-data list (meal, recipe pages) -> Fill in from
+another food; manual Appendix G; bundled static datasets.
+- top_contributors.source_anchor(key, is_dcp) maps every _NUTRIENT_GROUPS
+  key to its Appendix G anchor (DCP -> #key-sources-aa, unknown ->
+  #key-sources); registered as Jinja global contrib_source_anchor.
+- top_contributors.fill_url() builds /food/{id}/fill-from?q=<name>&want=<key>
+  (starter "* " prefix stripped); a custom profile (user_drafted, id < 0)
+  gets its Edit page with nutrient_source_q / aa_source_q instead, matching
+  food_detail.html's own button rule; None for recipe / name-only rows.
+  _build_contributors() looks each missing row's food up for that.
+- food_fill_from: optional want= (aa or a known nutrient key) shows an info
+  box naming the nutrient and linking its Appendix G entry; a hidden input
+  keeps it across a new search. Unknown want is ignored.
+- Manual: Appendix G gets "When a food has no data for a nutrient"
+  (#key-sources, #key-sources-aa), a new Water group/entry (#key-water),
+  and a "Where to find it" line on every nutrient, written from measured
+  per-key coverage of the bundled tables (CoFID omega 0%, AFCD AA ~12%,
+  choline only USDA/CNF, etc.). Notes two traps: CoFID/AFCD/CIQUAL carbs
+  are available carbohydrate (fibre excluded), and CNF/CIQUAL vitamin A is
+  retinol only. Top Contributors section gets #contrib-find-data; the
+  water section's "bundled tables don't include it yet" line corrected.
+- build_cofid/afcd/ciqual_data.py map water ("Water (g)", "Moisture
+  (water) (g)", "Water (g/100g)"); data files regenerated from the same
+  editions (unchanged scripts reproduced the committed files byte for
+  byte first), so the diff is water_g additions only: CoFID 2855/2886,
+  AFCD 1588/1588, CIQUAL 2934/3484 foods.
+- Tests: test_top_contributors (anchor for every key exists in the manual
+  with a Where-to-find line; fill_url cases), test_web (row link, manual
+  link, fill-from want box), test_cofid/afcd/ciqual (shipped file has water).
+```
+-->
+
+**MANUAL: TABLE OF CONTENTS OPENS ONE LEVEL AT A TIME**
+
+The manual's table of contents now starts closed and opens one level at a time: click the small ▸ arrow beside a title to see the next level down, or double-click the arrow to open everything below it. A short "How to use this list" box under the contents explains this the first time you open the manual. [learn more...](#toc-howto)
+
+<!--
+```
+Scope: user-manual.html sidebar TOC -- scripts/build_manual.py (JS + CSS).
+Toggles were only on h2-level entries, and opening one showed its whole
+outline at every depth. Now every TOC li with a child ul gets a toggle;
+all start collapsed (scroll-spy's expandAncestors opens the path to the
+current section). Single click on the arrow opens one level and closes
+any descendants; dblclick (which arrives after two clicks that cancel
+out) opens or closes the whole branch based on the starting state.
+Expand all / Collapse all now acts on every level and starts as
+"Expand all"; it moved from the search row (where it read as part of
+search's ▲/▼ buttons) to the Contents h2. New #toc-tips box appended
+under the TOC, dismissed via
+localStorage numa_manual_toc_tips_hidden; a "How to use this list" link
+in the Contents h2 re-shows it. New Part 7 section E (#toc-howto).
+```
+-->
 
 **PROGRAM: TOP CONTRIBUTORS NAMES THE FOODS WITH NO DATA**
 

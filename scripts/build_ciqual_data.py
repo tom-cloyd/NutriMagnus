@@ -63,6 +63,7 @@ OUTPUT = Path(__file__).parent.parent / "ciqual_data.json"
 # cell after _normalize_header() (newlines/slashes collapsed to spaces), so
 # they're written here in that same normalized form.
 _COLUMN_MAP: dict[str, tuple[str, float]] = {
+    "Water (g 100g)":                                      ("water_g",          1.0),
     "Protein (g 100g)":                                    ("protein_g",        1.0),
     "Fat (g 100g)":                                         ("fat_g",            1.0),
     "Carbohydrate (g 100g)":                                 ("carbs_g",          1.0),

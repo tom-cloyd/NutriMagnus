@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-11:2044
+UPDATED: 2026-10-11:2214
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -210,7 +210,10 @@ numa/
       top_contributors.py            — rank a meal's/recipe's ingredients by contribution to one
                                       nutrient (or DCP, or glycemic load via rank_contributors_by_gl()),
                                       for the "Top Contributors" analysis section; missing_contributors()
-                                      lists the foods with no data for it (absent key, not 0)
+                                      lists the foods with no data for it (absent key, not 0);
+                                      source_anchor() maps a nutrient to its Appendix G
+                                      "Where to find it" entry and fill_url() builds each
+                                      row's "Find this data" link (Fill in from another food)
       protein_per_meal.py            — per-meal protein amount from the profile (0.25-0.4 g/kg under
                                       65, 25-30 g at 65+, 20-40 g with no profile; leucine too) and
                                       meal_check() on DCP (raw protein if no DCP); meal page line and
@@ -729,7 +732,7 @@ UI: a second section, *Missing nutrient data* (`#completeness`), on `/food/cache
 
 #### `numa_app/services/water.py` — water from drinks vs food
 
-Water is stored like any nutrient: `water_g`, per 100 g, USDA nutrient 1051 (abridged number "255"; CNF symbol `H2O`). The CoFID / AFCD / CIQUAL build scripts don't map moisture yet, and Open Food Facts rarely reports it. The daily target is the IOM Adequate Intake for *total* water (3.7 L men, 2.7 L women, 3.2 L "other"; `compute_rda()`, type minimum), which already includes water from food, so it is compared with `water_g`, not with drinks alone.
+Water is stored like any nutrient: `water_g`, per 100 g, USDA nutrient 1051 (abridged number "255"; CNF symbol `H2O`). The CoFID / AFCD / CIQUAL build scripts map it too ("Water", "Moisture (water)", "Water"; added 2026-10-11 — CIQUAL has it for ~84% of foods, the other two for nearly all), and Open Food Facts rarely reports it. The daily target is the IOM Adequate Intake for *total* water (3.7 L men, 2.7 L women, 3.2 L "other"; `compute_rda()`, type minimum), which already includes water from food, so it is compared with `water_g`, not with drinks alone.
 
 The split is derived, never stored on a food. `foods.is_drink` and `recipes.is_drink` (INTEGER, default 0) say whether an item's water counts as drinks. A drink recipe counts *all* of its water as drinks, through any sub-recipes. `water.tag()` adds `water_drinks_g` and `water_food_g` (always summing to `water_g`; omitted when `water_g` is missing, so missing stays "no data") at the three points where food nutrients enter a total: `_meal_expand_for_diaas()` (direct meal foods), `recipe_nutrients.expand_recipe_ingredients()` (every recipe leaf, carrying the recipe's drink flag down as `_drink`), and `whatif._Ctx.nutrients_100g()`. Because of that, the split reaches meal nutrient snapshots, day totals, the column pickers (`meal_list_columns.AVAILABLE_NUTRIENTS`, inserted after Water), plots, What-if and `recipes.nutrients_json` without any other changes. Labels live in `usda_api.DERIVED_NUTRIENTS` (read by `nutrient_label()`). They are not in `NUTRIENT_MAP`, so imports, CSV and the food editor ignore them. `_nutrient_sections()` shows the two split rows (as subtype rows under Water) only when the nutrients carry them, so a single food's page shows Water alone.
 
@@ -1675,7 +1678,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**1,995 tests**, all passing (1,990 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,000 tests**, all passing (1,995 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1708,7 +1711,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_aa_estimate.py` | `numa_app/services/aa_estimate.py`: `estimate_aa()` scaling a food's AA profile from another food's, hand-picked cases |
 | `tests/test_estimate_aa_properties.py` | Property-based tests for `estimate_aa()`, complementing `test_aa_estimate.py` |
 | `tests/test_portions.py` | `numa_app/services/portions.py`: `_ing_amount_display()` and related portion-string formatting; `parse_recipe_amount()` (servings, weight or volume typed for a recipe on a meal page) |
-| `tests/test_top_contributors.py` | `top_contributors.missing_contributors()`: absent keys listed, stored zeros not, one row per food (amounts summed), heaviest first, unused foods skipped; DCP mode = protein but no amino acid data |
+| `tests/test_top_contributors.py` | `top_contributors.missing_contributors()`: absent keys listed, stored zeros not, one row per food (amounts summed), heaviest first, unused foods skipped; DCP mode = protein but no amino acid data. `source_anchor()`: every nutrient in `_NUTRIENT_GROUPS` maps to its own Appendix G anchor, which exists in user-manual.md and has a "Where to find it" line. `fill_url()`: name search, `want`, custom-profile Edit page, none for recipes/name-only |
 | `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
 | `tests/test_food_id_tags.py` | `web/templates/`: static scan enforcing that every food or recipe name shown carries its code (`food_id_tag` / `food_id_short` / `food_code`), with a reasoned exemption list |
 | `tests/test_diet_aware.py` | `numa_app/services/diet_aware.py`: diet-preference-aware RDA-comparison notes (vegetarian/plant-based) |
@@ -1728,9 +1731,9 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_repair_usda_portions.py` | `scripts/repair_usda_portions.py`: renaming portions an older NuMa misread from USDA (SR Legacy amount dropped), adding dropped Foundation portions at the end, leaving the user's own portions alone, correcting the source copy so the food never counts as user-edited |
 | `tests/test_refresh_starter_data.py` | `scripts/refresh_starter_data.py`: refreshing existing `starter_data.json` entries from the live cache by stable ID rather than by name |
 | `tests/test_cnf.py` | `cnf_api.py`: id assignment, local name-search over a mocked food list, nutrient mapping (network calls mocked) |
-| `tests/test_cofid.py` | `cofid_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
-| `tests/test_afcd.py` | `afcd_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
-| `tests/test_ciqual.py` | `ciqual_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API) |
+| `tests/test_cofid.py` | `cofid_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API); the shipped data file carries water for most foods |
+| `tests/test_afcd.py` | `afcd_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API); the shipped data file carries water for most foods |
+| `tests/test_ciqual.py` | `ciqual_lookup.py`: id assignment and local name-search/lookup over a fixture food list (no live API); the shipped data file carries water for most foods |
 | `tests/test_gi_lookup.py` | `gi_lookup.py`: fuzzy name search over the Atkinson glycemic index reference table, population filtering, edition/year-of-test reporting |
 | `tests/test_build_gi_data.py` | `numa_app/services/gi_table_build.py`: per-row population classification, GI/SEM cell parsing, the 2008-to-2021 merge rule, legacy name repair, column geometry, table identification, refusal of wrong/short input without touching the existing table, background build status, lookup reload |
 | `tests/test_food_source.py` | Older versions (create, past meals re-pointed, codes/parse/sort, not a duplicate, Refresh flow) and value-level edit tracking: `foods.source_json`, derived `user_edited` (edit / change back / portions / annotations / estimated calories), refresh rebase (take all, keep one, dropped values, old portion weights), legacy foods, migration backfill; Refresh screen ticks and the food page's change list |

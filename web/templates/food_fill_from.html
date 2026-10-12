@@ -21,11 +21,19 @@
   this food's protein rather than copied raw. This food keeps its own ID,
   so meals and recipes that use it pick up the new values. It will show as user-edited afterwards.
 </p>
+{% if want_label %}
+<div class="alert alert-info py-2" style="max-width:52rem">
+  <small>You came here for this food's <strong>{{ want_label }}</strong>. A match from USDA (Foundation or SR Legacy first) or
+  another national food table is the best source; a close match is fine when there's no exact one.
+  {{ manual_link(want_anchor, "Which sources to try, in order") }}</small>
+</div>
+{% endif %}
 
 <form method="get" action="/food/{{ food.fdc_id }}/fill-from" class="mb-2" data-online-search>
   <div class="d-flex gap-2 mb-2 align-items-center">
     <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}"
            placeholder="Search for a food to copy from…" style="max-width:22rem" autofocus>
+    {% if want %}<input type="hidden" name="want" value="{{ want }}">{% endif %}
     <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
   </div>
   {{ source_filter.select(source, source_filters, source_labels) }}

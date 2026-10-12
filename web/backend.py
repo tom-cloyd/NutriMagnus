@@ -85,6 +85,8 @@ from numa_app.services.recipe_nutrients import (
 )
 from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp, rank_contributors_by_gl
 from numa_app.services.top_contributors import missing_contributors as _missing_contributors
+from numa_app.services.top_contributors import fill_url as _contrib_fill_url
+from numa_app.services.top_contributors import source_anchor as _contrib_source_anchor
 from numa_app.services.gl_swaps import suggest_swaps as _suggest_gl_swaps
 from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
@@ -1221,6 +1223,7 @@ def _manual_link(anchor: str, text: str = "Learn more") -> str:
     )
 
 templates.env.globals["manual_link"] = _manual_link
+templates.env.globals["contrib_source_anchor"] = _contrib_source_anchor
 
 # The set of user-edited food ids, loaded at most once per request (each
 # request runs in its own context, so this never leaks between requests).
@@ -1824,6 +1827,11 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
         items = items[:int(top_n)]
     missing = ([] if is_gl else
                _missing_contributors(leaves if leaves is not None else ingredients, rank, is_dcp=is_dcp))
+    for m in missing:
+        # A custom profile fills in on its Edit page, as on its food page.
+        cached = _db.get_cached_food(conn, m["fdc_id"]) if m["fdc_id"] else None
+        custom = bool(cached and cached["user_drafted"] and m["fdc_id"] < 0)
+        m["fill_url"] = _contrib_fill_url(m, rank, is_dcp=is_dcp, custom_profile=custom)
     return {"items": items, "total": result["total"], "count": count,
             "top_n": top_n, "top_n_options": top_n_options, "is_dcp": is_dcp,
             "is_gl": is_gl, "missing": missing, **gl_extra}
@@ -5499,8 +5507,17 @@ async def food_fill_from(request: Request, fdc_id: int):
     # Local matches render now; online ones fill in via /search-rows/fill-from
     _t, search_ctx = _SEARCH_SCREENS["fill-from"](request.query_params, False, fdc_id)
     search_ctx.pop("food")
+    # want: the nutrient a Top Contributors no-data row sent you here for.
+    want = request.query_params.get("want", "")
+    want_label = None
+    if want == "aa":
+        want_label = "amino acids"
+    elif want and _usda.nutrient_label(want)[1]:  # unit is "" for an unknown key
+        want_label = _usda.nutrient_label(want)[0]
     return templates.TemplateResponse(request, "food_fill_from.html", {
         **search_ctx, "food": dict(target), "mode": "fill",
+        "want": want if want_label else "", "want_label": want_label,
+        "want_anchor": _contrib_source_anchor(want, is_dcp=want == "aa") if want_label else None,
         "source_filters": _SOURCE_PICKER_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
         "omitted_sources": _omitted_source_labels(search_ctx["source"], _SOURCE_PICKER_FILTERS),
     })

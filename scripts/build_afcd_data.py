@@ -41,6 +41,7 @@ KJ_PER_KCAL = 4.184
 # {column label -> (our_key, multiplier)}. Multiplier converts AFCD's unit to
 # ours — mostly 1.0; amino acids are mg in AFCD, g in our schema (÷1000).
 _COLUMN_MAP: dict[str, tuple[str, float]] = {
+    "Moisture (water) \n(g)":                                ("water_g",          1.0),
     "Protein \n(g)":                                          ("protein_g",        1.0),
     "Fat, total \n(g)":                                       ("fat_g",            1.0),
     "Available carbohydrate, without sugar alcohols \n(g)":   ("carbs_g",          1.0),

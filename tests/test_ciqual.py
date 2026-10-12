@@ -120,3 +120,14 @@ class TestGetFoodDetailById:
 
     def test_unknown_id_returns_none(self):
         assert _ciqual.get_food_detail_by_id(-6_999_999_999) is None
+
+
+def test_bundled_data_has_water():
+    """The shipped ciqual_data.json carries water (water_g) for most foods —
+    the Top Contributors "Find this data" search relies on it (see
+    scripts/build_ciqual_data.py). Reads the real file, not the fixture."""
+    import json
+    from pathlib import Path
+    records = json.loads((Path(__file__).parent.parent / "ciqual_data.json").read_text())
+    with_water = sum(1 for r in records if "water_g" in r["nutrients"])
+    assert with_water > len(records) * 0.8

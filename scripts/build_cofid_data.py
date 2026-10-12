@@ -45,6 +45,7 @@ OUTPUT = Path(__file__).parent.parent / "cofid_data.json"
 # Multiplier converts CoFID's unit to ours; all of these already match (g/mg/µg).
 _SHEETS: list[tuple[str, dict[str, tuple[str, float]]]] = [
     ("1.3 Proximates", {
+        "Water (g)":               ("water_g",          1.0),
         "Protein (g)":             ("protein_g",        1.0),
         "Fat (g)":                 ("fat_g",             1.0),
         "Carbohydrate (g)":        ("carbs_g",           1.0),

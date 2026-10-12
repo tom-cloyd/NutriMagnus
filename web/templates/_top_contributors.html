@@ -144,6 +144,7 @@
       <tr>
         <th>Food with no {{ "amino acid data" if is_dcp else "data for " ~ ns.label }}</th>
         <th class="num-col">Amount used</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -155,10 +156,13 @@
           {% else %}{{ m.food_name }}{% endif %}
         </td>
         <td class="num-col">{{ m.grams | round | int }}&thinsp;g</td>
+        <td>{% if m.fill_url %}<a href="{{ m.fill_url }}" class="btn btn-sm btn-outline-secondary py-0"
+               title="Search for this food in USDA, the other food tables and your Food Cache, and copy the values it lacks from a match">Find {{ "amino acid data" if is_dcp else "this data" }} &rarr;</a>{% endif %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  <p class="mt-1 mb-1"><small><strong>Where to get the missing data:</strong> click <strong>Find {{ "amino acid data" if is_dcp else "this data" }}</strong> to search the food tables for a match to copy from. Which sources to try, in what order, for {{ "amino acids" if is_dcp else ns.label }}: {{ manual_link(contrib_source_anchor(contributor_rank, is_dcp=is_dcp), "where to find it") }}</small></p>
   <p class="muted mt-1"><small>No data is not the same as none: the total above may be too low by whatever these foods contain. A food's page shows where its data came from; Foods &rarr; 9 lists every food in use {% if is_dcp %}<a href="/food/cache/db-check#missing-aa">with no amino acid data</a>{% else %}<a href="/food/cache/db-check#completeness">with missing nutrient data</a>{% endif %}.</small></p>
 </details>
 {% endif %}

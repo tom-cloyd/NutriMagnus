@@ -7469,3 +7469,12 @@ def test_top_contributors_offers_foods_with_no_data(client: TestClient, db_conn)
     assert "Iron Unknown" in block
     assert "Iron Zero" not in block and "Iron Rich" not in block
     assert "150&thinsp;g" in block
+    # Each row offers to find the data; the list links to where to look.
+    assert '/food/990103/fill-from?q=Iron+Unknown&amp;want=iron_mg' in block
+    assert 'href="/manual#key-iron"' in block
+
+    fill = client.get("/food/990103/fill-from?q=Iron&want=iron_mg").text
+    assert "You came here for this food" in fill and "<strong>Iron</strong>" in fill
+    assert 'href="/manual#key-iron"' in fill
+    assert 'name="want" value="iron_mg"' in fill
+    assert "You came here for" not in client.get("/food/990103/fill-from?q=Iron&want=bogus").text

@@ -11,6 +11,7 @@ for totals.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/top_contributors.py — nutrient contributor ranking"
 """
 import sqlite3
+from urllib.parse import urlencode
 
 import db as _db
 import diaas as _diaas
@@ -128,6 +129,54 @@ def rank_contributors_by_gl(ingredients: list[dict], conn: sqlite3.Connection,
     return {"items": contributions, "total": total,
             "gaps": [g for g in whole["gaps"] if g["reason"] == _gl.GAP_NO_GI],
             "coverage_pct": whole["coverage_pct"]}
+
+
+# Each nutrient's entry in the manual's Appendix G (Full Nutrient Key), whose
+# "Where to find it" line says where to get data a food lacks. Amino acids
+# (DCP) have no G entry of their own; their advice is under #key-sources.
+_SOURCE_ANCHORS = {
+    "calories": "key-calories", "protein_g": "key-protein", "carbs_g": "key-carbs",
+    "fiber_g": "key-fiber", "sugar_g": "key-sugar", "fat_g": "key-fat",
+    "saturated_fat_g": "key-saturated-fat", "mono_fat_g": "key-mono-fat", "poly_fat_g": "key-poly-fat",
+    "water_g": "key-water", "water_drinks_g": "key-water", "water_food_g": "key-water",
+    "omega3_ala_mg": "key-ala", "omega3_epa_mg": "key-epa", "omega3_dha_mg": "key-dha", "omega6_la_mg": "key-la",
+    "calcium_mg": "key-calcium", "iron_mg": "key-iron", "magnesium_mg": "key-magnesium",
+    "phosphorus_mg": "key-phosphorus", "potassium_mg": "key-potassium", "sodium_mg": "key-sodium",
+    "zinc_mg": "key-zinc", "iodine_mcg": "key-iodine", "selenium_mcg": "key-selenium",
+    "vitamin_a_mcg": "key-vitamin-a", "vitamin_c_mg": "key-vitamin-c", "vitamin_d_mcg": "key-vitamin-d",
+    "vitamin_e_mg": "key-vitamin-e", "vitamin_k_mcg": "key-vitamin-k", "thiamin_mg": "key-thiamin",
+    "riboflavin_mg": "key-riboflavin", "niacin_mg": "key-niacin", "b6_mg": "key-b6",
+    "folate_mcg": "key-folate", "b12_mcg": "key-b12",
+    "beta_carotene_mcg": "key-beta-carotene", "alpha_carotene_mcg": "key-alpha-carotene",
+    "lycopene_mcg": "key-lycopene", "lutein_zeaxanthin_mcg": "key-lutein", "choline_mg": "key-choline",
+    "beta_sitosterol_mg": "key-beta-sitosterol", "isoflavones_mg": "key-isoflavones",
+}
+
+
+def source_anchor(nutrient_key: str, *, is_dcp: bool = False) -> str:
+    """Manual anchor saying where to find data for `nutrient_key` (with
+    is_dcp, amino acids) — linked from the no-data table under Top
+    Contributors. Falls back to the general ranked list of sources."""
+    if is_dcp:
+        return "key-sources-aa"
+    return _SOURCE_ANCHORS.get(nutrient_key, "key-sources")
+
+
+def fill_url(row: dict, nutrient_key: str, *, is_dcp: bool = False, custom_profile: bool = False) -> str | None:
+    """Where to fill in a no-data food from another food, searching for its
+    own name: Fill in nutrients from another food, or a custom profile's
+    Edit page (which has the same searches, one for amino acids and one for
+    other nutrients). None for a recipe or a name-only food. `want` names
+    the nutrient the search is for (aa for amino acids)."""
+    fdc_id = row.get("fdc_id")
+    if not fdc_id or row.get("recipe_id"):
+        return None
+    name = row["food_name"].lstrip("* ").strip()
+    want = "aa" if is_dcp else nutrient_key
+    if custom_profile:
+        field = "aa_source_q" if is_dcp else "nutrient_source_q"
+        return f"/food/custom-profiles/{fdc_id}/edit?" + urlencode({field: name})
+    return f"/food/{fdc_id}/fill-from?" + urlencode({"q": name, "want": want})
 
 
 def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: bool = False) -> list[dict]:

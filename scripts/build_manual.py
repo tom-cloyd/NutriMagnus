@@ -220,12 +220,13 @@ body {
     border-radius: 3px;
     color: var(--toc-fg);
     cursor: pointer;
-    font-size: 9px;
+    font-size: 11px;
     text-transform: none;
     letter-spacing: normal;
     padding: 1px 5px;
     flex: none;
 }
+#toc-h2-tools { display: flex; align-items: center; gap: 0.75em; }
 #toc-collapse-all:hover { background: var(--accent-light); color: var(--accent); }
 #toc-sidebar .toc { list-style: none; }
 #toc-sidebar .toc li { padding: 1px 0; }
@@ -246,23 +247,55 @@ body {
 #toc-sidebar .toc ul ul a { font-size: 13px; }
 
 /* Per-heading collapse toggle + collapsed state */
-#toc-sidebar .toc li.toc-has-children { position: relative; padding-left: 1.05em; }
+#toc-sidebar .toc li.toc-has-children { position: relative; padding-left: 1.3em; }
 #toc-sidebar .toc li.toc-has-children > a { padding-left: 0; text-indent: 0; }
 #toc-sidebar .toc .toc-toggle {
     position: absolute;
     left: 0;
-    top: 2px;
+    top: 1px;
     background: none;
     border: none;
     cursor: pointer;
     color: var(--muted);
-    font-size: 9px;
-    width: 1em;
+    font-size: 18px;
+    width: 0.9em;
     padding: 0;
-    line-height: 1.4;
+    line-height: 1;
 }
 #toc-sidebar .toc .toc-toggle:hover { color: var(--accent); }
 #toc-sidebar .toc li.toc-collapsed > ul { display: none; }
+
+/* "How to use this list" box under the TOC, and the link that re-shows it */
+#toc-tips {
+    margin: 1.25rem 0.25rem 0.5rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--accent-light);
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--fg);
+}
+#toc-tips ul { margin: 0.35rem 0 0.5rem 1.1em; padding: 0; }
+#toc-tips li { margin: 0.15rem 0; }
+#toc-tips b { color: var(--accent); font-size: 17px; line-height: 1; }
+#toc-tips a { font-size: 12.5px; margin-right: 0.75em; }
+#toc-tips-dismiss {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--toc-fg);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 1px 6px;
+}
+#toc-tips-dismiss:hover { color: var(--accent); }
+#toc-tips-show {
+    font-size: 11.5px;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: normal;
+}
 
 /* Currently-visible section, kept in sync with scroll position */
 #toc-sidebar .toc a.toc-current {
@@ -824,55 +857,134 @@ JS = """\
        headings" (h2 — Preface, Part 1, Part 2, ...) are its grandchildren.
        Fall back to the root list itself if there's no such wrapper. */
     var mainList = root.querySelector(':scope > li > ul') || root;
-    var mainLis = Array.prototype.filter.call(mainList.children, function (el) {
-      return el.tagName === 'LI';
-    });
 
-    mainLis.forEach(function (li) {
-      var childUl = li.querySelector(':scope > ul');
-      if (!childUl) return;
+    /* Every entry at every depth that has sub-entries gets its own toggle,
+       and the whole list starts collapsed — so a huge Part opens one level
+       at a time instead of dumping its entire outline at once. The scroll-
+       spy below (expandAncestors) opens just the path to the current
+       section. */
+    var parentLis = Array.prototype.filter.call(
+      mainList.querySelectorAll('li'),
+      function (li) { return !!li.querySelector(':scope > ul'); }
+    );
+
+    function setCollapsed(li, collapsed) {
+      li.classList.toggle('toc-collapsed', collapsed);
+      var btn = li.querySelector(':scope > .toc-toggle');
+      if (btn) btn.textContent = collapsed ? '▸' : '▾';
+    }
+
+    function setBranch(li, collapsed) {
+      setCollapsed(li, collapsed);
+      li.querySelectorAll('li.toc-has-children').forEach(function (d) {
+        setCollapsed(d, collapsed);
+      });
+    }
+
+    parentLis.forEach(function (li) {
       var a = li.querySelector(':scope > a');
       var btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'toc-toggle';
+      btn.title = 'Click this arrow: show the next level down.\\n' +
+                  'Double-click this arrow: open everything below.';
       btn.setAttribute('aria-label', 'Collapse or expand this section');
-      btn.textContent = '▾';
       li.classList.add('toc-has-children');
       li.insertBefore(btn, a);
+      setCollapsed(li, true);
+
+      /* Single click opens ONE level (sub-entries shown, each still shut)
+         or closes the entry. A double-click arrives as two clicks — which
+         leave the entry back where it started — followed by dblclick, so
+         dblclick acts on that starting state: shut -> open the whole
+         branch, open -> shut the whole branch. */
       btn.addEventListener('click', function (e) {
         e.preventDefault();
-        var collapsed = li.classList.toggle('toc-collapsed');
-        btn.textContent = collapsed ? '▸' : '▾';
-      });
-      /* Clicking the heading text itself also expands a collapsed section
-         (in addition to navigating to it) so it doesn't look "stuck" shut. */
-      a.addEventListener('click', function () {
         if (li.classList.contains('toc-collapsed')) {
-          li.classList.remove('toc-collapsed');
-          btn.textContent = '▾';
+          setCollapsed(li, false);
+          li.querySelectorAll('li.toc-has-children').forEach(function (d) {
+            setCollapsed(d, true);
+          });
+        } else {
+          setCollapsed(li, true);
         }
+      });
+      btn.addEventListener('dblclick', function (e) {
+        e.preventDefault();
+        setBranch(li, !li.classList.contains('toc-collapsed'));
+      });
+      /* Clicking the heading text itself also opens a collapsed entry one
+         level (in addition to navigating to it) so it doesn't look "stuck"
+         shut. */
+      if (a) a.addEventListener('click', function () {
+        if (li.classList.contains('toc-collapsed')) setCollapsed(li, false);
       });
     });
 
-    if (!mainLis.length) return;
+    if (!parentLis.length) return;
 
-    var header = document.querySelector('#search-howto-row');
+    /* Lives beside the "Contents" heading, not in the search row above —
+       next to search's ▲/▼ buttons it read as their companion. */
+    var contentsH2 = document.querySelector('#toc-scroll h2');
+    var tools = document.createElement('span');
+    tools.id = 'toc-h2-tools';
+    contentsH2.appendChild(tools);
     var allBtn = document.createElement('button');
     allBtn.type = 'button';
     allBtn.id = 'toc-collapse-all';
-    allBtn.textContent = 'Collapse all';
-    header.appendChild(allBtn);
+    allBtn.textContent = 'Expand all';
+    tools.appendChild(allBtn);
 
-    var allCollapsed = false;
+    var allCollapsed = true;
     allBtn.addEventListener('click', function () {
       allCollapsed = !allCollapsed;
-      mainLis.forEach(function (li) {
-        if (!li.classList.contains('toc-has-children')) return;
-        li.classList.toggle('toc-collapsed', allCollapsed);
-        var btn = li.querySelector(':scope > .toc-toggle');
-        if (btn) btn.textContent = allCollapsed ? '▸' : '▾';
-      });
+      parentLis.forEach(function (li) { setCollapsed(li, allCollapsed); });
       allBtn.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
+    });
+
+    /* "How to use this list" box under the last TOC entry — visible on a
+       first visit, since the list starts collapsed and short. "Got it"
+       hides it for good (localStorage); the "Tips" link beside the
+       Contents heading brings it back. */
+    var TIPS_KEY = 'numa_manual_toc_tips_hidden';
+    var tocScroll = document.getElementById('toc-scroll');
+    var tips = document.createElement('div');
+    tips.id = 'toc-tips';
+    tips.innerHTML =
+      '<strong>How to use this list</strong>' +
+      '<ul>' +
+      '<li>Click the small <b>▸</b> arrow beside a title to show the next level down.</li>' +
+      '<li>Double-click the <b>▸</b> arrow to open everything below it at once.</li>' +
+      '<li>Click the <b>▾</b> arrow again to close it.</li>' +
+      '<li>Click a title itself to jump to that part of the manual.</li>' +
+      '</ul>' +
+      '<a href="#toc-howto">More about this</a>' +
+      '<button type="button" id="toc-tips-dismiss">Got it — hide this</button>';
+    tocScroll.appendChild(tips);
+
+    var tipsLink = document.createElement('a');
+    tipsLink.href = '#toc-tips';
+    tipsLink.id = 'toc-tips-show';
+    tipsLink.textContent = 'How to use this list';
+    tools.insertBefore(tipsLink, allBtn);
+
+    function showTips(show) {
+      tips.style.display = show ? '' : 'none';
+      tipsLink.style.display = show ? 'none' : '';
+    }
+    var hidden = false;
+    try { hidden = localStorage.getItem(TIPS_KEY) === '1'; } catch (e) {}
+    showTips(!hidden);
+
+    document.getElementById('toc-tips-dismiss').addEventListener('click', function () {
+      try { localStorage.setItem(TIPS_KEY, '1'); } catch (e) {}
+      showTips(false);
+    });
+    tipsLink.addEventListener('click', function (e) {
+      e.preventDefault();
+      try { localStorage.removeItem(TIPS_KEY); } catch (e2) {}
+      showTips(true);
+      tips.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     });
   });
 })();
