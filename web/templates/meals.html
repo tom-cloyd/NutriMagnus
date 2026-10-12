@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Meals{% endblock %}
+{% import "_day_profile_switch.html" as _dps %}
 
 {% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
 
@@ -92,6 +93,12 @@
 <h3 class="mb-2">Selected meals
   <small class="muted fw-normal" style="font-size:0.875rem">(Showing {{ meals|length }} of {{ total }} meal{% if total != 1 %}s{% endif %}{% if date_filter %} on or before {{ date_filter }}{% endif %}{% if hidden > 0 %} — {{ hidden }} not shown. Raise "Number shown" above to see more{% endif %})</small>
 </h3>
+<p class="muted mb-2" style="max-width:60rem"><small><strong>Figures in parentheses</strong> under a meal&rsquo;s calories and
+nutrients are that meal&rsquo;s share of the whole day&rsquo;s goal for that nutrient &mdash; &ldquo;(23%)&rdquo; means this meal
+supplies 23% of what the day calls for. They&rsquo;re plain, not coloured: one meal is only part of a day. A nutrient with no
+daily goal (sugar, say) shows its figure alone. The goals come from the profile each day is scored against: the one it was
+pinned to, or, with the <strong>current profile</strong> switch under its date ticked, your profile as it is now.
+{{ manual_link("meals-list") }}</small></p>
 <table class="table table-sm table-hover">
   <thead class="table-light">
     <tr>
@@ -100,10 +107,10 @@
       <th>Date</th>
       <th class="text-center">Complete</th>
       <th class="num-col">Items</th>
-      <th class="num-col">Calories</th>
       <th class="num-col" title="Digestible Complete Protein for this meal">Meal<br>DCP</th>
       <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day<br>DCP</th>
       {% if show_pct_col %}<th class="num-col" title="Day DCP ÷ that date's own protein target (minimum — meet or exceed)">% of<br>goal (min)</th>{% endif %}
+      <th class="num-col">Calories</th>
       {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
       {% for col in meal_nutrient_cols %}
       <th class="num-col" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
@@ -116,7 +123,9 @@
     <tr>
       <td class="num-col muted">{{ meal.id }}</td>
       <td><a href="/meal/{{ meal.id }}">{{ meal.name }}</a></td>
-      <td>{{ meal.meal_date }}</td>
+      <td>{{ meal.meal_date }}{% if meal.first_of_date and meal.day_has_profile %}
+        {{ _dps.switch(meal.meal_date, meal.day_follows_current,
+                       request.url.path ~ ('?' ~ request.url.query if request.url.query else ''), compact=true) }}{% endif %}</td>
       <td class="text-center">
         {% if meal.complete %}
         <span class="text-success" title="Complete">&#10003;</span>
@@ -125,15 +134,6 @@
         {% endif %}
       </td>
       <td class="num-col">{{ meal.item_count }}</td>
-      <td class="num-col">
-        {% if meal.calories is not none %}
-          {{ "%.0f"|format(meal.calories) }}
-        {% elif meal.bcp_computed_at %}
-          <span class="muted">n/a</span>
-        {% else %}
-          <span class="muted">—</span>
-        {% endif %}
-      </td>
       <td class="num-col">
         {% if meal.bcp_g is not none %}
           <span class="status-met">{{ "%.1f"|format(meal.bcp_g) }}</span>
@@ -159,6 +159,16 @@
         {% endif %}
       </td>
       {% endif %}
+      <td class="num-col">
+        {% if meal.calories is not none %}
+          {{ "%.0f"|format(meal.calories) }}
+          {% if meal.calories_pct is not none %}<br><small class="muted" title="This meal&rsquo;s share of the day&rsquo;s calorie goal (from the profile for {{ meal.meal_date }})">({{ meal.calories_pct }}%)</small>{% endif %}
+        {% elif meal.bcp_computed_at %}
+          <span class="muted">n/a</span>
+        {% else %}
+          <span class="muted">—</span>
+        {% endif %}
+      </td>
       {% if show_profile_col %}
       <td>
         {% if meal.first_of_date %}
@@ -170,6 +180,7 @@
       <td class="num-col">
         {% if meal.nutrient_values[col.key] is not none %}
           {{ meal.nutrient_values[col.key] }}
+          {% if meal.nutrient_pcts[col.key] is defined %}<br><small class="muted" title="This meal&rsquo;s share of the day&rsquo;s goal for this nutrient (from the profile for {{ meal.meal_date }})">({{ meal.nutrient_pcts[col.key] }}%)</small>{% endif %}
         {% elif meal.bcp_computed_at %}
           <span class="muted">n/a</span>
         {% else %}

@@ -11,6 +11,7 @@
 </nav>
 
 <h2>Translate "{{ recipe.name }}" for printing</h2>
+{{ food_id_tag(None, recipe.id) }}
 <p class="muted">NuMa doesn't call a translation service itself — you paste the generated
 prompt into an AI chat tool you already use, translate it there, then paste the reply back
 here for review before saving. Only recipe text (name, description, instructions, ingredient

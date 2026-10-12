@@ -5,6 +5,7 @@ Key fixtures:
   use_test_db       — autouse; redirects all db.get_db() calls to a per-test
                       temp database so tests never touch ~/.local/share/numa/numa.db
   use_test_profile  — autouse; redirects profile._PROFILES_DIR/_ACTIVE_NAME_FILE to temp paths
+  use_test_prefs    — autouse; redirects web/backend.py's prefs.json to a per-test temp path
   no_off            — autouse; stubs Open Food Facts search/barcode lookup
   no_cnf            — autouse; stubs Canadian Nutrient File search/detail lookup
   db_conn           — direct sqlite3 connection to the temp DB for assertions
@@ -154,6 +155,19 @@ def use_test_profile(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) ->
     (profiles_dir / "Default.json").write_text(
         _json.dumps(dataclasses.asdict(default_profile), indent=2) + "\n"
     )
+
+
+@pytest.fixture(autouse=True)
+def use_test_prefs(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point web/backend.py's prefs.json at a per-test temp path (not created:
+    a missing file means default settings), so no test reads the owner's
+    saved choices or writes over them. Before this, only some test files did
+    it themselves; elsewhere a saved Compare basis of "recipe" in the real
+    prefs.json made per-100 g Compare tests fail on the owner's machine alone.
+    Applied automatically to every test; a test file may still redirect it
+    again to a pre-filled file of its own."""
+    from web import backend as _backend
+    monkeypatch.setattr(_backend, "_PREFS_FILE", tmp_path / "test_prefs.json")
 
 
 @pytest.fixture(autouse=True)

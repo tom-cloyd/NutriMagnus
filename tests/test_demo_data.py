@@ -533,6 +533,8 @@ def test_apply_improvement_rewrites_recipe_keeping_its_id(
                  [_recipe("* R", [["* A", 50, "g", "food"], ["* B", 50, "g", "food"]], servings=2,
                           description="better")])
     assert demo_data.pending_changes(db_conn)["improved_recipes"] == ["* R"]
+    # Each listed recipe can show its code: the user's copy's id, by name.
+    assert demo_data.pending_changes(db_conn)["recipe_ids"]["* R"] == rid
 
     assert demo_data.apply_improvements(db_conn, [], ["* R"])["recipes"] == 1
     row = db_conn.execute("SELECT id, servings, description FROM recipes WHERE name = '* R'").fetchone()

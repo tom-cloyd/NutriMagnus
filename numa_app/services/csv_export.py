@@ -56,7 +56,7 @@ def compare_to_csv(entries: list[dict], compare_groups: list[dict]) -> str:
     to CSV text. Every entry's values are per 100g of that food or recipe."""
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["Nutrient", "Unit"] + [f'{e["name"]} (100 g)' for e in entries])
+    writer.writerow(["Nutrient", "Unit"] + [f'{e["name"]} ({e.get("basis_label", "100 g")})' for e in entries])
     for group in compare_groups:
         writer.writerow([group["name"]])
         for row in group["rows"]:

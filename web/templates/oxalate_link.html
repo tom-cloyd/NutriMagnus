@@ -11,7 +11,7 @@
 
 <h2>Correct oxalate match {{ manual_link("oxalate-link-correction") }}</h2>
 <p class="muted">
-  NutriMagnus matches <strong>{{ food.name }}</strong> against a reference table of foods with known oxalate
+  NutriMagnus matches <strong>{{ food.name }}</strong>{{ food_id_tag(food.fdc_id) }} against a reference table of foods with known oxalate
   content. If that automatic match looks wrong, search below and pick the correct entry — or say this food
   isn't in the reference table at all.
 </p>

@@ -12,9 +12,9 @@
   <td class="muted">{% if food.has_notes %}<span title="Has a saved note">y</span>{% endif %}</td>
   <td>
     {% if food._type == "recipe" %}
-    <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>
+    <a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>{{ food_id_tag(None, food.recipe_id) }}
     {% else %}
-    <a href="{{ food_url(food) }}"><strong>{{ food.name }}</strong></a>
+    <a href="{{ food_url(food) }}"><strong>{{ food.name }}</strong></a>{{ food_id_tag(food.fdc_id | default(none)) }}
     {% endif %}
   </td>
   <td class="muted">{{ food.brand or "—" }}</td>

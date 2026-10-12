@@ -53,7 +53,7 @@
   <tbody>
     {% for food in foods %}
     <tr>
-      <td><strong>{{ food.name }}</strong></td>
+      <td><strong>{{ food.name }}</strong>{{ food_id_tag(food.fdc_id) }}</td>
       <td class="muted">{{ food_type(food, "—") }}</td>
       <td class="text-center muted"{% if food.gi_source %} title="GI value taken from: {{ food.gi_source }}"{% endif %}>
         {{ "%.0f"|format(food.gi) if food.gi is not none else "—" }}

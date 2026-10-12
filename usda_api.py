@@ -34,6 +34,9 @@ NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
     1258: ("saturated_fat_g",   "Saturated Fat",      "g"),
     1292: ("mono_fat_g",        "Monounsaturated Fat","g"),
     1293: ("poly_fat_g",        "Polyunsaturated Fat","g"),
+    # Total water (moisture). Split into "from drinks" / "from food" only when
+    # meals and recipes are totalled — see numa_app/services/water.py.
+    1051: ("water_g",           "Water",              "g"),
     1404: ("omega3_ala_mg",     "ALA (omega-3)",      "mg"),
     1278: ("omega3_epa_mg",     "EPA (omega-3)",      "mg"),
     1272: ("omega3_dha_mg",     "DHA (omega-3)",      "mg"),
@@ -82,6 +85,15 @@ NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
     1221: ("aa_histidine_g",    "Histidine",          "g"),
 }
 
+# Nutrients numa works out itself when it totals meals, recipes and days —
+# never stored on a food, so not in NUTRIENT_MAP (imports, CSV and the food
+# editor ignore them). key -> (label, unit), like NUTRIENT_MAP's values.
+# Water's split: see numa_app/services/water.py.
+DERIVED_NUTRIENTS: dict[str, tuple[str, str]] = {
+    "water_drinks_g": ("Water from drinks", "g"),
+    "water_food_g":   ("Water from food",   "g"),
+}
+
 # USDA's food/{fdcId} detail endpoint 404s for a subset of otherwise-valid,
 # searchable FDC records (a USDA API bug, confirmed against several Foundation
 # foods — not predictable from dataType or ID range). get_food_detail() retries
@@ -100,6 +112,7 @@ NUTRIENT_NUMBER_MAP: dict[str, str] = {
     "606": "saturated_fat_g",
     "645": "mono_fat_g",
     "646": "poly_fat_g",
+    "255": "water_g",
     "851": "omega3_ala_mg",
     "629": "omega3_epa_mg",
     "621": "omega3_dha_mg",
@@ -255,7 +268,10 @@ _SEARCH_ALIASES: list[tuple[tuple[str, ...], int, str, str]] = [
     # Note: nutritional yeast has no SR Legacy entry; AA data comes from complement table
     (("flax", "linseed"),               169414,  "Seeds, flaxseed",                            "SR Legacy"),
     (("chia",),                         170554,  "Seeds, chia seeds, dried",                   "SR Legacy"),
-    (("okara",),                        2346405, "Okara",                                      "SR Legacy"),
+    # USDA's okara is the wet pulp; say so, since the flour is what's usually
+    # wanted. (No dry word such as "flour" in the label: water.dry_word() would
+    # then flag the wet food as named dry wherever this label is stored.)
+    (("okara",),                        172452,  "Okara (wet pulp, as pressed — about 82% water)", "SR Legacy"),
     (("hemp seed", "hemp protein"),     170148,  "Seeds, hemp seed, hulled",                   "SR Legacy"),
     (("oat",),                          173904,  "Cereals, oats, regular and quick, not fortified, dry", "SR Legacy"),
 ]
@@ -311,12 +327,17 @@ def search_foods(query: str, page_size: int = 15,
     data = _get("foods/search", params)
     all_results = data.get("foods", [])
 
-    # Inject known aliases that the search index may not surface
+    # Inject known aliases that the search index may not surface; one it did
+    # surface still takes the alias's label (which may clarify USDA's name).
     alias_ids = {r["fdcId"] for r in all_results}
     for alias in _alias_matches(query):
         if alias["fdcId"] not in alias_ids:
             all_results.insert(0, alias)
             alias_ids.add(alias["fdcId"])
+        else:
+            for r in all_results:
+                if r["fdcId"] == alias["fdcId"]:
+                    r["description"] = alias["description"]
 
     if not all_results:
         return []
@@ -383,11 +404,50 @@ def get_food_portions_raw(fdc_id: int) -> list[dict]:
     return (_get(f"food/{fdc_id}", {}) or {}).get("foodPortions") or []
 
 
+def _food_category(data: dict) -> str | None:
+    """USDA's category for a food, as plain text: foodCategory (Foundation /
+    SR Legacy, an object; sometimes a bare string), wweiaFoodCategory (Survey),
+    or brandedFoodCategory (Branded). Used only to guess whether a newly
+    cached food is a drink (numa_app/services/water.py)."""
+    for field in ("foodCategory", "wweiaFoodCategory"):
+        cat = data.get(field)
+        if isinstance(cat, dict):
+            cat = cat.get("description") or cat.get("wweiaFoodCategoryDescription")
+        if isinstance(cat, str) and cat.strip():
+            return cat.strip()
+    cat = data.get("brandedFoodCategory")
+    return cat.strip() if isinstance(cat, str) and cat.strip() else None
+
+
+# USDA's multi-food endpoint (GET foods?fdcIds=...) takes at most 20 ids.
+_BATCH_SIZE = 20
+
+
+def get_water_values(fdc_ids: list[int]) -> dict[int, float]:
+    """Water (g per 100 g) for many foods at once, 20 per request, asking for
+    nutrient "255" alone in the abridged format so each reply stays small.
+    Foods USDA has no water value for (or doesn't return) are left out.
+    Raises USDAError on a failed request — the caller decides whether to keep
+    what earlier batches returned. Used by the Foods → 9 water backfill
+    (numa_app/services/water.py)."""
+    values: dict[int, float] = {}
+    for i in range(0, len(fdc_ids), _BATCH_SIZE):
+        chunk = fdc_ids[i:i + _BATCH_SIZE]
+        data = _get("foods", {"fdcIds": ",".join(str(f) for f in chunk),
+                              "format": "abridged", "nutrients": "255"})
+        for food in data or []:
+            water = _parse_food(food)["nutrients"].get("water_g")
+            if food.get("fdcId") is not None and water is not None:
+                values[int(food["fdcId"])] = water
+    return values
+
+
 def get_food_detail(fdc_id: int) -> dict:
     """
     Fetch full nutrient detail for one food. Returns a normalized dict with:
         fdcId, name, dataType, brand, servingSize, servingUnit,
-        householdServing, nutrients (our key → value mapping)
+        householdServing, nutrients (our key → value mapping), category
+        (USDA's food category text, or None — see _food_category)
 
     A subset of valid, searchable FDC records 404 on this default (full)
     endpoint — a USDA API bug, confirmed against several Foundation foods.
@@ -523,5 +583,6 @@ def _parse_food(data: dict) -> dict:
         "householdServing":household,
         "nutrients":       nutrients,
         "portions":        portions,
+        "category":        _food_category(data),
     }
 

@@ -13,8 +13,26 @@
     {{ manual_link("profile-setup") }}
   </summary>
 
-  {% if saved == 'profile' %}
-  <p class="status-met mt-2"><strong>&#10003; Profile saved.</strong></p>
+  {% if saved in ('profile', 'profile_applied') %}
+  <div id="profile-saved" class="mt-2 mb-3">
+    {% if saved == 'profile' %}
+    <p class="status-met mb-1"><strong>&#10003; Profile saved.</strong> Today&rsquo;s goals now follow it (unless you set
+    today&rsquo;s profile by hand), as do any days switched to &ldquo;score against my current profile&rdquo;.
+    Other days you&rsquo;ve logged keep the profile they were pinned to. {{ manual_link("day-profile") }}</p>
+    {% else %}
+    <p class="status-met mb-1"><strong>&#10003; {{ profile_applied }} day{{ "s" if profile_applied != 1 }} now scored against your current profile.</strong>
+    Each keeps its own pinned copy: switch one back on its day page or on Meals &amp; Log.</p>
+    {% endif %}
+    {% if profile_apply_error %}<p class="text-danger mb-1">That date couldn&rsquo;t be read &mdash; pick one with the date box.</p>{% endif %}
+    <form method="post" action="/settings/profile/apply-to-days" class="d-flex flex-wrap align-items-center gap-2">
+      <label for="apply-start" class="mb-0"><small>Also score every logged day from</small></label>
+      <input type="date" id="apply-start" name="start" class="form-control form-control-sm" style="width:auto" required>
+      <span><small>to today against this profile</small></span>
+      <button type="submit" class="btn btn-sm btn-outline-primary">Apply profile to those days</button>
+    </form>
+    <p class="muted mb-0"><small>Those days then follow later changes to your profile too, and each can be switched back to
+    its own pinned copy. Days whose profile you set by hand are left alone.</small></p>
+  </div>
   {% endif %}
 
   {% if not profile %}
@@ -127,6 +145,19 @@
       shows first — you can still switch for any individual lookup — and tailors the note NuMa shows beside a GI
       measured in people with diabetes: whether that value fits you, or is an approximation for you.</small></p>
     </div>
+
+    {% if track_water() %}
+    <div class="mb-3">
+      <label for="water_reference" class="form-label">Water goals from {{ manual_link("water-reference") }}</label>
+      <select class="form-select" id="water_reference" name="water_reference" style="max-width:34rem">
+        {% for key, text in water_references.items() %}
+        <option value="{{ key }}" {{ 'selected' if (profile.water_reference if profile else 'iom') == key }}>{{ text }}{{ ' (default)' if key == 'iom' }}</option>
+        {% endfor %}
+      </select>
+      <p class="muted mt-1"><small>Whose figures set your daily goals for total water and for drinks. Both are typical intakes of
+      healthy adults, not measured needs; the European ones are lower. Today&rsquo;s goals follow the change; earlier days keep theirs unless you apply your profile to them after saving.</small></p>
+    </div>
+    {% endif %}
 
     <div class="mb-3">
       <label for="gl_day_target" class="form-label">Daily glycemic load target (optional) {{ manual_link("gl-target") }}</label>
@@ -565,7 +596,7 @@
       <ul class="mt-0 mb-1" style="list-style:none; padding-left:0;">
         {% for food in starter_changes.improved_foods %}
         {% set d = starter_change_details.foods.get(food.fdc_id) %}
-        <li class="mb-2"><small><label><input type="checkbox" name="improve_fdc_id" value="{{ food.fdc_id }}"> Food: <strong>{{ food.name }}</strong></label></small>
+        <li class="mb-2"><small><label><input type="checkbox" name="improve_fdc_id" value="{{ food.fdc_id }}"> Food: <strong>{{ food.name }}</strong> ({{ food.code }})</label></small>
           {% if d %}
           <div class="ms-4 small">
             {% if not (d.rows or d.portions_added or d.portions_removed) %}
@@ -590,7 +621,7 @@
         {% endfor %}
         {% for name in starter_changes.improved_recipes %}
         {% set d = starter_change_details.recipes.get(name) %}
-        <li class="mb-2"><small><label><input type="checkbox" name="improve_recipe_name" value="{{ name }}"> Recipe: <strong>{{ name }}</strong></label></small>
+        <li class="mb-2"><small><label><input type="checkbox" name="improve_recipe_name" value="{{ name }}"> Recipe: <strong>{{ name }}</strong>{% if starter_changes.recipe_ids and starter_changes.recipe_ids.get(name) %} ({{ food_code(None, starter_changes.recipe_ids[name]) }}){% endif %}</label></small>
           {% if d %}
           <div class="ms-4 small">
             {% if not (d.fields or d.added or d.removed or d.changed) %}
@@ -705,7 +736,7 @@
     <p class="mt-2 mb-1"><small><strong>Recipes</strong></small></p>
     <ul class="mt-0 muted" style="list-style:none; padding-left:0;">
       {% for recipe in starter_status.recipes %}
-      <li><small>{{ recipe.name }}</small></li>
+      <li><small>{% if recipe.id %}{{ food_code(None, recipe.id) }} — {% endif %}{{ recipe.name }}</small></li>
       {% endfor %}
     </ul>
   </details>
@@ -951,6 +982,31 @@
       <span>weeks, even if nothing is new <span class="muted">(0 = never)</span></span>
     </div>
     <button type="submit" class="btn btn-primary btn-sm mt-2">Save reminder settings</button>
+  </form>
+</details>
+
+{# ── 14. Water tracking ────────────────────────────────────────────────── #}
+<details id="water-tracking" {% if saved == 'water' %}open{% endif %}>
+  <summary data-ak="w">14. <strong><u class="ak">W</u>ater Tracking</strong>
+    <span class="muted"> — water from drinks and from food, against a daily goal</span>
+  </summary>
+  <p class="mt-2" style="max-width:48rem">With this on, meal, recipe and day pages show a Water row split into water from
+  drinks and water from food. Foods and recipes get a &ldquo;This is a drink&rdquo; tick-box, and NuMa flags a food whose
+  name says it&rsquo;s dry (a flour or powder, say) but whose data says it&rsquo;s mostly water &mdash; the sign of a wet
+  food picked in place of the dry one. Turning it off hides all of this; no water values are deleted, so turning it
+  back on brings everything back. The goals are the US Institute of Medicine&rsquo;s: total water 3.7&nbsp;L a day for men
+  and 2.7&nbsp;L for women, of which drinks 3.0 and 2.2&nbsp;L. From age 65, a day&rsquo;s page also warns when its drinks come
+  to less than the minimum the European Society for Clinical Nutrition and Metabolism (ESPEN) recommends for older people
+  (2.0&nbsp;L men, 1.6&nbsp;L women). {{ manual_link("water-older") }}</p>
+  {% if saved == 'water' %}
+  <p class="status-met mt-2"><strong>&#10003; Water tracking is now {{ "on" if track_water() else "off" }}.</strong></p>
+  {% endif %}
+  <form method="post" action="/settings/water" class="mt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="track_water" value="1" id="track-water" {{ 'checked' if track_water() }}>
+      <label class="form-check-label" for="track-water">Track my water intake</label>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save water tracking setting</button>
   </form>
 </details>
 

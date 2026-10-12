@@ -1,0 +1,9 @@
+{# Notes under a day page's water rows — _water_day_notes() in web/backend.py:
+   NICE's weight-based figure (information only) and the high-protein reminder.
+   Included right after the nutrient section holding Water. #}
+{% if water_notes and (water_notes.nice or water_notes.protein) %}
+<div class="mb-2" style="max-width:52rem">
+  {% if water_notes.nice %}<p class="muted mb-1"><small>{{ water_notes.nice }} {{ manual_link("water-weight") }}</small></p>{% endif %}
+  {% if water_notes.protein %}<p class="muted mb-1"><small>{{ water_notes.protein }} {{ manual_link("water") }}</small></p>{% endif %}
+</div>
+{% endif %}

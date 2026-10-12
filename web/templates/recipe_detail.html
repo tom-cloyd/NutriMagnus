@@ -7,6 +7,7 @@
 {% import "_top_contributors.html" as _contrib %}
 {% import "_serving_note.html" as _sn %}
 {% import "_generic_density.html" as _gd with context %}
+{% import "_water_mark.html" as _wm %}
 {% import "_calorie_note.html" as _cal %}
 {% import "_gl_result.html" as _gl %}
 {% block title %}NutriMagnus — {{ recipe.name }}{% endblock %}
@@ -128,6 +129,7 @@
   {% endif %}
   <small class="text-muted">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %} defined{{ _sn.note(recipe.serving_size) }}</small>
 </div>
+{% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/recipe/%s/drink" % recipe.id, recipe.is_drink, "recipe") }}
 
 {% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
 <p class="mb-1">{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed{{ _sn.note(recipe.serving_size) }} &rArr;
@@ -167,12 +169,10 @@
     <button type="submit" class="btn btn-sm btn-outline-secondary"
             title="Create a new recipe named &quot;Copy of …&quot; with the same ingredients, servings, and text, then open it for editing. Useful for trying a variation (different ingredients or amounts) without changing the original">Copy recipe</button>
   </form>
+  {# delete_warning: _recipe_delete_warning() — names the meals and recipes
+     a delete would break. Single-quoted attribute: |tojson escapes ' but not ". #}
   <form method="post" action="/recipe/{{ recipe.id }}/delete" style="margin:0"
-        {% if referencing_recipes %}
-        onsubmit="return confirm('&quot;{{ recipe.name }}&quot; is used as a sub-recipe in: {{ referencing_recipes|map(attribute='name')|join(', ') }}.\n\nIf you delete it, those recipes will keep the ingredient line but flag it as a deleted sub-recipe. Delete anyway?')"
-        {% else %}
-        onsubmit="return confirm('Delete recipe &quot;{{ recipe.name }}&quot;? This cannot be undone.')"
-        {% endif %}>
+        onsubmit='return confirm({{ delete_warning | tojson }})'>
     <button type="submit" class="btn btn-sm btn-outline-danger">Delete recipe</button>
   </form>
 </div>
@@ -180,7 +180,7 @@
 {% if referencing_recipes %}
 <p class="text-warning">
   &#9888; Used as a sub-recipe in:
-  {% for r in referencing_recipes %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+  {% for r in referencing_recipes %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{{ food_id_tag(None, r.id) }}{% if not loop.last %}, {% endif %}{% endfor %}
 </p>
 {% endif %}
 
@@ -309,7 +309,7 @@
             <a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>{{ food_id_tag(None, recipe_id=ing.ref_recipe_id) }}
           {% else %}
             {{ ing.food_name }}{{ food_id_tag(ing.fdc_id) }}
-          {% endif %}
+          {% endif %}{{ _wm.mark(ing) }}
         </td>
         <td><small class="muted">{{ ing.notes or "" }}</small></td>
         <td style="white-space:nowrap">
@@ -333,6 +333,7 @@
     </tbody>
   </table>
   {{ _gd.footnote(ingredients) }}
+  {{ _wm.footnote(ingredients) }}
 </section>
 {% else %}
 <p class="muted">No ingredients yet. <a href="/recipe/{{ recipe.id }}/edit">Add ingredients.</a></p>
@@ -582,7 +583,7 @@
   <ul class="list-unstyled ms-2">
     {% for name in diaas.missing %}
     <li class="mb-1">
-      <small>&#9888; {{ name }}</small>
+      <small>&#9888; {{ name }}{{ food_id_tag(diaas.missing_fdc_ids.get(name) if diaas.missing_fdc_ids else None) }}</small>
       <a href="/recipe/{{ recipe.id }}/edit?q={{ name | urlencode }}"
          class="btn btn-outline-warning btn-sm ms-2">Find Foundation Food replacement</a>
       {{ aa_nn.button(diaas, name, "/recipe/" ~ recipe.id) }}
@@ -889,7 +890,7 @@ document.getElementById('complements-form').addEventListener('change', function 
     <tbody>
       {% for row in oxalate.rows %}
       <tr>
-        <td>{{ row.name }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %}</td>
+        <td>{{ row.name }}{{ food_id_tag(row.fdc_id) }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %}</td>
         <td class="num-col">{{ row.amount_g }}&thinsp;g</td>
         <td class="num-col">{{ row.mg }}&thinsp;mg</td>
         <td><span class="oxalate-cat oxalate-{{ row.category | replace(' ', '-') }}">{{ row.category | title }}</span></td>
@@ -902,21 +903,21 @@ document.getElementById('complements-form').addEventListener('change', function 
   <p class="{% if oxalate.rows %}mt-3{% else %}mt-1{% endif %} mb-1 muted" style="font-size:0.85rem"><em>Categorical report only — no quantitative data available:</em></p>
   <ul class="list-unstyled mt-0 mb-0" style="font-size:0.9rem">
     {% for row in oxalate.qualitative %}
-    <li class="mb-1">{{ row.name }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %} &mdash;
+    <li class="mb-1">{{ row.name }}{{ food_id_tag(row.fdc_id) }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %} &mdash;
       <span class="oxalate-cat oxalate-{{ row.category | replace(' ', '-') }}">{{ row.category | title }}</span>
     </li>
     {% endfor %}
   </ul>
   {% endif %}
   {% if oxalate.missing %}
-  <p class="muted mt-2" style="font-size:0.8rem">No oxalate data for: {{ oxalate.missing | join(' · ') }}</p>
+  <p class="muted mt-2" style="font-size:0.8rem">No oxalate data for: {% for n in oxalate.missing %}{{ n }}{{ food_id_tag(oxalate.missing_ids.get(n)) }}{{ ' · ' if not loop.last }}{% endfor %}</p>
   {% endif %}
   <p class="muted mt-1" style="font-size:0.8rem">~ = auto-matched, not yet confirmed &nbsp;&middot;&nbsp; Source: Harvard T.H. Chan School of Public Health</p>
   {% endif %}
   {% if ingredient_antinutrients %}
   {% if oxalate %}<hr class="my-2">{% endif %}
   {% for item in ingredient_antinutrients %}
-  <p class="mb-1"><strong>{{ item.food_name }}</strong></p>
+  <p class="mb-1"><strong>{{ item.food_name }}</strong>{{ food_id_tag(item.fdc_id, item.recipe_id) }}</p>
   {% for flag in item.flags %}
   <div class="antinutrient-card ms-3 mb-2">
     <header><strong>{{ flag.problem }}</strong></header>

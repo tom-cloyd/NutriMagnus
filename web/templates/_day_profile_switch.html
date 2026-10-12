@@ -1,0 +1,15 @@
+{# The per-day "score against my current profile" switch — POST
+   /day/<date>/profile-mode (web/backend.py day_profile_mode). On: the day
+   follows the current profile, its own pinned copy kept; off: that copy is
+   put back exactly. Submits as soon as it's flipped. `next` is where to
+   come back to. #}
+{% macro switch(meal_date, following, next, compact=false) %}
+<form method="post" action="/day/{{ meal_date }}/profile-mode" class="form-check form-switch {{ 'd-inline-block ms-2' if not compact else 'mb-0 mt-1' }}" style="font-size:0.8rem">
+  <input type="hidden" name="next" value="{{ next }}">
+  <input type="hidden" name="mode" value="{{ 'pinned' if following else 'current' }}">
+  <input class="form-check-input" type="checkbox" role="switch" id="dps-{{ meal_date }}" {{ 'checked' if following }}
+         onchange="this.form.submit()"
+         title="{% if following %}Scored against your current profile. Untick to go back to the profile this day was pinned to.{% else %}Scored against the profile this day was pinned to. Tick to score it against your current profile instead (the pinned copy is kept).{% endif %}">
+  <label class="form-check-label" for="dps-{{ meal_date }}">{% if compact %}current profile{% else %}Score this day against my current profile{% endif %}</label>
+</form>
+{% endmacro %}

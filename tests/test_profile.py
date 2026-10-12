@@ -185,7 +185,7 @@ class TestComputeRdaStructure:
             val, unit, rda_type = entry
             assert isinstance(val, float)
             assert isinstance(unit, str)
-            assert rda_type in ("target", "minimum", "limit"), f"{key}: bad type '{rda_type}'"
+            assert rda_type in ("target", "minimum", "limit", "goal"), f"{key}: bad type '{rda_type}'"
 
     def test_sodium_is_limit(self, male_35):
         rda = compute_rda(male_35)

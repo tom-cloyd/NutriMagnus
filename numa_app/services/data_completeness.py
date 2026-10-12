@@ -1,7 +1,7 @@
 """
 data_completeness.py — which nutrient groups a cached food is missing.
 
-The groups are the five blocks of a Nutritional Analysis table plus the
+The groups are the six blocks of a Nutritional Analysis table plus the
 amino acids shown under Protein Quality. A group counts as missing when the
 food has no value at all for it — except Macronutrients, which is missing
 when any of the four core values (calories, protein, carbs, fat) is absent,
@@ -27,6 +27,7 @@ GROUPS: list[tuple[str, str, list[str]]] = [
         "calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "sugar_g",
         "saturated_fat_g", "mono_fat_g", "poly_fat_g",
     ]),
+    ("water", "Water", ["water_g"]),
     ("omega", "Omega Fatty Acids", [
         "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg",
     ]),
@@ -55,8 +56,10 @@ GROUP_LABELS: dict[str, str] = {g: label for g, label, _ in GROUPS}
 # The completeness check's starting "groups to check". Omega and
 # phytonutrient values are absent from so many ordinary foods (most USDA
 # records never measured them) that checking them by default buries the
-# gaps that matter.
-DEFAULT_CHECKED: list[str] = [g for g in GROUP_KEYS if g not in ("omega", "phyto")]
+# gaps that matter. Water likewise: numa only began recording it in October
+# 2026, so every food cached before then lacks it until refreshed — tick
+# Water to list them.
+DEFAULT_CHECKED: list[str] = [g for g in GROUP_KEYS if g not in ("omega", "phyto", "water")]
 _GROUP_NUTRIENTS: dict[str, list[str]] = {g: keys for g, _, keys in GROUPS}
 
 

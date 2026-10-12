@@ -25,6 +25,7 @@ import diaas as _diaas
 import profile as _profile
 import usda as _usda
 from numa_app.services import glycemic_load as _gl
+from numa_app.services import water as _water
 from numa_app.services.rda_status import rda_status
 from numa_app.services.recipe_dcp import recipe_dcp_per_serving
 from numa_app.services.recipe_nutrients import expand_recipe_ingredients, recipe_serving_grams
@@ -93,7 +94,7 @@ class _Ctx:
     def nutrients_100g(self, fdc_id: int) -> dict:
         if fdc_id not in self.food_nuts:
             cached = _db.get_cached_food(self.conn, fdc_id)
-            self.food_nuts[fdc_id] = (json.loads(cached["nutrients_json"])
+            self.food_nuts[fdc_id] = (_water.tag(json.loads(cached["nutrients_json"]), _water.is_drink(cached))
                                       if cached and cached["nutrients_json"] else {})
         return self.food_nuts[fdc_id]
 
@@ -313,7 +314,9 @@ def _row_keys(groups: list[tuple[str, list[str]]], *totals: dict) -> list[tuple[
     """Display groups, plus "Other" for any non-amino-acid key present in the
     totals but not in a group — new nutrients show up without code changes."""
     known = {k for _, keys in groups for k in keys}
-    extra = sorted({k for t in totals for k in t if k not in known and not k.startswith("aa_")})
+    # Water is never "Other": when it isn't in `groups`, water tracking is off.
+    extra = sorted({k for t in totals for k in t
+                    if k not in known and not k.startswith("aa_") and k not in _water.ALL_KEYS})
     return list(groups) + ([("Other", extra)] if extra else [])
 
 
@@ -527,7 +530,7 @@ def _nutrient_row(key, dates, before, after, avg_before, avg_after,
             count = 0
             for d in dates:
                 t = rda_by_day[d].get(key)
-                if t and t[0] > 0 and rda_status(by_day[d].get(key, 0.0) / t[0] * 100, t[2]) != "met":
+                if t and t[0] > 0 and rda_status(by_day[d].get(key, 0.0) / t[0] * 100, t[2]) not in ("met", "reached"):
                     count += 1
             return count
         row["days_unmet_before"], row["days_unmet_after"] = unmet(before), unmet(after)

@@ -41,6 +41,7 @@ _CNF_ID_BASE = -3_000_000_000
 _NUTRIENT_MAP: dict[str, tuple[str, float]] = {
     "KCAL":       ("calories",         1.0),
     "PROT":       ("protein_g",        1.0),
+    "H2O":        ("water_g",          1.0),
     "CARB":       ("carbs_g",          1.0),
     "FAT":        ("fat_g",            1.0),
     "TDF":        ("fiber_g",          1.0),

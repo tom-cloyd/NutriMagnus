@@ -203,6 +203,56 @@ class TestFoodCache:
 # Recipes
 # ---------------------------------------------------------------------------
 
+class TestFoodRenamePropagates:
+    """Renaming a cached food updates the copies of its name that recipe
+    ingredients, food meal items and pantry entries keep — as a recipe
+    rename already did — leaving other foods' rows and starter marks alone."""
+
+    def _setup(self, conn):
+        _db.cache_food(conn, SAMPLE_FDC_ID, "Pure Okara Flour (dried)", "SR Legacy",
+                       None, 100.0, "g", SAMPLE_NUTRIENTS)
+        _db.cache_food(conn, 42, "Other Food", "SR Legacy", None, 100.0, "g", SAMPLE_NUTRIENTS)
+        rid = _db.recipe_create(conn, name="Soup", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(conn, rid, SAMPLE_FDC_ID, "PURE OKARA FLOUR", 10.0, "g")
+        _db.recipe_add_ingredient(conn, rid, 42, "Other Food", 10.0, "g")
+        mid = _db.meal_create(conn, "Lunch", "2026-10-11")
+        _db.meal_add_food(conn, mid, SAMPLE_FDC_ID, "Pure Okara Flour (dried)", 10.0, "g")
+        _db.pantry_add(conn, "* PURE OKARA FLOUR", SAMPLE_FDC_ID)
+        return rid, mid
+
+    def test_rename_updates_every_copy(self):
+        with _db.get_db() as conn:
+            rid, mid = self._setup(conn)
+            n = _db.update_cached_food_profile(conn, SAMPLE_FDC_ID, "Okara Flour, pure (dried)",
+                                               SAMPLE_NUTRIENTS, data_type="SR Legacy")
+            ings = {r["fdc_id"]: r["food_name"] for r in _db.recipe_get_ingredients(conn, rid)}
+            meal = [r["food_name"] for r in _db.meal_get_items(conn, mid)]
+            pantry = [r["food_name"] for r in conn.execute("SELECT food_name FROM pantry")]
+        assert n == 3
+        assert ings == {SAMPLE_FDC_ID: "Okara Flour, pure (dried)", 42: "Other Food"}
+        assert meal == ["Okara Flour, pure (dried)"]
+        assert pantry == ["* Okara Flour, pure (dried)"]  # its own starter mark kept
+
+    def test_digestibility_override_follows_the_rename(self):
+        import diaas as _diaas
+        with _db.get_db() as conn:
+            self._setup(conn)
+            _diaas.diaas_override_set(conn, "Pure Okara Flour (dried)", 0.9)
+            _db.update_cached_food_profile(conn, SAMPLE_FDC_ID, "Okara Flour, pure (dried)",
+                                           SAMPLE_NUTRIENTS, data_type="SR Legacy")
+            assert _diaas.get_digestibility("Okara Flour, pure (dried)", conn) == (0.9, "user override")
+            assert _diaas.diaas_override_get(conn, "Pure Okara Flour (dried)") is None
+
+    def test_unchanged_name_touches_nothing(self):
+        with _db.get_db() as conn:
+            rid, _mid = self._setup(conn)
+            n = _db.update_cached_food_profile(conn, SAMPLE_FDC_ID, "Pure Okara Flour (dried)",
+                                               SAMPLE_NUTRIENTS, data_type="SR Legacy")
+            ings = [r["food_name"] for r in _db.recipe_get_ingredients(conn, rid)]
+        assert n == 0
+        assert "PURE OKARA FLOUR" in ings
+
+
 class TestRecipes:
     def test_create_recipe(self):
         with _db.get_db() as conn:

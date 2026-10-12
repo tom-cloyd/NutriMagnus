@@ -9,6 +9,12 @@ A day's profile is pinned the first time a meal is saved for that date (a
 full numeric snapshot, not just a name reference, so later edits to that
 profile don't retroactively change historical comparisons) and can be
 reassigned afterward via set_day_profile_override.
+
+A day can also be switched to follow the CURRENT profile (follow_current):
+its own pinned copy is kept, it is re-pinned whenever the profile is saved
+(refresh_after_profile_save), and restore_pinned puts the kept copy back.
+Today is re-pinned on every profile save too, unless set by hand — it's
+still in progress, so its goals should follow your settings.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/day_profile.py — per-day profile pinning"
 """
 import json
@@ -80,3 +86,58 @@ def set_day_profile_override(conn, meal_date: str, profile_name: str) -> bool:
         return False
     _db.day_profile_upsert(conn, meal_date, p.name, _snapshot(p), overridden=True)
     return True
+
+
+def follows_current(row) -> bool:
+    """Whether a day_profile row follows the current profile."""
+    try:
+        return bool(row["follows_current"])
+    except (IndexError, KeyError, TypeError):
+        return False
+
+
+def follow_current(conn, meal_date: str) -> bool:
+    """Score meal_date against the active profile from now on, keeping its
+    own pinned copy for restore_pinned. False with no active profile."""
+    p = _profile.load_profile()
+    if p is None:
+        return False
+    ensure_day_profile(conn, meal_date)
+    _db.day_profile_set_following(conn, meal_date, p.name, _snapshot(p))
+    return True
+
+
+def restore_pinned(conn, meal_date: str) -> bool:
+    """Undo follow_current: back to the day's own pinned copy, exactly."""
+    return _db.day_profile_restore_original(conn, meal_date)
+
+
+def refresh_after_profile_save(conn, today: str) -> list[str]:
+    """After the profile is saved: re-pin every day that follows the current
+    profile, and today unless its profile was set by hand. Returns the dates
+    re-pinned (callers refresh their stored day figures)."""
+    p = _profile.load_profile()
+    if p is None:
+        return []
+    snap = _snapshot(p)
+    dates = list(_db.day_profile_following_dates(conn))
+    for d in dates:
+        _db.day_profile_set_snapshot(conn, d, p.name, snap)
+    row = _db.day_profile_get(conn, today)
+    if row is not None and not row["overridden"] and today not in dates:
+        _db.day_profile_set_snapshot(conn, today, p.name, snap)
+        dates.append(today)
+    return dates
+
+
+def follow_current_between(conn, start: str, end: str) -> list[str]:
+    """Switch every logged day from start to end (inclusive) to follow the
+    current profile — except days whose profile was set by hand and days
+    already following. Returns the dates switched."""
+    switched = []
+    for row in _db.day_profile_dates_between(conn, start, end):
+        if row["overridden"] or follows_current(row):
+            continue
+        if follow_current(conn, row["meal_date"]):
+            switched.append(row["meal_date"])
+    return switched

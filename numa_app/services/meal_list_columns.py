@@ -19,14 +19,20 @@ MAX_MEAL_LIST_NUTRIENTS = 6
 # columns of their own.
 DEFAULT_MEAL_LIST_NUTRIENTS: list[str] = ["protein_g", "calories", "carbs_g", "fiber_g", "sugar_g"]
 
-# Ordered choices for the picker — every NUTRIENT_MAP key. Each consuming
+# Ordered choices for the picker — every NUTRIENT_MAP key, with water's
+# drinks/food split (usda.DERIVED_NUTRIENTS, carried by every meal snapshot)
+# right after Water. Each consuming
 # list (Meals & Log, Recent Days) drops whichever keys it already shows via
 # its own fixed column, so the same picker/positions can be shared between
 # them without ever duplicating a column — see MEALS_LIST_FIXED_KEYS and
 # MANDATORY_DAY_KEYS below.
-AVAILABLE_NUTRIENTS: list[tuple[str, str, str]] = list(_usda.NUTRIENT_MAP.values())
+AVAILABLE_NUTRIENTS: list[tuple[str, str, str]] = []
+for _key, _label, _unit in _usda.NUTRIENT_MAP.values():
+    AVAILABLE_NUTRIENTS.append((_key, _label, _unit))
+    if _key == "water_g":
+        AVAILABLE_NUTRIENTS += [(k, label, unit) for k, (label, unit) in _usda.DERIVED_NUTRIENTS.items()]
 
-_BY_KEY = {key: (label, unit) for key, label, unit in _usda.NUTRIENT_MAP.values()}
+_BY_KEY = {key: (label, unit) for key, label, unit in AVAILABLE_NUTRIENTS}
 _AVAILABLE_KEYS = {key for key, _label, _unit in AVAILABLE_NUTRIENTS}
 
 # Meals & Log always shows Calories as its own fixed column (meals.html) —

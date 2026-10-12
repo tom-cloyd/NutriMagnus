@@ -6,7 +6,7 @@
 {% if quality_issues %}
 {% set problems = quality_issues | selectattr("severity", "equalto", "problem") | list %}
 <div class="alert {{ 'alert-warning' if problems else 'alert-light border' }} py-2" role="note" style="max-width:48rem">
-  <strong>{% if quality_food %}Check this food&rsquo;s data &mdash; <a href="/food/{{ quality_food.fdc_id }}">{{ quality_food.name }}</a>:{% else %}{% if problems %}This food&rsquo;s data has a problem:{% else %}About this food&rsquo;s data:{% endif %}{% endif %}</strong>
+  <strong>{% if quality_food %}Check this food&rsquo;s data &mdash; <a href="/food/{{ quality_food.fdc_id }}">{{ quality_food.name }}</a>{{ food_id_tag(quality_food.fdc_id) }}:{% else %}{% if problems %}This food&rsquo;s data has a problem:{% else %}About this food&rsquo;s data:{% endif %}{% endif %}</strong>
   <ul class="mb-1 mt-1">{% for i in quality_issues %}<li>{{ i.text }}</li>{% endfor %}</ul>
   {% if not quality_food and quality_issues | selectattr("kind", "equalto", "calories_mismatch") | list %}
   <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" class="mb-1">

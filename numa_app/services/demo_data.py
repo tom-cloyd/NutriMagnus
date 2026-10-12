@@ -577,7 +577,7 @@ def starter_status(conn) -> dict:
             for name in DEMO_PANTRY
         ],
         "recipes": [
-            {"name": r["name"], "present": r["name"] in recipe_ids}
+            {"name": r["name"], "present": r["name"] in recipe_ids, "id": recipe_ids.get(r["name"])}
             for r in DEMO_RECIPES
         ],
     }
@@ -811,9 +811,12 @@ def _relevant(conn, changes: dict, manifest: dict) -> dict:
     food_keys, recipe_keys = _present(conn, manifest)
     foods = manifest.get("foods", {})
     recipes = manifest.get("recipes", {})
+    local_ids = _food_locations(conn)
 
     def _food(k: str) -> dict:
-        return {"fdc_id": int(k), "name": foods.get(k, {}).get("name", k)}
+        # "code": its display code in this DB, as starter_status() gives it.
+        return {"fdc_id": int(k), "name": foods.get(k, {}).get("name", k),
+                "code": _starter_food_code(int(k), local_ids.get(int(k)))}
 
     def _recipe(k: str) -> str:
         return recipes.get(k, {}).get("name", k)
@@ -823,6 +826,8 @@ def _relevant(conn, changes: dict, manifest: dict) -> dict:
         "improved_foods": [_food(k) for k in changes.get("improved_foods", []) if k in food_keys],
         "new_recipes": [_recipe(k) for k in changes.get("new_recipes", []) if k not in recipe_keys],
         "improved_recipes": [_recipe(k) for k in changes.get("improved_recipes", []) if k in recipe_keys],
+        # name -> the user's copy's recipe id, so each listed recipe can show its code.
+        "recipe_ids": _recipe_locations(conn),
     }
 
 

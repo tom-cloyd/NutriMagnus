@@ -21,6 +21,10 @@ def rda_status(pct: float, rda_type: str) -> str:
     little): "low" (<70%), "near" (70-99%, approaching from below), "met"
     (100-130%), "near" (131-150%, drifting too high), "over" (>150%).
 
+    rda_type == "goal" (water: an amount to reach, where going well past it
+    gains nothing): below 100% exactly as a minimum; at or above it "reached"
+    — shown uncoloured, never as success (more water isn't better).
+
     Otherwise (RDA / Adequate Intake minimum, where more is always fine):
     "met" (>=100%), "near" (70-99%), "low" (<70%).
     """
@@ -41,7 +45,7 @@ def rda_status(pct: float, rda_type: str) -> str:
             return "near"
         return "over"
     if pct >= 100:
-        return "met"
+        return "reached" if rda_type == "goal" else "met"
     elif pct >= 70:
         return "near"
     return "low"

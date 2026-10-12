@@ -1,0 +1,14 @@
+{# Water beside a food in a recipe's ingredients or a meal's items: its water
+   per 100 g, muted, or — when its name (or the name typed for it) says dry but
+   its data says mostly water — a warning that the wet record may have been
+   picked for the dry food (water.wet_dry_conflict()). `it` needs fdc_id,
+   water_pct and wet_dry, set by web/backend.py's _mark_water(). Shown only
+   while water tracking is on (Settings → 14). #}
+{% macro mark(it) %}{% if track_water() %}{% if it.wet_dry %} <a href="/food/{{ it.fdc_id }}" class="badge text-bg-warning text-decoration-none fw-normal" title="&ldquo;{{ it.wet_dry.name }}&rdquo; says {{ it.wet_dry.word }}, but this food&rsquo;s data is {{ it.wet_dry.water | round | int }}% water: it may be the wet version of the food. Its protein, calories and every other value would then be several times too low.">{{ it.wet_dry.water | round | int }}% water &mdash; but named {{ it.wet_dry.word }}?&dagger;</a>{% elif it.water_pct is defined and it.water_pct is not none %} <small class="muted text-nowrap">({{ it.water_pct | round | int }}% water)</small>{% endif %}{% endif %}{% endmacro %}
+
+{% macro footnote(rows) %}{% if track_water() %}{% set marked = rows|selectattr("wet_dry")|list %}{% if marked %}
+<p class="muted small mt-1" style="max-width:48rem">&dagger; <strong>Named dry, but mostly water</strong>: the name says this food is dry
+(a flour, a powder, dried&hellip;), but the food it&rsquo;s linked to is over 40% water, so it may be the wet version &mdash; USDA&rsquo;s
+okara, for one, is the wet pulp, not the flour. If so, every value from it is several times too low. Replace it with the dry food,
+or check the food&rsquo;s page if the name is just misleading. {{ manual_link("water-wet-dry") }}</p>
+{% endif %}{% endif %}{% endmacro %}

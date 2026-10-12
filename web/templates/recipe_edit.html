@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_generic_density.html" as _gd with context %}
+{% import "_water_mark.html" as _wm %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
 {% import "_serving_note.html" as _sn %}
@@ -39,7 +40,7 @@
 <div class="alert alert-warning" role="alert">
   <strong>{{ g.meals|length }}</strong> meal(s) and <strong>{{ g.recipes|length }}</strong> recipe(s)
   still reference a deleted recipe named <strong>{{ g.matched_name }}</strong>
-  — sharing 2+ words with <strong>{{ recipe.name }}</strong>.
+  — sharing 2+ words with <strong>{{ recipe.name }}</strong>{{ food_id_tag(None, recipe.id) }}.
   <form method="post" action="/recipe/{{ recipe.id }}/relink" class="d-inline-flex align-items-center gap-2 flex-wrap mt-1">
     <input type="hidden" name="matched_name" value="{{ g.matched_name }}">
     <label class="mb-0" for="relink-target-{{ loop.index }}">Relink to</label>
@@ -47,13 +48,13 @@
       {% if g.candidates %}
       <optgroup label="Suggested (shares 2+ words with &ldquo;{{ g.matched_name }}&rdquo;)">
         {% for c in g.candidates %}
-        <option value="{{ c.id }}" {{ "selected" if c.id == recipe.id else "" }}>{{ c.name }}</option>
+        <option value="{{ c.id }}" {{ "selected" if c.id == recipe.id else "" }}>{{ food_code(None, c.id) }} — {{ c.name }}</option>
         {% endfor %}
       </optgroup>
       {% endif %}
       <optgroup label="All recipes">
         {% for r in all_recipes_for_relink if r.id not in g.candidates|map(attribute="id")|list %}
-        <option value="{{ r.id }}" {{ "selected" if (not g.candidates and r.id == recipe.id) else "" }}>{{ r.name }}</option>
+        <option value="{{ r.id }}" {{ "selected" if (not g.candidates and r.id == recipe.id) else "" }}>{{ food_code(None, r.id) }} — {{ r.name }}</option>
         {% endfor %}
       </optgroup>
     </select>
@@ -376,9 +377,9 @@
             {{ ing.amount_display }}{{ _gd.mark(ing) }}
           {% endif %}
         </td>
-        <td>{{ ing.food_name }}
+        <td>{{ ing.food_name }}{{ food_id_tag(None if ing.ref_recipe_id else ing.fdc_id, ing.ref_recipe_id) }}
           {% if ing.ref_recipe_deleted %}<small class="text-danger"> (sub-recipe deleted)</small>
-          {% elif ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}
+          {% elif ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}{{ _wm.mark(ing) }}
         </td>
         <td><small class="muted">{{ ing.notes or "" }}</small></td>
 
@@ -453,6 +454,7 @@
     </tbody>
   </table>
   {{ _gd.footnote(ingredients) }}
+  {{ _wm.footnote(ingredients) }}
   {% else %}
   <p class="muted mt-2">No ingredients yet. Use the search below to add them.</p>
   {% endif %}

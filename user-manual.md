@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-10:2326* / Reading time: 8 hours, 10 minutes
+*Updated 2026-10-11:1930* / Reading time: 8 hours, 37 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -574,7 +574,7 @@ Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3]
 
 **Check for missing nutrient data.**{: #data-completeness} The same page (Foods → 9) has a section, **Missing nutrient data**, listing every cached food that has *no* values at all for one of six nutrient groups — the five blocks of a Nutritional Analysis table (Macronutrients, Omega Fatty Acids, Minerals, Vitamins, Phytonutrients) plus Amino Acids. Macronutrients count as missing if even one of calories, protein, carbohydrate, or fat is absent; amino acids only for a food that has protein. A group with *some* values is normal for real data and isn't listed.
 
-Not every gap matters. Basil doesn't need macronutrients — too little goes into a recipe to count. For a gap like that, check **not needed** under it and click **Save "not needed" choices**: NuMa stops listing it for that food, stops warning about it on the food's own page, and leaves it out of any Claude AI prompt (which tells Claude it's not needed). To undo one, tick **Also list foods whose only gaps are marked "not needed"**, uncheck the box, and save again — or, quicker, open that food's own page, where each group marked not needed has its own **(undo)** link. **Groups to check** narrows the list to the groups you care about. Omega Fatty Acids and Phytonutrients start out unchecked: most ordinary food records were never measured for them, so checking them lists nearly every food. Tick them if you want them anyway. NuMa remembers both settings.
+Not every gap matters. Basil doesn't need macronutrients — too little goes into a recipe to count. For a gap like that, check **not needed** under it and click **Save "not needed" choices**: NuMa stops listing it for that food, stops warning about it on the food's own page, and leaves it out of any Claude AI prompt (which tells Claude it's not needed). To mark a whole group at once, click **Mark column not needed** under that column's heading (click it again — it then reads **Unmark column** — to clear them), then save. **Refresh list** checks every food again and redraws the list, picking up anything you've filled in elsewhere since the page loaded; it asks first if you have "not needed" changes you haven't saved. To undo one, tick **Also list foods whose only gaps are marked "not needed"**, uncheck the box, and save again — or, quicker, open that food's own page, where each group marked not needed has its own **(undo)** link. **Groups to check** narrows the list to the groups you care about. Omega Fatty Acids and Phytonutrients start out unchecked: most ordinary food records were never measured for them, so checking them lists nearly every food. Tick them if you want them anyway. NuMa remembers both settings.
 
 To fill real gaps, check **ask AI** under each gap you want help with — one food, a few, or a whole group at once with the **all** link under that column's heading — and click **Build a Claude AI prompt for the gaps checked "ask AI"**. The prompt covers only the gaps you checked. See [Fetching missing data with Claude AI](#fetch) below. A food's own page offers the same thing: if it's missing core macronutrients you'll see a warning with **Ask Claude AI for the missing data** and **Macronutrients not needed for this food** buttons, and any other missing group is named in a short line under it.
 
@@ -622,7 +622,7 @@ A list of cached foods where you can enter a glycemic index estimate, a [DIAAS](
 
 ### E. Opening a food's detail page
 
-A food's page shows, in order: a line with its [GI](#gloss-gi) (if you've recorded one) and [glycemic load](#glycemic) per 100 g and for the amount you're analyzing, **Protein Summary** ([DCP](#gloss-dcp)), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or [SR](#gloss-sr) Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
+A food's page shows, in order: its **Notes**{: #food-notes} (only if it has any: the notes saved with the food, such as where its figures came from, and the prep context you gave it on the Annotate page; they're also an option on its printout), a line with its [GI](#gloss-gi) (if you've recorded one) and [glycemic load](#glycemic) per 100 g and for the amount you're analyzing, **Protein Summary** ([DCP](#gloss-dcp)), **Nutritional Analysis** (type any amount, or pick a named portion, then click **Recalculate**), **Protein Quality** ([DIAAS](#diaas) and the per-amino-acid table), **Anti-nutrients**, **Complement Suggestions** (pantry foods first, then general suggestions, then two-food pairs and combos — each can be [ignored and recalculated](#ignore-complement)), and an **Add to Pantry** form at the bottom. If the food has no amino acid data, you'll see a suggestion to search for a Foundation or [SR](#gloss-sr) Legacy equivalent instead — those datasets are the ones most likely to have complete amino acid profiles.
 
 Right below the title, every food's page also has a **Copy as custom-food draft** button — no detour through Food Search or Custom Food Profiles needed to start editing a copy of what you're already looking at. See [Entering custom foods and dietary supplements](#custom-foods) for what to do with the copy.
 
@@ -655,7 +655,7 @@ If more than one meal is logged on the same date, **Analyze full day** rolls all
 Both Food Use pages have a **Substitute a food or recipe** panel for bulk-replacing one food or recipe with another across whatever's currently selected — see [Substituting a Food or Recipe](#fooduse-substitute).
 
 ### I. Using the Settings menu {: #settings}
-Settings is organized into thirteen numbered, collapsible sections:
+Settings is organized into fourteen numbered, collapsible sections:
 
 - **1. [Your Profile](#profile-setup)** — age, sex, weight, height, activity level (this drives all your daily nutrient targets), plus a checkbox enabling [oxalate](#oxalate) lookup, your [glucose tolerance](#gi-impaired) (the [GI](#gloss-gi) lookup default, and which advice [GI](#gloss-gi) notes give you), and an optional [daily glycemic load target](#gl-target).
 - **2. Computed Daily Targets** — see [Part 6](#daily-nutrient-targets).
@@ -670,6 +670,7 @@ Settings is organized into thirteen numbered, collapsible sections:
 - **11. Glycemic Index Reference Table** — which [GI](#gloss-gi) table lookups search, and building the 2021 one (see [Upgrading to the 2021 tables](#gi-editions)).
 - **12. System Issues** — see [below](#system-issues-howto).
 - **13. Data Quality Reminder** — the Home page note about new data problems (see [Checking your data](#data-check-reminder)).
+- **14. Water Tracking** — show or hide everything about [water](#water): the drinks / food split, the drink tick-boxes, the water fill-in and the check for a wet food picked in place of a dry one. On unless you turn it off; turning it off deletes nothing. From age 65, a day's page also warns when its drinks fall below the minimum that ESPEN (the European Society for Clinical Nutrition and Metabolism) recommends for older people.
 
 #### Your Profile {: #profile-setup}
 Age, sex, weight, height, and activity level. This is the one form that everything else in NuMa's nutrient-target system depends on: your [RDA](#rda) values (Part 4, Section P), the age/sex-adjusted [Daily Nutrient Goals](#goals) (Part 4, Section Q), and — where you've set them — your [Revised Optimal targets](#optimal) and [Maximum Nutrient Limits](#maxlimits) all key off the age, sex, weight, height, and activity level you enter here. Also on this form: a checkbox enabling [oxalate](#oxalate) lookup, off by default.
@@ -731,7 +732,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 1 hour, 40 minutes)*
+*(Reading time: 1 hour, 50 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
 Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
@@ -1693,6 +1694,12 @@ Your profile isn't fixed forever -- weight, activity level, or even which named 
 
 **Each logged day is pinned to whichever profile was active the first time a meal was saved for that date.** That pin is a full snapshot -- your age, weight, activity level, and targets as they were that day -- not just a name. So if you later edit that profile's numbers (or switch which profile is active), days already logged keep comparing against the numbers that were true when you logged them. Only a day that has never had a meal saved for it — or one you explicitly reassign — will pick up a different profile.
 
+**Today is the exception.** It's still in progress, so whenever you save your profile (in Settings → 1, or a nutrient target under Settings → Nutrient Targets), today is re-pinned to it at once — unless you've set today's profile by hand with **Change**.
+
+**Applying a change to earlier days.** After you save your profile, Settings shows **Also score every logged day from [date] to today against this profile**. Pick a date and click **Apply profile to those days**: every logged day in that range is switched to your current profile, except days whose profile you set by hand. NuMa says how many days it switched.
+
+**The "current profile" switch.** Each day's Summary and Full Day page has a switch beside "Profile:", **Score this day against my current profile**, and Meals & Log has the same switch, labelled **current profile**, under each day's date. Tick it and the day is scored against your profile as it is now, and keeps following it each time you save your profile. Untick it and the day goes back to the profile it was pinned to, exactly as it was: NuMa keeps that pinned copy for as long as the switch is on. Days switched by **Apply profile to those days** have the switch ticked, so you can put any of them back the same way.
+
 **Where you see it.** If you maintain more than one named profile, a **Profile** column/line appears next to each day: on the Meals & Log list, the Recent Days list, and the Daily Summary / full-day view. With only one profile configured, this column is hidden since there's nothing to distinguish.
 
 **Changing a day's profile.** Sometimes the automatic pin doesn't match reality -- illness or travel rarely starts exactly at midnight. Open that day's summary and use the **Change** control next to "Profile:" (on the day's Summary or Full Day page) to pick a different saved profile. The day is marked "(manually set)" afterward and its DCP/[RDA](#gloss-rda) numbers recompute immediately against the new pin.
@@ -1915,10 +1922,59 @@ NuMa's [protein per meal](#protein-per-meal) check tells you which meals reached
 
 These are guides for keeping and building muscle, not medical advice. If you have kidney disease or another condition that limits protein, follow your clinician's advice.
 
+### AA. Water: from drinks and from food {: #water}
+
+NuMa counts the water you take in from everything you log, not just what you drink. (If you'd rather not track water, turn it off in Settings → 14; nothing is deleted, and turning it back on brings it all back.) Fruit and vegetables are mostly water (an apple is about 86%), and so are milk, soup and cooked grains, so food supplies a real share of each day's water.
+
+**Where you see it.** Meal, recipe and day pages show a **Water** row with two rows under it: **Water from drinks** and **Water from food**. The two always add up to the Water total. A single food's page shows only its Water, since one food is either a drink or it isn't. Water from drinks and Water from food can also be chosen as columns in Meals & Log and Recent Days, and plotted in the [Nutrient Plot](#nutrient-plot). Amounts are in grams; for water, 1 g is 1 mL, so 250 g is a 250 mL glass.
+
+**What counts as a drink.** You decide, with a **This food is a drink** checkbox on each food's page. Recipes have their own **This recipe is a drink** checkbox, and both can be ticked straight from the list on Analysis → Food use in meals. When NuMa first saves a food from [USDA](#gloss-usda), it ticks the box itself if USDA files the food under beverages (tea, coffee, juice, soft drinks, water). It doesn't guess for milk, soup or smoothies, so tick those yourself if you think of them as drinks. Changing the box updates every meal and recipe that uses the food.
+
+A recipe counts its drink ingredients as drinks and the rest as food: a smoothie made with milk and banana splits its water between the two. Tick **This recipe is a drink** and *all* of its water counts as drinks, including any recipes used inside it.
+
+**The daily goal.**{: #water-reference} The goal is the [Adequate Intake](#gloss-ai) for *total* water from the IOM (US Institute of Medicine, 2004): 3.7 litres a day for men and 2.7 litres for women. It covers drinks and food together, which is why it sits on the Water row rather than on Water from drinks. It's a guide, not a requirement. The figures are simply the typical (median) intakes of healthy Americans, not a measured need, and the Institute itself says intake below them may carry no added risk. European authorities, the European Food Safety Authority (EFSA), working the same way, set 2.5 and 2.0 litres[^84]. You choose whose figures NuMa uses, under **Water goals from** in Settings → 1, Your Profile; the IOM's are the default. Today's goals follow the change at once; earlier days keep theirs unless you apply your profile to them (see [Per-Day Profile Tracking](#day-profile)). Needs rise with heat, exercise, body size and illness.
+
+Going past a water goal gains nothing, so NuMa never shows it as a success: below the goal, the percentage is coloured like any other minimum, but at or above it the figure is plain, not green.
+
+**A fluid limit from your clinician.** If you've been given one (for heart failure or kidney disease, say), set it as a [maximum limit](#maxlimits) in Settings → Nutrient Targets — on **Water from drinks** if the limit counts what you drink, as heart-failure limits usually do, or on **Water** if it counts everything. With either set, NuMa stops nudging you to drink more: the water goals lose their colour, the warning about older people's drinks (see [Water and older people](#water-older)) goes, and so do both notes described next and under *Protein and water*.
+
+**A weight-based figure, for comparison.**{: #water-weight} Neither the IOM nor EFSA scales its figures to body weight. The one weight-based figure in common use comes from NICE (the UK's National Institute for Health and Care Excellence): for adults in hospital on a drip, routine maintenance starts at 25–30 mL of water per kg of body weight a day, capped at about 3 litres, using ideal body weight rather than actual weight for people with obesity[^85]. A day's page shows what that comes to for you, under the Water rows, for comparison only. NuMa uses your profile's weight, or, if your body mass index (BMI) is 30 or more, an ideal body weight worked out from your height (the Devine formula). It is a figure for patients lying still in bed, not a goal for healthy people, and a per-kilogram rule misleads at both ends: a larger body needs only about 0.7 litres more water a day per extra 50 kg, so it overstates the need of heavier people and understates that of lighter ones. At 60 kg it gives only 1.5–1.8 litres, below both the IOM and EFSA goals, and the note says so whenever that happens; your goal stays the one you chose.
+
+**A goal for drinks, too.** The Water from drinks row has a goal of its own: the drinks part of the IOM's total-water figures, 3.0 litres a day for men and 2.2 for women (the rest comes from food)[^77]. With EFSA's figures chosen, it's 2.0 and 1.6 litres, 80% of the total[^84]. From age 65, a day's page also warns you when that day's drinks come to less than the minimum recommended for older people. That minimum is a floor under the goal, not a lower goal; see [Water and older people](#water-older) below.
+
+**What counts as water.** Coffee, tea, and beer or other dilute alcoholic drinks hydrate about as well as water: their mild diuretic effect is short-lived, and the Institute of Medicine counts them toward total water. Milk and juice are 85–90% water and count in full. Food's share of the day's water is shown beside **Water from food** (for example "23% of the total"). It's about a fifth on a typical diet, and much more on one rich in fruit, vegetables and soups.
+
+**Protein and water.** Breaking protein down makes urea, which the kidneys clear in urine, so a high-protein diet raises the water your body has to pass. NuMa doesn't change the goal for it, but if you're eating well above the protein target, it's a reason not to run low on drinks. A day's page says so, under the Water rows, when that day's protein comes to one and a half times your protein goal or more (a judgement, not a figure from research). How much it adds is worked out under [Water and older people](#water-older).
+
+**Gaps in the data.** NuMa began recording water in October 2026. Foods you saved before then have no water value yet and show "no data". That makes a day's water total too low, never wrong in any other way. To fill them in:
+
+- For all your USDA foods at once, go to Foods → 9, *Missing nutrient data*, and click **Fill in water for N USDA foods from USDA**. NuMa fetches only the water value, adds it only where a food has none, and changes nothing else; a few hundred foods take well under a minute. If it stops partway (USDA busy, or no internet), click it again and it carries on from where it stopped. A food USDA has no water value for is named afterwards; that's usual for branded (packaged) foods, because food labels don't list water. For those, click **Show these foods in the list below**: it turns on the Water column in the *Missing nutrient data* list (it stays on) and takes you there, where each food has **ask AI** and **not needed** boxes.
+- For any other food, tick the **Water** group in that same section and ask Claude AI for the missing values (see [Checking your data](#checking-your-data)).
+
+USDA and the Canadian Nutrient File report water. Most Open Food Facts products don't, and the UK, Australian and French datasets bundled with NuMa don't include it yet.
+
+#### A wet food picked for a dry one {: #water-wet-dry}
+
+Water also shows when a food is the wrong record. The same food can come wet or dry, and a name doesn't always say which. [USDA](#gloss-usda)'s okara, for instance, is the wet pulp left from making soy milk, about 82% water. Okara *flour* is about 8% water, and has about five times the protein and calories. Pick the wet one for a recipe that uses flour, and every value from it is several times too low.
+
+So when a food's name, or the name you gave it in a recipe or meal, says it's dry (*flour*, *powder*, *dried*, *dehydrated*, *dry*) but the food's data is over 40% water, NuMa marks it with a yellow **"82% water — but named flour?"** next to that ingredient or meal item, explains it in a note below the list, and lists every such food on Foods → 9 under **Named dry, but mostly water**, with the recipes and meals using it. Genuinely dried fruit stays under the line (prunes and dried apricots are about 31% water), and names like "prepared with milk", "packed in oil" or "dry white wine" aren't counted as dry. Every other food in a recipe or meal shows its water in grey, "(8% water)", so you can see at a glance which version you used. A food without a water value can't be checked until it has one. 
+
+#### Water and older people {: #water-older}
+
+Older people don't need less water than younger adults; if anything, they need to be more careful to get it. NuMa keeps the same goals from the US Institute of Medicine (IOM) at every adult age, for three reasons:
+
+- **Less water from food.** Energy needs fall with age, so most older people eat less, and with less food comes less of the fifth or so of daily water that food usually supplies[^77]. More of it has to come from drinks.
+- **Kidneys that save less water.** With age the kidneys become less able to concentrate urine, so the same waste takes more water to clear. In healthy men kept without water for 12 hours, the most concentrated urine the oldest group could make was roughly a fifth weaker than the youngest group's[^80]. Water-loss dehydration becomes correspondingly more common with age[^82].
+- **More protein, more urea.** Older people are advised to eat more protein, not less: at least 1.0–1.2 g per kg of body weight a day from 65, against 0.8 g for younger adults ([PROT-AGE](#gloss-prot-age)[^67]). Each gram of protein leaves about 5.7 milliosmoles of urea for the kidneys to clear (its nitrogen, about 16% of its weight, divided by 28)[^83]. Going from 60 to 100 g of protein a day adds about 230 milliosmoles; at the urine concentration an older kidney can manage, that's roughly a quarter of a litre more urine a day at the least. That's a modest amount, but it points up, not down.
+
+On top of all three, **thirst fades with age.** In one study, healthy men aged 67 to 75 kept without water for 24 hours felt less thirsty and drank less afterwards than young men did, so their blood stayed more concentrated[^81]. About one older adult in four living at home is mildly dehydrated from drinking too little[^79].
+
+That last point is why a floor exists. ESPEN (the European Society for Clinical Nutrition and Metabolism) recommends that older people be offered **at least 1.6 litres of drinks a day for women and 2.0 litres for men**, unless a medical condition calls for otherwise[^78]. That is a minimum aimed at the many who drink far too little, not an estimate of what older people need, so NuMa doesn't use it as the goal. From age 65 it's a warning instead: when a day's drinks come to less than it, the day's Water from drinks row says so. If a clinician has given you a fluid limit, follow that instead, and set it as a [maximum limit](#maxlimits).
+
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 4 minutes)*
+*(Reading time: 1 hour, 7 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2277,7 +2333,6 @@ Columns:
     Complete        Checkmark when you have marked the meal finished
                     (a Mark complete / Mark incomplete button on the meal page).
     Items           Number of foods and recipes logged in this meal.
-    Calories        Calories for this meal alone.
     Meal DCP        Digestible complete protein for this meal alone (g).
     Day DCP         Sum of DCP for every meal on this date with a computed
                     value — including meals not yet marked complete, since
@@ -2288,11 +2343,19 @@ Columns:
     % of goal (min) Day DCP as a percentage of that date's protein target.
                     Also flagged with * when provisional. Shown on the
                     topmost row for each date only.
+    Calories        Calories for this meal alone, with its share of the
+                    day's calorie goal in parentheses underneath.
     Profile         Which profile the day is pinned to — shown only if you
                     have more than one (see Per-Day Profile Tracking).
 
 You can add up to 6 more nutrient columns of your own choosing — see
-[Meals & Log columns](#meal-columns).
+[Meals & Log columns](#meal-columns). Under each meal's figure in those
+columns, a percentage in parentheses — "(23%)" — shows that meal's share
+of the day's goal for that nutrient, from the profile the day is scored
+against. The figures are plain, not coloured: one meal is only part of a
+day. A nutrient with no daily goal (sugar, say) shows its figure alone.
+Under each day's date, a **current profile** switch scores that day
+against your profile as it is now — see [Per-Day Profile Tracking](#day-profile).
 
 [DCP](#gloss-dcp) and Calories values start as -- and are computed on demand.
 Opening and analyzing a meal also saves its DCP and calories automatically.
@@ -2416,7 +2479,12 @@ another recipe won't appear here at all. For actual consumption, use
 [Food Use in Meals](#fooduse). Pick one selection method: all recipes
 (the default), one or more date ranges by when the recipe was created, or a
 list of specific recipe IDs, then optionally limit to protein-containing
-foods.
+foods. To find one food or recipe in a long table, type part of its name in
+**Show only foods and recipes whose name contains**{: #fooduse-recipes-name}
+(every word you type has to be in the name; capitals don't matter) and click
+**Analyze**. Only the rows shown change: counts and percentages are still
+taken over the whole selection, and the heading says how many rows match.
+**Clear name filter** shows them all again.
 
 Columns:
 
@@ -2935,17 +3003,24 @@ See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. 
 #### Comparison Tables {: #comparison}
 Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to four tables: an ingredient table, a protein-quality table, a glycemic table, and a nutrient table. Every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so rather than ask you to pick amounts that don't match across items, the page fixes every item at the same 100 g footing.
 
-**How a recipe's 100 g figure is worked out.**{: #comparison-estimate} A food's per-100g nutrients come straight from its cached data — no estimation involved. A recipe has no single "100 g" anything, so NuMa derives one: it adds up the raw weight of every ingredient in the recipe (each direct food ingredient contributes its own entered gram amount; a sub-recipe ingredient contributes its *own* recorded total weight ÷ its own servings, × how many of those servings this recipe uses), then scales the recipe's total nutrients — and, for the ingredient table, each ingredient's own amount — by 100 divided by that summed weight. This is always a fresh sum of the ingredients as entered; it does **not** read the recipe's own "total weight" field on its detail page (a figure you may have set by hand to account for cooking loss, water evaporating, etc.) — only a *sub*-recipe's own total weight feeds in, one level down, when it's used as an ingredient.
+**Comparing recipes as written.**{: #comparison-basis} Per 100 g is the default because it puts a food's grams and a recipe's servings on the same footing, and shows how concentrated each item is. But it isn't always what you want: two versions of a recipe, one with a little salsa added, look as if the other ingredients shrank, because each is now a smaller share of 100 g. When a comparison includes a recipe, a **Compare amounts** choice above the tables offers two more ways to see it:
 
-If any ingredient's weight can't be determined — a direct ingredient with a blank or zero amount, or a sub-recipe ingredient whose own total weight or servings isn't set — that one ingredient is left out of the sum entirely rather than guessed at. The summed weight is then a lower bound, not the true dish weight, so the recipe's 100 g figures run *higher* than they should (the same nutrient total divided by a too-small weight). NuMa marks this by appending "(estimate)" next to that recipe's name everywhere it appears in these tables, so a higher-than-expected number has a visible reason rather than looking like a data error.
+- **Per serving of each recipe, as written** — one serving of each recipe: its own ingredient amounts divided by its servings, and the nutrients of that serving.
+- **Each whole recipe, as written** — every ingredient exactly as entered in the recipe, with the measure you typed (⅓ c, 2 T) beside its grams, and the whole recipe's nutrients.
 
-The **ingredient table** has one row per distinct ingredient name across the items you're comparing, one column per item, showing how much of that ingredient goes into 100 g of the finished item (or "--" if it isn't used, or if a recipe's ingredient weights are incomplete). A food entry shows itself as its own single "ingredient" — always "100 g," by definition. Ingredients shared by two or more items are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much, per 100 g of the finished dish. A sub-recipe used as an ingredient shows its (rescaled) serving count rather than being expanded into its own raw ingredients.
+Each recipe's column heading says which amount it shows ("1 serving (140 g)", "whole recipe, 1 serving, 177 g"). A plain food has no recipe amounts, so it stays per 100 g in every view. NuMa remembers your choice. Neither view is scaled by the recipe's weight, so the "(estimate)" mark below doesn't apply to them.
+
+**How a recipe's 100 g figure is worked out.**{: #comparison-estimate} A food's per-100g nutrients come straight from its cached data — no estimation involved. A recipe has no single "100 g" anything, so NuMa derives one: it adds up the raw weight of every ingredient in the recipe (each direct food ingredient contributes its own entered gram amount; a sub-recipe ingredient contributes its weight per serving × how many of those servings this recipe uses — its weight per serving being its *own* recorded total weight ÷ its own servings, or, if it has no recorded total weight, the sum of its own ingredients worked out the same way, however deep the sub-recipes go), then scales the recipe's total nutrients — and, for the ingredient table, each ingredient's own amount — by 100 divided by that summed weight. This is always a fresh sum of the ingredients as entered; it does **not** read the recipe's own "total weight" field on its detail page (a figure you may have set by hand to account for cooking loss, water evaporating, etc.) — only a *sub*-recipe's own total weight feeds in, when it's used as an ingredient.
+
+If any ingredient's weight can't be determined — a direct ingredient with a blank or zero amount, a sub-recipe that has since been deleted, or a sub-recipe whose servings aren't set or whose own ingredients can't be weighed — that one ingredient is left out of the sum entirely rather than guessed at. The summed weight is then a lower bound, not the true dish weight, so the recipe's 100 g figures run *higher* than they should (the same nutrient total divided by a too-small weight). NuMa marks this by appending "(estimate)" next to that recipe's name everywhere it appears in these tables, so a higher-than-expected number has a visible reason rather than looking like a data error.
+
+The **ingredient table** has one row per distinct ingredient (food or recipe, each with its code) across the items you're comparing, one column per item, showing how much of that ingredient goes into 100 g of the finished item (or "--" if it isn't used, or if a recipe's ingredient weights are incomplete). A food entry shows itself as its own single "ingredient" — always "100 g," by definition. Ingredients shared by two or more items are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much, per 100 g of the finished dish. A sub-recipe used as an ingredient shows its (rescaled) serving count rather than being expanded into its own raw ingredients.
 
 The **protein-quality table** ([DIAAS](#diaas)-based) appears when at least one item has enough amino acid data to score: composite [DIAAS](#gloss-diaas) score, raw protein, digestible complete protein (DCP), DCP as % of raw protein, and the limiting amino acid — all per 100 g of the item, highest value per row highlighted, "--" for an item without enough data.
 
 The **glycemic table**{: #compare-gl} appears when at least one item has a [GI](#gloss-gi) or a [GL](#gloss-gl) to show: each food's [GI](#gloss-gi) (a recipe has no single [GI](#gloss-gi), so it shows —) and each item's [glycemic load](#gl) per 100 g — [GI](#gloss-gi) × carbohydrate ÷ 100, counting only foods with a [GI](#gloss-gi). Here **lowest** is highlighted, since less is better. A figure missing some foods' [GI](#gloss-gi) reads "≥" with how much of the carbohydrate it covers, and is never highlighted, since its true value is higher. A **†** marks a [GI](#gloss-gi) [measured in people with diabetes](#gi-impaired). Per 100 g suits comparing kinds of food; for what a real portion does, see the meal or recipe page.
 
-The **nutrient table** covers Macronutrients, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients), and Amino Acids (groups appear only when at least one item has data for that category), every value per 100 g, highest value per row highlighted in green, sortable by checked nutrients, rows where every item shows "--" hidden automatically. The items you chose are listed above the table — each also shows an **[AA](#gloss-aa)** column indicating at a glance whether it has amino acid data (✓) or not (✗).
+The **nutrient table**{: #compare-nutrients} covers every nutrient a food's own nutritional analysis shows — Macronutrients, Water, Omega Fatty Acids, Minerals, Vitamins, [Phytonutrients](#gloss-phytonutrients) — plus Amino Acids, every value per 100 g, highest value per row highlighted in green, sortable by checked nutrients. A nutrient that none of the items has data for gets no row (and a group left with no rows is dropped), and a yellow box above the table names every nutrient left out that way, so a missing row always means "no data", never an oversight. The items you chose are listed above the table — each also shows an **[AA](#gloss-aa)** column indicating at a glance whether it has amino acid data (✓) or not (✗).
 
 **Print comparison table** and **Download [CSV](#gloss-csv)** buttons appear above the nutrient table: Print opens your browser's print dialog with just that comparison table (no nav, search box, or other page chrome); the CSV download gives one row per nutrient and one column per item, ready to open in a spreadsheet.
 
@@ -3145,7 +3220,7 @@ This means you can deliberately front-load your most important search word when 
 | **A food's nutrients** — editing them, copying from another food, estimating amino acids, refreshing from [USDA](#gloss-usda), importing Claude's answer, merging duplicates | Recalculated at once, and every recipe built on those too | Recalculated by the next page you open | [Editing or changing a food](#food-edit-consequences) |
 | **A food's portions** (`p1`, a cup weight) | No change — amounts keep the grams they were entered with | No change, for the same reason | [Amounts that no longer match](#stale-amounts) |
 | **A food's [GI](#gloss-gi)** (Foods → Annotate) | Recipe glycemic load follows at once — it's worked out fresh each time it's shown | Same, for meals and days | [Glycemic Load Output](#glycemic) |
-| **A food's name** | Ingredient lines keep the name they were added with; nutrients unaffected | Same | [Editing or changing a food](#food-edit-consequences) |
+| **A food's name** | The new name replaces the old one on every ingredient line that uses the food; nutrients unaffected | Same, and in your pantry | [Editing or changing a food](#food-edit-consequences) |
 | **Deleting a food** | Refused while any recipe, meal or pantry entry uses it | Refused | [Editing or changing a food](#food-edit-consequences) |
 | **A recipe's ingredients or amounts** | That recipe recalculated, and every recipe built on it | Recalculated by the next page you open | [Changing a recipe…](#recipe-dcp-cascade) |
 | **A recipe's servings count or Total weight** | Per-serving figures change, and cascade as above | A meal logs servings, so "1 serving" now means the new serving; the meal page flags the item and asks whether to keep the grams you ate | [How a meal records a recipe](#recipe-servings-grams) |
@@ -3203,7 +3278,7 @@ What that means when you edit a portion afterwards:
 
 If a portion's gram weight turns out to have been wrong, fix the portion; Foods → 9 then lists every recipe amount that used it under [Amounts that no longer match](#stale-amounts), ready to update in one click.
 
-**Renaming a food doesn't rename it inside recipes or meals.** Each ingredient line and each logged item keeps the name it had when you added it; its nutrients always come from the food it's *linked* to, whatever name the line shows. (Renaming a *recipe* is different: its new name replaces the old one everywhere it's logged or used as a sub-recipe.) The same goes for an ingredient's own **Edit** popup on the Edit Recipe page — it changes the name the line shows, never which food it's linked to. So if a recipe's nutrients look wrong, check that each ingredient is linked to the food its name says; to link one to a different food, remove the line and add the right food.
+**Renaming a food renames it everywhere you've used it.**{: #food-rename} When you save a new name on a food's Edit page, the new name replaces the old one on every recipe ingredient line, every logged meal item (past days included) and every pantry entry that uses that food, the same way renaming a recipe always has; the page tells you how many places it changed. Nutrients don't change, because they always come from the food a line is *linked* to, whatever name it shows. One thing can change: NuMa estimates protein digestibility from a food's name (see [Protein digestibility](#digestibility-by-name)), so a name that drops a telling word ("tofu", "lentil") can change the food's DCP figures, and a digestibility you set yourself moves to the new name with it. A name you typed into an ingredient line's own **Edit** popup on the Edit Recipe page is replaced too. That popup changes only the name the line shows, never which food it's linked to. So if a recipe's nutrients look wrong, check that each ingredient is linked to the food its name says; to link one to a different food, remove the line and add the right food.
 
 **A food still used somewhere can't be deleted.** NuMa refuses to delete a food that a recipe, a logged meal or your pantry still uses, so nothing is ever left pointing at a food that no longer exists. Recipes are different — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere).
 
@@ -3251,12 +3326,13 @@ To convert an existing custom food to supplement mode, edit it and change the se
 
 
 ### F. Deleting a recipe that's used elsewhere {: #delete-recipe-elsewhere}
-If another recipe uses the one you're deleting as a sub-recipe (an ingredient that is itself a recipe), NuMa warns you before deleting. If you delete it anyway:
+If the recipe you're deleting has been logged in a meal, or another recipe uses it as a sub-recipe (an ingredient that is itself a recipe), NuMa warns you before deleting — whether you click **Delete** on the Recipes list or **Delete recipe** on the recipe's own page. The warning says how many meals it's logged in (and between which dates) and which recipes use it, and suggests **Archive** instead: an archived recipe drops out of lists and search but keeps working everywhere it's used. If you delete it anyway:
 
-1. That ingredient line is not removed. It stays in place, but is now flagged "recipe (deleted)" wherever it appears — in ingredient lists, meal history, and Food Use in Meals. This is expected, not a bug: NuMa can't know whether you meant to also cascade-delete every recipe that depended on it, so it leaves the reference intact and visible instead.
-2. If you later create a new recipe whose name shares at least one word with the deleted recipe's name (for example, re-creating "Beef Stew" as "Chicken Stew," or under the exact same name as before), NuMa offers to relink those broken references to your new recipe — the offer appears as a banner on the new recipe's edit page.
-3. If more than one deleted recipe matches by name, you're offered each one separately, and only the ones you confirm get relinked. Declining leaves the old references flagged as before.
-4. To see every currently-broken reference in your data, regardless of what you're about to create, use the "Broken recipe references" button on the Recipes list.
+1. Every meal it's logged in keeps the line, flagged "recipe (deleted)", but no longer counts its nutrients in that meal's totals.
+2. In a recipe that used it as a sub-recipe, that ingredient line is not removed. It stays in place, but is now flagged "recipe (deleted)" wherever it appears — in ingredient lists, meal history, and Food Use in Meals. This is expected, not a bug: NuMa can't know whether you meant to also cascade-delete every recipe that depended on it, so it leaves the reference intact and visible instead.
+3. If you later create a new recipe whose name shares at least one word with the deleted recipe's name (for example, re-creating "Beef Stew" as "Chicken Stew," or under the exact same name as before), NuMa offers to relink those broken references to your new recipe — the offer appears as a banner on the new recipe's edit page.
+4. If more than one deleted recipe matches by name, you're offered each one separately, and only the ones you confirm get relinked. Declining leaves the old references flagged as before.
+5. To see every currently-broken reference in your data, regardless of what you're about to create, use the "Broken recipe references" button on the Recipes list.
 
 ### G. Ignoring a complement suggestion {: #ignore-complement}
 Every [complement suggestion](#comp) — a Tier 1 gap closer, a Tier 2 [DIAAS](#gloss-diaas)-boosting option, or a food inside a Tier 3 two-food combination — carries an "Ignore this suggestion in recalculation" checkbox. Check one or more, then click **Recalculate complements** (it activates as soon as anything is checked) to reload the page with those foods excluded from every tier — pantry, general, two-food combinations, and DIAAS boosters all rebuild around the remaining candidates. Use this when a suggested food genuinely isn't an option for you (out of stock, disliked, already ruled out for some other reason) and you'd rather see the next-best alternative than one you can't act on.
@@ -3271,7 +3347,7 @@ The ignored list is not saved anywhere — it resets the moment you navigate awa
 
 Food data is never complete — plenty of foods have no amino acid figures, and no food record carries a protein digestibility figure at all. Where a calculation needs a number that isn't there, NuMa either fills it with an estimate from a small built-in list, or leaves the food out and tells you. It never quietly saves a generic estimate into your own data. This is the full list of where estimation happens.
 
-**Protein digestibility — an estimate for every food, every time.** [DCP](#gloss-dcp) needs to know how much of each food's protein your body actually absorbs. Food databases don't record that, so NuMa looks it up by the food's name, in this order:
+**Protein digestibility — an estimate for every food, every time.**{: #digestibility-by-name} [DCP](#gloss-dcp) needs to know how much of each food's protein your body actually absorbs. Food databases don't record that, so NuMa looks it up by the food's name, in this order:
 
 1. your own figure, if you've entered one for that food ([Protein Digestibility Overrides](#dcp-overrides), Settings → 6);
 2. a curated table of about 50 foods and food types, each with a published source;
@@ -3630,9 +3706,11 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **ODS**{: #gloss-ods}  —  Office of Dietary Supplements, part of the [NIH](#gloss-nih). The direct source for most [RDA](#gloss-rda) and Adequate Intake values in NuMa. See [Recommended Dietary Allowances](#rda).
 
-**OFF**{: #gloss-off}  —  Open Food Facts. A community-maintained [database](#gloss-database) of packaged and branded food products; NuMa's secondary data source. Website: https://world.openfoodfacts.org/
+**OFF**{: #gloss-off}  —  Open Food Facts. A community-maintained [database](#gloss-database) of packaged and branded food products; NuMa's secondary data source. Website: https://world.openfoodfacts.org/ 
 
 **Oxalate**{: #gloss-oxalate}  —  A naturally occurring compound (oxalic acid / oxalate ion) found in many plant foods, especially spinach, beets, nuts, and chocolate. At high dietary levels it can promote calcium-oxalate kidney stones in susceptible individuals. NuMa can optionally display oxalate content using the Harvard T.H. Chan School of Public Health reference table. Enable it under Settings → Oxalate data. See [oxalate data](#oxalate).
+
+**PDCAAS**{: #gloss-pdcaas}  —  Protein Digestibility-Corrected Amino Acid Score. The older protein-quality score (FAO/WHO, 1991) that [DIAAS](#gloss-diaas) replaced. It scales a food's most limiting amino acid by how well its protein *as a whole* is digested, measured over the whole gut, and cuts every score off at 1.0, so it can't tell a good protein from an excellent one. In 2013 the FAO recommended DIAAS instead, which measures how well *each* amino acid is digested by the end of the small intestine, and isn't cut off. NuMa uses DIAAS throughout; a PDCAAS figure in a food's notes came from that food's source, and doesn't convert one-to-one into a DIAAS. See [DIAAS](#diaas).
 
 **PDF**{: #gloss-pdf}  —  Portable Document Format. A file that keeps its exact page layout wherever it is opened or printed. Every printable page in NuMa can be saved as one through your browser's own Print dialog.
 
@@ -3716,6 +3794,8 @@ Use the sidebar search box near the top of the table of contents.
 **The "Only show things you can do" checkbox** narrows the results further, to sections that contain some instruction — add, edit, change, remove, and similar words — rather than sections that merely *discuss* a topic. Turn it on when you're trying to do something rather than understand something: `portion size` with the box checked skips past conceptual explanations of what a portion is and goes straight to the section that tells you how to add or correct one. It's a heuristic, not a guarantee — a section phrased with an instruction word this checkbox doesn't happen to recognize can still be missed, and unchecking the box always shows you the same results or more, never fewer, so it's worth trying both if the checked list comes up empty.
 
 **The "Match case" and "Whole words only" checkboxes** are for short terms that are also pieces of everyday words. Searching for "AI" (artificial intelligence) normally matches every "ai" in the manual — *main*, *detail*, *said* — which buries the few places that mean what you were looking for. Check **Match case** and it matches only capital "AI"; check **Whole words only** as well, and it no longer matches inside words written in all capitals, such as the titles in the [Recent program updates log](#updates-log), either. **Whole words only** on its own is handy for short abbreviations like [GI](#gloss-gi) and [AA](#gloss-aa), too. Both boxes also apply to "exact phrase" searches and to the highlights inside a section you open.
+
+**No matches at all** shows as a yellow box under the checkboxes, naming what you searched for (for example, "No matches for "xyzzy" anywhere in this manual.") and, if a checkbox is ticked, suggesting you untick it.
 
 ## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
@@ -4969,7 +5049,7 @@ Every nutrient below matches one of NuMa's own internal data keys one-for-one (s
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 17 minutes)*
+*(Reading time: 1 hour, 27 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -4985,6 +5065,33 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **45.** A food's page shows its notes, and the prep context from its Annotate page, and they can go on its printout; a recipe's notes also show when you analyze a portion of it.
+- **44.** Food use in recipes can show just the foods and recipes whose name contains the words you type.
+- **43.** Renaming a food now renames it in your recipes, logged meals and pantry too.
+- **42.** Compare's nutrient table now includes the omega fatty acids, iodine and selenium — everything a food's own analysis shows — and names, in a yellow box, any nutrient left out because none of the items has data for it.
+- **41.** Settings' list of improved starter recipes shows each recipe's code.
+- **40.** Compare can now show recipes as written, per serving or whole, instead of per 100 g.
+- **39.** Compare's per-100 g figures for a recipe that uses a sub-recipe with no total weight of its own are now right; that sub-recipe used to count as weighing nothing, which made every figure far too high.
+- **38.** Every food and recipe name now shows its code wherever it appears, including all of Compare's tables; a test now checks every page for it.
+- **37.** MANUAL: The glossary now explains PDCAAS, the older protein-quality score that DIAAS replaced, which some food notes quote.
+- **36.** The manual's search says plainly, in a yellow box, when nothing matches.
+- **35.** Meals & Log explains the percentages under its figures.
+- **34.** Saving your profile now re-scores today straight away; Settings can then apply it to earlier days too, and each day has a "current profile" switch, on its day pages and on Meals & Log, that flips between your current profile and the one the day was pinned to.
+- **33.** A day's page notes, under its Water rows, what NICE's weight-based fluid figure comes to for you (for comparison only), and reminds you about drinks on a high-protein day.
+- **32.** A clinician's fluid limit can now be set on Water from drinks as well as on Water; with either set, NuMa stops nudging you to drink more.
+- **31.** Water past its goal is shown plain, not green: going past a water goal gains nothing.
+- **30.** Your profile can take its water goals from the IOM (the default) or from EFSA, the European authority, whose figures are lower.
+- **29.** Meals & Log's Calories column now sits after "% of goal", and it and every nutrient column after it show, under each meal's figure, that meal's share of the day's goal for the nutrient, in parentheses.
+- **28.** Foods → 9's water section has a **Show these foods in the list below** button, which turns on the Water column in the missing nutrient data list and jumps to it — the way to deal with foods USDA has no water value for.
+- **27.** Foods → 9's missing nutrient data list has a **Mark column not needed** button under each group's heading, and a **Refresh list** button.
+- **26.** Deleting a recipe now warns you first when it's logged in any meal, as well as when another recipe uses it — from the Recipes list as well as the recipe's page — and suggests Archive instead.
+- **25.** MANUAL: The water section now says what its goal is based on, that coffee, tea and dilute alcohol count as water, and why a high-protein diet needs water.
+- **24.** Total water, from drinks and food together, keeps its daily goal (3.7 L men, 2.7 L women); the drinks part now has a goal of its own as well (3.0 L men, 2.2 L women). From age 65, a day's page warns when its drinks fall below the older-adult minimum (2.0 L men, 1.6 L women). Water from food shows its share of the day's water.
+- **23.** A food named dry (a flour, powder, dried...) whose data says it's mostly water is flagged in recipes, meals and Foods → 9, the sign of a wet food picked for the dry one; every other food there shows its water. Search now labels USDA's okara as the wet pulp.
+- **22.** Settings → 14 turns water tracking on or off; off hides it everywhere and deletes nothing.
+- **21.** Searching for okara now offers USDA's okara; it used to offer an entry named "Okara" that actually held raw celery's data.
+- **20.** Foods → 9 can fill in the water value for all your USDA foods at once, from USDA, without changing anything else about them.
+- **19.** NuMa now tracks water from everything you log, split into water from drinks and water from food, against a daily total-water goal; foods and recipes each have a "this is a drink" checkbox, also on Food use in meals.
 - **18.** A food's Protein Quality table shows each amino acid in the food and after digestion, with Met / Short following the after-digestion score; a note explains a food that is incomplete despite every amino acid being met in the food; "DIAAS" there now shows the real DIAAS, with digestibility beside it.
 - **17.** A complement suggestion's "% increase" now measures from the real current DCP, named under each table, so small amounts no longer show a false decrease; capped foods' rows say "per-meal limit", not "full".
 - **16.** Complement suggestions sorted by DCP achieved now follow exactly the figure each one shows, with a note explaining it; single-food pages no longer overstate that figure.
@@ -5004,13 +5111,381 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **2.** What-if pages now show glycemic load before and after your changes, and say when a swap to a food with no GI makes the "after" look better than it is; every incomplete GL figure now says how much of the carbohydrate it covers.
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
+#### October 11 updates
+
+**PROGRAM: A FOOD'S NOTES SHOW WITH ITS ANALYSIS**
+
+A food's page now starts with its notes, and the prep context you gave it on the Annotate page, and its printout can include them. A recipe's notes also show when you analyze a portion of it. [learn more...](#food-notes)
+
+<!--
+
+```
+food_detail.html: new "Notes" section (sec-food-notes, own sidebar entry), shown only when
+foods.notes or food_annotations.prep_context is set; neither was displayed anywhere except their
+edit forms. _food_detail_context() puts both on ctx["food"]; _food_available_sections() offers
+"notes" for the food printout; print.html renders it. food_analyze_recipe_portion.html shows
+recipes.notes (the recipe page and its printout already did).
+```
+
+-->
+
+**PROGRAM: FOOD USE IN RECIPES CAN FILTER BY NAME**
+
+Analysis → Food use in recipes has a name box, so you can show just the foods and recipes whose name contains the words you type. [learn more...](#fooduse-recipes-name)
+
+<!--
+
+```
+GET /analysis/food-use-recipes ?name= (name_filter, alias "name": the aggregation loop's own
+`name` variable would shadow it). All-words, case-insensitive substring match on the row name,
+applied after protein_only; counts/percentages unchanged. Carried through the substitute POST and
+its redirect. Heading shows "N of M rows"; an empty match has its own message.
+```
+
+-->
+
+**PROGRAM: RENAMING A FOOD RENAMES IT IN YOUR RECIPES, MEALS AND PANTRY**
+
+When you rename a food, the new name now shows on every recipe ingredient, logged meal item and pantry entry that uses it, so the old name no longer lingers there. [learn more...](#food-rename)
+
+<!--
+
+```
+Foods -> food Edit page (and any update_cached_food_profile() caller: USDA refresh, AA estimate,
+copy nutrients). db.update_cached_food_profile() now reads the old name first and, when it changed,
+calls new db.propagate_food_name(): recipe_ingredients (fdc_id match, not sub-recipe lines),
+meal_items (item_type 'food') and pantry rows take the new name, each keeping its own "* " starter
+marker; a diaas_overrides row under the old name moves to the new one (digestibility is looked up
+by the line's name). Returns the count, shown as a note on the Edit page. rename_cached_food()
+(the curator starter toggle) deliberately unchanged. Tests: tests/test_db.py
+TestFoodRenamePropagates.
+```
+
+-->
+
+**PROGRAM: COMPARE SHOWS EVERY NUTRIENT, AND SAYS WHICH HAVE NO DATA**
+
+Compare's nutrient table now has every nutrient a food's own analysis shows, including the omega fatty acids, iodine and selenium, and a yellow box above it names any nutrient left out because none of the items has data for it. [learn more...](#compare-nutrients)
+
+<!--
+
+```
+Compare -> Nutrient comparison. usda_nutrients.COMPARE_GROUPS had never gained the Omega Fatty Acids
+group, iodine_mcg or selenium_mcg that _NUTRIENT_GROUPS (web/backend.py) got, so those rows could
+never appear. COMPARE_GROUPS now mirrors _NUTRIENT_GROUPS (Water as its own group, water_g only --
+the drinks/food split is a day/meal-total thing) plus Amino Acids; a test checks the two stay in
+step. New _compare_omitted() lists the shown-but-empty nutrients for the alert in compare.html.
+```
+
+-->
+
+**PROGRAM: STARTER RECIPES IN SETTINGS SHOW THEIR CODES**
+
+The list of improved starter recipes in Settings now shows each one's code beside its name.
+
+**PROGRAM: COMPARE RECIPES AS WRITTEN**
+
+Compare has a new **Compare amounts** choice: per 100 g (as before), one serving of each recipe as written, or each whole recipe as written, with every ingredient's typed measure beside its grams. [learn more...](#comparison-basis)
+
+<!--
+```
+web/backend.py _COMPARE_BASES / _compare_basis() (prefs compare_basis);
+_load_compare_entry(basis): scale 100/batch g, 1/servings, or 1; entry
+basis_label for the nutrient table heading and the CSV header; typed unit
+shown with the grams in "recipe" mode; weight_complete forced True outside
+per-100 g (nothing is weight-scaled). compare.html: selector above the
+tables (only when a recipe is compared), headings and notes per basis.
+Starter recipes: demo_data._relevant() adds recipe_ids (name -> local id),
+used by settings.html's improved-recipes list.
+```
+-->
+
+**PROGRAM: RECIPES BUILT ON A SUB-RECIPE NOW WEIGH WHAT THEY SHOULD**
+
+Compare now weighs a recipe correctly when it uses a sub-recipe that has no total weight of its own: NuMa adds up that sub-recipe's own ingredients instead. Before, such a sub-recipe counted as weighing nothing, so the recipe looked far lighter than it is and every per-100 g figure on Compare (nutrients, and each ingredient's share) came out far too high. [learn more...](#comparison-estimate)
+
+<!--
+```
+Reported on /compare?items=r23,r66,r69: R66 and R69 differ only by 2 T salsa +
+1 t soy sauce in R69, yet okara flour showed 100 g/100 g in R66 vs 47 g in R69.
+db.recipe_compute_weight() read a sub-recipe's stored total_weight only, so the
+smoothie-core sub-recipe (R63, no total weight) added 0 g: R66 = 33 g (okara
+alone), R69 = 70 g. Now _sub_recipe_serving_grams(): stated total weight,
+converted from its unit (it was taken as grams), else the sub-recipe's own
+ingredients, recursively, with a cycle guard. A deleted sub-recipe line
+(ref_recipe_deleted) now makes the sum incomplete instead of adding its
+"1 serving" amount as 1 g. R66 now 140 g, R69 177 g (okara 23.6 vs 18.6 g/100 g).
+Also feeds recipe_serving_grams() (meal amounts in grams) through the same
+path. Tests: tests/test_recipe_serving_weight.py TestComputeWeightThroughSubRecipes.
+```
+-->
+
+**PROGRAM: EVERY FOOD AND RECIPE NAME SHOWS ITS CODE**
+
+Wherever NuMa shows a food or recipe by name, its code (U171477, R21 ...) now shows beside it, including the headings of all four tables on Compare and every row of its ingredient table. A test now checks every page, so a new one can't leave the code out.
+
+<!--
+```
+Compare: three table headings and the ingredient rows had no code; ingredient
+rows are now keyed by food/recipe ID, so two different foods sharing a name
+stay separate rows. Also fixed: food-search result rows (Analyze portion,
+Convert), calorie and food-data notes, What-if recipe lists, Annotate, Foods ->
+9 lists (completeness, data problems, amino acids/portions/GI, old copies,
+orphaned meal items), Convert, Fill-from / Review-incoming / Copy-fields /
+Oxalate-link headings, the Add-to-pantry form, meal/day/summary/recipe
+digestibility tables (recipe rows), antinutrient cards, oxalate tables and
+"No oxalate data for", missing-AA lists, meal-history search, recipe-edit
+ingredient rows and relink choices, translate preview, print pages, starter
+data lists, stale-amounts table. Data added: oxalate rows/missing_ids,
+antinutrient fdc_id/recipe_id, starter recipe id and improved-food code.
+tests/test_food_id_tags.py scans web/templates; exemptions (meal names,
+import previews, name-keyed DIAAS overrides) listed with reasons.
+```
+-->
+
+**MANUAL: PDCAAS IN THE GLOSSARY**
+
+The glossary now has an entry for PDCAAS, the older protein-quality score that DIAAS replaced. Some foods' notes quote a PDCAAS figure from their source; the entry says why it isn't the same as a DIAAS. [learn more...](#gloss-pdcaas)
+
+**PROGRAM: MANUAL SEARCH SAYS SO WHEN NOTHING MATCHES**
+
+A manual search that finds nothing now says so in a yellow box, naming what you searched for, instead of a line of tiny grey text that was easy to miss. [learn more...](#search-howto)
+
+<!--
+```
+scripts/build_manual.py: setCount(txt, none) toggles #search-count.search-none
+(14px bold, amber box); the message names the query and suggests unticking
+"Only show things you can do" / Match case / Whole words only when ticked.
+```
+-->
+
+**PROGRAM: MEALS & LOG EXPLAINS ITS PERCENTAGES**
+
+A note above the Meals & Log table now says what the percentages in parentheses are: each meal's share of the day's goal for that nutrient. [learn more...](#meals-list)
+
+**PROGRAM: PROFILE CHANGES REACH TODAY, AND ANY DAY YOU CHOOSE**
+
+Save your profile and today is re-scored against it at once. Settings then offers to apply it to earlier days from a date you pick, and every day has a **current profile** switch, on its Summary and Full Day pages and under its date on Meals & Log, to score it against your profile as it is now, or put back the profile it was pinned to. [learn more...](#day-profile)
+
+<!--
+```
+Before: a day was pinned to a profile snapshot on its first meal and never
+moved, so a Settings change (e.g. IOM -> EFSA water) had no visible effect,
+even on today; the Change control was hidden with only one profile.
+db.py: day_profile gains original_name/original_json/original_overridden and
+follows_current; day_profile_set_snapshot (UPDATE, not REPLACE),
+day_profile_set_following (keeps the first original via COALESCE),
+day_profile_restore_original. day_profile.py: follow_current, restore_pinned,
+refresh_after_profile_save (today unless overridden + all following days),
+follow_current_between (skips overridden). web/backend.py: _after_profile_save()
+after every save_profile (Settings profile, nutrient target, load defaults),
+refreshing day_pct_goal; POST /settings/profile/apply-to-days; POST
+/day/<date>/profile-mode. _day_profile_switch.html macro on summary.html,
+meal_day.html (profile line now a div, since a form can't sit in a p) and
+meals.html.
+```
+-->
+
+**PROGRAM: A WEIGHT-BASED WATER FIGURE, AND A HIGH-PROTEIN REMINDER, ON DAY PAGES**
+
+Under a day's Water rows, NuMa now shows what NICE's hospital fluid figure, 25–30 mL per kg a day, comes to at your weight, for comparison only, with a note when it falls below your goal. On a day when your protein is one and a half times your goal or more, a second note reminds you that extra protein takes extra water to clear. [learn more...](#water-weight)
+
+<!--
+```
+Day pages (/summary/<date>, the full-day meal view). profile.nice_water_band()
++ ideal_body_weight_kg() (Devine; used when BMI >= 30; each end capped at
+3 L, NICE CG174); web/backend.py _water_day_notes() -> water_notes, rendered
+by _water_notes.html after the nutrient section holding Water
+(section["has_water"]). Protein note at _HIGH_PROTEIN_FACTOR (1.5) x the
+protein goal. Both off with water tracking off, no profile, or a fluid limit.
+From the fluid-intake research report's Recommendations, item 2 and 5.
+```
+-->
+
+**PROGRAM: A FLUID LIMIT CAN BE SET ON DRINKS**
+
+Settings → Nutrient Targets now takes a maximum limit for Water from drinks, as well as for Water, since a heart-failure fluid limit usually counts only what you drink. With either set, the water goals lose their colour and the over-65 drinks warning and water notes go. [learn more...](#water-reference)
+
+<!--
+```
+water_drinks_g added to _NUTRIENT_TARGET_GROUPS. _water_capped(max_limits)
+clears rda_css/day_rda_css on the water_g and water_drinks_g rows in
+_nutrient_sections() and Recent Days' % goal cells, and skips the
+drinks_floor label.
+```
+-->
+
+**PROGRAM: WATER PAST ITS GOAL IS NO LONGER SHOWN AS SUCCESS**
+
+A water goal's percentage is coloured as usual below the goal, but plain at or above it, never green: going past a water goal gains nothing. [learn more...](#water-reference)
+
+<!--
+```
+compute_rda() types water_g and water_drinks_g "goal" (new). rda_status():
+"goal" below 100% as a minimum, at/above it "reached" -> .rda-reached (bold,
+no colour); legend gains a "plain" entry; _RDA_TYPE_ABBR/TITLE "goal";
+What-if's days-unmet count treats "reached" as met.
+```
+-->
+
+**PROGRAM: CHOOSE IOM OR EFSA WATER GOALS**
+
+Settings → 1, Your Profile, has a new **Water goals from** choice: the US Institute of Medicine's figures (3.7 L men, 2.7 L women, the default) or EFSA's (2.5 and 2.0 L). The drinks goal follows the choice. [learn more...](#water-reference)
+
+<!--
+```
+UserProfile.water_reference ("iom" | "efsa", WATER_REFERENCES); stored in the
+profile so pinned day snapshots keep their goals. EFSA drinks = 80% of total
+(2.0 / 1.6 L), EFSA's own food-share assumption. The select shows only while
+water tracking is on; settings_post keeps the saved value when it's absent.
+```
+-->
+
+**PROGRAM: EACH MEAL'S SHARE OF THE DAY'S GOAL, ON MEALS & LOG**
+
+On Meals & Log, Calories now sits after "% of goal", and it and every nutrient column after it show, under each meal's figure, that meal's share of the day's goal for the nutrient — "(23%)" — so you can see at a glance how much of a day's need a meal covers. [learn more...](#meal-columns)
+
+<!--
+```
+web/backend.py _meals_list_ctx(): per date, the pinned profile's compute_rda()
+(day_profile.get_profile_for_date + _load_rda); m["nutrient_pcts"][key] =
+meal snapshot value / that date's goal value x 100, only where the goal is > 0.
+web/templates/meals.html renders it as muted small text under the raw figure,
+uncoloured (a single meal against a whole day's goal would otherwise read as
+"low" almost everywhere). The fixed Calories column moved from before Meal DCP
+to after % of goal, with m["calories_pct"] against the date's calorie goal.
+```
+-->
+
+**PROGRAM: A BUTTON TO REACH THE FOODS USDA CAN'T FILL IN WATER FOR**
+
+Foods → 9's water section now has a **Show these foods in the list below** button. It turns on the Water column in the missing nutrient data list and takes you there, so you can ask Claude AI for those foods' water or mark them not needed. [learn more...](#water)
+
+<!--
+```
+web/templates/food_cache_db_check.html, water section. A GET form re-sends the
+currently remembered "Groups to check" plus water (saved to prefs the usual
+way) and lands on #completeness; once water is already checked it becomes a
+plain jump link. Before, the only pointer was a small-text "tick Water under
+Groups to check" note, and Water is off by default.
+```
+-->
+
+**PROGRAM: MARK A WHOLE COLUMN NOT NEEDED, AND REFRESH THE LIST**
+
+In Foods → 9's missing nutrient data list, each group's heading now has a **Mark column not needed** button that ticks "not needed" for every food in that column at once, and a **Refresh list** button redraws the list without leaving the page. [learn more...](#data-completeness)
+
+<!--
+```
+web/templates/food_cache_db_check.html, Missing nutrient data table. Column
+button (.js-col-not-needed, data-group) toggles the column's .gap-ignore-cb
+boxes and relabels itself "Unmark column" once all are ticked; nothing saved
+until Save. Refresh list submits an empty GET form (a same-URL #completeness
+link would only scroll, not reload); groups/show_ignored come back from prefs.
+confirmGapRefresh() asks first if any not-needed box differs from defaultChecked.
+```
+-->
+
+**PROGRAM: DELETING A RECIPE WARNS WHEN MEALS OR RECIPES USE IT**
+
+Before you delete a recipe, NuMa now tells you how many logged meals it's in (and between which dates) and which recipes use it as a sub-recipe, and suggests Archive instead, which breaks nothing. This happens on both Delete buttons, the Recipes list's and the recipe page's. [learn more...](#delete-recipe-elsewhere)
+
+<!--
+```
+Recipes list (Delete) and recipe page (Delete recipe). Before: the recipe page
+warned only about sub-recipe use, never meals; the Recipes list's button said
+just "Delete X?" (and its &#39; escaping broke the confirm() for any name with
+an apostrophe). Now both use web/backend.py _recipe_delete_warning(), fed by new
+db.recipe_meal_use() (meal count + first/last date, per recipe or all at once)
+and db.recipe_subrecipe_users() (whole-list sub-recipe users); the text goes
+through |tojson inside a single-quoted onsubmit attribute. Test:
+test_recipe_delete_warns_about_meals_and_sub_recipe_use.
+```
+-->
+
+**MANUAL: WATER GOAL EXPLAINED, AND WHAT COUNTS AS WATER**
+
+The water section now explains what its daily goal is: the typical intake of healthy people, not a measured need, with Europe's lower figures for comparison. It also says that coffee, tea and dilute alcohol count as water, and why eating a lot of protein is a reason not to run low on drinks. [learn more...](#water)
+
+**PROGRAM: A SECOND GOAL, FOR WATER FROM DRINKS, A WARNING FROM 65, AND FOOD'S SHARE OF YOUR WATER**
+
+Your total water, from drinks and food together, is still measured against its daily goal (3.7 litres for men, 2.7 for women). The drinks part of it now has a goal of its own as well (3.0 and 2.2 litres), both from the US Institute of Medicine. From age 65, a day's page also warns when its drinks come to less than the minimum the European clinical nutrition guideline recommends for older people (2.0 litres for men, 1.6 for women). That minimum is a floor, not a lower goal: older people's need for water doesn't fall. A new manual section explains why, with sources. Water from food now shows what share of the day's water it supplied. [learn more...](#water-older)
+
+<!--
+
+```
+Scope: profile.compute_rda() always adds water_drinks_g (minimum) = IOM beverage part of the total-water AI (3000 male / 2200 female / 2600 other). New profile.drinks_floor(profile): ESPEN geriatric minimum (2000 / 1600 / 1800; Volkert et al. 2019) at age >= 65, else None. _nutrient_sections(drinks_floor=) appends a "below the N L ... (ESPEN)" warning to the Water from drinks label when the value is under it; passed only on whole-day pages (_meal_day_context, summary_date), from the day's pinned profile (or the active one), and only while water tracking is on. An earlier same-day version offered ESPEN as an alternative goal in Settings → 14; replaced by the floor before release (owner: older people need more protein, so they shouldn't get a lower water goal). _nutrient_sections() also appends "(N% of the total)" to the Water from food label. New manual subsection #water-older with footnotes 77-83.
+```
+
+-->
+
+**PROGRAM: WET FOOD PICKED FOR A DRY ONE IS NOW FLAGGED**
+
+When a food's name, or the name you gave it in a recipe or meal, says it's dry (a flour, powder, dried...) but its data says it's over 40% water, NuMa now marks it in the recipe's ingredient list and the meal's food list, and lists it on Foods → 9 with where it's used. Most likely the wet version was picked by mistake, and every value from it is several times too low. Every other food in those lists shows its water in grey, and food search now labels USDA's okara as the wet pulp. [learn more...](#water-wet-dry)
+
+<!--
+
+```
+Scope: numa_app/services/water.py dry_word() / wet_dry_conflict() (dry words flour|powder|powdered|dried|dehydrated|freeze-dried|dry; wet-context words prepared|reconstituted|cooked|packed in|in oil|wine|... void them; WET_DRY_THRESHOLD_G 40, above dried fruit at ~31%); data_quality.wet_dry_in_use() (own name or recipe-ingredient / meal-item typed name, with where used); web/backend.py _mark_water() on recipe detail + edit ingredients and meal items (sets water_pct, wet_dry; a recipe ingredient's recipe_id is its parent, so only ref_recipe_id marks a sub-recipe); new _water_mark.html mark()/footnote(); Foods → 9 #wet-dry table. usda_api okara alias label "Okara (wet pulp, as pressed — about 82% water)" (deliberately no dry word, or the check would flag it), and search_foods() now applies an alias label to USDA's own matching result too. Checked against a copy of the owner's DB with water filled in: 28 dry-named foods, 0 flagged (highest 30.9%).
+```
+
+-->
+
+**PROGRAM: WATER TRACKING CAN BE TURNED OFF**
+
+Settings → 14 has a **Track my water intake** switch. Turned off, it hides every water row, the drink tick-boxes, the water fill-in and the wet/dry check; nothing is deleted, so turning it back on brings everything back. [learn more...](#settings)
+
+<!--
+
+```
+Scope: web/backend.py _track_water() (prefs track_water, default True; Jinja global), _hidden_nutrients(), _shown_groups() applied to _nutrient_sections, Top Contributors options, Compare groups, Computed Daily Targets, Nutrient Targets rows, Meals & Log column picker, Nutrient Plot choices, What-if groups (whatif._row_keys never puts water keys in "Other"); POST /settings/water; templates settings.html (#water-tracking, access key w), _drink_toggle.html, analysis_food_use.html Drink column, food_cache_db_check.html backfill + wet/dry blocks. Water is still summed into meal snapshots while off, so switching back needs no recompute.
+```
+
+-->
+
+**PROGRAM: OKARA SEARCH RESULT HELD CELERY DATA**
+
+Searching for okara now offers USDA's own okara (SR Legacy, with amino acids). Before this fix, NuMa's built-in "Okara" result pointed to USDA's raw celery, so choosing it saved celery's nutrients. Your database had no such entry, so nothing needs correcting.
+
+<!--
+
+```
+Scope: usda_api.py _SEARCH_ALIASES — okara alias fdc_id 2346405 ("Celery, raw", Foundation) -> 172452 ("Okara", SR Legacy; full AA profile, water 81.6 g). All five aliases checked against the live API 2026-10-11; the other four were right. New tests/test_usda.py TestSearchAliases pins each alias id to USDA's own description. Found while testing the water backfill's batch request.
+```
+
+-->
+
+**PROGRAM: FILL IN WATER FOR ALL YOUR USDA FOODS AT ONCE**
+
+Foods → 9, *Missing nutrient data*, now has a **Fill in water for N USDA foods from USDA** button. It fetches just the water value for every USDA food that lacks one, adds it only where the food has none, and changes nothing else about the food; meals and recipes using those foods update to match. If it stops partway, clicking it again carries on. [learn more...](#water)
+
+<!--
+
+```
+Scope: new numa_app/services/water_backfill.py (candidates(), run(), start() on a background thread, status()/clear_status(); per-batch recipe recompute once per recipe + stale meals + meal_recalc_log), usda_api.get_water_values() (GET foods?fdcIds=..&format=abridged&nutrients=255, 20 ids per request), db.fill_source_nutrient() (blank-only write into nutrients_json and source_json, so not a user edit), POST /food/cache/water-backfill, food_cache_db_check.html progress/outcome block (#water-backfill, 3 s reload while running). Foods marked "Water not needed" skipped. A USDAError stops the run but keeps earlier batches; rerun resumes. Tests: tests/test_water.py TestBackfill.
+```
+
+-->
+
+**PROGRAM: WATER INTAKE, FROM DRINKS AND FROM FOOD**
+
+Meal, recipe and day pages now show how much water you took in, split into water from drinks and water from food, measured against a daily goal for total water (3.7 L men, 2.7 L women). Tick **This food is a drink** or **This recipe is a drink** on a food's or recipe's page, or on Analysis → Food use in meals; USDA beverages are ticked for you. Both halves can be chosen as columns and plotted. Foods saved before today have no water value until refreshed. [learn more...](#water)
+
+<!--
+
+```
+Scope: usda_api.py (NUTRIENT_MAP 1051 water_g, abridged "255", _food_category(), DERIVED_NUTRIENTS), usda_nutrients.py (nutrient_label, COMPARE_GROUPS), cnf_api.py (H2O), profile.py (compute_rda water_g AI), db.py (foods.is_drink / recipes.is_drink migration with "Beverages, ..." name backfill; cache_food(category=) guesses on insert only; set_food_is_drink / set_recipe_is_drink), new numa_app/services/water.py (tag(), as_drink(), is_drink(), looks_like_drink()), recipe_nutrients.expand_recipe_ingredients (leaf tagging, recipe drink flag carried down as _drink), web/backend.py (_meal_expand_for_diaas tagging, Water group + subtype rows shown only when the split is present, POST /food/{id}/drink and /recipe/{id}/drink with local next, Food use in meals Drink column), whatif._Ctx.nutrients_100g, meal_list_columns (split keys as column/plot choices), data_completeness ("water" group, not checked by default), claude_fetch prompt key list, templates _drink_toggle.html / food_detail / recipe_detail / analysis_food_use. The split is never stored on a food: tag() adds water_drinks_g / water_food_g at the three points food nutrients enter a total, so meal snapshots, day totals, plots and What-if carry it unchanged. Not done: CoFID/AFCD/CIQUAL moisture columns (build scripts need the source spreadsheets), a quick "+ glass of water" button. Tests: tests/test_water.py.
+```
+
+-->
+
 #### October 10 updates
 
 **PROGRAM: PROTEIN QUALITY TABLE SHOWS SCORES AFTER DIGESTION**
 
 A food's Protein Quality table now has two score columns: each amino acid in the food itself, and after digestion. Its Met / Short status follows the after-digestion column, the one that decides whether the protein is complete. So a food the page calls incomplete no longer shows every amino acid as met. When every amino acid is met in the food but the protein is still incomplete (buckwheat, for one), a note explains why. The figure that used to be labelled DIAAS is now correctly called digestibility, and the real DIAAS is shown beside it. [learn more...](#protein-quality)
 
-<!--
+<!-- 
 
 ```
 Scope: food page Protein Summary + Protein Quality, and the food print view.
@@ -8238,6 +8713,24 @@ paragraph promoted to a heading). No behaviour change beyond the new panel.
 [^75]: Snijders, T., Res, P. T., Smeets, J. S. J. et al. "Protein ingestion before sleep increases muscle mass and strength gains during prolonged resistance-type exercise training in healthy young men." *Journal of Nutrition* 145(6):1178–1184, 2015. — 44 young men on a 12-week resistance programme took either a drink with 27.5 g protein (casein), 15 g carbohydrate and 0.1 g fat every night before sleep, or a non-caloric placebo; the protein group gained more muscle size and strength. Young, training men only.
 
 [^76]: Aoyama, S., Kim, H.-K., Hirooka, R. et al. "Distribution of dietary protein intake in daily meals influences skeletal muscle hypertrophy via the muscle clock." *Cell Reports* 36(1):109336, 2021. — In mice, protein concentrated at the first meal of the active period produced more muscle growth than the same protein at the last meal, and the effect was absent in mice with mutations in muscle clock genes; branched-chain amino acids were involved. In a cross-sectional study of 60 healthy women aged 65 and over, a larger share of protein at breakfast was associated with better muscle function. The human data show association, not cause.
+
+[^77]: Institute of Medicine (US), Panel on Dietary Reference Intakes for Electrolytes and Water. *Dietary Reference Intakes for Water, Potassium, Sodium, Chloride, and Sulfate*. National Academies Press, 2005. https://doi.org/10.17226/10925 — Sets the Adequate Intake for total water (3.7 L/day men, 2.7 L/day women, of which about 3.0 and 2.2 L from beverages) from median intakes in US survey data, with food supplying roughly 20% of the total. Counts caffeinated and alcoholic drinks toward total water.
+
+[^78]: Volkert, D., Beck, A. M., Cederholm, T. et al. "ESPEN guideline on clinical nutrition and hydration in geriatrics." *Clinical Nutrition* 38(1):10–47, 2019. https://doi.org/10.1016/j.clnu.2018.05.024 — Recommends that older women be offered at least 1.6 L and older men at least 2.0 L of drinks a day, unless a clinical condition requires otherwise.
+
+[^79]: Parkinson, E., Hooper, L., Fynn, J. et al. "Low-intake dehydration prevalence in non-hospitalised older adults: Systematic review and meta-analysis." *Clinical Nutrition* 42(8):1510–1520, 2023. https://doi.org/10.1016/j.clnu.2023.06.010 — Pooled prevalence of low-intake dehydration (serum osmolality above 300 mOsm/kg) of about 24% in older adults living outside hospital.
+
+[^80]: Rowe, J. W., Shock, N. W., DeFronzo, R. A. "The influence of age on the renal response to water deprivation in man." *Nephron* 17(4):270–278, 1976. https://doi.org/10.1159/000180731 — After 12 hours without water, the maximum urine concentration healthy men reached fell with age, the oldest group's being roughly a fifth below the youngest's.
+
+[^81]: Phillips, P. A., Rolls, B. J., Ledingham, J. G. G. et al. "Reduced thirst after water deprivation in healthy elderly men." *New England Journal of Medicine* 311(12):753–759, 1984. https://doi.org/10.1056/NEJM198409203111202 — After 24 hours without water, healthy men aged 67–75 reported less thirst and drank less than young men, and their plasma stayed more concentrated.
+
+[^82]: Hooper, L., Bunn, D., Jimoh, F. O., Fairweather-Tait, S. J. "Water-loss dehydration and aging." *Mechanisms of Ageing and Development* 136–137:50–58, 2014. https://doi.org/10.1016/j.mad.2013.11.009 — Review: water-loss dehydration is common in older people, driven by reduced thirst and the kidney's reduced ability to concentrate urine, among other age-related changes.
+
+[^83]: Ziegler, E. E., Fomon, S. J. "Potential renal solute load of infant formulas." *Journal of Nutrition* 119(12 Suppl):1785–1788, 1989. https://doi.org/10.1093/jn/119.12_suppl.1785 — The standard estimate of the load the kidneys must clear, in which protein contributes its nitrogen (mg) divided by 28 mOsm: about 5.7 mOsm per gram of protein. (The paper concerns infant formulas; the arithmetic is the same for any diet.)
+
+[^84]: EFSA Panel on Dietetic Products, Nutrition, and Allergies. "Scientific Opinion on Dietary reference values for water." *EFSA Journal* 8(3):1459, 2010. https://doi.org/10.2903/j.efsa.2010.1459 — EFSA's Adequate Intakes for total water: 2.5 L a day for men, 2.0 L for women. EFSA publishes no drinks figure; NuMa's drinks goal under EFSA is 80% of the total (2.0 and 1.6 L), from EFSA's own assumption that food supplies about 20%.
+
+[^85]: National Institute for Health and Care Excellence. *Intravenous fluid therapy in adults in hospital* (Clinical Guideline CG174), 2013, updated 2017. https://www.nice.org.uk/guidance/cg174 — routine maintenance starts at 25–30 mL/kg/day of water; for patients with obesity, the prescription is adjusted to ideal body weight, and patients rarely need more than 3 L a day in total.
 
 
 ---

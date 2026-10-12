@@ -468,6 +468,17 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     font-size: 11px;
     color: var(--muted);
 }
+/* No hits at all: say so loudly enough to notice (it used to read as nothing happening). */
+#search-count.search-none {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #7c2d12;
+    background: #fef3c7;
+    border: 2px solid #d97706;
+    border-radius: 4px;
+    padding: 6px 8px;
+}
 .search-btn {
     background: none;
     border: 1px solid var(--border);
@@ -606,7 +617,12 @@ JS = """\
     });
   }
 
-  function setCount(txt) { document.getElementById('search-count').textContent = txt; }
+  // `none`: a search with no hits at all, shown so it can't be missed.
+  function setCount(txt, none) {
+    var el = document.getElementById('search-count');
+    el.textContent = txt;
+    el.classList.toggle('search-none', !!none);
+  }
 
   function closeSectionHighlights() {
     document.querySelectorAll('mark.search-hit').forEach(function (m) {
@@ -681,7 +697,11 @@ JS = """\
     resultsEl.innerHTML = '';
     if (!currentWords.length) { setCount(''); return; }
     if (!items.length) {
-      setCount(funcMode ? 'No sections match (try unchecking the box above)' : 'No sections match');
+      var what = '\u201c' + input.value.trim() + '\u201d';
+      setCount('No matches for ' + what + ' anywhere in this manual' +
+               (funcMode ? ' \u2014 try unchecking \u201cOnly show things you can do\u201d' : '') +
+               (caseCheckbox.checked || wordCheckbox.checked ? ' \u2014 or untick Match case / Whole words only' : '') + '.',
+               true);
       return;
     }
     var shown = items.slice(0, RESULT_CAP);

@@ -47,7 +47,7 @@ def _nutrients(fdc_id):
 class TestMissingGroups:
     def test_olive_oil_missing_macros_minerals_vitamins_not_omega_or_aa(self):
         gaps = _dc.missing_groups(OLIVE_OIL)
-        assert gaps == ["macros", "minerals", "vitamins"]
+        assert gaps == ["macros", "water", "minerals", "vitamins"]
 
     def test_one_absent_core_macro_counts_as_missing(self):
         assert "macros" in _dc.missing_groups({"calories": 1, "protein_g": 1, "carbs_g": 1})
@@ -61,7 +61,7 @@ class TestMissingGroups:
         assert "aa" not in _dc.missing_groups({})
 
     def test_active_gaps_drops_ignored_and_unchecked(self):
-        assert _dc.active_gaps(OLIVE_OIL, {"macros"}) == ["minerals", "vitamins"]
+        assert _dc.active_gaps(OLIVE_OIL, {"macros"}) == ["water", "minerals", "vitamins"]
         assert _dc.active_gaps(OLIVE_OIL, set(), {"vitamins"}) == ["vitamins"]
 
     def test_requested_keys_skips_values_present(self):
@@ -152,13 +152,13 @@ class TestWeb:
         with _db.get_db() as conn:
             _db.set_food_data_ignore(conn, 748608, "macros", True)
         resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [748608]})
-        assert "provide only: calcium_mg" in resp.text
+        assert "provide only: water_g, calcium_mg" in resp.text
         assert "calories" not in resp.text.split("provide only:")[1].split("\n")[0]
         assert "do not supply): Macronutrients" in resp.text
 
     def test_fetch_leaves_out_food_with_nothing_missing(self, client):
         _cache(748608, "Oil", OLIVE_OIL)
-        for g in ("macros", "minerals", "vitamins"):
+        for g in ("macros", "water", "minerals", "vitamins"):
             with _db.get_db() as conn:
                 _db.set_food_data_ignore(conn, 748608, g, True)
         resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [748608]})
@@ -178,6 +178,26 @@ class TestWeb:
         client.post("/food/cache/db-check/completeness", data={"shown": ["748608:macros"]})
         with _db.get_db() as conn:
             assert _db.food_data_ignores(conn) == {}
+
+    def test_check_page_has_column_not_needed_and_refresh_buttons(self, client):
+        _cache(748608, "Oil, olive", OLIVE_OIL)
+        resp = client.get("/food/cache/db-check")
+        # One per shown group column, tied to that column's "not needed" boxes.
+        assert 'class="btn btn-outline-secondary btn-sm py-0 mt-1 fw-normal js-col-not-needed" data-group="macros"' in resp.text
+        assert 'name="ignore" value="748608:macros" data-group="macros"' in resp.text
+        assert resp.text.count('form="gap-refresh-form"') == 2
+        assert 'id="gap-refresh-form" onsubmit="return confirmGapRefresh()"' in resp.text
+
+    def test_water_section_button_turns_on_water_column(self, client):
+        _cache(748608, "Oil, olive", OLIVE_OIL)
+        resp = client.get("/food/cache/db-check?check=macros")
+        assert "no water value yet" in resp.text
+        # Keeps the groups already chosen, adds Water.
+        assert '<input type="hidden" name="check" value="macros">\n    <input type="hidden" name="check" value="water">' in resp.text
+        assert "Show these foods in the list below" in resp.text
+        resp = client.get("/food/cache/db-check?check=macros&check=water")
+        assert 'value="748608:water"' in resp.text
+        assert "Go to these foods in the list below" in resp.text
 
     def test_check_page_group_filter_is_remembered(self, client):
         _cache(748608, "Oil, olive", OLIVE_OIL)

@@ -214,7 +214,7 @@
         {% endif %}
         {% if translated and ing.volume_display %}<br><span class="muted" style="font-size:0.85em">{{ ing.volume_display }}</span>{% endif %}
       </td>
-      <td>{{ ing.food_name }}{% if ing.ref_recipe_deleted %} <span style="color:#c00">(sub-recipe deleted)</span>{% endif %}</td>
+      <td>{{ ing.food_name }}{{ food_id_tag(None if ing.ref_recipe_id else ing.fdc_id, ing.ref_recipe_id) }}{% if ing.ref_recipe_deleted %} <span style="color:#c00">(sub-recipe deleted)</span>{% endif %}</td>
       <td class="muted">{{ ing.notes or "" }}</td>
     </tr>
     {% endfor %}
@@ -400,7 +400,7 @@
   <tbody>
     {% for row in oxalate_agg.rows %}
     <tr>
-      <td>{{ row.name }}</td>
+      <td>{{ row.name }}{{ food_id_tag(row.fdc_id) }}</td>
       <td class="num">{{ row.amount_g }}&thinsp;g</td>
       <td class="num">{{ row.mg }}&thinsp;mg</td>
       <td>{{ row.category | title }}</td>
@@ -411,14 +411,14 @@
 {% endif %}
 {% if oxalate_agg.qualitative %}
 <p class="muted"><em>Categorical only — no quantitative data:</em>
-  {% for row in oxalate_agg.qualitative %}{{ row.name }} ({{ row.category | title }}){% if not loop.last %}, {% endif %}{% endfor %}
+  {% for row in oxalate_agg.qualitative %}{{ row.name }}{{ food_id_tag(row.fdc_id) }} ({{ row.category | title }}){% if not loop.last %}, {% endif %}{% endfor %}
 </p>
 {% endif %}
 {% endif %}
 {% if ingredient_antinutrients %}
 {% for item in ingredient_antinutrients %}
 <div class="card">
-  <strong>{{ item.food_name }}</strong>
+  <strong>{{ item.food_name }}</strong>{{ food_id_tag(item.fdc_id, item.recipe_id) }}
   {% for flag in item.flags %}
   <p>{{ flag.problem }}: {{ flag.cause }}{% if flag.solution %} <span class="muted">— {{ flag.solution_label }}: {{ flag.solution }}</span>{% endif %}</p>
   {% endfor %}
@@ -503,6 +503,11 @@
 {% if "notes" in enabled and recipe and recipe.notes %}
 <h2>Notes and Documentation</h2>
 <p style="white-space:pre-wrap;line-height:1.6">{{ recipe.notes }}</p>
+{% endif %}
+{% if "notes" in enabled and food and (food.notes or food.prep_context) and not recipe %}
+<h2>Notes</h2>
+{% if food.notes %}<p style="white-space:pre-wrap;line-height:1.6">{{ food.notes }}</p>{% endif %}
+{% if food.prep_context %}<p><strong>Prep context:</strong> {{ food.prep_context }}</p>{% endif %}
 {% endif %}
 
 </body>

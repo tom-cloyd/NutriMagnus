@@ -43,6 +43,14 @@
     </div>
   </div>
 
+  <div class="mb-3" style="max-width:30rem">
+    <label class="form-label" for="name-filter">Show only foods and recipes whose name contains <small class="muted">(every word you type; leave blank to show all)</small></label>
+    <div class="input-group">
+      <input type="text" class="form-control" id="name-filter" name="name" value="{{ name or '' }}" placeholder="e.g. okara flour">
+      {% if name %}<a class="btn btn-outline-secondary" href="/analysis/food-use-recipes?{{ {'mode': mode, 'ranges_raw': ranges_raw or '', 'recipe_ids': recipe_ids_raw or '', 'protein_only': 'true' if protein_only else '', 'sort': sort or 'frequency'}|urlencode }}">Clear name filter</a>{% endif %}
+    </div>
+  </div>
+
   <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="protein_only" name="protein_only" value="true" {% if protein_only %}checked{% endif %}>
@@ -136,6 +144,7 @@
     <input type="hidden" name="ranges_raw" value="{{ ranges_raw or '' }}">
     <input type="hidden" name="recipe_ids" value="{{ recipe_ids_raw or '' }}">
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
+    <input type="hidden" name="name" value="{{ name or '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
     {{ _rp.fields(sub_id, sub_kind) }}
     <button type="submit" class="btn btn-sm btn-warning">Substitute everywhere in this selection</button>
@@ -147,7 +156,7 @@
   {% if rows %}
   <hr style="margin:1.5em 0 0 0">
   <h3 class="mb-2">Foods used in selected recipes
-    <small class="muted fw-normal" style="font-size:0.875rem">({{ total_recipes }} recipe(s) in this selection{% if protein_only %} &middot; protein-containing foods only{% endif %})</small>
+    <small class="muted fw-normal" style="font-size:0.875rem">({{ total_recipes }} recipe(s) in this selection{% if protein_only %} &middot; protein-containing foods only{% endif %}{% if name %} &middot; {{ rows|length }} of {{ rows_before_name }} rows, names containing &ldquo;{{ name }}&rdquo;{% endif %})</small>
   </h3>
   <div class="table-responsive">
     <table class="table table-sm table-hover" style="max-width:76rem">
@@ -208,6 +217,8 @@
     <strong>Replace</strong> is offered only for items listed straight in a selected recipe's ingredients; a dash means it's only used inside a sub-recipe that isn't part of this selection.
   </small></p>
   {% include "_code_key.html" %}
+  {% elif name and rows_before_name %}
+  <p class="muted mt-2">None of the {{ rows_before_name }} foods and recipes used in this selection has a name containing &ldquo;{{ name }}&rdquo;.</p>
   {% else %}
   <p class="muted mt-2">No recipes matched the selected date range(s) / recipe IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
   {% endif %}

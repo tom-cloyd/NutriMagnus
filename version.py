@@ -1,4 +1,4 @@
-VERSION = "2026-10-10:2326"
+VERSION = "2026-10-11:1930"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.26"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "Protein per meal on meal and day pages; protein complement suggestions now count each food at its own digestibility and stay within a sensible amount per meal"
+NEW_VERSION_NOTE = "Water intake, split into water from drinks and water from food, with a one-click fill-in of water for all USDA foods, a check for a wet food picked in place of a dry one, a Settings switch, and a warning from age 65 when drinks fall below the older-adult minimum; protein per meal on meal and day pages; protein complement suggestions now count each food at its own digestibility and stay within a sensible amount per meal; deleting a recipe now warns first when meals or other recipes use it; a whole column of missing data can be marked not needed at once, and a button lists foods USDA has no water value for; Meals and Log shows each meal as a share of the day goal for each nutrient; water goals from IOM or EFSA, a drinks fluid limit, and a weight-based water figure for comparison; saving your profile re-scores today, and any day can switch between its pinned profile and your current one; manual search says plainly when nothing matches; every food and recipe name shows its code; recipes built on a sub-recipe now weigh what they should on Compare; Compare can show recipes as written, per serving or whole; Compare shows every nutrient, omega fatty acids included, and names the ones none of the items has data for; renaming a food now renames it in your recipes, logged meals and pantry too; a food page shows its notes; Food use in recipes can filter by name"

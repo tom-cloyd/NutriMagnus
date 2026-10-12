@@ -396,5 +396,5 @@ hand-edit reading time.
 ## Test Conventions
 
 - `_mock_api(monkeypatch)` (in `tests/conftest.py`) — stubs USDA API; use for any test that touches food search.
-- Autouse fixtures handle DB, profile, and OFF stub — don't set these up manually.
+- Autouse fixtures handle DB, profile, web prefs.json and OFF stub — don't set these up manually.
 - `tests/test_web.py` has its own `use_test_web_prefs` fixture and `client` (FastAPI `TestClient`) fixture.

@@ -643,6 +643,9 @@ table {
 .rda-near { color: #1e40af; font-weight: 700; }
 .rda-low  { color: #c2410c; font-weight: 700; }
 .rda-over { color: #991b1b; font-weight: 700; }
+/* Water at or past its goal (rda_status "reached"): plain, never success-green —
+   going past a water goal gains nothing. */
+.rda-reached { font-weight: 700; }
 
 /* Color-coding legend dots — 50% bigger than the surrounding <small> text
    so the color is easy to pick out at a glance. */

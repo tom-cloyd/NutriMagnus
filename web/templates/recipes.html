@@ -123,7 +123,7 @@
           </button>
         </form>
         <form method="post" action="/recipe/{{ r.id }}/delete" style="display:inline" class="js-row-remove"
-              onsubmit="return confirm('Delete {{ r.name | replace("'","&#39;") }}?')">
+              onsubmit='return confirm({{ r.delete_warning | tojson }})'>
           <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
         </form>
       </td>

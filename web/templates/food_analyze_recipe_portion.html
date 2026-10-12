@@ -28,7 +28,7 @@
       <select name="recipe_id" id="recipe_id" class="form-select">
         {% for r in recipes %}
         <option value="{{ r.id }}" {% if selected_recipe and selected_recipe.id == r.id %}selected{% endif %}>
-          {{ r.name }} ({{ r.servings }} serving{% if r.servings != 1 %}s{% endif %}{% if r.serving_size %} = {{ r.serving_size }}{% endif %})
+          {{ food_code(None, r.id) }} — {{ r.name }} ({{ r.servings }} serving{% if r.servings != 1 %}s{% endif %}{% if r.serving_size %} = {{ r.serving_size }}{% endif %})
         </option>
         {% endfor %}
       </select>
@@ -80,6 +80,13 @@
     — {{ analysis.servings_analyzed }} serving{% if analysis.servings_analyzed != 1 %}s{% endif %} analyzed{% if analysis.serving_size %} (1 serving = {{ analysis.serving_size }}){% endif %}
   </small>
 </h3>
+
+{% if selected_recipe and selected_recipe.notes %}
+<details open class="mb-2">
+  <summary><strong>Notes and documentation</strong></summary>
+  <div class="mt-2 ms-2" style="white-space:pre-wrap;line-height:1.6">{{ selected_recipe.notes }}</div>
+</details>
+{% endif %}
 
 {% if not has_profile %}
 <p class="rda-no-profile">

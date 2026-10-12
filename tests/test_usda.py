@@ -2410,3 +2410,40 @@ class TestDensityFromPortionSpellings:
     def test_just_over_the_ceiling_is_not_used(self):
         density, source = _usda.density_with_source("Zzqx", [{"description": "1 cup", "gram_weight": 380.0}])
         assert source != "portion"
+
+
+class TestSearchAliases:
+    # Each alias's FDC id with the description USDA itself gives that id,
+    # checked against the live API on 2026-10-11. The okara alias pointed at
+    # 2346405 — "Celery, raw" — so picking "Okara" from search fetched celery.
+    VERIFIED = {
+        169414: "Seeds, flaxseed",
+        170554: "Seeds, chia seeds, dried",
+        172452: "Okara",
+        170148: "Seeds, hemp seed, hulled",
+        173904: "Cereals, oats, regular and quick, not fortified, dry",
+    }
+
+    def test_every_alias_is_a_verified_id_with_its_usda_name(self):
+        # A label may add a clarifying note after USDA's name ("Okara (wet pulp ...)").
+        import usda_api
+        aliases = {fdc_id: desc for _kw, fdc_id, desc, _t in usda_api._SEARCH_ALIASES}
+        assert set(aliases) == set(self.VERIFIED)
+        for fdc_id, desc in aliases.items():
+            assert desc == self.VERIFIED[fdc_id] or desc.startswith(self.VERIFIED[fdc_id] + " ("), desc
+
+    def test_okara_label_says_wet(self):
+        import usda_api
+        assert "wet" in usda_api._alias_matches("okara")[0]["description"]
+
+    def test_okara_search_offers_usda_okara(self):
+        import usda_api
+        assert [m["fdcId"] for m in usda_api._alias_matches("okara flour")] == [172452]
+
+    def test_alias_label_replaces_usdas_own_result(self, monkeypatch):
+        import usda_api
+        monkeypatch.setattr(usda_api, "_get", lambda path, params: {"foods": [
+            {"fdcId": 172452, "description": "Okara", "dataType": "SR Legacy"}]})
+        results = usda_api.search_foods("okara")
+        assert [r["fdcId"] for r in results] == [172452]
+        assert results[0]["description"].startswith("Okara (wet pulp")

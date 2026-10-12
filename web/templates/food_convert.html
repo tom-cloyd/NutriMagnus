@@ -59,6 +59,7 @@
 {% if food %}
 <hr>
 <h3>{{ food.name }}</h3>
+{{ food_id_tag(food.fdc_id | default(none)) }}
 {% if food.brand %}<p class="muted">{{ food.brand }}</p>{% endif %}
 {% if density %}
 <p><strong>Density:</strong> {{ "%.3f"|format(density) }} g/mL</p>

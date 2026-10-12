@@ -127,3 +127,66 @@ class TestProteinTargetForDate:
         target_default = _day_profile.protein_target_for_date(db_conn, "2026-07-01")
         rda_default = _profile.compute_rda(_profile.load_profile("Default"))
         assert target_default == pytest.approx(rda_default["protein_g"][0])
+
+
+def _weigh(kg: float) -> None:
+    """Edit the active (Default) profile's weight and save it."""
+    p = _profile.load_profile()
+    p.weight_kg = kg
+    _profile.save_profile(p)
+
+
+def _weight_on(conn, d: str) -> float:
+    return _day_profile.get_profile_for_date(conn, d).weight_kg
+
+
+class TestFollowCurrent:
+    def test_switch_on_follows_saves_and_switch_off_restores_exactly(self, db_conn):
+        _day_profile.ensure_day_profile(db_conn, "2026-07-01")
+        original = dict(_db.day_profile_get(db_conn, "2026-07-01"))
+        _weigh(55.0)
+        assert _weight_on(db_conn, "2026-07-01") != 55.0
+        assert _day_profile.follow_current(db_conn, "2026-07-01")
+        assert _weight_on(db_conn, "2026-07-01") == 55.0
+        assert _day_profile.follows_current(_db.day_profile_get(db_conn, "2026-07-01"))
+        # Later saves carry it along, and switching on again keeps the TRUE original.
+        _weigh(60.0)
+        _day_profile.refresh_after_profile_save(db_conn, "2026-07-20")
+        assert _weight_on(db_conn, "2026-07-01") == 60.0
+        _day_profile.follow_current(db_conn, "2026-07-01")
+        assert _day_profile.restore_pinned(db_conn, "2026-07-01")
+        back = dict(_db.day_profile_get(db_conn, "2026-07-01"))
+        assert back["profile_json"] == original["profile_json"]
+        assert not back["follows_current"] and back["original_json"] is None
+        assert not _day_profile.restore_pinned(db_conn, "2026-07-01")  # nothing kept now
+
+    def test_restore_keeps_a_manual_override_flag(self, db_conn):
+        _save_travel_profile()
+        _day_profile.ensure_day_profile(db_conn, "2026-07-01")
+        _day_profile.set_day_profile_override(db_conn, "2026-07-01", "Travel")
+        _day_profile.follow_current(db_conn, "2026-07-01")
+        _day_profile.restore_pinned(db_conn, "2026-07-01")
+        row = _db.day_profile_get(db_conn, "2026-07-01")
+        assert row["profile_name"] == "Travel" and row["overridden"]
+
+    def test_profile_save_repins_today_but_not_past_or_manual(self, db_conn):
+        _save_travel_profile()
+        for d in ("2026-07-01", "2026-07-20"):
+            _day_profile.ensure_day_profile(db_conn, d)
+        _weigh(55.0)
+        assert _day_profile.refresh_after_profile_save(db_conn, "2026-07-20") == ["2026-07-20"]
+        assert _weight_on(db_conn, "2026-07-20") == 55.0
+        assert _weight_on(db_conn, "2026-07-01") != 55.0
+        # Today, but set by hand: left alone.
+        _day_profile.set_day_profile_override(db_conn, "2026-07-20", "Travel")
+        assert _day_profile.refresh_after_profile_save(db_conn, "2026-07-20") == []
+
+    def test_follow_between_skips_manual_days(self, db_conn):
+        _save_travel_profile()
+        for d in ("2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03"):
+            _day_profile.ensure_day_profile(db_conn, d)
+        _day_profile.set_day_profile_override(db_conn, "2026-07-02", "Travel")
+        _weigh(55.0)
+        assert _day_profile.follow_current_between(db_conn, "2026-07-01", "2026-07-03") == ["2026-07-01", "2026-07-03"]
+        assert _weight_on(db_conn, "2026-06-30") != 55.0
+        assert _day_profile.get_profile_for_date(db_conn, "2026-07-02").name == "Travel"

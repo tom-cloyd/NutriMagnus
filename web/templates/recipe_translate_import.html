@@ -68,7 +68,7 @@ block — then review before saving.</p>
         <td class="text-nowrap">
           {{ ing.amount | round(1) }}&thinsp;g{% if ing.volume_display %} <span class="muted">({{ ing.volume_display }})</span>{% endif %}
         </td>
-        <td>{{ ing.food_name }}</td>
+        <td>{{ ing.food_name }}{{ food_id_tag(None if ing.ref_recipe_id else ing.fdc_id | default(none), ing.ref_recipe_id | default(none)) }}</td>
         <td class="muted">{{ ing.notes or "" }}</td>
       </tr>
       {% endfor %}

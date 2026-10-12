@@ -1,0 +1,14 @@
+{# "This is a drink" checkbox for a food or a recipe: its water then counts as
+   water from drinks in meal, recipe and day totals (services/water.py). #}
+{% macro toggle(action, checked, what) %}{% if track_water() %}
+<form method="post" action="{{ action }}" class="mb-2" id="drink-toggle">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="is_drink" value="1" id="is_drink"
+           {% if checked %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="is_drink">This {{ what }} is a drink
+      <small class="muted">(its water counts as <em>water from drinks</em> in your totals, not water from food)</small>
+      {{ manual_link("water") }}</label>
+  </div>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary mt-1">Save the drink setting</button></noscript>
+</form>
+{% endif %}{% endmacro %}

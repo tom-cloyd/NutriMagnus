@@ -16,7 +16,7 @@
       <tr>
         <td><input type="checkbox" class="form-check-input stale-cb" name="item" value="{{ a.where }}:{{ a.item_id }}"{% if a.ticked %} checked{% endif %}></td>
         <td>{% if a.where == "recipe" %}<a href="/recipe/{{ a.owner_id }}/edit">{{ a.owner_label }}</a>{% else %}<a href="/meal/{{ a.owner_id }}">{{ a.owner_label }}</a> <small class="muted">(logged meal)</small>{% endif %}</td>
-        {% if show_food %}<td><a href="/food/{{ a.fdc_id }}">{{ a.food_name }}</a> <small><a href="/food/cache/{{ a.fdc_id }}/portions" title="This food's portions">portions</a></small></td>{% endif %}
+        {% if show_food %}<td><a href="/food/{{ a.fdc_id }}">{{ a.food_name }}</a>{{ food_id_tag(a.fdc_id) }} <small><a href="/food/cache/{{ a.fdc_id }}/portions" title="This food's portions">portions</a></small></td>{% endif %}
         <td>{{ a.typed }}{% if a.bracketed %} <small class="muted">(with a weight in brackets)</small>{% endif %}</td>
         <td class="text-end">{{ "%.1f"|format(a.stored_g) }}&thinsp;g</td>
         <td class="text-end">{{ "%.1f"|format(a.now_g) }}&thinsp;g</td>

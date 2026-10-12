@@ -55,7 +55,7 @@
       <td>{{ r.meal_date }}</td>
       <td><a href="/meal/{{ r.meal_id }}">{{ r.meal_name }}</a></td>
       <td>
-        <strong>{{ r.food_name }}</strong>
+        <strong>{{ r.food_name }}</strong>{{ food_id_tag(r.fdc_id if r.item_type == "food" else None, r.recipe_id if r.item_type == "recipe" else None) }}
         {% if r.item_type == "recipe" and r.recipe_deleted %}<small class="text-danger"> (recipe deleted)</small>
         {% elif r.item_type == "recipe" %}<small class="muted"> (recipe)</small>{% endif %}
       </td>

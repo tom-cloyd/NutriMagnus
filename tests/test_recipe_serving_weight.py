@@ -127,3 +127,98 @@ class TestServingWeightSafeguard:
         assert backend._serving_weight_changed(300.0, 310.0)
         assert not backend._serving_weight_changed(None, 300.0)
         assert not backend._serving_weight_changed(300.0, None)
+
+
+class TestComputeWeightThroughSubRecipes:
+    """db.recipe_compute_weight with sub-recipes: a sub-recipe with no stated
+    total weight is weighed from its own ingredients (it used to count as
+    0 g, inflating every per-100 g figure on Compare — R66 vs R69, 2026-10-11)."""
+
+    def _sub(self, db_conn, servings=2, grams=200.0):
+        _food(db_conn)
+        sub = _db.recipe_create(db_conn, name="Core", description="", servings=servings, instructions="")
+        _db.recipe_add_ingredient(db_conn, sub, 1, "Lentil Mush", grams, "g")
+        return sub
+
+    def test_sub_recipe_without_stated_weight_counts_its_ingredients(self, db_conn):
+        sub = self._sub(db_conn)          # 200 g over 2 servings: 100 g each
+        top = _db.recipe_create(db_conn, name="Soup", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, top, 1, "Lentil Mush", 33.0, "g")
+        _db.recipe_add_ingredient(db_conn, top, 0, "Core", 1.5, "servings", ref_recipe_id=sub)
+        assert _db.recipe_compute_weight(db_conn, top) == (183.0, True)
+
+    def test_stated_weight_is_converted_from_its_unit(self, db_conn):
+        sub = self._sub(db_conn)
+        db_conn.execute("UPDATE recipes SET total_weight = 1, total_weight_unit = 'lb' WHERE id = ?", (sub,))
+        top = _db.recipe_create(db_conn, name="Soup", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, top, 0, "Core", 1.0, "servings", ref_recipe_id=sub)
+        grams, complete = _db.recipe_compute_weight(db_conn, top)
+        assert complete and grams == pytest.approx(453.592 / 2)
+
+    def test_deleted_sub_recipe_is_incomplete_not_one_gram(self, db_conn):
+        sub = self._sub(db_conn)
+        top = _db.recipe_create(db_conn, name="Soup", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, top, 1, "Lentil Mush", 33.0, "g")
+        _db.recipe_add_ingredient(db_conn, top, 0, "Core", 1.0, "servings", ref_recipe_id=sub)
+        _db.recipe_delete(db_conn, sub)
+        assert _db.recipe_compute_weight(db_conn, top) == (33.0, False)
+
+    def test_cycle_does_not_recurse_forever(self, db_conn):
+        a = self._sub(db_conn)
+        b = _db.recipe_create(db_conn, name="B", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, b, 0, "Core", 1.0, "servings", ref_recipe_id=a)
+        _db.recipe_add_ingredient(db_conn, a, 0, "B", 1.0, "servings", ref_recipe_id=b)
+        assert _db.recipe_compute_weight(db_conn, b)[1] is False
+
+    def test_compare_okara_share_differs_only_by_dilution(self, client, db_conn):
+        """The reported case: two recipes alike but for 37 g of extras added to
+        one show the shared ingredient diluted by exactly that much per 100 g."""
+        sub = self._sub(db_conn, servings=1, grams=107.0)
+        r1 = _db.recipe_create(db_conn, name="Soup A", description="", servings=1, instructions="")
+        r2 = _db.recipe_create(db_conn, name="Soup B", description="", servings=1, instructions="")
+        for r in (r1, r2):
+            _db.recipe_add_ingredient(db_conn, r, 1, "Lentil Mush", 33.0, "g")
+            _db.recipe_add_ingredient(db_conn, r, 0, "Core", 1.0, "servings", ref_recipe_id=sub)
+        db_conn.execute("INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+                        "VALUES (2, 'Salsa', 'Branded', '{}', '[]')")
+        _db.recipe_add_ingredient(db_conn, r2, 2, "Salsa", 37.0, "g")
+        db_conn.commit()
+        text = client.get(f"/compare?items=r{r1},r{r2}").text
+        assert "23.57 g" in text and "18.64 g" in text   # 33/140 and 33/177, per 100 g
+
+
+class TestCompareBasis:
+    """Compare's "Compare amounts" choice: per 100 g (default), one serving
+    as written, or the whole recipe as written; remembered once chosen."""
+
+    def _recipe(self, db_conn):
+        _food(db_conn)   # 100 kcal / 100 g
+        rid = _db.recipe_create(db_conn, name="Stew", description="", servings=2, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 1, "Lentil Mush", 300.0, "1.5 c")
+        r2 = _db.recipe_create(db_conn, name="Other", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, r2, 1, "Lentil Mush", 50.0, "g")
+        db_conn.commit()
+        return rid, r2
+
+    def test_as_written_uses_the_recipe_amounts(self, client, db_conn, monkeypatch, tmp_path):
+        monkeypatch.setattr(backend, "_PREFS_FILE", tmp_path / "prefs.json")
+        rid, r2 = self._recipe(db_conn)
+        items = f"r{rid},r{r2}"
+        per100 = client.get(f"/compare?items={items}").text
+        assert ">100 g<" in per100 and "Compare amounts:" in per100
+        whole = client.get(f"/compare?items={items}&basis=recipe").text
+        assert "300 g (1.5 c)" in whole                    # amount and typed measure, unscaled
+        assert "whole recipe, 2 servings, 300 g" in whole
+        serving = client.get(f"/compare?items={items}&basis=serving").text
+        assert "150 g" in serving and "1 serving (150 g)" in serving
+        # Remembered: no basis given now means the last one chosen.
+        assert "1 serving (150 g)" in client.get(f"/compare?items={items}").text
+
+    def test_whole_recipe_nutrients_are_unscaled(self, db_conn):
+        rid, _ = self._recipe(db_conn)
+        whole = backend._load_compare_entry(db_conn, "recipe", rid, basis="recipe")
+        serving = backend._load_compare_entry(db_conn, "recipe", rid, basis="serving")
+        per100 = backend._load_compare_entry(db_conn, "recipe", rid)
+        assert whole["nutrients"]["calories"] == pytest.approx(300.0)
+        assert serving["nutrients"]["calories"] == pytest.approx(150.0)
+        assert per100["nutrients"]["calories"] == pytest.approx(100.0)

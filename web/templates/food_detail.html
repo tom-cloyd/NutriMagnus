@@ -15,6 +15,11 @@
 <a class="sb-page-title" href="#analysis-content">{{ food.name }}</a>
 <div class="sb-title">Contents</div>
 <ul class="sb-list">
+  {% if food.notes or food.prep_context %}
+  <li class="sb-item" data-target="sec-food-notes">
+    <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Notes</button>
+  </li>
+  {% endif %}
   {% if protein %}
   <li class="sb-item" data-target="sec-protein-summary">
     <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Protein Summary</button>
@@ -99,6 +104,7 @@
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
+  {% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/food/%s/drink" % food.fdc_id, food.is_drink, "food") }}
   {% if version_info %}
   <div class="alert alert-secondary py-2" style="max-width:52rem" id="older-version-note">
     This is an <strong>older version</strong> of
@@ -303,6 +309,24 @@
   </small>
   {% endif %}
 </div>
+
+{# ── Notes: the food's own notes and Annotate's prep context ─────────── #}
+{% if food.notes or food.prep_context %}
+<section id="sec-food-notes" class="analysis-section">
+  <h3 class="section-heading">Notes</h3>
+  {% if food.notes %}
+  <div style="white-space:pre-wrap;line-height:1.6">{{ food.notes }}</div>
+  {% endif %}
+  {% if food.prep_context %}
+  <p class="mb-0 {% if food.notes %}mt-2{% endif %}"><strong>Prep context:</strong> {{ food.prep_context }}</p>
+  {% endif %}
+  <p class="mt-2 mb-0"><small>
+    {% if food.user_drafted %}<a href="/food/custom-profiles/{{ food.fdc_id }}/edit">Edit notes</a>{% endif %}
+    {% if food.user_drafted and food.prep_context %} &middot; {% endif %}
+    {% if food.prep_context %}<a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Edit prep context</a>{% endif %}
+  </small></p>
+</section>
+{% endif %}
 
 {# ── Protein Summary ──────────────────────────────────────────────────── #}
 {% if protein %}
@@ -822,7 +846,7 @@ document.getElementById('complements-form').addEventListener('change', function 
     <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
     <div class="mb-2">
       <label class="form-label">Food:</label>
-      <p class="form-control-plaintext py-0"><strong>{{ food.name }}</strong></p>
+      <p class="form-control-plaintext py-0"><strong>{{ food.name }}</strong>{{ food_id_tag(food.fdc_id) }}</p>
     </div>
     <div class="mb-2">
       <label for="pantry-notes" class="form-label">Notes <span class="muted">(optional)</span></label>

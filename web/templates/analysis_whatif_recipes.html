@@ -98,7 +98,7 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
   {% else %}
   {% if result.more %}
   <p class="text-warning mb-2"><small>{{ result.recipes|length + result.more|length }} recipes would change; the {{ max_columns }} that change most are shown.
-    The others: {% for r in result.more %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+    The others: {% for r in result.more %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{{ food_id_tag(None, r.id) }}{% if not loop.last %}, {% endif %}{% endfor %}.
     To see particular ones, choose <strong>Recipe IDs</strong> above.</small></p>
   {% endif %}
 
@@ -190,7 +190,7 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
 
   {% if result.parents %}
   <p class="mb-1"><strong>These recipes use a changed recipe inside them, so they would change too:</strong>
-    {% for p in result.parents %}<a href="/recipe/{{ p.id }}">{{ p.name }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.</p>
+    {% for p in result.parents %}<a href="/recipe/{{ p.id }}">{{ p.name }}</a>{{ food_id_tag(None, p.id) }}{% if not loop.last %}, {% endif %}{% endfor %}.</p>
   <p class="small"><a href="{{ result.with_parents_url }}">Show them too</a></p>
   {% endif %}
   {% include "_code_key.html" %}

@@ -22,6 +22,7 @@
 
 <h2>{% if source == "usda" %}Refresh {{ food.name }} from USDA{% else %}Copy values into {{ food.name }}{% endif %}
   {{ manual_link("review-incoming") }}</h2>
+{{ food_id_tag(food.fdc_id) }}
 
 {% if error %}
 <div class="alert alert-danger">{{ error }}</div>

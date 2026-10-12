@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% import "_food_amount.html" as _famt %}
 {% import "_generic_density.html" as _gd with context %}
+{% import "_water_mark.html" as _wm %}
 {% import "_add_food_row.html" as _sr %}
 {% import "_calorie_note.html" as _cal %}
 {% import "_source_filter_select.html" as _srcf %}
@@ -538,7 +539,7 @@
             <a href="/recipe/{{ item.recipe_id }}">{{ item.food_name }}</a>{{ food_id_tag(None, recipe_id=item.recipe_id) }}
           {% else %}
             {{ item.food_name }}
-          {% endif %}
+          {% endif %}{{ _wm.mark(item) }}
         </td>
         <td class="num-col" style="white-space:nowrap">
           {% if item.recipe_id %}{{ _ramt.amount(item) }}{% else %}{{ _famt.amount(item) }}{{ _gd.mark(item) }}{% endif %}
@@ -625,6 +626,7 @@
   </table>
   {{ _ramt.weight_note(items | selectattr("recipe_id") | list | length > 0) }}
   {{ _gd.footnote(items) }}
+  {{ _wm.footnote(items) }}
   </div>
 </section>
 {% else %}
@@ -792,7 +794,7 @@
     Values the foods already had were left alone.
     {% if aa_differ_foods %}
     <br>USDA's copy also has different values for some existing ones on:
-    {% for f in aa_differ_foods %}<a href="/food/{{ f.fdc_id }}/review-incoming?source=usda&next={{ ('/meal/%s' % meal.id) | urlencode }}">{{ f.name }}</a>{{ ", " if not loop.last }}{% endfor %}
+    {% for f in aa_differ_foods %}<a href="/food/{{ f.fdc_id }}/review-incoming?source=usda&next={{ ('/meal/%s' % meal.id) | urlencode }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }}{{ ", " if not loop.last }}{% endfor %}
     — click one to review and choose.
     {% endif %}
   </div>
@@ -815,7 +817,7 @@
     <tbody>
       {% for ing in diaas.ing_rows %}
       <tr>
-        <td>{{ ing.food_name }}</td>
+        <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id, ing.recipe_id) }}</td>
         <td class="num-col">{{ ing.protein_g }}</td>
         <td class="num-col">
           {{ "%.2f"|format(ing.digestibility) }}
@@ -919,7 +921,7 @@
   <p class="muted mt-2">&#9888; The following foods had no amino acid data and were excluded from the DIAAS calculation. {{ aa_nn.off_link() }}</p>
   <ul class="list-unstyled ms-2">
     {% for name in diaas.missing %}
-    <li><small>&#9888; {% if diaas.missing_fdc_ids and diaas.missing_fdc_ids.get(name) %}<a href="/food/{{ diaas.missing_fdc_ids[name] }}">{{ name }}</a>{% else %}{{ name }}{% endif %}</small>{{ aa_nn.button(diaas, name, "/meal/" ~ meal.id) }}</li>
+    <li><small>&#9888; {% if diaas.missing_fdc_ids and diaas.missing_fdc_ids.get(name) %}<a href="/food/{{ diaas.missing_fdc_ids[name] }}">{{ name }}</a>{{ food_id_tag(diaas.missing_fdc_ids[name]) }}{% else %}{{ name }}{% endif %}</small>{{ aa_nn.button(diaas, name, "/meal/" ~ meal.id) }}</li>
     {% endfor %}
   </ul>
   <p class="muted"><small>This is a problem only if any of these are meaningful protein sources in the meal.
@@ -1223,7 +1225,7 @@ document.getElementById('complements-form').addEventListener('change', function 
     <tbody>
       {% for row in oxalate.rows %}
       <tr>
-        <td>{{ row.name }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %}</td>
+        <td>{{ row.name }}{{ food_id_tag(row.fdc_id) }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %}</td>
         <td class="num-col">{{ row.amount_g }}&thinsp;g</td>
         <td class="num-col">{{ row.mg }}&thinsp;mg</td>
         <td><span class="oxalate-cat oxalate-{{ row.category | replace(' ', '-') }}">{{ row.category | title }}</span></td>
@@ -1236,21 +1238,21 @@ document.getElementById('complements-form').addEventListener('change', function 
   <p class="{% if oxalate.rows %}mt-3{% else %}mt-1{% endif %} mb-1 muted" style="font-size:0.85rem"><em>Categorical report only — no quantitative data available:</em></p>
   <ul class="list-unstyled mt-0 mb-0" style="font-size:0.9rem">
     {% for row in oxalate.qualitative %}
-    <li class="mb-1">{{ row.name }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %} &mdash;
+    <li class="mb-1">{{ row.name }}{{ food_id_tag(row.fdc_id) }}{% if not row.confirmed %}&thinsp;<span class="text-warning" title="auto-matched">~</span>{% endif %} &mdash;
       <span class="oxalate-cat oxalate-{{ row.category | replace(' ', '-') }}">{{ row.category | title }}</span>
     </li>
     {% endfor %}
   </ul>
   {% endif %}
   {% if oxalate.missing %}
-  <p class="muted mt-2" style="font-size:0.8rem">No oxalate data for: {{ oxalate.missing | join(' · ') }}</p>
+  <p class="muted mt-2" style="font-size:0.8rem">No oxalate data for: {% for n in oxalate.missing %}{{ n }}{{ food_id_tag(oxalate.missing_ids.get(n)) }}{{ ' · ' if not loop.last }}{% endfor %}</p>
   {% endif %}
   <p class="muted mt-1" style="font-size:0.8rem">~ = auto-matched, not yet confirmed &nbsp;&middot;&nbsp; Source: Harvard T.H. Chan School of Public Health</p>
   {% endif %}
   {% if item_antinutrients %}
   {% if oxalate %}<hr class="my-2">{% endif %}
   {% for item in item_antinutrients %}
-  <p class="mb-1"><strong>{{ item.food_name }}</strong></p>
+  <p class="mb-1"><strong>{{ item.food_name }}</strong>{{ food_id_tag(item.fdc_id, item.recipe_id) }}</p>
   {% for flag in item.flags %}
   <div class="antinutrient-card ms-3 mb-2">
     <header><strong>{{ flag.problem }}</strong></header>

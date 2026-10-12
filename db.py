@@ -393,6 +393,17 @@ def init_db() -> None:
             )
         """)
 
+        # Migrate: a day switched to "score against my current profile" keeps
+        # its own pinned copy here, so switching back restores it exactly;
+        # follows_current = re-pinned on every profile save
+        # (numa_app/services/day_profile.py follow_current / restore_pinned).
+        for col in ("original_name TEXT", "original_json TEXT",
+                    "original_overridden INTEGER", "follows_current INTEGER NOT NULL DEFAULT 0"):
+            try:
+                conn.execute(f"ALTER TABLE day_profile ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass
+
         # Migrate: add archived flag to foods/pantry/recipes (reserve/hide-without-losing feature)
         try:
             conn.execute("ALTER TABLE foods ADD COLUMN archived INTEGER NOT NULL DEFAULT 0")
@@ -566,6 +577,21 @@ def init_db() -> None:
         # measured value clears the key. NULL = none estimated.
         try:
             conn.execute("ALTER TABLE foods ADD COLUMN estimated_keys_json TEXT")
+        except sqlite3.OperationalError:
+            pass
+        # foods.is_drink / recipes.is_drink: the food's (or the whole recipe's)
+        # water counts as "water from drinks" rather than "from food" in meal,
+        # recipe and day totals (numa_app/services/water.py). New foods are
+        # guessed from USDA's category in cache_food(); the one-time backfill
+        # here can only go by SR Legacy's "Beverages, ..." naming.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN is_drink INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        else:
+            conn.execute("UPDATE foods SET is_drink = 1 WHERE lower(name) LIKE 'beverages,%'")
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN is_drink INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
         # recipes.updated_at: when the recipe's content last changed — its own
@@ -837,8 +863,13 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                brand: str | None, serving_size: float | None, serving_unit: str | None,
                nutrients: dict[str, float], portions: list[dict] | None = None,
                *, user_drafted: bool = False, notes: str | None = None,
-               curator_notes: str | None = None, from_source: bool = True) -> None:
+               curator_notes: str | None = None, from_source: bool = True,
+               category: str | None = None) -> None:
     """Store a food, or overwrite the data columns of one already cached.
+
+    category (USDA's food category, when known) and the name set foods.is_drink
+    on a NEW food only (water.looks_like_drink) — a re-cache keeps whatever the
+    user has since chosen.
 
     from_source (the default): the data is the food's own source's — a USDA
     or Open Food Facts fetch, a bundled dataset, the starter set — so it
@@ -850,12 +881,13 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
     CASCADE: re-caching a food silently erased its GI / DIAAS / prep-note
     annotations, and reset its archived flag and every column not listed
     here (user_edited, starter_key). Updating in place keeps all of them."""
+    from numa_app.services import water as _water
     nutrients, calorie_mark = _calorie_check(conn, fdc_id, nutrients)
     conn.execute("""
         INSERT INTO foods
             (fdc_id, name, data_type, brand, serving_size, serving_unit,
-             nutrients_json, portions_json, user_drafted, notes, curator_notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             nutrients_json, portions_json, user_drafted, notes, curator_notes, is_drink)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fdc_id) DO UPDATE SET
             name = excluded.name, data_type = excluded.data_type, brand = excluded.brand,
             serving_size = excluded.serving_size, serving_unit = excluded.serving_unit,
@@ -865,7 +897,8 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
     """, (
         fdc_id, name, data_type, brand, serving_size, serving_unit,
         json.dumps(nutrients), json.dumps(portions or []),
-        1 if user_drafted else 0, notes or None, curator_notes or None
+        1 if user_drafted else 0, notes or None, curator_notes or None,
+        1 if _water.looks_like_drink(name, category) else 0,
     ))
     _apply_calorie_mark(conn, fdc_id, calorie_mark)
     if from_source and not is_custom_food_id(fdc_id):
@@ -896,6 +929,18 @@ def delete_cached_food(conn: sqlite3.Connection, fdc_id: int) -> bool:
 def set_food_archived(conn: sqlite3.Connection, fdc_id: int, archived: bool) -> None:
     """Archive (hide from search/complements/default lists, protect from prune) or restore a cached food."""
     conn.execute("UPDATE foods SET archived = ? WHERE fdc_id = ?", (1 if archived else 0, fdc_id))
+
+
+def set_food_is_drink(conn: sqlite3.Connection, fdc_id: int, is_drink: bool) -> None:
+    """Mark a cached food as a drink (its water counts as water from drinks)
+    or not. Callers cascade the change to recipes/meals (recipe_dcp)."""
+    conn.execute("UPDATE foods SET is_drink = ? WHERE fdc_id = ?", (1 if is_drink else 0, fdc_id))
+
+
+def set_recipe_is_drink(conn: sqlite3.Connection, recipe_id: int, is_drink: bool) -> None:
+    """Mark a whole recipe as a drink: all of its water then counts as water
+    from drinks, whatever its ingredients are."""
+    conn.execute("UPDATE recipes SET is_drink = ? WHERE id = ?", (1 if is_drink else 0, recipe_id))
 
 
 def food_references(conn: sqlite3.Connection, fdc_id: int) -> dict[str, list[int]]:
@@ -1534,34 +1579,67 @@ def recipe_auto_weight(conn: sqlite3.Connection, recipe_id: int) -> float | None
 
 
 def recipe_compute_weight(conn: sqlite3.Connection,
-                          recipe_id: int) -> tuple[float, bool] | None:
+                          recipe_id: int, _seen: frozenset = frozenset()) -> tuple[float, bool] | None:
     """Return (computed_grams, is_complete) for a recipe's ingredient sum.
 
-    is_complete is False when any ingredient has unknown/zero weight or a
-    sub-recipe lacks weight data — the returned value is then a lower bound.
-    Returns None only when there are no ingredients at all.
+    A sub-recipe counts at its own grams per serving x the servings used:
+    from its stated total weight (converted from the unit it was typed in),
+    or, without one, from its own ingredients, worked out the same way
+    (recursively). Before 2026-10-11 a sub-recipe with no stated total weight
+    counted as 0 g, so a recipe built on one came out far too light and every
+    per-100 g figure (Compare) far too high.
+
+    is_complete is False when any ingredient has unknown/zero weight, a
+    sub-recipe's weight can't be worked out, or the line is a deleted
+    sub-recipe — the returned value is then a lower bound. Returns None only
+    when there are no ingredients at all.
     """
     ingredients = recipe_get_ingredients(conn, recipe_id)
     if not ingredients:
         return None
+    seen = _seen | {recipe_id}
     total = 0.0
     complete = True
     for ing in ingredients:
-        if ing["ref_recipe_id"]:
-            sub = conn.execute(
-                "SELECT total_weight, servings FROM recipes WHERE id = ?",
-                (ing["ref_recipe_id"],),
-            ).fetchone()
-            if not sub or not sub["total_weight"] or not sub["servings"]:
+        if ing["ref_recipe_deleted"]:
+            complete = False   # its weight went with it; not its "1 serving" as grams
+        elif ing["ref_recipe_id"]:
+            per_serving = _sub_recipe_serving_grams(conn, ing["ref_recipe_id"], seen)
+            if per_serving is None:
                 complete = False
             else:
-                total += (sub["total_weight"] / sub["servings"]) * ing["amount"]
+                grams, sub_complete = per_serving
+                total += grams * float(ing["amount"] or 0)
+                complete = complete and sub_complete and bool(ing["amount"])
         else:
             if not ing["amount"] or ing["amount"] <= 0:
                 complete = False
             else:
                 total += ing["amount"]
     return (total, complete)
+
+
+def _sub_recipe_serving_grams(conn: sqlite3.Connection, recipe_id: int,
+                              seen: frozenset) -> tuple[float, bool] | None:
+    """(grams per serving, complete) for a recipe used as an ingredient, or
+    None when it can't be worked out (missing, no servings, or a cycle)."""
+    from numa_app.services.portions import _UNIT_TO_GRAMS
+    if recipe_id in seen:
+        return None
+    sub = conn.execute(
+        "SELECT total_weight, total_weight_unit, servings FROM recipes WHERE id = ?",
+        (recipe_id,),
+    ).fetchone()
+    if not sub or not sub["servings"] or sub["servings"] <= 0:
+        return None
+    if sub["total_weight"]:
+        factor = _UNIT_TO_GRAMS.get((sub["total_weight_unit"] or "g").strip().lower())
+        if factor:
+            return (float(sub["total_weight"]) * factor / float(sub["servings"]), True)
+    computed = recipe_compute_weight(conn, recipe_id, seen)
+    if not computed or computed[0] <= 0:
+        return None
+    return (computed[0] / float(sub["servings"]), computed[1])
 
 
 def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
@@ -1632,6 +1710,43 @@ def recipe_referencing_subrecipe(conn: sqlite3.Connection, recipe_id: int) -> li
         WHERE ri.ref_recipe_id = ?
         ORDER BY r.name
     """, (recipe_id,)).fetchall()
+
+
+def recipe_meal_use(conn: sqlite3.Connection, recipe_id: int | None = None) -> dict[int, dict]:
+    """How many logged meals use each recipe, and the dates of the first and
+    latest — {recipe_id: {"meals": n, "first": date, "last": date}}. Only
+    recipes that appear in at least one meal are present. Pass `recipe_id`
+    to look up one recipe. Feeds the delete warnings, which must say what a
+    delete will break before it happens."""
+    sql = """
+        SELECT mi.recipe_id, COUNT(DISTINCT m.id) AS meals,
+               MIN(m.meal_date) AS first, MAX(m.meal_date) AS last
+        FROM meal_items mi
+        JOIN meals m ON m.id = mi.meal_id
+        WHERE mi.item_type = 'recipe' AND mi.recipe_id IS NOT NULL
+    """
+    params: tuple = ()
+    if recipe_id is not None:
+        sql += " AND mi.recipe_id = ?"
+        params = (recipe_id,)
+    sql += " GROUP BY mi.recipe_id"
+    return {r["recipe_id"]: {"meals": r["meals"], "first": r["first"], "last": r["last"]}
+            for r in conn.execute(sql, params).fetchall()}
+
+
+def recipe_subrecipe_users(conn: sqlite3.Connection) -> dict[int, list[str]]:
+    """{recipe_id: [names of recipes that use it as a sub-recipe]}, for every
+    recipe used as one — the whole-list counterpart of recipe_referencing_subrecipe()."""
+    out: dict[int, list[str]] = {}
+    for r in conn.execute("""
+        SELECT DISTINCT ri.ref_recipe_id, r.name
+        FROM recipe_ingredients ri
+        JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.ref_recipe_id IS NOT NULL
+        ORDER BY r.name
+    """).fetchall():
+        out.setdefault(r["ref_recipe_id"], []).append(r["name"])
+    return out
 
 
 def recipes_containing_food(conn: sqlite3.Connection, fdc_id: int) -> list[sqlite3.Row]:
@@ -1929,6 +2044,59 @@ def day_profile_upsert(conn: sqlite3.Connection, meal_date: str, profile_name: s
         """,
         (meal_date, profile_name, profile_json, int(overridden)),
     )
+
+
+def day_profile_set_snapshot(conn: sqlite3.Connection, meal_date: str, profile_name: str,
+                             profile_json: str) -> None:
+    """Replace an existing day's pinned snapshot in place, leaving its other
+    columns (overridden, the kept original, follows_current) as they are —
+    unlike day_profile_upsert, whose INSERT OR REPLACE resets them."""
+    conn.execute(
+        "UPDATE day_profile SET profile_name = ?, profile_json = ?, pinned_at = datetime('now') "
+        "WHERE meal_date = ?", (profile_name, profile_json, meal_date))
+
+
+def day_profile_set_following(conn: sqlite3.Connection, meal_date: str, profile_name: str,
+                              profile_json: str) -> None:
+    """Switch a day to following the current profile: keep its pinned copy
+    (only the first time — a day already following keeps its true original)
+    and pin the new snapshot."""
+    conn.execute(
+        """
+        UPDATE day_profile SET
+            original_name = COALESCE(original_name, profile_name),
+            original_json = COALESCE(original_json, profile_json),
+            original_overridden = COALESCE(original_overridden, overridden),
+            profile_name = ?, profile_json = ?, pinned_at = datetime('now'),
+            overridden = 0, follows_current = 1
+        WHERE meal_date = ?
+        """, (profile_name, profile_json, meal_date))
+
+
+def day_profile_restore_original(conn: sqlite3.Connection, meal_date: str) -> bool:
+    """Put back a day's kept pinned copy and stop it following the current
+    profile. False when there's nothing kept to restore."""
+    cur = conn.execute(
+        """
+        UPDATE day_profile SET
+            profile_name = original_name, profile_json = original_json,
+            overridden = COALESCE(original_overridden, 0), pinned_at = datetime('now'),
+            original_name = NULL, original_json = NULL, original_overridden = NULL,
+            follows_current = 0
+        WHERE meal_date = ? AND original_json IS NOT NULL
+        """, (meal_date,))
+    return cur.rowcount > 0
+
+
+def day_profile_following_dates(conn: sqlite3.Connection) -> list[str]:
+    return [r["meal_date"] for r in conn.execute(
+        "SELECT meal_date FROM day_profile WHERE follows_current = 1 ORDER BY meal_date").fetchall()]
+
+
+def day_profile_dates_between(conn: sqlite3.Connection, start: str, end: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT * FROM day_profile WHERE meal_date BETWEEN ? AND ? ORDER BY meal_date",
+        (start, end)).fetchall()
 
 
 def day_profile_dates_missing(conn: sqlite3.Connection) -> list[str]:
@@ -3006,6 +3174,26 @@ def list_user_drafted_foods(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def fill_source_nutrient(conn: sqlite3.Connection, fdc_id: int, key: str, value: float) -> bool:
+    """Add one value the food's own source supplies (e.g. USDA's water) to a
+    food that has none for it — to its nutrients and, when it has one, its
+    source copy, so the addition is not mistaken for the user's edit. Never
+    overwrites a value already there. True if the food gained the value."""
+    row = conn.execute("SELECT nutrients_json, source_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if not row:
+        return False
+    nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+    if key in nutrients:
+        return False
+    nutrients[key] = value
+    source = json.loads(row["source_json"]) if row["source_json"] else None
+    if source is not None:
+        source.setdefault("nutrients", {}).setdefault(key, value)
+    conn.execute("UPDATE foods SET nutrients_json = ?, source_json = ? WHERE fdc_id = ?",
+                 (json.dumps(nutrients), json.dumps(source) if source is not None else None, fdc_id))
+    return True
+
+
 def update_food_nutrients_partial(conn: sqlite3.Connection, fdc_id: int, new_nutrients: dict) -> None:
     """Merge new_nutrients into an existing food's nutrients_json without touching other fields."""
     row = conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
@@ -3122,7 +3310,11 @@ def update_cached_food_profile(
     notes: str | None = None,
     user_drafted: bool = True,
 ) -> None:
+    """Returns how many recipe ingredients, meal items and pantry entries had
+    their copy of the name updated (see propagate_food_name) -- 0 unless
+    the name changed."""
     nutrients, calorie_mark = _calorie_check(conn, fdc_id, nutrients)
+    old = conn.execute("SELECT name FROM foods WHERE fdc_id=?", (fdc_id,)).fetchone()
     conn.execute(
         "UPDATE foods SET name=?, data_type=?, brand=?, serving_size=?, serving_unit=?, "
         "nutrients_json=?, portions_json=?, user_drafted=?, notes=?, cached_at=(datetime('now')) "
@@ -3141,6 +3333,47 @@ def update_cached_food_profile(
         mark_user_edited(conn, fdc_id)
     else:
         snapshot_food_source(conn, fdc_id)
+    if old is not None and old["name"] != name:
+        return propagate_food_name(conn, fdc_id, name, old_name=old["name"])
+    return 0
+
+
+def propagate_food_name(conn: sqlite3.Connection, fdc_id: int, name: str,
+                        *, old_name: str | None = None) -> int:
+    """Copy a renamed food's name into the rows that keep their own copy of it
+    -- recipe ingredients, food meal items, pantry entries -- the way
+    recipe_update() does for a renamed recipe; returns how many changed.
+    Nothing is computed from these copies (everything goes by fdc_id), but
+    recipe and meal pages display them, so without this they kept showing
+    the name the food had when it was added.
+
+    Each copy keeps its own "* " starter marker (scripts/export_starter_data.py
+    reads it per table: a pantry entry's mark is not its food's), so the
+    marker is stripped from `name` and re-applied only where the copy had it.
+
+    Protein digestibility is looked up by the name a line shows (diaas.
+    get_digestibility), and a user override is stored under a name, so an
+    override saved under `old_name` moves to the new name -- unless the new
+    name already has one of its own."""
+    bare = name[1:].lstrip() if name.startswith("*") else name
+    marked = "* " + bare
+    total = 0
+    for table, where in (
+        ("recipe_ingredients", "fdc_id = ? AND ref_recipe_id IS NULL"),
+        ("meal_items", "item_type = 'food' AND fdc_id = ?"),
+        ("pantry", "fdc_id = ?"),
+    ):
+        cur = conn.execute(
+            f"UPDATE {table} SET food_name = CASE WHEN food_name LIKE '*%' THEN ? ELSE ? END "
+            f"WHERE {where} AND food_name != CASE WHEN food_name LIKE '*%' THEN ? ELSE ? END",
+            (marked, bare, fdc_id, marked, bare),
+        )
+        total += cur.rowcount
+    if old_name and old_name.lower() != name.lower() and not conn.execute(
+            "SELECT 1 FROM diaas_overrides WHERE lower(food_name) = lower(?)", (name,)).fetchone():
+        conn.execute("UPDATE diaas_overrides SET food_name = ? WHERE lower(food_name) = lower(?)",
+                     (name, old_name))
+    return total
 
 
 def rename_cached_food(conn: sqlite3.Connection, fdc_id: int, new_name: str) -> None:

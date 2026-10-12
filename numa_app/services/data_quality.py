@@ -33,6 +33,9 @@ read from here, so they can't drift apart. The checks themselves:
   but no GI, most-used first — they leave glycemic load incomplete and can't
   be offered as lower-GL swaps. "Not needed" here is the GI "don't prompt me"
   flag (food_annotations.gi_no_prompt), the one glycemic load already honours.
+- wet_dry_in_use(): foods named dry ("okara flour") — by their own name or
+  the name typed for them in a recipe or meal — whose data says mostly water,
+  i.e. the wet record picked for the dry food (water.wet_dry_conflict()).
 - duplicate_groups(): foods with the same name once case, a "* " starter
   prefix, "Copy of " and "(FDC n)" are ignored; run on request only.
 - scan(): the whole database — the checks above plus the existing
@@ -444,6 +447,43 @@ def missing_gi_in_use(conn) -> list[dict]:
             rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "carbs": carbs,
                          "use": use, "ignored": bool(a is not None and a["gi_no_prompt"])})
     rows.sort(key=lambda r: (-r["use"]["total"], -r["carbs"], r["name"].lower()))
+    return rows
+
+
+def wet_dry_in_use(conn) -> list[dict]:
+    """Foods whose own name, or the name typed for them in a recipe or meal,
+    says dry ("okara flour") while their data says mostly water
+    (water.wet_dry_conflict) — most likely the wet record picked for the dry
+    food. Each row names where it is used under a dry-sounding name
+    ("recipes" / "meals": [{"id", "label", "typed"}]); used or not, a food
+    whose OWN name conflicts is listed too. Only foods with a water value can
+    be judged. Shown only while water tracking is on (Settings → 14)."""
+    from numa_app.services import water as _water
+    typed: dict[int, list[tuple[str, int, str, str]]] = {}
+    for r in conn.execute("""SELECT ri.fdc_id, ri.food_name, r.id, r.name FROM recipe_ingredients ri
+                             JOIN recipes r ON r.id = ri.recipe_id WHERE ri.fdc_id IS NOT NULL"""):
+        typed.setdefault(r[0], []).append(("recipes", r[2], r[3], r[1] or ""))
+    for r in conn.execute("""SELECT mi.fdc_id, mi.food_name, m.id, m.name, m.meal_date FROM meal_items mi
+                             JOIN meals m ON m.id = mi.meal_id
+                             WHERE mi.item_type = 'food' AND mi.fdc_id IS NOT NULL"""):
+        typed.setdefault(r[0], []).append(("meals", r[2], f"{r[4]} {r[3]}", r[1] or ""))
+    rows = []
+    for row in conn.execute("SELECT fdc_id, name, nutrients_json FROM foods WHERE archived = 0"):
+        try:
+            n = json.loads(row["nutrients_json"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        own = _water.wet_dry_conflict([row["name"]], n)
+        where: dict[str, list[dict]] = {"recipes": [], "meals": []}
+        for kind, item_id, label, typed_name in typed.get(row["fdc_id"], []):
+            if _water.wet_dry_conflict([typed_name], n) or own:
+                if not any(w["id"] == item_id for w in where[kind]):
+                    where[kind].append({"id": item_id, "label": label, "typed": typed_name})
+        hit = own or next((_water.wet_dry_conflict([w["typed"]], n) for k in where for w in where[k]), None)
+        if hit:
+            rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "water": hit["water"],
+                         "word": hit["word"], "flagged_name": hit["name"], **where})
+    rows.sort(key=lambda r: (-(len(r["recipes"]) + len(r["meals"])), r["name"].lower()))
     return rows
 
 

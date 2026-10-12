@@ -10,6 +10,8 @@ from collections.abc import Callable
 import db as _db
 import usda as _usda
 
+from . import water as _water
+
 Nutrients = dict[str, float]
 
 # Optional per-ingredient rewrite used by what-if analysis (services/whatif.py):
@@ -25,6 +27,7 @@ def expand_recipe_ingredients(
     *,
     portion_factor: float = 1.0,
     rewrite: Rewrite | None = None,
+    _drink: bool | None = None,
 ) -> list[dict]:
     """Recursively expand a recipe into its leaf food ingredients.
 
@@ -37,7 +40,12 @@ def expand_recipe_ingredients(
 
     Returns [{"food_name", "fdc_id", "nutrients_100g", "grams"}, ...] — one
     entry per leaf food ingredient; sub-recipes themselves don't appear.
+    Each leaf's nutrients_100g carries its water split (water.tag): from
+    drinks when the food is a drink, or when this recipe or any recipe it
+    sits inside is marked as one.
     """
+    if _drink is None:
+        _drink = _water.is_drink(_db.recipe_get(conn, recipe_id))
     result: list[dict] = []
     for ing in _db.recipe_get_ingredients(conn, recipe_id):
         if ing["ref_recipe_id"]:
@@ -58,6 +66,7 @@ def expand_recipe_ingredients(
                     item_id, conn,
                     portion_factor=sub_factor,
                     rewrite=rewrite,
+                    _drink=_drink or _water.is_drink(sub),
                 ))
                 continue
             cached = _db.get_cached_food(conn, item_id)
@@ -65,6 +74,7 @@ def expand_recipe_ingredients(
                 continue
             nuts_100g = json.loads(cached["nutrients_json"])
             if nuts_100g:
+                nuts_100g = _water.tag(nuts_100g, _drink or _water.is_drink(cached))
                 result.append({
                     "food_name":      cached["name"] if rewritten and item_id != ing["fdc_id"] else ing["food_name"],
                     "fdc_id":         item_id,

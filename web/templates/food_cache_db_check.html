@@ -120,7 +120,7 @@
     <thead class="table-light"><tr><th>Meal date</th><th>Item</th></tr></thead>
     <tbody>
       {% for r in issues.orphaned_meal_items %}
-      <tr><td>{% if r.meal_id %}<a href="/meal/{{ r.meal_id }}">{{ r.meal_date or ("Meal #" ~ r.meal_id) }}</a>{% else %}{{ r.meal_date or "—" }}{% endif %}</td><td>{{ r.food_name }}</td></tr>
+      <tr><td>{% if r.meal_id %}<a href="/meal/{{ r.meal_id }}">{{ r.meal_date or ("Meal #" ~ r.meal_id) }}</a>{% else %}{{ r.meal_date or "—" }}{% endif %}</td><td>{{ r.food_name }}{{ food_id_tag(r.fdc_id | default(none), r.recipe_id | default(none)) }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -214,6 +214,77 @@ listing it for that food, and leaves it out of any Claude AI prompt.</p>
 <div class="alert alert-success" id="saved-note">&ldquo;Not needed&rdquo; choices saved.</div>
 {% endif %}
 
+{% if track_water() %}
+<div id="water-backfill" class="mb-3" style="max-width:48rem">
+  {% if water_run.running %}
+  <p class="mb-1"><span class="spinner-border spinner-border-sm me-1" role="status"></span>
+  <strong>Fetching water values from USDA&hellip;</strong> {{ water_run.checked }} of {{ water_run.total }} foods checked,
+  {{ water_run.filled }} filled in so far. This page refreshes itself; you can also leave and come back.</p>
+  <script>setTimeout(function () { location.reload(); }, 3000);</script>
+  {% else %}
+  {% if water_run.finished %}
+  <div class="alert {% if water_run.error %}alert-warning{% else %}alert-success{% endif %} py-2">
+    Water filled in for <strong>{{ water_run.filled }}</strong> USDA food{{ "s" if water_run.filled != 1 }}{% if water_run.no_value %};
+    USDA has no water value for {{ water_run.no_value | length }}: {{ water_run.no_value | join("; ") }}{% endif %}.
+    {% if water_run.error %}<br>It stopped before the end: {{ water_run.error }}. Click the button again to carry on &mdash; foods already filled in are skipped.{% endif %}
+    Meals and recipes using these foods are updated to match.
+  </div>
+  {% endif %}
+  {% if water_missing %}
+  <form method="post" action="/food/cache/water-backfill" class="d-flex flex-wrap align-items-center gap-2">
+    <span><strong>{{ water_missing }}</strong> USDA food{{ "s have" if water_missing != 1 else " has" }} no water value yet.</span>
+    <button type="submit" class="btn btn-sm btn-outline-primary">Fill in water for {{ water_missing }} USDA food{{ "s" if water_missing != 1 }} from USDA</button>
+    {{ manual_link("water") }}
+  </form>
+  <p class="muted mb-0"><small>Fetches only each food&rsquo;s water value, 20 foods per request to USDA, and adds it only where the food has none &mdash; nothing else about the food changes. Foods marked &ldquo;Water not needed&rdquo; are skipped.
+  Branded (packaged) foods usually have no water value at USDA, since food labels don&rsquo;t list it, so they stay in this count:
+  for those, use the button below to list them in &ldquo;Missing nutrient data&rdquo;, then ask Claude AI or mark them not needed.</small></p>
+  {# Adds Water to the remembered "Groups to check" (keeping the others) and
+     jumps to the list; once Water is already on, just jump. #}
+  {% if "water" in checked %}
+  <a href="#completeness" class="btn btn-sm btn-outline-secondary mt-1">Go to these foods in the list below</a>
+  {% else %}
+  <form method="get" action="/food/cache/db-check#completeness" class="mt-1">
+    {% for g in checked %}<input type="hidden" name="check" value="{{ g }}">{% endfor %}
+    <input type="hidden" name="check" value="water">
+    <button type="submit" class="btn btn-sm btn-outline-secondary"
+            title="Turn on the Water column in &ldquo;Missing nutrient data&rdquo; below (it stays on) and jump to it">Show these foods in the list below</button>
+  </form>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+</div>
+<div id="wet-dry" class="mb-3" style="max-width:56rem">
+  <h4 class="h6 mb-1">Named dry, but mostly water ({{ wet_dry | length }}) {{ manual_link("water-wet-dry") }}</h4>
+  {% if wet_dry %}
+  <p class="muted mb-1"><small>Each of these is called a flour, powder, dried&hellip; &mdash; by its own name or by the name you gave it
+  in a recipe or meal &mdash; yet its data is over {{ wet_dry_threshold | int }}% water. Most likely the wet version of the food was
+  picked in place of the dry one (USDA&rsquo;s okara is the wet pulp, not the flour), and every value from it is several times too
+  low. Replace it where it&rsquo;s used with the dry food, or check its page if the name is only misleading.</small></p>
+  <table class="table table-sm" style="max-width:56rem">
+    <thead class="table-light"><tr><th>Food</th><th class="num-col">Water / 100&thinsp;g</th><th>Named &ldquo;dry&rdquo; as</th><th>Used in</th></tr></thead>
+    <tbody>
+    {% for r in wet_dry %}
+      <tr>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
+        <td class="num-col">{{ r.water | round(1) }}&thinsp;g</td>
+        <td>&ldquo;{{ r.flagged_name }}&rdquo; <span class="muted">({{ r.word }})</span></td>
+        <td><small>
+          {% for w in r.recipes %}<a href="/recipe/{{ w.id }}">{{ w.label }}</a>{% if not loop.last %}; {% endif %}{% endfor %}
+          {% if r.recipes and r.meals %}<br>{% endif %}
+          {% if r.meals %}meals: {% for w in r.meals %}<a href="/meal/{{ w.id }}">{{ w.label }}</a>{% if not loop.last %}; {% endif %}{% endfor %}{% endif %}
+          {% if not r.recipes and not r.meals %}<span class="muted">not used yet</span>{% endif %}
+        </small></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="muted mb-0"><small>None found. A food is checked once it has a water value, so foods still missing one can&rsquo;t be judged yet.</small></p>
+  {% endif %}
+</div>
+{% endif %}
+
 <form method="get" action="/food/cache/db-check#completeness" class="mb-3">
   <div class="d-flex flex-wrap align-items-center gap-3">
     <span><strong>Groups to check:</strong></span>
@@ -243,13 +314,18 @@ listing it for that food, and leaves it out of any Claude AI prompt.</p>
    both are declared empty here and each checkbox names its own via form=. #}
 <form method="post" action="/food/cache/db-check/completeness" id="ignore-form"></form>
 <form method="post" action="/food/cache/claude-fetch" id="gap-fetch-form"></form>
+{# A GET submit always reloads, even when the URL already ends #completeness
+   (a plain link there would only scroll). Groups/show_ignored come from prefs. #}
+<form method="get" action="/food/cache/db-check#completeness" id="gap-refresh-form" onsubmit="return confirmGapRefresh()"></form>
 <div class="d-flex flex-wrap gap-2 mb-2">
   <button type="submit" form="ignore-form" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
   <button type="submit" form="gap-fetch-form" class="btn btn-sm btn-outline-primary">Build a Claude AI prompt for the gaps checked &ldquo;ask AI&rdquo;</button>
+  <button type="submit" form="gap-refresh-form" class="btn btn-sm btn-outline-secondary"
+          title="Check every food again and redraw this list, picking up anything filled in or marked not needed since the page loaded">Refresh list</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAskAI(null, false)">Clear all &ldquo;ask AI&rdquo; checks</button>
 </div>
 <p class="muted mb-1"><small>Check <strong>ask AI</strong> under each gap you want help with &mdash; one food, a few, or a whole column with the
-&ldquo;all&rdquo; link under its heading. The prompt asks for just those gaps&rsquo; missing values, and importing the reply only fills in
+&ldquo;all&rdquo; link under its heading (<strong>Mark column not needed</strong> there does the same for &ldquo;not needed&rdquo;). The prompt asks for just those gaps&rsquo; missing values, and importing the reply only fills in
 what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not needed&rdquo; changes first.</small></p>
 <div class="table-responsive mb-2">
   <table class="table table-sm align-middle" style="max-width:60rem">
@@ -257,20 +333,22 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
       <tr>
         <th>Food</th>
         {% for g, label, _ in groups if g in checked %}<th class="text-center">{{ label }}<br>
-          <small class="fw-normal">ask AI: <a href="#" onclick="setAskAI('{{ g }}', true); return false">all</a> &middot; <a href="#" onclick="setAskAI('{{ g }}', false); return false">none</a></small></th>{% endfor %}
+          <small class="fw-normal">ask AI: <a href="#" onclick="setAskAI('{{ g }}', true); return false">all</a> &middot; <a href="#" onclick="setAskAI('{{ g }}', false); return false">none</a></small><br>
+          <button type="button" class="btn btn-outline-secondary btn-sm py-0 mt-1 fw-normal js-col-not-needed" data-group="{{ g }}"
+                  title="Tick &ldquo;not needed&rdquo; for every food in this column (nothing is saved until you click Save &ldquo;not needed&rdquo; choices)">Mark column not needed</button></th>{% endfor %}
       </tr>
     </thead>
     <tbody>
       {% for r in gap_rows %}
       <tr>
-        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a></td>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
         {% for g, label, _ in groups if g in checked %}
         <td class="text-center" style="white-space:nowrap">
           {% if g in r.missing %}
           <input type="hidden" form="ignore-form" name="shown" value="{{ r.fdc_id }}:{{ g }}">
           <span class="{{ 'muted' if g in r.ignored else 'text-warning-emphasis' }}">{{ 'ignored' if g in r.ignored else 'missing' }}</span><br>
           {% if g not in r.ignored %}<label style="font-size:0.8rem"><input type="checkbox" class="form-check-input gap-fetch-cb" form="gap-fetch-form" name="want" value="{{ r.fdc_id }}:{{ g }}" data-group="{{ g }}"> ask AI</label><br>{% endif %}
-          <label class="muted" style="font-size:0.8rem"><input type="checkbox" class="form-check-input" form="ignore-form" name="ignore" value="{{ r.fdc_id }}:{{ g }}" {% if g in r.ignored %}checked{% endif %}> not needed</label>
+          <label class="muted" style="font-size:0.8rem"><input type="checkbox" class="form-check-input gap-ignore-cb" form="ignore-form" name="ignore" value="{{ r.fdc_id }}:{{ g }}" data-group="{{ g }}" {% if g in r.ignored %}checked{% endif %}> not needed</label>
           {% endif %}
         </td>
         {% endfor %}
@@ -282,6 +360,8 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
 <div class="d-flex flex-wrap gap-2">
   <button type="submit" form="ignore-form" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
   <button type="submit" form="gap-fetch-form" class="btn btn-sm btn-outline-primary">Build a Claude AI prompt for the gaps checked &ldquo;ask AI&rdquo;</button>
+  <button type="submit" form="gap-refresh-form" class="btn btn-sm btn-outline-secondary"
+          title="Check every food again and redraw this list, picking up anything filled in or marked not needed since the page loaded">Refresh list</button>
 </div>
 <script>
 function setAskAI(group, on) {
@@ -289,6 +369,27 @@ function setAskAI(group, on) {
     if (group === null || cb.dataset.group === group) { cb.checked = on; }
   });
 }
+// Refreshing drops "not needed" ticks that haven't been saved — say so first.
+function confirmGapRefresh() {
+  var unsaved = Array.prototype.some.call(document.querySelectorAll('.gap-ignore-cb'),
+    function (b) { return b.checked !== b.defaultChecked; });
+  return !unsaved || confirm('You have "not needed" changes that are not saved yet. Refreshing the list will lose them. Refresh anyway?');
+}
+// "Mark column not needed" ticks every "not needed" box in its column
+// (nothing is saved until Save); once all are ticked it reads "Unmark column"
+// and does the reverse.
+document.querySelectorAll('.js-col-not-needed').forEach(function (btn) {
+  var boxes = document.querySelectorAll('.gap-ignore-cb[data-group="' + btn.dataset.group + '"]');
+  function allTicked() { return boxes.length && Array.prototype.every.call(boxes, function (b) { return b.checked; }); }
+  function label() { btn.textContent = allTicked() ? 'Unmark column' : 'Mark column not needed'; }
+  btn.addEventListener('click', function () {
+    var tick = !allTicked();
+    boxes.forEach(function (b) { b.checked = tick; });
+    label();
+  });
+  boxes.forEach(function (b) { b.addEventListener('change', label); });
+  label();
+});
 </script>
 {% endcall %}
 {% endif %}
@@ -312,7 +413,7 @@ listed here for information, not as a problem. A food whose macronutrients you&r
     <tbody>
       {% for r in food_issue_rows %}
       <tr>
-        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a></td>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
         <td>{% for i in r.issues %}<div class="{{ 'text-danger' if i.kind == 'impossible' else ('text-warning-emphasis' if i.severity == 'problem' else 'muted') }}">{{ i.text }}</div>{% endfor %}</td>
       </tr>
       {% endfor %}
@@ -354,7 +455,7 @@ in the section above.</small></p>
         <tbody>
           {% for r in rows %}
           <tr>
-            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% endif %}</td>
+            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% endif %}</td>
             <td>{{ _uses(r.use) }}</td>
             {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% elif sec.key == "gi" %}<td class="text-end">{{ "%.1f"|format(r.carbs) }}&thinsp;g</td>{% endif %}
             <td><input type="hidden" name="shown" value="{{ r.fdc_id }}:{{ sec.key }}">
@@ -391,7 +492,7 @@ in the section above.</small></p>
       <tbody>
         {% for f in generic_density %}
         <tr>
-          <td style="vertical-align:top"><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a><br>
+          <td style="vertical-align:top"><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }}<br>
             <a href="/food/cache/{{ f.fdc_id }}/portions" class="small">add its cup or spoon weight</a></td>
           <td><ul class="mb-0 ps-3 small">{% for u in f.uses %}
             <li>{% if u.where == "recipe" %}<a href="/recipe/{{ u.owner_id }}">{{ u.owner_label }}</a>{% else %}<a href="/meal/{{ u.owner_id }}">{{ u.owner_label }}</a> <span class="muted">(logged meal)</span>{% endif %}:
@@ -444,7 +545,7 @@ whether anything changed and lets you choose what to take.</p>
 {% set _summary %}<strong>{{ old_copies|length }}</strong> food{{ "s" if old_copies|length != 1 }} last fetched over {{ old_copy_days }} days ago.{% endset %}
 {% call fold_list(old_copies|length, "old-copies", _summary, only_when_folded=True) %}
 <ul>
-  {% for f in old_copies %}<li><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a> <small class="muted">(last fetched {{ f.cached_at[:10] }})</small></li>{% endfor %}
+  {% for f in old_copies %}<li><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }} <small class="muted">(last fetched {{ f.cached_at[:10] }})</small></li>{% endfor %}
 </ul>
 {% endcall %}
 {% endif %}

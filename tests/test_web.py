@@ -1403,7 +1403,7 @@ def test_settings_profile_update(client: TestClient) -> None:
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/settings?saved=profile"
+    assert resp.headers["location"] == "/settings?saved=profile#profile-saved"
 
     profile = _profile.load_profile()
     assert profile.age == 40
@@ -1732,6 +1732,27 @@ def test_meal_nutrient_column_shows_computed_value(client: TestClient, cached_fo
 
     resp = client.get("/meals")
     assert "111" in resp.text
+
+
+def test_meals_list_shows_each_nutrient_as_share_of_day_goal(client: TestClient, db_conn) -> None:
+    """Under each meal's nutrient figure on /meals: "(N%)" of that date's
+    daily goal, from the date's pinned profile; none where there's no goal."""
+    import db as _db
+    meal_id = _db.meal_create(db_conn, "Lunch", "2026-10-01")
+    _db.meal_set_bcp(db_conn, meal_id, 10.0, 500.0,
+                     nutrients={"protein_g": 20.0, "calories": 500.0, "fiber_g": 7.0, "sugar_g": 12.0})
+    db_conn.commit()
+    rda = _profile.compute_rda(_profile.load_profile())
+    resp = client.get("/meals")
+    assert f"({round(20.0 / rda['protein_g'][0] * 100)}%)</small>" in resp.text
+    assert f"({round(7.0 / rda['fiber_g'][0] * 100)}%)</small>" in resp.text
+    # Sugar has no daily goal: its raw figure stands alone, so only protein
+    # and fiber get a percentage.
+    assert "sugar_g" not in rda
+    assert resp.text.count("day&rsquo;s goal for this nutrient") == 2
+    # Calories sits after "% of goal" and carries its own share of the day's calorie goal.
+    assert f"({round(500.0 / rda['calories'][0] * 100)}%)</small>" in resp.text
+    assert resp.text.index("goal (min)</th>") < resp.text.index('<th class="num-col">Calories</th>')
 
 
 def test_summary_trend_no_meals(client: TestClient) -> None:
@@ -2422,6 +2443,32 @@ def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> Non
     assert db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone() is None
 
 
+def test_recipe_delete_warns_about_meals_and_sub_recipe_use(client: TestClient, db_conn) -> None:
+    """Both Delete buttons (Recipes list, recipe page) name the logged meals
+    and recipes a delete would break, and point at Archive instead."""
+    import db as _db
+    used = _db.recipe_create(db_conn, "Tom's Chili", "", 4, "")
+    unused = _db.recipe_create(db_conn, "Plain Rice", "", 2, "")
+    parent = _db.recipe_create(db_conn, "Chili Bowl", "", 1, "")
+    _db.recipe_add_ingredient(db_conn, parent, 0, "Tom's Chili", 1, "servings", ref_recipe_id=used)
+    for d in ("2026-10-01", "2026-10-05"):
+        _db.meal_add_recipe(db_conn, _db.meal_create(db_conn, "Lunch", d), used, "Tom's Chili", 1)
+    db_conn.commit()
+
+    detail = client.get(f"/recipe/{used}").text
+    assert "logged in 2 meals (from 2026-10-01 to 2026-10-05)" in detail
+    assert "used as a sub-recipe in: Chili Bowl" in detail
+    assert "Archive on the Recipes list" in detail
+    # The apostrophe must not end the single-quoted onsubmit attribute.
+    assert "Tom\\u0027s Chili" in detail
+
+    listing = client.get("/recipes").text
+    assert "logged in 2 meals" in listing
+    assert "the Archive button next to Delete" in listing
+    assert 'Delete recipe \\"Plain Rice\\"? This cannot be undone.' in listing
+    assert "Plain Rice\\\" is logged" not in listing
+
+
 def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -> None:
     recipe_id = int(
         client.post("/recipe/new", data={"name": "Soup", "servings": 1}, follow_redirects=False)
@@ -2625,6 +2672,18 @@ def test_compare_ingredient_table_shows_shared_and_unique(
     assert "—" in resp.text
 
 
+def test_compare_tables_show_every_items_code(client: TestClient, cached_food) -> None:
+    """Every table on Compare names each food/recipe with its code: the
+    column headings of all four tables, and each ingredient row."""
+    import re
+    rid = _make_recipe(client, "Coded Stew", 1, cached_food["fdcId"], cached_food["name"], "300 g")
+    text = client.get(f"/compare?items=r{rid},f{cached_food['fdcId']}").text
+    food_tag = re.escape(f"(U{cached_food['fdcId']}")
+    # Four tables' headings each carry both codes, plus one food ingredient row each side.
+    assert len(re.findall(r"\(R%d\)" % rid, text)) >= 4
+    assert len(re.findall(food_tag, text)) >= 6
+
+
 def test_compare_nutrient_normalizes_to_100g(client: TestClient, cached_food, second_cached_food) -> None:
     """Nutrient values are always per 100g of the finished item, regardless
     of the recipe's batch size or serving count — diluting 100g of chicken
@@ -2642,6 +2701,33 @@ def test_compare_nutrient_normalizes_to_100g(client: TestClient, cached_food, se
     assert resp.status_code == 200
     assert "15.5" in resp.text  # diluted recipe: 31g protein in a 200g batch -> 15.5g/100g
     assert "31.0" in resp.text  # plain chicken: unchanged at 100g
+
+
+def test_compare_groups_cover_every_food_analysis_nutrient() -> None:
+    """The comparison table offers every nutrient a food's own analysis table
+    shows — Omega Fatty Acids, iodine and selenium were once missing from it."""
+    from web import backend
+    compare_keys = {k for _g, keys in backend._COMPARE_GROUPS for k in keys}
+    split_rows = {backend._water.DRINKS_KEY, backend._water.FOOD_KEY}  # day/meal totals only
+    analysis_keys = {k for _g, keys in backend._NUTRIENT_GROUPS for k in keys} - split_rows
+    assert analysis_keys <= compare_keys, analysis_keys - compare_keys
+
+
+def test_compare_shows_omegas_and_names_nutrients_left_out(client: TestClient, db_conn) -> None:
+    for fid, name, n in [(999101, "Omega Food", {"protein_g": 5.0, "omega3_ala_mg": 120.0}),
+                         (999102, "Plain Food", {"protein_g": 3.0})]:
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+            "VALUES (?, ?, 'SR Legacy', ?, '[]')", (fid, name, json.dumps(n)))
+    db_conn.commit()
+    resp = client.get("/compare?items=f999101,f999102")
+    assert resp.status_code == 200
+    assert "Omega Fatty Acids" in resp.text
+    assert "120.0" in resp.text
+    assert "none of these items has data for them" in resp.text
+    note = resp.text.split("none of these items has data for them")[1].split("</div>")[0]
+    assert "Selenium" in note and "Iodine" in note
+    assert "ALA" not in note  # it has a row, so it is not listed as left out
 
 
 def test_compare_protein_quality_section(client: TestClient, cached_food) -> None:
@@ -3434,6 +3520,50 @@ def test_food_use_recipes_page_lists_ingredient_usage(client: TestClient, cached
     assert resp.status_code == 200
     assert cached_food["name"] in resp.text
     assert "Chicken Bowl" not in resp.text  # the container recipe itself isn't a row; its ingredients are
+
+
+def test_food_use_recipes_name_filter(client: TestClient, cached_food: dict, second_cached_food: dict) -> None:
+    """The name box narrows the table to rows whose name has every word typed;
+    the substitute form carries it so a substitution returns to the same view."""
+    rid = int(
+        client.post("/recipe/new", data={"name": "Bowl", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    for f in (cached_food, second_cached_food):
+        client.post(f"/recipe/{rid}/ingredient/add",
+                    data={"fdc_id": f["fdcId"], "food_name": f["name"], "portion_str": "100 g"},
+                    follow_redirects=False)
+    resp = client.get("/analysis/food-use-recipes?name=second+FOOD")
+    assert "Second Test Food" in resp.text
+    assert f'href="/food/{cached_food["fdcId"]}"' not in resp.text
+    assert "1 of 2 rows" in resp.text
+    assert '<input type="hidden" name="name" value="second FOOD">' in resp.text
+    resp = client.get("/analysis/food-use-recipes?name=zzz")
+    assert "None of the 2 foods and recipes used in this selection" in resp.text
+
+
+def test_food_page_and_printout_show_its_notes_and_prep_context(client: TestClient, cached_food, db_conn) -> None:
+    fid = cached_food["fdcId"]
+    db_conn.execute("UPDATE foods SET notes = ? WHERE fdc_id = ?", ("Corrected from the package label", fid))
+    db_conn.execute("INSERT INTO food_annotations (fdc_id, prep_context) VALUES (?, ?)", (fid, "soaked overnight"))
+    db_conn.commit()
+    for path in (f"/food/{fid}", f"/food/{fid}/print"):
+        text = client.get(path).text
+        assert "Corrected from the package label" in text, path
+        assert "soaked overnight" in text, path
+    assert 'id="sec-food-notes"' in client.get(f"/food/{fid}").text
+
+
+def test_food_page_has_no_notes_section_without_notes(client: TestClient, cached_food) -> None:
+    assert 'id="sec-food-notes"' not in client.get(f"/food/{cached_food['fdcId']}").text
+
+
+def test_recipe_portion_analysis_shows_recipe_notes(client: TestClient, cached_food, db_conn) -> None:
+    rid = _make_recipe(client, "Noted Stew", 2, cached_food["fdcId"], cached_food["name"], "100 g")
+    db_conn.execute("UPDATE recipes SET notes = ? WHERE id = ?", ("Adapted from Grandma's card", rid))
+    db_conn.commit()
+    text = client.post("/food/analyze-recipe-portion", data={"recipe_id": rid, "servings": "1"}).text
+    assert "Adapted from Grandma&#39;s card" in text
 
 
 def test_food_use_recipes_shows_subrecipe_as_its_own_row(client: TestClient, cached_food: dict) -> None:
@@ -5082,7 +5212,7 @@ def test_oxalate_quantitative_rows_sum_repeated_food(monkeypatch) -> None:
     result = backend._oxalate_for_items(items)
 
     assert result["rows"] == [{
-        "name": "Spinach", "amount_g": 150.0, "mg": 15.0,
+        "name": "Spinach", "fdc_id": 42, "amount_g": 150.0, "mg": 15.0,
         "category": "moderate", "confirmed": True,
     }]
     assert result["total_mg"] == 15.0
@@ -7215,3 +7345,47 @@ def test_usda_parse_keeps_measured_zeros():
                                  "foodNutrients": [{"nutrient": {"id": 1003}, "amount": 0},
                                                    {"nutrient": {"id": 1004}, "amount": 3.2}]})
     assert food["nutrients"]["protein_g"] == 0.0 and food["nutrients"]["fat_g"] == 3.2
+
+
+def test_profile_save_repins_today_and_apply_to_days_and_day_switch(client: TestClient, db_conn) -> None:
+    """Saving the profile re-scores today; "apply to days" switches a date
+    range to the current profile; each day's switch (day page, Meals & Log)
+    flips between the current profile and its own pinned copy."""
+    import db as _db
+    from numa_app.services import day_profile as _dp
+    today = datetime.date.today().isoformat()
+    past = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
+    for d in (past, today):
+        _db.meal_create(db_conn, "Lunch", d)
+        _dp.ensure_day_profile(db_conn, d)
+    db_conn.commit()
+    form = {"age": 40, "sex": "female", "weight": 52, "activity_level": "moderate"}
+
+    resp = client.post("/settings", data=form)
+    assert "Today&rsquo;s goals now follow it" in resp.text
+    assert 'action="/settings/profile/apply-to-days"' in resp.text
+    with _db.get_db() as conn:
+        assert _dp.get_profile_for_date(conn, today).weight_kg == 52
+        assert _dp.get_profile_for_date(conn, past).weight_kg != 52
+
+    resp = client.post("/settings/profile/apply-to-days", data={"start": past})
+    assert "2 days now scored against your current profile" in resp.text  # past and today
+    with _db.get_db() as conn:
+        assert _dp.get_profile_for_date(conn, past).weight_kg == 52
+
+    # The past day's page and Meals & Log show the switch ticked; switch it back.
+    summary = client.get(f"/summary/{past}").text
+    assert f'action="/day/{past}/profile-mode"' in summary
+    assert 'name="mode" value="pinned"' in summary
+    meals = client.get("/meals").text
+    assert f'id="dps-{past}" checked' in meals
+    assert "Figures in parentheses" in meals
+    resp = client.post(f"/day/{past}/profile-mode", data={"mode": "pinned", "next": "/meals"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/meals"
+    with _db.get_db() as conn:
+        assert _dp.get_profile_for_date(conn, past).weight_kg != 52
+    # An outside destination is refused.
+    resp = client.post(f"/day/{past}/profile-mode", data={"mode": "current", "next": "https://x.example/"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == f"/summary/{past}"

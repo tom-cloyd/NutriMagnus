@@ -8,7 +8,7 @@ Docs: README-numa-documentation.md, Architecture: "usda_nutrients.py — nutrien
 import re
 
 from usda_api import (
-    NUTRIENT_MAP, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_PROTEIN, CORE_MACRO_KEYS,
+    NUTRIENT_MAP, DERIVED_NUTRIENTS, ESSENTIAL_AMINO_ACIDS, AA_REFERENCE_MG_PER_G_PROTEIN, CORE_MACRO_KEYS,
 )
 
 # Type alias for all per-100g nutrient dicts throughout the codebase.
@@ -65,15 +65,21 @@ def complement_meal_limit(
 # kept here as the single source of truth for which nutrients are grouped
 # together.
 COMPARE_GROUPS: list[tuple[str, list[str]]] = [
-    # Fiber/Sugar right after Carbohydrate, the fat types after Total Fat —
-    # same order as the other nutrient tables (_NUTRIENT_GROUPS in web/backend.py).
+    # Every nutrient a food's own analysis table shows (_NUTRIENT_GROUPS in
+    # web/backend.py), in the same order, plus amino acids — keep the two in
+    # step (tests/test_web.py checks it). Water's drinks/food split rows are
+    # day/meal totals only, so a per-item comparison has just water_g.
     ("Macronutrients", [
         "calories", "protein_g", "carbs_g", "fiber_g", "sugar_g",
         "fat_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
     ]),
+    ("Water", ["water_g"]),
+    ("Omega Fatty Acids", [
+        "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg",
+    ]),
     ("Minerals", [
         "calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
-        "potassium_mg", "sodium_mg", "zinc_mg",
+        "potassium_mg", "sodium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg",
     ]),
     ("Vitamins", [
         "vitamin_a_mcg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
@@ -218,7 +224,7 @@ def nutrient_label(key: str) -> tuple[str, str]:
     for nid, (k, label, unit) in NUTRIENT_MAP.items():
         if k == key:
             return label, unit
-    return key, ""
+    return DERIVED_NUTRIENTS.get(key, (key, ""))
 
 
 def get_aa_gaps(nutrients: Nutrients, digestibility: float = 1.0) -> list[tuple[str, float, float]]:

@@ -87,6 +87,8 @@ from numa_app.services import recipe_dcp as _recipe_dcp
 from numa_app.services import search_ranking as _search_ranking
 from numa_app.services import search_suggest as _search_suggest
 from numa_app.services import print_sections as _print_sections
+from numa_app.services import water as _water
+from numa_app.services import water_backfill as _water_backfill
 
 # In a PyInstaller onefile build, backend.py is bundled as a flattened
 # top-level module — there's no separate web/ subdirectory nested under a
@@ -442,6 +444,37 @@ def _is_ajax_row_action(request: Request) -> bool:
     return request.headers.get("x-numa-ajax") == "1"
 
 
+def _recipe_delete_warning(name: str, meal_use: dict | None, sub_users: list[str],
+                           archive_here: bool) -> str:
+    """The confirm() text for a recipe's Delete button: plain text (the template
+    passes it through |tojson). Names every logged meal count and sub-recipe
+    use the delete would break, and points at Archive, which breaks nothing.
+    `archive_here` — whether an Archive button sits right next to Delete
+    (the Recipes list) or lives on the Recipes list (the recipe's own page)."""
+    uses = []
+    if meal_use:
+        n = meal_use["meals"]
+        when = (f"on {meal_use['first']}" if meal_use["first"] == meal_use["last"]
+                else f"from {meal_use['first']} to {meal_use['last']}")
+        uses.append(f"logged in {n} meal{'s' if n != 1 else ''} ({when})")
+    if sub_users:
+        uses.append("used as a sub-recipe in: " + ", ".join(sub_users))
+    if not uses:
+        return f'Delete recipe "{name}"? This cannot be undone.'
+    effects = []
+    if meal_use:
+        effects.append('those meals will show it as "recipe deleted" and no longer '
+                       "count its nutrients in their totals")
+    if sub_users:
+        effects.append("those recipes will keep the ingredient line but flag it as a "
+                       "deleted sub-recipe, and drop its nutrients")
+    where = "the Archive button next to Delete" if archive_here else "Archive on the Recipes list"
+    return (f'"{name}" is ' + ", and ".join(uses) + ".\n\n"
+            "If you delete it, " + "; ".join(effects) + ". This cannot be undone.\n\n"
+            f"To hide it without breaking anything, cancel and use {where} instead.\n\n"
+            "Delete anyway?")
+
+
 def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]) -> str:
     """Resolve the sort choice for a list view: an explicit `sort` query param wins
     and is remembered as the new default; otherwise fall back to the saved pref."""
@@ -644,7 +677,7 @@ def _get_or_cache_source_food(fdc_id: int, off_code: str = "") -> "sqlite3.Row":
             serving_size=detail.get("servingSize"),
             serving_unit=detail.get("servingUnit"),
             nutrients=detail.get("nutrients", {}),
-            portions=detail.get("portions", []),
+            portions=detail.get("portions", []), category=detail.get("category"),
         )
         _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
         return _db.get_cached_food(conn, fdc_id)
@@ -1381,6 +1414,9 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
         "calories", "protein_g", "carbs_g", "fiber_g", "sugar_g",
         "fat_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
     ]),
+    # The two split rows appear only on totals (meal/recipe/day), which are
+    # the only nutrients carrying them — see _nutrient_sections().
+    ("Water", [_water.WATER_KEY, _water.DRINKS_KEY, _water.FOOD_KEY]),
     ("Omega Fatty Acids", [
         "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg",
     ]),
@@ -1404,11 +1440,12 @@ _NUTRIENT_GROUPS: list[tuple[str, list[str]]] = [
 # rendered indented under their parent via the "subtype-row" CSS class.
 _SUBTYPE_KEYS: set[str] = {
     "fiber_g", "sugar_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g",
+    _water.DRINKS_KEY, _water.FOOD_KEY,
 }
 
 # Nutrients offered for Profile Optimal / max-limit configuration in Settings.
 _NUTRIENT_TARGET_GROUPS: list[tuple[str, list[str]]] = [
-    ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg",
+    ("Macronutrients", ["calories", "protein_g", "carbs_g", "fiber_g", "sodium_mg", "water_g", _water.DRINKS_KEY,
                          "omega3_ala_mg", "omega3_epa_mg", "omega3_dha_mg", "omega6_la_mg"]),
     ("Minerals", ["calcium_mg", "iron_mg", "magnesium_mg", "phosphorus_mg",
                   "potassium_mg", "zinc_mg", "iodine_mcg", "selenium_mcg"]),
@@ -1427,9 +1464,17 @@ def _rda_css(pct: float, rda_type: str) -> str:
     return "rda-" + rda_status(pct, rda_type)
 
 
-_RDA_TYPE_ABBR = {"minimum": "min", "limit": "max", "target": "target"}
+def _water_capped(max_limits: dict | None) -> bool:
+    """True when a fluid limit is set on total water or on drinks — a
+    clinician's cap (heart failure, kidney disease). Water's goals then stop
+    nudging for more: no colour on its goal percentages, no 65+ drinks warning."""
+    return bool(max_limits) and bool(max_limits.get(_water.WATER_KEY) or max_limits.get(_water.DRINKS_KEY))
+
+
+_RDA_TYPE_ABBR = {"minimum": "min", "limit": "max", "target": "target", "goal": "goal"}
 _RDA_TYPE_TITLE = {
     "minimum": "Minimum — aim to meet or exceed this amount",
+    "goal": "Goal — aim to reach this amount; going past it gains nothing, so it is never shown as a success",
     "limit": "Maximum — stay at or under this amount",
     "target": "Target — aim close to this amount, not just above or below it",
 }
@@ -1486,7 +1531,8 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                        optimal: dict | None = None,
                        max_limits: dict | None = None,
                        dcp_g: float | None = None,
-                       dcp_missing: list[str] | None = None) -> list[dict]:
+                       dcp_missing: list[str] | None = None,
+                       drinks_floor: float | None = None) -> list[dict]:
     """dcp_g/dcp_missing insert a "(Digestible Complete Protein)" row right
     below Protein — the digestibility/amino-acid-adjusted figure a user
     actually gets to use, vs. the raw total USDA/OFF/etc. report. Only
@@ -1496,10 +1542,13 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
     amino-acid data and so were excluded from the DCP total — that makes the
     figure an understatement, flagged with an asterisk and a footnote."""
     max_limits = max_limits or {}
+    water_capped = _water_capped(max_limits)
     sections = []
-    for group_name, keys in _NUTRIENT_GROUPS:
+    for group_name, keys in _shown_groups(_NUTRIENT_GROUPS):
         rows = []
         for key in keys:
+            if key in (_water.DRINKS_KEY, _water.FOOD_KEY) and key not in nutrients:
+                continue  # a single food's own table: no split to show
             # Every tracked nutrient gets a row. A value never recorded
             # shows as "no data" — not hidden (which made EPA/DHA vanish
             # while ALA showed), and not 0, which would claim a measurement.
@@ -1507,6 +1556,14 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
             missing = raw is None
             val = 0.0 if missing else float(raw)
             label, unit = _usda.nutrient_label(key)
+            if key == _water.DRINKS_KEY and drinks_floor and val < drinks_floor and not water_capped:
+                # A whole day's drinks under ESPEN's 65+ minimum (profile.drinks_floor).
+                label += (f" \u2014 below the {drinks_floor / 1000:g} L a day of drinks recommended "
+                          "as a minimum from age 65 (ESPEN)")
+            if key == _water.FOOD_KEY and not missing and nutrients.get(_water.WATER_KEY):
+                # Food's share of the water: ~20% on a typical diet, far more
+                # on one heavy in fruit, vegetables and soups.
+                label += f" ({round(val / float(nutrients[_water.WATER_KEY]) * 100)}% of the total)"
             pct = rda_type = rda_css_val = None
             rda_minimum = rda_target = rda_maximum = None
             day_pct = day_rda_css = None
@@ -1514,7 +1571,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                 rda_val, rda_unit, rda_type = rda[key]
                 if rda_val and rda_val > 0:
                     rda_goal = f"{rda_val:.1f} {rda_unit}"
-                    if rda_type == "minimum":
+                    if rda_type in ("minimum", "goal"):
                         rda_minimum = rda_goal
                     elif rda_type == "target":
                         rda_target = rda_goal
@@ -1525,6 +1582,8 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                     if daily_nutrients is not None:
                         day_pct = round(daily_nutrients.get(key, 0.0) / rda_val * 100, 0)
                         day_rda_css = _rda_css(day_pct, rda_type)
+                    if water_capped and key in (_water.WATER_KEY, _water.DRINKS_KEY):
+                        rda_css_val = day_rda_css = None  # under a fluid limit: no "drink more"
 
             opt_pct = opt_day_pct = opt_css = opt_day_css = opt_goal = opt_type = None
             if optimal and key in optimal:
@@ -1624,7 +1683,8 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                     "is_subtype":   False,
                 })
         if rows:
-            sections.append({"name": group_name, "rows": rows})
+            sections.append({"name": group_name, "rows": rows,
+                             "has_water": _water.WATER_KEY in keys})
     return sections
 
 
@@ -1633,7 +1693,7 @@ def _contributor_rank_options(nutrients: dict) -> list[tuple[str, list[tuple[str
     the main Nutritional Analysis table, filtered to nutrients with a
     nonzero total (no point offering to rank by something that's all zero)."""
     groups = []
-    for group_name, keys in _NUTRIENT_GROUPS:
+    for group_name, keys in _shown_groups(_NUTRIENT_GROUPS):
         opts = []
         for key in keys:
             if not nutrients.get(key):
@@ -1783,6 +1843,46 @@ def _diet_aware_daily_notes(nutrients: dict, rda: dict | None) -> dict:
         "iron_zinc": iron_zinc_bioavailability_note(diet_pref),
         "b12":       b12_note,
     }
+
+
+# A day's protein at or above this multiple of its protein goal gets the
+# "protein and water" note (manual #water). A judgement call, not a cited cutoff.
+_HIGH_PROTEIN_FACTOR = 1.5
+
+
+def _water_day_notes(nutrients: dict, rda: dict | None, profile,
+                     max_limits: dict | None) -> dict:
+    """{"nice": str|None, "protein": str|None} — two notes shown under a day
+    page's water rows. "nice": NICE CG174's weight-based figure
+    (profile.nice_water_band), for information only, never the goal.
+    "protein": a high-protein day raises the water the kidneys need. Both off
+    when water tracking is off, without a profile, or under a fluid limit
+    (a clinician's cap is followed instead)."""
+    out = {"nice": None, "protein": None}
+    if not _track_water() or not rda or profile is None or _water_capped(max_limits):
+        return out
+    band = _profile.nice_water_band(profile)
+    goal = rda.get(_water.WATER_KEY, (None,))[0]
+    if band:
+        weight = (f"an ideal body weight of {band['weight_kg']:.0f} kg, used in place of your weight "
+                  "because your BMI is 30 or more" if band["ideal_weight"]
+                  else f"your weight of {band['weight_kg']:.0f} kg")
+        text = (f"For comparison only: NICE starts routine fluid maintenance for adults in hospital at "
+                f"25\u201330 mL per kg a day, capped at about 3 L. At {weight}, that is "
+                f"{band['low'] / 1000:.1f}\u2013{band['high'] / 1000:.1f} L of total water a day. It is a "
+                "figure for resting patients, not a goal for healthy people, and a per-kilogram rule "
+                "understates the need of lighter people and overstates that of heavier ones.")
+        if goal and band["high"] < goal:
+            ref = "EFSA" if getattr(profile, "water_reference", "iom") == "efsa" else "IOM"
+            text += f" It is below your {ref} goal of {goal / 1000:g} L, which stays your goal."
+        out["nice"] = text
+    protein, protein_goal = nutrients.get("protein_g"), rda.get("protein_g", (None,))[0]
+    if protein and protein_goal and protein >= protein_goal * _HIGH_PROTEIN_FACTOR:
+        out["protein"] = (f"This day\u2019s protein, {protein:.0f} g, is well above your goal of "
+                          f"{protein_goal:.0f} g. Breaking down protein makes urea, which takes water "
+                          "to clear, so it is a reason not to run low on drinks. That is physiological "
+                          "reasoning; no trial has measured its effect.")
+    return out
 
 
 def _load_optimal(profile=None) -> dict | None:
@@ -1986,6 +2086,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
     qualitative: list[dict] = []
     qualitative_seen: set = set()
     missing: list[str] = []
+    missing_ids: dict = {}   # name -> fdc_id, so each missing name shows its code
     # The same food can arrive more than once (e.g. two servings of one
     # recipe, or a food both logged directly and inside a recipe) — sum it
     # into one row rather than listing it per occurrence.
@@ -1995,7 +2096,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
         key = fdc_id if fdc_id else name.lower()
         row = row_by_key.get(key)
         if row is None:
-            row = {"name": name, "amount_g": 0.0, "mg": 0.0,
+            row = {"name": name, "fdc_id": fdc_id, "amount_g": 0.0, "mg": 0.0,
                    "category": info["category"], "confirmed": info["confirmed"]}
             row_by_key[key] = row
             rows.append(row)
@@ -2011,6 +2112,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
         info = _oxalate_info(fdc_id, name)
         if not info:
             missing.append(name)
+            missing_ids.setdefault(name, fdc_id)
             continue
 
         if info["mg_per_100g"] is not None:
@@ -2034,11 +2136,13 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
                     qualitative_seen.add(dedupe_key)
                     qualitative.append({
                         "name":      name,
+                        "fdc_id":    fdc_id,
                         "category":  info["category"],
                         "confirmed": info["confirmed"],
                     })
         else:
             missing.append(name)
+            missing_ids.setdefault(name, fdc_id)
 
     if not rows and not qualitative:
         return None
@@ -2053,6 +2157,7 @@ def _oxalate_for_items(items: list[dict]) -> dict | None:
         "rows":       rows,
         "qualitative": qualitative,
         "missing":    missing,
+        "missing_ids": missing_ids,
     }
 
 
@@ -2185,6 +2290,31 @@ def _gi_opt_out() -> bool:
     prefs = _load_prefs_file()
     # gi_notices_off was this setting's first, notices-only name.
     return bool(prefs.get("gi_opt_out", prefs.get("gi_notices_off")))
+
+
+def _track_water() -> bool:
+    """Settings → 14: whether numa shows water at all (on unless turned off).
+    Off hides every water row, the drink tick-boxes, the water backfill and
+    the wet/dry name check; water values stay stored and are still summed,
+    so turning it back on shows everything again."""
+    return bool(_load_prefs_file().get("track_water", True))
+
+
+templates.env.globals["track_water"] = _track_water
+
+
+def _hidden_nutrients() -> frozenset[str]:
+    """Nutrient keys no table, picker or plot should offer right now."""
+    return frozenset() if _track_water() else _water.ALL_KEYS
+
+
+def _shown_groups(groups: list[tuple[str, list[str]]]) -> list[tuple[str, list[str]]]:
+    """`groups` minus hidden nutrients, dropping a group left empty."""
+    hidden = _hidden_nutrients()
+    if not hidden:
+        return groups
+    out = [(name, [k for k in keys if k not in hidden]) for name, keys in groups]
+    return [(name, keys) for name, keys in out if keys]
 
 
 def _gi_table_home_notice() -> dict | None:
@@ -2358,6 +2488,14 @@ async def settings_gi_notices_post(gi_opt_out: str = Form("")):
     again', which silences one message that has been read."""
     _save_prefs_file({"gi_opt_out": bool(gi_opt_out)})
     return RedirectResponse("/settings?saved=gi_notices#gi-table", status_code=303)
+
+
+@app.post("/settings/water", response_class=RedirectResponse)
+async def settings_water_post(track_water: str = Form("")):
+    """Settings → 14: show water (drinks / food split, drink tick-boxes,
+    backfill, wet/dry name check) or hide all of it. Nothing is deleted."""
+    _save_prefs_file({"track_water": bool(track_water)})
+    return RedirectResponse("/settings?saved=water#water-tracking", status_code=303)
 
 
 @app.post("/gi-table-notice/ack-banner", response_class=RedirectResponse)
@@ -2665,6 +2803,7 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
                         conn, detail["fdcId"], detail["name"], detail.get("dataType", ""),
                         detail.get("brand"), detail.get("servingSize"), detail.get("servingUnit"),
                         detail.get("nutrients", {}), detail.get("portions"),
+                        category=detail.get("category"),
                     )
                     _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
                 results.append({
@@ -2825,7 +2964,7 @@ async def food_confirm_aa(
                 serving_size=detail.get("servingSize"),
                 serving_unit=detail.get("servingUnit"),
                 nutrients=detail.get("nutrients", {}),
-                portions=detail.get("portions", []),
+                portions=detail.get("portions", []), category=detail.get("category"),
             )
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
@@ -3098,6 +3237,7 @@ _EDIT_NUTRIENT_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         ("saturated_fat_g", "Saturated Fat",        "g"),
         ("mono_fat_g",      "Monounsaturated Fat",  "g"),
         ("poly_fat_g",      "Polyunsaturated Fat",  "g"),
+        ("water_g",         "Water",                "g"),
     ]),
     ("Omega Fatty Acids", [
         ("omega3_ala_mg", "ALA (omega-3)",      "mg"),
@@ -3167,7 +3307,7 @@ def _build_compare_groups(entries: list[dict]) -> list[dict]:
     """Build comparison group rows from a list of {name, nutrients} dicts —
     `nutrients` is always per 100g of the item (see _load_compare_entry)."""
     groups = []
-    for group_name, keys in _COMPARE_GROUPS:
+    for group_name, keys in _shown_groups(_COMPARE_GROUPS):
         rows = []
         for key in keys:
             label, unit = _usda.nutrient_label(key)
@@ -3182,6 +3322,17 @@ def _build_compare_groups(entries: list[dict]) -> list[dict]:
         if rows:
             groups.append({"name": group_name, "rows": rows})
     return groups
+
+
+def _compare_omitted(entries: list[dict]) -> list[str]:
+    """Labels of the nutrients _build_compare_groups leaves out because no
+    item being compared has a value for them — named on the page so a
+    missing row reads as "no data", not as the table forgetting it."""
+    return [
+        _usda.nutrient_label(key)[0]
+        for _g, keys in _shown_groups(_COMPARE_GROUPS) for key in keys
+        if not any((e["nutrients"].get(key) or 0) > 0 for e in entries)
+    ]
 
 
 _FOOD_CACHE_SORT_KEYS = {
@@ -3489,6 +3640,18 @@ async def food_cache_import_csv_post(request: Request,
     })
 
 
+@app.post("/food/{fdc_id}/drink", response_class=RedirectResponse)
+async def food_set_drink(fdc_id: int, is_drink: int = Form(0), next: str = Form("")):
+    """Mark a food as a drink or not — moves its water between "from drinks"
+    and "from food" in every recipe and meal that uses it. From the food's
+    page, or a row of Analysis → Food use in meals (`next`)."""
+    with _db.get_db() as conn:
+        if _db.get_cached_food(conn, fdc_id):
+            _db.set_food_is_drink(conn, fdc_id, bool(is_drink))
+            _recipe_dcp.cascade_food_change(fdc_id, conn)
+    return RedirectResponse(_local_next(next, f"/food/{fdc_id}#drink-toggle"), status_code=303)
+
+
 @app.post("/food/cache/{fdc_id}/archive", response_class=RedirectResponse)
 async def food_cache_archive(request: Request, fdc_id: int, q: str = Form(""), sort: str = Form(""),
                               show_archived: int = Form(0)):
@@ -3581,6 +3744,12 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         missing_portions = _data_quality.missing_portions_in_use(conn)
         missing_gi = [] if _gi_opt_out() else _data_quality.missing_gi_in_use(conn)
         generic_density = _data_quality.generic_density_in_use(conn)
+        water_missing = len(_water_backfill.candidates(conn))
+        wet_dry = _data_quality.wet_dry_in_use(conn) if _track_water() else []
+    # A finished water backfill's outcome is shown once, then forgotten.
+    water_run = _water_backfill.status()
+    if not water_run["running"]:
+        _water_backfill.clear_status()
     # Opening this page counts as reviewing every current problem: the Home
     # page reminder only raises ones that appear after this (_data_check_reminder()).
     _save_prefs_file({"data_check_seen": sorted(quality["keys"]),
@@ -3612,8 +3781,19 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         "amounts_kept": amounts_kept,
         "generic_density": generic_density,
         "impact": _impact_pop(impact),
+        "water_missing": water_missing,
+        "wet_dry": wet_dry,
+        "wet_dry_threshold": _water.WET_DRY_THRESHOLD_G,
+        "water_run": water_run,
     })
 
+
+@app.post("/food/cache/water-backfill", response_class=RedirectResponse)
+async def food_cache_water_backfill():
+    """Start filling in USDA's water value for every USDA food lacking one
+    (numa_app/services/water_backfill.py); progress shows on Foods → 9."""
+    _water_backfill.start()
+    return RedirectResponse("/food/cache/db-check#water-backfill", status_code=303)
 
 
 @app.post("/food/cache/db-check/completeness", response_class=RedirectResponse)
@@ -4107,7 +4287,7 @@ async def pantry_add(
                                        serving_size=detail.get("servingSize"),
                                        serving_unit=detail.get("servingUnit"),
                                        nutrients=detail.get("nutrients", {}),
-                                       portions=detail.get("portions", []))
+                                       portions=detail.get("portions", []), category=detail.get("category"))
                         _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
                     food_name = food_name or detail["name"]
             except Exception:
@@ -4378,7 +4558,7 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
     impact_targets = _impact_targets([fdc_id])
     impact_before = _impact_snapshot(*impact_targets)
     with _db.get_db() as conn:
-        _db.update_cached_food_profile(
+        renamed = _db.update_cached_food_profile(
             conn, fdc_id, name, nutrients,
             data_type=cached["data_type"] or "User Drafted",
             brand=cached["brand"],
@@ -4389,6 +4569,9 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
             user_drafted=True,
         )
         _recipe_dcp.cascade_food_change(fdc_id, conn)
+    if renamed:
+        notes_out.append(f"The new name was also copied to the {renamed} place(s) that use this "
+                         f"food in your recipes, logged meals and pantry.")
     impact = _impact_pop(_impact_store(f"Saving {name}", impact_before, _impact_snapshot(*impact_targets)))
     with _db.get_db() as conn:
         updated = _db.get_cached_food(conn, fdc_id)
@@ -4602,6 +4785,7 @@ def _duplicate_food_as_draft(conn, cached) -> int:
         portions=portions,
         user_drafted=True,
     )
+    _db.set_food_is_drink(conn, new_id, _water.is_drink(cached))
     return new_id
 
 
@@ -4641,7 +4825,7 @@ async def food_custom_profiles_copy_from_search(fdc_id: int = Form(...), off_cod
                 serving_size=detail.get("servingSize"),
                 serving_unit=detail.get("servingUnit"),
                 nutrients=detail.get("nutrients", {}),
-                portions=detail.get("portions", []),
+                portions=detail.get("portions", []), category=detail.get("category"),
             )
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             cached = _db.get_cached_food(conn, detail["fdcId"])
@@ -4845,6 +5029,8 @@ def _food_detail_context(
         "serving_size":  cached["serving_size"],
         "serving_unit":  cached["serving_unit"] or "",
         "user_drafted":  bool(cached["user_drafted"]),
+        "is_drink":      _water.is_drink(cached),
+        "notes":         (cached["notes"] or "").strip() if "notes" in cached.keys() else "",
     }
 
     # Resolve portion: free-form string takes priority over plain gram amount
@@ -4932,6 +5118,10 @@ def _food_detail_context(
     gl_portion = food_gl(food["name"], fdc_id, nutrients, amount, ann, gi_opt_out=gi_opt_out)
 
     protein_section = _protein_section(food["name"], display_nutrients)
+    # The food's own notes (food["notes"]) and Annotate's prep context, shown
+    # at the head of its analysis and on its printout ("notes" section).
+    food["prep_context"] = ((ann["prep_context"] or "").strip()
+                            if ann and "prep_context" in ann.keys() else "")
 
     return {
         "food":               food,
@@ -5374,6 +5564,9 @@ async def oxalate_link_post(
 
 def _food_available_sections(ctx: dict) -> list[str]:
     available = []
+    food = ctx.get("food") or {}
+    if food.get("notes") or food.get("prep_context"):
+        available.append("notes")
     if ctx.get("nutrient_sections"):
         available.append("nutrient_table")
     if ctx.get("gl_portion") and ctx["gl_portion"]["total"] is not None:
@@ -6071,7 +6264,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
             nuts_100g = json.loads(cached["nutrients_json"]) if cached and cached["nutrients_json"] else {}
             portions = json.loads(cached["portions_json"]) if cached and cached["portions_json"] else []
             grams = float(row["amount"])
-            scaled = _usda.scale_nutrients(nuts_100g, grams)
+            scaled = _usda.scale_nutrients(_water.tag(nuts_100g, _water.is_drink(cached)), grams)
             for k, v in scaled.items():
                 total_nutrients[k] = total_nutrients.get(k, 0.0) + v
             items.append({
@@ -6123,6 +6316,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
 
     _annotate_recipe_amounts(items, conn)
     _annotate_food_amounts(items, conn, unit_key="typed_unit")
+    _mark_water(conn, items)
     return items, total_nutrients, _group_ingredients_by_food(ingredients)
 
 
@@ -6254,12 +6448,19 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
     day_protein_target: dict[str, float | None] = {}
     day_profile_name: dict[str, str | None] = {}
     diet_pref = _current_diet_pref()
+    # Each date's daily goals (from its pinned profile), for the "(N%)" under
+    # each meal's nutrient figure: that meal's share of the day's goal.
+    day_rda: dict[str, dict | None] = {}
+    day_follows: dict[str, bool] = {}
     for d in dates_in_page:
         with _db.get_db() as conn:
             date_rows = _db.meal_list_by_date(conn, d)
             day_protein_target[d] = _day_profile.protein_target_for_date(conn, d, diet_pref=diet_pref)
             dp_row = _db.day_profile_get(conn, d)
+            day_rda_profile = _day_profile.get_profile_for_date(conn, d)
+        day_rda[d] = _load_rda(day_rda_profile) if day_rda_profile else None
         day_profile_name[d] = dp_row["profile_name"] if dp_row else None
+        day_follows[d] = _day_profile.follows_current(dp_row)
         contributing = [r for r in date_rows if r["bcp_g"] is not None]
         vals = [r["bcp_g"] for r in contributing]
         day_bcp[d] = round(sum(vals), 1) if vals else None
@@ -6285,6 +6486,18 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
         m["day_bcp"] = day_bcp.get(d)
         m["day_provisional"] = day_provisional.get(d, False)
         m["day_profile_name"] = day_profile_name.get(d)
+        m["day_has_profile"] = day_profile_name.get(d) is not None
+        m["day_follows_current"] = day_follows.get(d, False)
+        rda = day_rda.get(d) or {}
+        snapshot = json.loads(m["nutrients_snapshot_json"]) if m.get("nutrients_snapshot_json") else {}
+        m["nutrient_pcts"] = {
+            k: round(snapshot[k] / rda[k][0] * 100)
+            for k in nutrient_keys
+            if snapshot.get(k) is not None and k in rda and rda[k][0] and rda[k][0] > 0
+        }
+        cal_goal = rda["calories"][0] if "calories" in rda else None
+        m["calories_pct"] = (round(m["calories"] / cal_goal * 100)
+                             if m.get("calories") is not None and cal_goal else None)
         target = day_protein_target.get(d)
         if target and day_bcp.get(d) is not None:
             m["day_pct"] = round(day_bcp[d] / target * 100, 0)  # type: ignore[operator]
@@ -6517,12 +6730,13 @@ async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str 
                         seen_names.add(n)
                         flags = _usda.get_antinutrient_flags(n)
                         if flags:
-                            item_antinutrients.append({"food_name": n, "flags": flags})
+                            item_antinutrients.append({"food_name": n, "flags": flags,
+                                                       "fdc_id": ing.get("fdc_id"), "recipe_id": ing.get("recipe_id")})
             elif item.get("fdc_id") and food_name and food_name not in seen_names:
                 seen_names.add(food_name)
                 flags = _usda.get_antinutrient_flags(food_name)
                 if flags:
-                    item_antinutrients.append({"food_name": food_name, "flags": flags})
+                    item_antinutrients.append({"food_name": food_name, "flags": flags, "fdc_id": item["fdc_id"]})
 
     ox_items = []
     with _db.get_db() as conn:
@@ -6636,12 +6850,13 @@ def _meal_print_context(meal_id: int) -> dict | None:
                         seen_names.add(n)
                         flags = _usda.get_antinutrient_flags(n)
                         if flags:
-                            item_antinutrients.append({"food_name": n, "flags": flags})
+                            item_antinutrients.append({"food_name": n, "flags": flags,
+                                                       "fdc_id": ing.get("fdc_id"), "recipe_id": ing.get("recipe_id")})
             elif item.get("fdc_id") and food_name and food_name not in seen_names:
                 seen_names.add(food_name)
                 flags = _usda.get_antinutrient_flags(food_name)
                 if flags:
-                    item_antinutrients.append({"food_name": food_name, "flags": flags})
+                    item_antinutrients.append({"food_name": food_name, "flags": flags, "fdc_id": item["fdc_id"]})
 
     ox_items = []
     with _db.get_db() as conn:
@@ -6801,7 +7016,7 @@ async def meal_confirm_aa(
                 serving_size=detail.get("servingSize"),
                 serving_unit=detail.get("servingUnit"),
                 nutrients=detail.get("nutrients", {}),
-                portions=detail.get("portions", []),
+                portions=detail.get("portions", []), category=detail.get("category"),
             )
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
@@ -6855,7 +7070,7 @@ async def meal_add_food(
                                serving_size=detail.get("servingSize"),
                                serving_unit=detail.get("servingUnit"),
                                nutrients=detail.get("nutrients", {}),
-                               portions=detail.get("portions", []))
+                               portions=detail.get("portions", []), category=detail.get("category"))
                 _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
             food_name = food_name or detail["name"]
             with _db.get_db() as conn:
@@ -7201,7 +7416,8 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
                                                 optimal=optimal, max_limits=max_limits,
                                                 dcp_g=diaas_display["dcp_g"] if diaas_display else None,
-                                                dcp_missing=diaas_display["missing"] if diaas_display else None) if combined_nutrients else [],
+                                                dcp_missing=diaas_display["missing"] if diaas_display else None,
+                                                drinks_floor=_profile.drinks_floor(day_profile_obj or _profile.load_profile()) if _track_water() else None) if combined_nutrients else [],
         "diaas":             diaas_display,
         "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
@@ -7210,11 +7426,13 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "gl":                gl,
         "gl_target":         _gl_target_status(gl["total"], gl["complete"],
                                                day_profile_obj.gl_day_target if day_profile_obj else None),
+        "water_notes":       _water_day_notes(combined_nutrients, rda, day_profile_obj, max_limits) if combined_nutrients else {},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
         "has_ul":             bool(max_limits),
         "day_profile_name":  day_profile_row["profile_name"] if day_profile_row else None,
         "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
+        "day_follows_current":    _day_profile.follows_current(day_profile_row),
         "all_profile_names": _profile.list_profiles(),
     }
 
@@ -7305,13 +7523,15 @@ async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...))
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0,
                        gi_build_error: str = "", kept_recipes: int = 0, kept_edited: int = 0,
-                       target_error: str = ""):
+                       target_error: str = "", applied: int = 0, apply_error: int = 0):
     profile = _profile.load_profile()
     diet_pref = _current_diet_pref()
     rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
     rda_rows = []
     if rda:
         for key, (val, unit, rda_type) in rda.items():
+            if key in _hidden_nutrients():
+                continue
             label, _ = _usda.nutrient_label(key)
             rda_rows.append({"label": label, "value": round(val, 1),
                               "unit": unit, "rda_type": rda_type})
@@ -7333,7 +7553,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
         # Every nutrient listed here is settable, not just ones with an
         # established RDA/AI — amino acids, EPA/DHA, and phytonutrients have
         # no official DRI but are still valid Optimal/max-limit candidates.
-        for group_name, keys in _NUTRIENT_TARGET_GROUPS:
+        for group_name, keys in _shown_groups(_NUTRIENT_TARGET_GROUPS):
             for key in keys:
                 label, unit = _usda.nutrient_label(key)
                 nutrient_target_rows.append({
@@ -7356,6 +7576,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
             "position": (saved_meal_nutrients.index(key) + 1) if key in saved_meal_nutrients else None,
         }
         for key, label, unit in AVAILABLE_NUTRIENTS
+        if key not in _hidden_nutrients()
     ]
 
     # A finished 2021-table build's outcome is shown once, then forgotten, so a
@@ -7375,6 +7596,9 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
                                            recent_avg, recent_n)
 
     return templates.TemplateResponse(request, "settings.html", {
+        "water_references": _profile.WATER_REFERENCES,
+        "profile_applied": applied,
+        "profile_apply_error": bool(apply_error),
         "data_check_reminder":  _data_check_reminder_prefs(),
         "gl_target_options":    gl_target_options,
         "profile":              profile,
@@ -7432,6 +7656,7 @@ async def settings_post(
     use_oxalate_data: str | None = Form(None),
     glucose_tolerance: str = Form(""),
     gl_day_target: str = Form(""),
+    water_reference: str = Form(""),
 ):
     if height_unit == "imperial":
         height_cm_val = _profile.ftin_to_cm(height_ft, height_in)
@@ -7457,9 +7682,56 @@ async def settings_post(
         gl_day_target=_profile._positive_or_none(gl_day_target.strip().replace(",", "")),
         optimal_targets=dict(existing.optimal_targets) if existing else {},
         max_limits=dict(existing.max_limits) if existing else {},
+        # Not on the form while water tracking is off: keep what was chosen.
+        water_reference=(water_reference if water_reference in _profile.WATER_REFERENCES
+                         else existing.water_reference if existing else "iom"),
     )
     _profile.save_profile(profile)
-    return RedirectResponse("/settings?saved=profile", status_code=303)
+    _after_profile_save()
+    return RedirectResponse("/settings?saved=profile#profile-saved", status_code=303)
+
+
+def _after_profile_save() -> int:
+    """Every profile save: re-pin today (unless set by hand) and every day
+    switched to follow the current profile, then refresh their stored day
+    figures. Returns how many days were re-pinned."""
+    with _db.get_db() as conn:
+        dates = _day_profile.refresh_after_profile_save(conn, datetime.date.today().isoformat())
+    for d in dates:
+        _refresh_day_pct_goal(d)
+    return len(dates)
+
+
+@app.post("/settings/profile/apply-to-days", response_class=RedirectResponse)
+async def settings_profile_apply_to_days(start: str = Form("")):
+    """Switch every logged day from `start` to today to follow the current
+    profile (each keeps its own pinned copy, to switch back on its day page
+    or Meals & Log). Days whose profile was set by hand are left alone."""
+    today = datetime.date.today().isoformat()
+    try:
+        start = datetime.date.fromisoformat(start.strip()).isoformat()
+    except ValueError:
+        return RedirectResponse("/settings?saved=profile&apply_error=1#profile-saved", status_code=303)
+    with _db.get_db() as conn:
+        dates = _day_profile.follow_current_between(conn, min(start, today), today)
+    for d in dates:
+        _refresh_day_pct_goal(d)
+    return RedirectResponse(f"/settings?saved=profile_applied&applied={len(dates)}#profile-saved",
+                            status_code=303)
+
+
+@app.post("/day/{meal_date}/profile-mode", response_class=RedirectResponse)
+async def day_profile_mode(meal_date: str, mode: str = Form("pinned"), next: str = Form("")):
+    """The per-day switch: mode "current" scores meal_date against the
+    current profile (keeping its own pinned copy); anything else puts that
+    copy back."""
+    with _db.get_db() as conn:
+        if mode == "current":
+            _day_profile.follow_current(conn, meal_date)
+        else:
+            _day_profile.restore_pinned(conn, meal_date)
+    _refresh_day_pct_goal(meal_date)
+    return RedirectResponse(_local_next(next, f"/summary/{meal_date}"), status_code=303)
 
 
 @app.post("/settings/diet", response_class=RedirectResponse)
@@ -7671,6 +7943,7 @@ async def settings_nutrient_target_post(
                 store[key] = parsed[which]
 
         _profile.save_profile(profile)
+        _after_profile_save()
     return RedirectResponse("/settings?saved=nutrient_target#nutrient-targets", status_code=303)
 
 
@@ -7687,6 +7960,7 @@ async def settings_nutrient_target_load_defaults():
         if key not in profile.optimal_targets:
             profile.optimal_targets[key] = val
     _profile.save_profile(profile)
+    _after_profile_save()
     return RedirectResponse("/settings?saved=nutrient_target_defaults#nutrient-targets", status_code=303)
 
 
@@ -7882,6 +8156,11 @@ async def recipes_list(request: Request, q: str = "", sort: str | None = None,
     with _db.get_db() as conn:
         total_count = _db.recipe_count(conn, include_archived=show_archived)
         all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200, include_archived=show_archived)]
+        meal_use = _db.recipe_meal_use(conn)
+        sub_users = _db.recipe_subrecipe_users(conn)
+    for r in all_recipes:
+        r["delete_warning"] = _recipe_delete_warning(
+            r["name"], meal_use.get(r["id"]), sub_users.get(r["id"], []), archive_here=True)
     if q:
         ql = q.lower()
         words = ql.split()
@@ -8049,7 +8328,27 @@ def _compare_return_label(return_to: str) -> str:
     return "Back to the page you came from"
 
 
-def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -> dict | None:
+# Compare's "Compare amounts" choice (remembered in prefs as compare_basis):
+# per 100 g of each item (the default), or each recipe per serving or whole,
+# as written. A plain food has no recipe amounts: it stays per 100 g.
+_COMPARE_BASES = {
+    "100g":    "Per 100 g of each item",
+    "serving": "Per serving of each recipe, as written",
+    "recipe":  "Each whole recipe, as written",
+}
+
+
+def _compare_basis(basis: str | None = None) -> str:
+    """The Compare basis: an explicit choice is remembered; else the saved one."""
+    if basis in _COMPARE_BASES:
+        _save_prefs_file({"compare_basis": basis})
+        return basis
+    saved = _load_prefs_file().get("compare_basis")
+    return saved if saved in _COMPARE_BASES else "100g"
+
+
+def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None,
+                        basis: str = "100g") -> dict | None:
     """Load one comparison entry (food or recipe), normalized to a common,
     always-per-100g shape: {kind, id, name, data_type, nutrients,
     ingredients, diaas, cached, has_aa, weight_complete}. Every comparison
@@ -8096,11 +8395,12 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
             "name":            name,
             "data_type":       data_type,
             "nutrients":       nutrients_100g,
-            "ingredients":     [{"food_name": name, "ref_recipe_id": None, "display": "100 g"}],
+            "ingredients":     [{"food_name": name, "fdc_id": id_, "ref_recipe_id": None, "display": "100 g"}],
             "diaas":           diaas_display,
             "cached":          cached is not None,
             "has_aa":          _usda.has_confirmed_aa_data(nutrients_100g),
             "weight_complete": True,
+            "basis_label":     "100 g",
         }
 
     recipe = _db.recipe_get(conn, id_)
@@ -8108,7 +8408,21 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
         return None
     weight = _db.recipe_compute_weight(conn, id_)
     batch_grams, weight_complete = weight if weight else (0.0, False)
-    scale = 100.0 / batch_grams if batch_grams else None
+    servings = float(recipe["servings"] or 0)
+    grams_text = (f"{batch_grams:.0f} g" if weight_complete else f"at least {batch_grams:.0f} g") if batch_grams else ""
+    if basis == "serving":
+        scale = 1.0 / servings if servings > 0 else None
+        basis_label = "1 serving" + (f" ({_display_amount(batch_grams / servings)} g)"
+                                     if batch_grams and servings > 0 and weight_complete else "")
+        weight_complete = True   # nothing here is scaled by the weight
+    elif basis == "recipe":
+        scale = 1.0
+        basis_label = (f"whole recipe, {servings:g} serving{'s' if servings != 1 else ''}"
+                       + (f", {grams_text}" if grams_text else ""))
+        weight_complete = True
+    else:
+        scale = 100.0 / batch_grams if batch_grams else None
+        basis_label = "100 g"
 
     nutrients: dict = {}
     ingredients: list[dict] = []
@@ -8124,10 +8438,16 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
             unit_word = "servings" if ing["ref_recipe_id"] else "g"
             if unit_word == "servings" and scaled_amount == 1:
                 unit_word = "serving"
+            display = f"{scaled_amount:g} {unit_word}"
+            # As written: the measure typed in the recipe too (1/3 c, 2 T).
+            typed = (ing["unit"] or "").strip()
+            if basis == "recipe" and not ing["ref_recipe_id"] and typed and typed.lower() not in ("g", "gram", "grams"):
+                display += f" ({typed})"
             ingredients.append({
                 "food_name":     ing["food_name"],
+                "fdc_id":        None if ing["ref_recipe_id"] else ing["fdc_id"],
                 "ref_recipe_id": ing["ref_recipe_id"],
-                "display":       f"{scaled_amount:g} {unit_word}",
+                "display":       display,
             })
         diaas_ingredients = atomic_recipe_ingredients(id_, conn, portion_factor=scale)
         if diaas_ingredients:
@@ -8151,10 +8471,11 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None) -
         "cached":          True,
         "has_aa":          diaas_display is not None,
         "weight_complete": weight_complete,
+        "basis_label":     basis_label,
     }
 
 
-def _load_compare_entries(items: list[tuple[str, int]]) -> list[dict]:
+def _load_compare_entries(items: list[tuple[str, int]], basis: str = "100g") -> list[dict]:
     entries = []
     for kind, id_ in items:
         # An uncached food's data comes from its source over the network —
@@ -8169,7 +8490,7 @@ def _load_compare_entries(items: list[tuple[str, int]]) -> list[dict]:
                 except Exception:
                     detail = None
         with _db.get_db() as conn:
-            entry = _load_compare_entry(conn, kind, id_, detail)
+            entry = _load_compare_entry(conn, kind, id_, detail, basis)
         if entry:
             entries.append(entry)
     return entries
@@ -8232,7 +8553,8 @@ def _build_gl_compare_rows(entries: list[dict]) -> list[dict]:
     if any(c["value"] is not None for c in gi_cells):
         rows.append({"key": "gi", "label": "Glycemic index (GI)", "unit": "", "cells": gi_cells})
     if any(c["value"] is not None for c in gl_cells):
-        rows.append({"key": "gl", "label": "Glycemic load per 100 g", "unit": "", "cells": gl_cells})
+        rows.append({"key": "gl", "label": "Glycemic load" + ("" if any(e.get("basis_label", "100 g") != "100 g" for e in entries) else " per 100 g"),
+                     "unit": "", "cells": gl_cells})
     return rows
 
 
@@ -8243,12 +8565,18 @@ def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
     by 2+ entries are listed first — that's the interesting case for
     spotting why recipes differ — then entry-unique ingredients, both
     alphabetized."""
-    rows_by_name: dict[str, dict] = {}
+    # Keyed by the food's or recipe's own ID, so two different foods that
+    # share a name stay separate rows, each with its code shown.
+    rows_by_name: dict = {}
     for i, entry in enumerate(entries):
         for ing in entry["ingredients"]:
-            row = rows_by_name.setdefault(ing["food_name"], {
+            fdc_id, ref_id = ing.get("fdc_id"), ing["ref_recipe_id"]
+            key = ("r", ref_id) if ref_id else ("f", fdc_id) if fdc_id else ("n", ing["food_name"])
+            row = rows_by_name.setdefault(key, {
                 "name":      ing["food_name"],
-                "is_recipe": bool(ing["ref_recipe_id"]),
+                "fdc_id":    fdc_id,
+                "recipe_id": ref_id,
+                "is_recipe": bool(ref_id),
                 "cells":     [None] * len(entries),
             })
             row["cells"][i] = {"display": ing["display"]}
@@ -8265,10 +8593,12 @@ async def compare_get(
     items: str = "",
     error: str = "",
     return_to: str = "",
+    basis: str = "",
 ):
     return_to = _safe_return_to(return_to)
+    basis = _compare_basis(basis or None)
     item_list = _parse_compare_items(items)
-    entries = _load_compare_entries(item_list) if item_list else []
+    entries = _load_compare_entries(item_list, basis) if item_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
     ingredient_rows = _build_recipe_ingredient_rows(entries) if len(entries) >= 2 else []
     protein_quality_rows = _build_protein_quality_rows(entries) if len(entries) >= 2 else []
@@ -8284,6 +8614,7 @@ async def compare_get(
     return templates.TemplateResponse(request, "compare.html", {
         "entries":              entries,
         "compare_groups":       compare_groups,
+        "compare_omitted":      _compare_omitted(entries) if compare_groups else [],
         "ingredient_rows":      ingredient_rows,
         "protein_quality_rows": protein_quality_rows,
         "gl_rows":              gl_rows,
@@ -8297,13 +8628,16 @@ async def compare_get(
         "return_to":            return_to,
         "return_label":         _compare_return_label(return_to) if return_to else "",
         "return_qs":            _with_return("", return_to),
+        "basis":                basis,
+        "compare_bases":        _COMPARE_BASES,
+        "any_recipe":           any(e["kind"] == "recipe" for e in entries),
     })
 
 
 @app.get("/compare/export.csv")
 async def compare_export_csv(items: str = ""):
     item_list = _parse_compare_items(items)
-    entries = _load_compare_entries(item_list) if item_list else []
+    entries = _load_compare_entries(item_list, _compare_basis()) if item_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
     csv_text = _csv_export.compare_to_csv(entries, compare_groups)
     filename = f"numa_compare_{datetime.date.today().isoformat()}.csv"
@@ -8470,7 +8804,11 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
                 _ing["typed_note"] = _typed_amount_note(_ing["amount_display"])
         _attach_ref_serving_sizes(conn, ingredients)
         _mark_generic_density(conn, ingredients)
+        _mark_water(conn, ingredients)
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
+        delete_warning = _recipe_delete_warning(
+            recipe["name"], _db.recipe_meal_use(conn, recipe_id).get(recipe_id),
+            [r["name"] for r in referencing_recipes], archive_here=False)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
         if servings is None:
@@ -8509,7 +8847,10 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
     for ing in ingredients:
         flags = _usda.get_antinutrient_flags(ing["food_name"])
         if flags:
-            ingredient_antinutrients.append({"food_name": ing["food_name"], "flags": flags})
+            ingredient_antinutrients.append({
+                "food_name": ing["food_name"], "flags": flags,
+                "fdc_id": None if ing.get("ref_recipe_id") else ing.get("fdc_id"),
+                "recipe_id": ing.get("ref_recipe_id")})
 
     # Oxalate: build items list from direct-food ingredients (skip sub-recipes)
     ox_items = [
@@ -8558,6 +8899,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "ingredient_antinutrients": ingredient_antinutrients,
         "oxalate":                  oxalate,
         "referencing_recipes":      referencing_recipes,
+        "delete_warning":           delete_warning,
     }
 
 
@@ -8782,6 +9124,27 @@ def _mark_generic_density(conn, ingredients: list[dict]) -> None:
             continue
         portions = json.loads(cached["portions_json"] or "[]") or []
         ing["generic_density"] = _generic_density_kind(ing.get("unit"), portions, cached["name"])
+
+
+def _mark_water(conn, rows: list[dict]) -> None:
+    """Set row["water_pct"] (the food's water per 100 g, or None) and
+    row["wet_dry"] (water.wet_dry_conflict() for the food's own name and the
+    name typed for it, or None) on each food row of a recipe's ingredients or
+    a meal's items, for _water_mark.html. Skipped while water tracking is off."""
+    if not _track_water():
+        return
+    for row in rows:
+        # A recipe ingredient's recipe_id is its parent recipe, so only
+        # ref_recipe_id marks a sub-recipe; a meal's recipe items have no fdc_id.
+        if row.get("ref_recipe_id") or not row.get("fdc_id"):
+            continue
+        cached = _db.get_cached_food(conn, row["fdc_id"])
+        if cached is None:
+            continue
+        nutrients = json.loads(cached["nutrients_json"] or "{}") or {}
+        water = nutrients.get(_water.WATER_KEY)
+        row["water_pct"] = float(water) if water is not None else None
+        row["wet_dry"] = _water.wet_dry_conflict([row.get("food_name") or "", cached["name"]], nutrients)
 
 
 def _attach_ingredient_portions(conn, ingredients: list[dict]) -> None:
@@ -9010,6 +9373,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
         _attach_ref_serving_sizes(conn, ingredients)
         _attach_ingredient_portions(conn, ingredients)
         _mark_generic_density(conn, ingredients)
+        _mark_water(conn, ingredients)
 
         # Running nutrition totals for edit-page live feedback — reuse the
         # same shared recipe-nutrient helpers the recipe detail page uses
@@ -9126,6 +9490,18 @@ async def recipe_delete_post(request: Request, recipe_id: int):
     return RedirectResponse("/recipes", status_code=303)
 
 
+@app.post("/recipe/{recipe_id}/drink", response_class=RedirectResponse)
+async def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = Form("")):
+    """Mark a whole recipe as a drink or not (all its water counts as water
+    from drinks) — then refresh its saved nutrients and the recipes and
+    meals built on it."""
+    with _db.get_db() as conn:
+        if _db.recipe_get(conn, recipe_id):
+            _db.set_recipe_is_drink(conn, recipe_id, bool(is_drink))
+            _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+    return RedirectResponse(_local_next(next, f"/recipe/{recipe_id}#drink-toggle"), status_code=303)
+
+
 @app.post("/recipe/{recipe_id}/archive", response_class=RedirectResponse)
 async def recipe_archive(request: Request, recipe_id: int):
     """Archive or restore a recipe — flips whichever state it's currently in."""
@@ -9207,7 +9583,7 @@ async def recipe_confirm_aa(
                 serving_size=detail.get("servingSize"),
                 serving_unit=detail.get("servingUnit"),
                 nutrients=detail.get("nutrients", {}),
-                portions=detail.get("portions", []),
+                portions=detail.get("portions", []), category=detail.get("category"),
             )
             _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
 
@@ -10047,7 +10423,8 @@ async def nutrient_plot_page(
                              rolling=rolling, legend=legend_pos)
           if has_plot else "")
 
-    available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL), (_GL_PLOT_KEY, _GL_PLOT_LABEL)] + plot_nutrient_choices()
+    available = [(_DCP_PLOT_KEY, _DCP_PLOT_LABEL), (_GL_PLOT_KEY, _GL_PLOT_LABEL)] + [
+        (k, lbl) for k, lbl in plot_nutrient_choices() if k not in _hidden_nutrients()]
     available_dicts = [{"key": k, "label": lbl} for k, lbl in available]
     # Split into 2 columns for the checklist (was 3 — narrowed so the
     # checklist box leaves enough width for the Days back/Highlight/Plot
@@ -10310,7 +10687,9 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
             pct_goal_map[key] = {
                 "pct":  pct,
                 "goal": f"{rda_val:.1f} {rda_unit}",
-                "css":  _rda_css(pct, rda_type),
+                "css":  ("" if key in (_water.WATER_KEY, _water.DRINKS_KEY)
+                         and _water_capped(_profile.get_max_limits(day_profile_obj))
+                         else _rda_css(pct, rda_type)),
             }
         day_rows.append({
             "meal_date":      d,
@@ -10405,7 +10784,8 @@ async def summary_date(request: Request, meal_date: str):
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
                                                 optimal=optimal, max_limits=max_limits,
                                                 dcp_g=diaas_display["dcp_g"] if diaas_display else None,
-                                                dcp_missing=diaas_display["missing"] if diaas_display else None) if combined_nutrients else [],
+                                                dcp_missing=diaas_display["missing"] if diaas_display else None,
+                                                drinks_floor=_profile.drinks_floor(day_profile_obj or _profile.load_profile()) if _track_water() else None) if combined_nutrients else [],
         "diaas":             diaas_display,
         "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
         "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
@@ -10419,8 +10799,10 @@ async def summary_date(request: Request, meal_date: str):
         "has_ul":             bool(max_limits),
         "day_profile_name":       day_profile_row["profile_name"] if day_profile_row else None,
         "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
+        "day_follows_current":    _day_profile.follows_current(day_profile_row),
         "all_profile_names":      _profile.list_profiles(),
         "diet_notes":        _diet_aware_daily_notes(combined_nutrients, rda) if combined_nutrients else {},
+        "water_notes":       _water_day_notes(combined_nutrients, rda, day_profile_obj, max_limits) if combined_nutrients else {},
     })
 
 
@@ -10599,6 +10981,15 @@ async def analysis_food_use(
     }
     rows_sorted = sorted(rows_all, key=sort_keys.get(sort, sort_keys["frequency"]))
     total_days = len({m["meal_date"] for m in meals_by_id.values()})
+    # Each row's "Drink" tick-box (None: nothing to tick — a deleted recipe,
+    # or a food no longer cached).
+    with _db.get_db() as conn:
+        for r in rows_sorted:
+            if r["kind"] == "recipe":
+                row = _db.recipe_get(conn, r["recipe_id"]) if r["recipe_id"] and not r["deleted"] else None
+            else:
+                row = _db.get_cached_food(conn, r["fdc_id"]) if r["fdc_id"] else None
+            r["is_drink"] = _water.is_drink(row) if row is not None else None
     result_rows = [{
         "fdc_id":    r["fdc_id"],
         "code":      _item_code(r),
@@ -10611,6 +11002,7 @@ async def analysis_food_use(
         "pct":       round(len(r["days"]) / total_days * 100, 0) if total_days else 0,
         "meal_ids":  sorted(r["meal_ids"]),
         "direct_meals": len(r.get("direct_meal_ids", ())),
+        "is_drink":  r["is_drink"],
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use.html", {
@@ -10796,7 +11188,7 @@ def _whatif_meals_compute(conn, mode: str, ranges_raw: str, meal_ids: str,
     if submitted and not errors:
         try:
             result = _whatif.evaluate_meals(conn, list(meals_by_id.values()), edits,
-                                            groups=_NUTRIENT_GROUPS, diet_pref=_current_diet_pref(),
+                                            groups=_shown_groups(_NUTRIENT_GROUPS), diet_pref=_current_diet_pref(),
                                             days=days, gi_opt_out=_gi_opt_out())
         except _whatif.WhatIfError as exc:
             errors = [str(exc)]
@@ -10813,7 +11205,7 @@ def _whatif_recipes_compute(conn, mode: str, ranges_raw: str, recipe_ids: str,
     if edits and not errors:
         try:
             result = _whatif.evaluate_recipes(conn, list(recipes_by_id.values()), edits,
-                                              groups=_NUTRIENT_GROUPS, max_columns=max_columns,
+                                              groups=_shown_groups(_NUTRIENT_GROUPS), max_columns=max_columns,
                                               gi_opt_out=_gi_opt_out())
         except _whatif.WhatIfError as exc:
             errors = [str(exc)]
@@ -11148,6 +11540,7 @@ async def analysis_food_use_recipes(
     ranges_raw: str = Query(default=""),
     recipe_ids: str = Query(default=""),
     protein_only: bool = Query(default=False),
+    name_filter: str = Query(default="", alias="name"),
     sort: str = Query(default="frequency"),
     substituted: int = Query(default=0),
     error: str = Query(default=""),
@@ -11158,7 +11551,10 @@ async def analysis_food_use_recipes(
     (container) recipes — how many of them use a given food or sub-recipe as
     an ingredient, directly or nested. mode selects ALL recipes ("all",
     default), a date range by when the recipe was created ("range"), or
-    specific recipe IDs ("ids").
+    specific recipe IDs ("ids"). `name` (name_filter: the loop below uses
+    `name`) then narrows the table to foods and
+    recipes whose name contains every word typed; it changes only which rows
+    show, never the selection the counts and percentages are taken over.
 
     sub_kind/sub_id pre-fill the "Replace this" side of the substitute form —
     used to deep-link here from a delete-blocked message (Food Cache, Custom
@@ -11204,6 +11600,11 @@ async def analysis_food_use_recipes(
     rows_all = list(agg.values())
     if protein_only:
         rows_all = [r for r in rows_all if r["has_protein"]]
+    name_filter = name_filter.strip()
+    rows_before_name = len(rows_all)
+    if name_filter:
+        words = name_filter.lower().split()
+        rows_all = [r for r in rows_all if all(w in (r["name"] or "").lower() for w in words)]
 
     sort_keys = {
         "frequency": lambda e: (-len(e["container_ids"]), e["name"].lower()),
@@ -11230,6 +11631,8 @@ async def analysis_food_use_recipes(
         "ranges_raw":     ranges_raw,
         "recipe_ids_raw": recipe_ids,
         "protein_only":   protein_only,
+        "name":           name_filter,
+        "rows_before_name": rows_before_name,
         "sort":           sort,
         "missing_ids":    missing_ids,
         "bad_dates":     _bad_date_lines(ranges_raw) if mode == "range" else [],
@@ -11249,6 +11652,7 @@ async def analysis_food_use_recipes_substitute(
     ranges_raw: str = Form(""),
     recipe_ids: str = Form(""),
     protein_only: bool = Form(False),
+    name: str = Form(""),
     sort: str = Form("frequency"),
     old_code: str = Form(...),
     new_code: str = Form(...),
@@ -11261,6 +11665,8 @@ async def analysis_food_use_recipes_substitute(
 
     def _back(error: str | None = None, n: int = 0) -> RedirectResponse:
         params = {"mode": mode, "protein_only": protein_only, "sort": sort}
+        if name.strip():
+            params["name"] = name.strip()
         if mode == "range":
             params["ranges_raw"] = ranges_raw
         elif mode == "ids":

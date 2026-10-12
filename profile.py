@@ -44,6 +44,14 @@ ACTIVITY_LABELS: dict[str, str] = {
 
 SEX_VALUES: tuple[str, ...] = ("male", "female", "other")
 
+# Whose reference values set the water goals (compute_rda). Both are adult
+# Adequate Intakes for TOTAL water, drinks and food together; neither scales
+# with body weight (see nice_water_band() for the one weight-based figure).
+WATER_REFERENCES: dict[str, str] = {
+    "iom":  "US Institute of Medicine (2004): 3.7 L men, 2.7 L women",
+    "efsa": "European Food Safety Authority (2010): 2.5 L men, 2.0 L women",
+}
+
 
 @dataclass
 class UserProfile:
@@ -60,6 +68,7 @@ class UserProfile:
     gl_day_target: float | None = None  # personal daily glycemic load budget (a limit); None = off
     optimal_targets: dict = field(default_factory=dict)  # nutrient_key -> per-day target, native unit
     max_limits: dict = field(default_factory=dict)       # nutrient_key -> per-day cap, native unit
+    water_reference: str = "iom"   # key from WATER_REFERENCES — whose figures set the water goals
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +266,8 @@ def load_profile(name: str | None = None) -> Optional[UserProfile]:
             gl_day_target=_positive_or_none(data.get("gl_day_target")),
             optimal_targets=dict(data.get("optimal_targets") or {}),
             max_limits=dict(data.get("max_limits") or {}),
+            water_reference=(data.get("water_reference") if data.get("water_reference") in WATER_REFERENCES
+                             else "iom"),
         )
     except (KeyError, ValueError, json.JSONDecodeError):
         return None
@@ -341,6 +352,20 @@ _DIET_AWARE_RDA_MULTIPLIERS: dict[str, dict[str, float]] = {
 }
 
 
+def drinks_floor(profile: UserProfile | None) -> float | None:
+    """At 65+, the least a day's drinks should come to (g ≈ mL), else None:
+    the ESPEN geriatric guideline's minimum (Volkert et al. 2019) — offer at
+    least 2.0 L of drinks to older men, 1.6 L to older women, unless a
+    clinical condition calls for otherwise. A WARNING FLOOR, shown on day
+    totals only, under the IOM goal: it is not a lower need. Older people's
+    need doesn't fall (less food water, weaker urine concentration, more
+    protein recommended); the floor exists because thirst fades and many
+    drink far too little (manual #water-older)."""
+    if profile is None or profile.age < 65:
+        return None
+    return 2000.0 if profile.sex == "male" else 1600.0 if profile.sex == "female" else 1800.0
+
+
 def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple[float, str, str]]:
     """
     Compute personalized Dietary Reference Intake targets from a UserProfile.
@@ -352,13 +377,18 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
                   carbs_g, whose 130 g/day is the brain's minimum glucose
                   requirement — a genuine floor, not a target to hit exactly)
       "limit"   — tolerable upper intake / daily limit
+      "goal"    — an amount to reach where going past it gains nothing (water
+                  and drinks): coloured like a minimum below it, plain above
 
     "minimum" here means the DRI/RDA sense of the word: the daily amount
     that meets the needs of ~97-98% of healthy people in that age/sex group
     (NIH Office of Dietary Supplements) — not a bare-survival floor. See
     manual topic ?rda for the full definition and citation shown to users.
 
-    Only nutrients tracked in usda.NUTRIENT_MAP are included.
+    Only nutrients tracked in usda.NUTRIENT_MAP are included, plus
+    water_drinks_g (one of usda.DERIVED_NUTRIENTS): the IOM's drinks part of
+    water_g's total-water Adequate Intake. (At 65+, drinks_floor() adds a
+    warning floor on day totals.)
     Amino acids and phytonutrients without established DRIs are excluded.
 
     `diet_pref` ("all" | "vegetarian" | "plant_only", default "all") bumps
@@ -468,6 +498,23 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
     # Phosphorus (RDA)
     phosphorus_mg = 700.0
 
+    # Total water (AI), adults of any age, from profile.water_reference:
+    #   IOM 2004: 3.7 L men, 2.7 L women.
+    #   EFSA 2010: 2.5 L men, 2.0 L women.
+    # TOTAL water — drinks and the water in food together (food supplies
+    # roughly a fifth), which is exactly what water_g sums. 1 g ≈ 1 mL.
+    # Drinks goal, on the derived water_drinks_g row (numa_app/services/water.py):
+    # the IOM's own beverage part of its total-water AI (IOM 2005: 3.0 L men,
+    # 2.2 L women); EFSA publishes none, so its drinks goal is 80% of its total,
+    # EFSA's own assumption that food supplies about 20%. For 65+ see also
+    # drinks_floor() — a warning floor, not a lower goal.
+    if getattr(profile, "water_reference", "iom") == "efsa":
+        water_g = 2500.0 if male else 2000.0 if female else 2250.0
+        water_drinks_g = 2000.0 if male else 1600.0 if female else 1800.0
+    else:
+        water_g = 3700.0 if male else 2700.0 if female else 3200.0
+        water_drinks_g = 3000.0 if male else 2200.0 if female else 2600.0
+
     # Omega-3 ALA (AI). No official DRI exists for direct EPA/DHA intake —
     # only ALA has an established Adequate Intake. See usda docs / manual
     # topic ?omega3 for the ALA-to-EPA/DHA conversion caveat this implies,
@@ -478,13 +525,14 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
     iron_mg = round(iron_mg * diet_multipliers.get("iron_mg", 1.0), 1)
     zinc_mg = round(zinc_mg * diet_multipliers.get("zinc_mg", 1.0), 1)
 
-    return {
+    rda = {
         # Macros
         "calories":      (float(calories), "kcal", "target"),
         "protein_g":     (protein_g,       "g",    "minimum"),
         "carbs_g":       (130.0,           "g",    "minimum"),
         "fiber_g":       (fiber_g,         "g",    "minimum"),
         "sodium_mg":     (2300.0,          "mg",   "limit"),
+        "water_g":       (water_g,         "g",    "goal"),
         "omega3_ala_mg": (omega3_ala_mg,   "mg",   "minimum"),
         # Minerals
         "calcium_mg":    (calcium_mg,      "mg",   "minimum"),
@@ -509,6 +557,45 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
         "b12_mcg":       (b12_mcg,         "mcg",  "minimum"),
         "choline_mg":    (choline_mg,      "mg",   "minimum"),
     }
+    rda["water_drinks_g"] = (water_drinks_g, "g", "goal")
+    return rda
+
+
+# NICE CG174 (intravenous fluid therapy in adults in hospital): routine
+# maintenance starts at 25–30 mL/kg/day of water, capped at about 3 L, using
+# ideal body weight in obesity. A resting-patient figure, shown on day pages
+# for information only — never a goal (manual #water-weight).
+NICE_ML_PER_KG = (25.0, 30.0)
+NICE_CAP_ML = 3000.0
+NICE_IBW_BMI = 30.0
+
+
+def ideal_body_weight_kg(profile: UserProfile) -> float | None:
+    """Devine formula: 50 kg (men) / 45.5 kg (women) + 2.3 kg per inch of
+    height over 5 ft; "other" takes the midpoint. None without a height."""
+    if not profile.height_cm or profile.height_cm <= 0:
+        return None
+    inches_over = max(0.0, profile.height_cm / 2.54 - 60.0)
+    base = 50.0 if profile.sex == "male" else 45.5 if profile.sex == "female" else 47.75
+    return base + 2.3 * inches_over
+
+
+def nice_water_band(profile: UserProfile | None) -> dict | None:
+    """NICE's 25–30 mL/kg/day for this profile, in mL of total water:
+    {"low", "high", "weight_kg", "ideal_weight"} — ideal_weight True when
+    BMI ≥ 30 swapped in ideal body weight. Each end capped at NICE_CAP_ML.
+    None without a weight."""
+    if profile is None or not profile.weight_kg or profile.weight_kg <= 0:
+        return None
+    weight = profile.weight_kg
+    ideal = False
+    if profile.height_cm and profile.height_cm > 0:
+        bmi = weight / (profile.height_cm / 100.0) ** 2
+        ibw = ideal_body_weight_kg(profile)
+        if bmi >= NICE_IBW_BMI and ibw:
+            weight, ideal = ibw, True
+    low, high = (min(weight * r, NICE_CAP_ML) for r in NICE_ML_PER_KG)
+    return {"low": low, "high": high, "weight_kg": weight, "ideal_weight": ideal}
 
 
 def compute_optimal(profile: UserProfile) -> dict[str, tuple[float, str, str]]:

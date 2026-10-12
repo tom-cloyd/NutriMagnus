@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_day_profile_switch.html" as _dps %}
 {% import "_food_amount.html" as _famt %}
 {% import "_ul_column.html" as _ul %}
 {% import "_rda_goal_column.html" as _rdagoal %}
@@ -39,9 +40,10 @@
 {% endif %}
 
 {% if day_profile_name %}
-<p class="muted mb-2">
+<div class="muted mb-2">
   <small>
     Profile: {{ day_profile_name }}{% if day_profile_overridden %} (manually set){% endif %}
+    {{ _dps.switch(meal_date, day_follows_current, "/meal/{{ from_meal_id }}/day") }}
     {% if all_profile_names|length > 1 %}
     <details class="d-inline-block ms-1">
       <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Change</summary>
@@ -56,7 +58,7 @@
     </details>
     {% endif %}
   </small>
-</p>
+</div>
 {% endif %}
 
 {# ── Meals on this date ───────────────────────────────────────────────── #}
@@ -187,7 +189,7 @@
     <tbody>
       {% for ing in diaas.ing_rows %}
       <tr>
-        <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id) }}</td>
+        <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id, ing.recipe_id) }}</td>
         <td class="num-col">{{ ing.protein_g }}</td>
         <td class="num-col">
           {{ "%.2f"|format(ing.digestibility) }}
@@ -444,6 +446,7 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if section.has_water %}{% include "_water_notes.html" %}{% endif %}
   {% endfor %}
   {{ _dcp_note.note(dcp_missing_names) }}
   {% if has_profile %}{{ _rda_note.note(has_optimal) }}{% endif %}

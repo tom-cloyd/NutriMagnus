@@ -6,6 +6,7 @@
 
 from usda_api import (       # noqa: F401
     NUTRIENT_MAP,
+    DERIVED_NUTRIENTS,
     ESSENTIAL_AMINO_ACIDS,
     ALL_AMINO_ACIDS,
     AA_REFERENCE_MG_PER_G_PROTEIN,
@@ -16,6 +17,7 @@ from usda_api import (       # noqa: F401
     set_search_boost_page_size,
     search_foods,
     get_food_detail,
+    get_water_values,
     get_food_portions_raw,
     usda_portion_description,
     _parse_food,             # used by tests
