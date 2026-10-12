@@ -16,6 +16,7 @@ from urllib.parse import urlencode
 import db as _db
 import diaas as _diaas
 import usda as _usda
+from numa_app.services import data_completeness as _completeness
 from numa_app.services import glycemic_load as _gl
 
 Nutrients = dict[str, float]
@@ -179,7 +180,8 @@ def fill_url(row: dict, nutrient_key: str, *, is_dcp: bool = False, custom_profi
     return f"/food/{fdc_id}/fill-from?" + urlencode({"q": name, "want": want})
 
 
-def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: bool = False) -> list[dict]:
+def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: bool = False,
+                         ignores: dict[int, set[str]] | None = None) -> list[dict]:
     """Foods in `ingredients` with no data for `nutrient_key` — the key is
     absent from their per-100 g nutrients (a stored 0 is data, and is not
     listed). With is_dcp, foods with protein but no amino acid data instead
@@ -188,7 +190,10 @@ def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: 
 
     `ingredients` should be leaf foods, so a sub-recipe's own gaps show.
     The same food reached twice is one row. Returns [{"food_name", "fdc_id",
-    "recipe_id", "grams"}], heaviest first."""
+    "recipe_id", "grams", "ignored", "can_zero"}], heaviest first.
+    "ignored": the gap is marked not needed in `ignores` (db.food_data_ignores);
+    "can_zero": "this food has none" can record a 0 for it
+    (data_completeness.none_keys)."""
     rows: dict = {}
     for ing in ingredients:
         grams = ing.get("grams") or 0.0
@@ -204,7 +209,12 @@ def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: 
             continue
         rid = ing.get("recipe_id")
         key = ing.get("fdc_id") or (("r", rid) if rid else ("n", ing["food_name"]))
-        row = rows.setdefault(key, {"food_name": ing["food_name"], "fdc_id": ing.get("fdc_id"),
-                                    "recipe_id": ing.get("recipe_id"), "grams": 0.0})
+        fdc_id = ing.get("fdc_id")
+        row = rows.setdefault(key, {
+            "food_name": ing["food_name"], "fdc_id": fdc_id, "recipe_id": ing.get("recipe_id"), "grams": 0.0,
+            "ignored": bool(fdc_id and _completeness.nutrient_ignored((ignores or {}).get(fdc_id, set()),
+                                                                     nutrient_key, is_dcp=is_dcp)),
+            "can_zero": bool(_completeness.none_keys(per100, nutrient_key, is_dcp=is_dcp)),
+        })
         row["grams"] += grams
     return sorted(rows.values(), key=lambda r: r["grams"], reverse=True)

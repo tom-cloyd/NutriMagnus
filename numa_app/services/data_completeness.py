@@ -101,6 +101,52 @@ def requested_keys(nutrients: dict, groups: list[str]) -> list[str]:
     return [k for g in groups for k in _GROUP_NUTRIENTS[g] if is_blank(k, nutrients)]
 
 
+_GROUP_OF: dict[str, str] = {k: g for g, _, keys in GROUPS for k in keys}
+# Everything food_data_ignores may hold for a nutrient gap: a whole group
+# ("minerals"), or one nutrient ("iodine_mcg") — marked from the no-data list
+# under Top Contributors, where hiding a food's missing iron because its
+# iodine doesn't matter would be wrong.
+IGNORE_KEYS: frozenset[str] = frozenset(GROUP_KEYS) | frozenset(_GROUP_OF)
+
+
+def ignore_key(nutrient_key: str, *, is_dcp: bool = False) -> str:
+    """The food_data_ignores key that marks `nutrient_key` not needed for a
+    food: "aa" for DCP (amino acids), the group for a one-nutrient group
+    (water), else the nutrient itself."""
+    if is_dcp:
+        return "aa"
+    group = _GROUP_OF.get(nutrient_key)
+    if group and len(_GROUP_NUTRIENTS[group]) == 1:
+        return group
+    return nutrient_key
+
+
+def nutrient_ignored(ignored: set[str] | frozenset[str], nutrient_key: str, *, is_dcp: bool = False) -> bool:
+    """True if the food's gap for `nutrient_key` is marked not needed — the
+    nutrient itself, or its whole group."""
+    if is_dcp:
+        return "aa" in ignored
+    return nutrient_key in ignored or _GROUP_OF.get(nutrient_key) in ignored
+
+
+def none_keys(nutrients: dict, nutrient_key: str, *, is_dcp: bool = False) -> list[str]:
+    """The keys "this food has none" records as 0 for a no-data gap: the
+    nutrient if blank; for DCP, protein when there is no protein figure (a
+    food with protein can't have no amino acids, so nothing then)."""
+    if is_dcp:
+        return ["protein_g"] if nutrients.get("protein_g") is None else []
+    return [nutrient_key] if nutrient_key in _GROUP_OF and nutrients.get(nutrient_key) is None else []
+
+
+def group_none_keys(nutrients: dict, group: str) -> list[str]:
+    """The keys "has none" records as 0 for a whole missing group (Foods →
+    9): its blank values. Never amino acids — a food listed there has
+    protein, so it has amino acids too."""
+    if group == "aa" or group not in _GROUP_NUTRIENTS:
+        return []
+    return [k for k in _GROUP_NUTRIENTS[group] if k not in nutrients]
+
+
 def groups_for_keys(keys: list[str]) -> list[str]:
     """The groups (GROUPS order) that any of `keys` belong to."""
     wanted = set(keys)

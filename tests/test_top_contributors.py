@@ -68,3 +68,39 @@ def test_fill_url_searches_for_the_food_by_name() -> None:
                                            is_dcp=True, custom_profile=True)
     assert fill_url({"food_name": "Stew", "fdc_id": None, "recipe_id": 5}, "iron_mg") is None
     assert fill_url({"food_name": "Name only", "fdc_id": None}, "iron_mg") is None
+
+
+def test_missing_contributors_flags_not_needed_and_has_none() -> None:
+    """"ignored": the nutrient or its whole group is marked not needed (DCP:
+    amino acids); "can_zero": a 0 can be recorded (DCP: only when there's no
+    protein figure — a food with protein has amino acids)."""
+    from numa_app.services.top_contributors import missing_contributors
+    ings = [
+        {"food_name": "A", "fdc_id": 1, "nutrients_100g": {}, "grams": 30},
+        {"food_name": "B", "fdc_id": 2, "nutrients_100g": {}, "grams": 20},
+        {"food_name": "C", "fdc_id": 3, "nutrients_100g": {}, "grams": 10},
+    ]
+    ignores = {1: {"iodine_mcg"}, 2: {"minerals"}, 3: {"iron_mg"}}
+    out = missing_contributors(ings, "iodine_mcg", ignores=ignores)
+    assert [(m["food_name"], m["ignored"], m["can_zero"]) for m in out] == [
+        ("A", True, True), ("B", True, True), ("C", False, True)]
+
+    dcp = [{"food_name": "Seitan", "fdc_id": 1, "nutrients_100g": {"protein_g": 25}, "grams": 50},
+           {"food_name": "Mystery", "fdc_id": 2, "nutrients_100g": {}, "grams": 5}]
+    out = missing_contributors(dcp, "protein_g", is_dcp=True, ignores={2: {"aa"}})
+    assert [(m["food_name"], m["ignored"], m["can_zero"]) for m in out] == [
+        ("Seitan", False, False), ("Mystery", True, True)]
+
+
+def test_data_completeness_gap_helpers() -> None:
+    from numa_app.services import data_completeness as dc
+    assert dc.ignore_key("iodine_mcg") == "iodine_mcg"
+    assert dc.ignore_key("water_g") == "water"          # a one-nutrient group
+    assert dc.ignore_key("aa_lysine_g", is_dcp=True) == "aa"
+    assert dc.none_keys({"iron_mg": 1}, "iron_mg") == []
+    assert dc.none_keys({}, "iron_mg") == ["iron_mg"]
+    assert dc.none_keys({"protein_g": 3}, "protein_g", is_dcp=True) == []
+    assert dc.none_keys({}, "protein_g", is_dcp=True) == ["protein_g"]
+    assert dc.group_none_keys({"calories": 0, "fat_g": 0}, "macros") == [
+        "protein_g", "carbs_g", "fiber_g", "sugar_g", "saturated_fat_g", "mono_fat_g", "poly_fat_g"]
+    assert dc.group_none_keys({}, "aa") == []

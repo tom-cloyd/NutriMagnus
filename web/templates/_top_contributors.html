@@ -132,23 +132,41 @@
 
 {# Foods that can't be ranked because they have no data for the nutrient
    (DCP: no amino acid data) — top_contributors.missing_contributors().
-   Folded by default: an offer, under the ranking, not part of it. #}
+   Folded by default: an offer, under the ranking, not part of it — opened
+   again after one of its buttons (they return to #contrib-missing). Each
+   food row can be answered in one click: find the data, "has none" (record
+   0), or "not needed" (POST /food/{id}/data-gap); foods marked not needed
+   move to a line under the table, with an undo. #}
+{% macro _gap_button(m, contributor_rank, is_dcp, action, label, title) %}
+<form method="post" action="/food/{{ m.fdc_id }}/data-gap" class="d-inline js-gap-form">
+  <input type="hidden" name="key" value="{{ contributor_rank }}">
+  <input type="hidden" name="dcp" value="{{ 1 if is_dcp else 0 }}">
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="next" value="">
+  <button type="submit" class="btn btn-sm {{ 'btn-link p-0 align-baseline' if action == 'needed' else 'btn-outline-secondary py-0' }}" title="{{ title }}">{{ label }}</button>
+</form>
+{% endmacro %}
+
 {% macro missing_table(missing, contributor_options, contributor_rank, is_dcp=False) %}
 {% if missing %}
 {% set ns = namespace(label=contributor_rank) %}
 {% for _g, opts in contributor_options %}{% for key, label in opts %}{% if key == contributor_rank %}{% set ns.label = label %}{% endif %}{% endfor %}{% endfor %}
+{% set what = "amino acid data" if is_dcp else "data for " ~ ns.label %}
+{% set open_rows = missing | rejectattr("ignored") | list %}
+{% set ignored_rows = missing | selectattr("ignored") | list %}
 <details class="mt-2" id="contrib-missing">
-  <summary class="muted"><small>Show the {{ missing | length }} food{{ "s" if missing | length != 1 }} with no {{ "amino acid data" if is_dcp else "data for " ~ ns.label }}, which {{ "aren't" if missing | length != 1 else "isn't" }} counted above</small></summary>
+  <summary class="muted"><small>{% if open_rows %}Show the {{ open_rows | length }} food{{ "s" if open_rows | length != 1 }} with no {{ what }}, which {{ "aren't" if open_rows | length != 1 else "isn't" }} counted above{% if ignored_rows %} ({{ ignored_rows | length }} more marked not needed){% endif %}{% else %}{{ ignored_rows | length }} food{{ "s" if ignored_rows | length != 1 }} with no {{ what }}, all marked not needed{% endif %}</small></summary>
+  {% if open_rows %}
   <table class="nutrient-table mt-2">
     <thead>
       <tr>
-        <th>Food with no {{ "amino acid data" if is_dcp else "data for " ~ ns.label }}</th>
+        <th>Food with no {{ what }}</th>
         <th class="num-col">Amount used</th>
         <th></th>
       </tr>
     </thead>
     <tbody>
-      {% for m in missing %}
+      {% for m in open_rows %}
       <tr>
         <td>
           {% if m.recipe_id %}<a href="/recipe/{{ m.recipe_id }}">{{ m.food_name }}</a>{{ food_id_tag(None, recipe_id=m.recipe_id) }}
@@ -156,14 +174,48 @@
           {% else %}{{ m.food_name }}{% endif %}
         </td>
         <td class="num-col">{{ m.grams | round | int }}&thinsp;g</td>
-        <td>{% if m.fill_url %}<a href="{{ m.fill_url }}" class="btn btn-sm btn-outline-secondary py-0"
-               title="Search for this food in USDA, the other food tables and your Food Cache, and copy the values it lacks from a match">Find {{ "amino acid data" if is_dcp else "this data" }} &rarr;</a>{% endif %}</td>
+        <td><div class="d-flex flex-wrap gap-1">
+          {% if m.fill_url %}<a href="{{ m.fill_url }}" class="btn btn-sm btn-outline-secondary py-0"
+               title="Search for this food in USDA, the other food tables and your Food Cache, and copy the values it lacks from a match">Find {{ "amino acid data" if is_dcp else "this data" }} &rarr;</a>{% endif %}
+          {% if m.fdc_id and not m.recipe_id %}
+          {% if m.can_zero %}{{ _gap_button(m, contributor_rank, is_dcp, "none",
+                "Has no protein — record 0" if is_dcp else "Has none — record 0",
+                ("Saves 0 as this food's protein, for a food with none at all (an oil, a sweetener). It then counts as 0 everywhere it's used, and the meals and recipes using it are updated. Change it later on the food's Edit page."
+                 if is_dcp else
+                 "Saves 0 as this food's " ~ ns.label ~ ", for a food that truly contains none (no B12 in a plant food, no lycopene in meat). It then counts as 0 everywhere it's used, and the meals and recipes using it are updated. Only use it when you know; change it later on the food's Edit page.")) }}{% endif %}
+          {{ _gap_button(m, contributor_rank, is_dcp, "not_needed",
+                "Amino acids not needed" if is_dcp else "Not needed for this food",
+                ("Stops listing this food wherever amino acids are missing, for a food whose protein doesn't matter (a supplement, a seasoning). Nothing is saved as its value, so it still adds nothing to protein quality. Undo it under this list or on the food's page."
+                 if is_dcp else
+                 "Stops listing this food for " ~ ns.label ~ " only, everywhere it's used, for a gap too small to matter (a pinch of spice). Nothing is saved as its value, so the total still lacks its share. Also leaves it out of Claude AI prompts. Undo it under this list or on the food's page.")) }}
+          {% endif %}
+        </div></td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
-  <p class="mt-1 mb-1"><small><strong>Where to get the missing data:</strong> click <strong>Find {{ "amino acid data" if is_dcp else "this data" }}</strong> to search the food tables for a match to copy from. Which sources to try, in what order, for {{ "amino acids" if is_dcp else ns.label }}: {{ manual_link(contrib_source_anchor(contributor_rank, is_dcp=is_dcp), "where to find it") }}</small></p>
-  <p class="muted mt-1"><small>No data is not the same as none: the total above may be too low by whatever these foods contain. A food's page shows where its data came from; Foods &rarr; 9 lists every food in use {% if is_dcp %}<a href="/food/cache/db-check#missing-aa">with no amino acid data</a>{% else %}<a href="/food/cache/db-check#completeness">with missing nutrient data</a>{% endif %}.</small></p>
+  <p class="mt-1 mb-1"><small><strong>Where to get the missing data:</strong> click <strong>Find {{ "amino acid data" if is_dcp else "this data" }}</strong> to search the food tables for a match to copy from{% if is_dcp %} (its amino acids are scaled to this food&rsquo;s protein, as an estimate){% endif %}. Which sources to try, in what order, for {{ "amino acids" if is_dcp else ns.label }}: {{ manual_link(contrib_source_anchor(contributor_rank, is_dcp=is_dcp), "where to find it") }}</small></p>
+  <p class="mt-1 mb-1"><small><strong>Has none &mdash; record 0</strong> is only for a food that truly contains none; <strong>Not needed</strong> is for a gap too small to matter, and leaves the value blank. {{ manual_link("contrib-no-data-answers", "Which to use") }}</small></p>
+  <p class="muted mt-1"><small>No data is not the same as none: the total above may be too low by whatever these foods contain. A food&rsquo;s page shows where its data came from; Foods &rarr; 9 lists every food in use {% if is_dcp %}<a href="/food/cache/db-check#missing-aa">with no amino acid data</a>{% else %}<a href="/food/cache/db-check#completeness">with missing nutrient data</a>{% endif %}.</small></p>
+  {% endif %}
+  {% if ignored_rows %}
+  {# A div, not a p: the undo forms inside would end a p early. #}
+  <div class="muted mt-1 mb-1"><small>Marked not needed{% if not is_dcp %} for {{ ns.label }}{% endif %}, so not listed:
+  {% for m in ignored_rows %}<a href="/food/{{ m.fdc_id }}">{{ m.food_name }}</a> ({{ m.grams | round | int }}&thinsp;g, {{ _gap_button(m, contributor_rank, is_dcp, "needed", "undo", "Removes the not-needed mark, so this food is listed again among the foods with no " ~ what ~ " (and asked about again in Claude AI prompts)") }}){{ ";" if not loop.last else "." }}
+  {% endfor %}</small></div>
+  {% endif %}
 </details>
+<script>
+(function () {
+  var box = document.getElementById('contrib-missing');
+  if (location.hash === '#contrib-missing' && box) { box.open = true; }
+  // Each button returns to this page as it is now (rank, date, ...), with the list open.
+  document.querySelectorAll('#contrib-missing .js-gap-form').forEach(function (f) {
+    f.addEventListener('submit', function () {
+      f.elements.next.value = location.pathname + location.search + '#contrib-missing';
+    });
+  });
+})();
+</script>
 {% endif %}
 {% endmacro %}

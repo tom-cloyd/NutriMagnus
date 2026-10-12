@@ -240,7 +240,7 @@
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
           <div class="input-group" style="max-width:28rem">
             <input type="text" class="form-control" name="q" value="{{ q }}"
-                   placeholder="Search foods…" autofocus>
+                   placeholder="Search foods…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
             <button type="submit" class="btn btn-primary">Search</button>
             <button type="button" class="btn btn-outline-secondary"
                     onclick="this.form.querySelectorAll('input[name=source]').forEach(cb => cb.checked = true); this.form.requestSubmit();"
@@ -419,11 +419,13 @@
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
                   <input type="text" name="portion_str"
-                         value="{{ ing.amount_display if not ing.ref_recipe_id else '%g' | format(ing.amount) }}"
+                         value="{{ ing.amount_display if not ing.ref_recipe_id else ('%g' | format(ing.amount)) ~ ' serving' ~ ('s' if ing.amount != 1 else '') }}"
                          class="form-control form-control-sm" style="width:12rem" required>
                 </div>
                 {% if not ing.ref_recipe_id %}
                 <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if ing.portions %} &middot; p1 &middot; 6&thinsp;p1{% endif %}</div>
+                {% else %}
+                <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; servings with the word (1 1/8 srv, 2 servings) &middot; cup &middot; T &middot; tsp &middot; ml, when the recipe has a volume</div>
                 {% endif %}
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0 text-nowrap">Name <span class="text-danger">*</span></label>

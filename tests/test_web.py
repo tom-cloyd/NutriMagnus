@@ -3611,7 +3611,7 @@ def test_add_subrecipe_ingredient_by_grams(client: TestClient, db_conn) -> None:
 
     resp = client.get(f"/recipe/{outer_id}/edit?q=sauce")
     assert 'name="amount"' in resp.text
-    assert "or a weight: g, oz, lb" in resp.text  # Peanut Sauce has a serving weight
+    assert "or a weight: a bare number = grams, oz, lb" in resp.text  # Peanut Sauce has a serving weight
 
     client.post(f"/recipe/{outer_id}/ingredient/add-recipe",
                 data={"ref_recipe_id": sub_id, "servings": 150, "amount_unit": "g"},
@@ -7403,7 +7403,7 @@ def test_meal_recipe_amount_box_takes_fractions_and_volumes(client, db_conn) -> 
     db_conn.commit()
 
     page = client.get(f"/meal/{mid}?q=marinara&source=recipe").text
-    assert 'name="amount" value="1"' in page
+    assert 'name="amount" value="1 serving"' in page
     assert "or a volume: cup (c), T, t, ml (from the serving size)" in page
 
     client.post(f"/meal/{mid}/add-recipe", data={"recipe_id": rid, "amount": "3/4 c"},
@@ -7411,9 +7411,17 @@ def test_meal_recipe_amount_box_takes_fractions_and_volumes(client, db_conn) -> 
     item = db_conn.execute("SELECT id, amount FROM meal_items WHERE meal_id=?", (mid,)).fetchone()
     assert item["amount"] == pytest.approx(1.125)
 
-    client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "1 1/2"}, follow_redirects=False)
+    client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "1 1/2 srv"}, follow_redirects=False)
     assert db_conn.execute("SELECT amount FROM meal_items WHERE id=?",
                            (item["id"],)).fetchone()[0] == pytest.approx(1.5)
+    # The Items box shows the amount with its word, so saving it unchanged keeps it.
+    assert 'value="1.5 servings"' in client.get(f"/meal/{mid}").text
+
+    # A bare number is grams, as for a food: 131.35 g is one 1542 g / 11.74 serving.
+    client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "131.346"}, follow_redirects=False)
+    assert db_conn.execute("SELECT amount FROM meal_items WHERE id=?",
+                           (item["id"],)).fetchone()[0] == pytest.approx(1.0, abs=1e-3)
+    client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "1 1/2 srv"}, follow_redirects=False)
 
     r = client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "2 handfuls"},
                     follow_redirects=False)
@@ -7439,9 +7447,9 @@ def test_subrecipe_amount_takes_fractions_weights_and_volumes(client: TestClient
     assert ing["unit"] == "1.125 servings"
 
     client.post(f"/recipe/{outer}/ingredient/{ing['id']}/edit",
-                data={"portion_str": "10.05", "food_name": "Marinara"}, follow_redirects=False)
+                data={"portion_str": "10.05 servings", "food_name": "Marinara"}, follow_redirects=False)
     assert _db.recipe_get_ingredients(db_conn, outer)[0]["amount"] == pytest.approx(10.05)
-    assert 'value="10.05"' in client.get(f"/recipe/{outer}/edit").text
+    assert 'value="10.05 servings"' in client.get(f"/recipe/{outer}/edit").text
 
     r = client.post(f"/recipe/{outer}/ingredient/{ing['id']}/edit",
                     data={"portion_str": "200 g", "food_name": "Marinara"}, follow_redirects=False)
@@ -7478,3 +7486,97 @@ def test_top_contributors_offers_foods_with_no_data(client: TestClient, db_conn)
     assert 'href="/manual#key-iron"' in fill
     assert 'name="want" value="iron_mg"' in fill
     assert "You came here for" not in client.get("/food/990103/fill-from?q=Iron&want=bogus").text
+
+
+def test_top_contributors_no_data_answers(client: TestClient, db_conn) -> None:
+    """Each food on the no-data list can be answered in one click: "has none"
+    stores a 0 (so it leaves the list and counts), "not needed" moves it to
+    an undo line under the table, and undo brings it back. Food pages show
+    the single-nutrient mark too."""
+    _db.cache_food(db_conn, 990201, "Oil Thing", "Foundation", None, 100.0, "g", {"calories": 800})
+    _db.cache_food(db_conn, 990202, "Spice Thing", "Foundation", None, 100.0, "g", {"calories": 300})
+    _db.cache_food(db_conn, 990203, "D Rich", "Foundation", None, 100.0, "g", {"calories": 100, "vitamin_d_mcg": 5})
+    mid = _db.meal_create(db_conn, "Lunch", "2026-10-11")
+    _db.meal_add_food(db_conn, mid, 990203, "D Rich", 100.0, "100 g")
+    _db.meal_add_food(db_conn, mid, 990201, "Oil Thing", 10.0, "10 g")
+    _db.meal_add_food(db_conn, mid, 990202, "Spice Thing", 2.0, "2 g")
+    db_conn.commit()
+
+    def block():
+        page = client.get(f"/meal/{mid}?rank=vitamin_d_mcg").text
+        if 'id="contrib-missing"' not in page:
+            return ""
+        i = page.index('id="contrib-missing"')
+        return page[i:page.index("</details>", i)]
+
+    b = block()
+    assert 'action="/food/990201/data-gap"' in b and "Has none" in b and "Not needed for this food" in b
+
+    back = f"/meal/{mid}?rank=vitamin_d_mcg#contrib-missing"
+    r = client.post("/food/990201/data-gap", data={"key": "vitamin_d_mcg", "action": "none", "next": back},
+                    follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == back
+    assert json.loads(_db.get_cached_food(db_conn, 990201)["nutrients_json"])["vitamin_d_mcg"] == 0.0
+    assert "Oil Thing" not in block()
+
+    client.post("/food/990202/data-gap", data={"key": "vitamin_d_mcg", "action": "not_needed", "next": back})
+    assert "vitamin_d_mcg" in _db.food_data_ignores(db_conn)[990202]
+    b = block()
+    assert "all marked not needed" in b and "Spice Thing" in b and 'value="needed"' in b
+    assert "No data, marked not needed for this food:" in client.get("/food/990202").text
+
+    client.post("/food/990202/data-gap", data={"key": "vitamin_d_mcg", "action": "needed", "next": back})
+    assert 990202 not in _db.food_data_ignores(db_conn)
+    assert "Show the 1 food with no data for" in block()
+
+    # Nothing is overwritten, and an unknown key or outside `next` does nothing harmful.
+    client.post("/food/990201/data-gap", data={"key": "bogus", "action": "not_needed"})
+    assert 990201 not in _db.food_data_ignores(db_conn)
+    r = client.post("/food/990201/data-gap", data={"key": "iron_mg", "action": "none", "next": "//evil"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/food/990201"
+
+
+def test_db_check_has_none_records_zero_for_group(client: TestClient, db_conn) -> None:
+    """Foods -> 9's Missing nutrient data: "has none (0)" records 0 for each
+    missing value of the group, leaving existing values alone."""
+    _db.cache_food(db_conn, 990301, "Plain Meat", "Foundation", None, 100.0, "g",
+                   {"calories": 200, "protein_g": 25, "carbs_g": 0, "fat_g": 10, "iron_mg": 2})
+    db_conn.commit()
+    page = client.get("/food/cache/db-check?check=phyto").text
+    assert 'name="zero" value="990301:phyto"' in page
+    r = client.post("/food/cache/db-check/completeness",
+                    data={"shown": ["990301:phyto"], "zero": ["990301:phyto"]}, follow_redirects=False)
+    assert "zeroed=1" in r.headers["location"]
+    nuts = json.loads(_db.get_cached_food(db_conn, 990301)["nutrients_json"])
+    assert nuts["lycopene_mcg"] == 0.0 and nuts["isoflavones_mg"] == 0.0 and nuts["iron_mg"] == 2
+    assert 'name="zero" value="990301:phyto"' not in client.get("/food/cache/db-check?check=phyto").text
+
+
+def test_search_by_typed_code_finds_that_one_item(client: TestClient, db_conn, monkeypatch) -> None:
+    """Any search box: a typed code (R21, U171477, UD4 ...) or a bare cached
+    FDC ID is that one food or recipe, whatever the Source boxes say, even
+    archived; anything else is still a name search."""
+    import web.backend as backend
+    calls = []
+    monkeypatch.setattr(backend, "_external_food_search_results", lambda *a, **k: calls.append(a) or [])
+    _insert_food(db_conn, 900011, "Lentils raw", with_aa=True)
+    db_conn.execute("UPDATE foods SET archived = 1 WHERE fdc_id = 900011")
+    rid = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Lentil stew', 4)").lastrowid
+    meal_id = db_conn.execute("INSERT INTO meals (name, meal_date) VALUES ('Lunch', '2026-01-01')").lastrowid
+    db_conn.commit()
+
+    rows = backend._run_food_search(f"r{rid}", ["usda"], 25)
+    assert [(r.get("_type"), r["name"]) for r in rows] == [("recipe", "Lentil stew")]
+    for q in ("U900011", " u900011 ", "900011"):
+        rows = backend._run_food_search(q, ["usda"], 25)
+        assert [r["fdc_id"] for r in rows] == [900011], q
+    assert not calls  # no online search for a code
+    # Can't be offered here -> normal search (which finds nothing by that name).
+    assert backend._run_food_search(f"R{rid}", ["recipe"], 25, foods_only=True) == []
+    assert backend._run_food_search("U900011", ["cache"], 25, exclude_fdc_id=900011, external=False) == []
+    # Unknown code or number: the usual name search.
+    assert backend._run_food_search("R99999", ["recipe"], 25, external=False) == []
+
+    page = client.get(f"/meal/{meal_id}", params={"q": f"R{rid}"}).text
+    assert "Lentil stew" in page

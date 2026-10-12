@@ -75,13 +75,13 @@
             <div class="d-flex flex-wrap gap-2 align-items-center">
               <label class="form-label mb-0 text-nowrap" for="amt-{{ rid }}">Amount</label>
               <input type="text" class="form-control form-control-sm" id="amt-{{ rid }}"
-                     name="amount" value="1" style="width:9rem"
-                     placeholder="1 1/8, 200 g, 3/4 c">
+                     name="amount" value="1 serving" style="width:9rem"
+                     placeholder="200 (= g), 1 1/8 srv, 3/4 c">
               <button type="submit" class="btn btn-primary btn-sm">Add to meal</button>
             </div>
             <div style="font-size:0.75rem" class="muted mt-1">
-              Servings ({{ food.servings | int if food.servings == food.servings | int else food.servings }} total{{ _sn.note(food.serving_size) }}) &middot; 1.125, 1 1/8
-              {%- if food.total_weight %} &middot; or a weight: g, oz, lb ({{ food.total_weight | round(1) }}&thinsp;{{ food.total_weight_unit }} total){% endif %}
+              Servings ({{ food.servings | int if food.servings == food.servings | int else food.servings }} total{{ _sn.note(food.serving_size) }}), with the word: 1.125 srv, 1 1/8 servings
+              {%- if food.total_weight %} &middot; or a weight: a bare number = grams, oz, lb ({{ food.total_weight | round(1) }}&thinsp;{{ food.total_weight_unit }} total){% endif %}
               {%- if food.total_volume %} &middot; or a volume: cup (c), T, t, ml ({{ food.total_volume | round(1) }}&thinsp;{{ food.total_volume_unit }} total)
               {%- elif serving_volume_ml(food.serving_size) %} &middot; or a volume: cup (c), T, t, ml (from the serving size){% endif %}
             </div>

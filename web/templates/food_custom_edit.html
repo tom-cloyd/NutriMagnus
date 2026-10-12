@@ -98,7 +98,7 @@
     <input type="hidden" name="aa_source_q" value="{{ aa_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="nutrient_source_q" value="{{ nutrient_source_q }}"
-             placeholder="Search for a food to copy from…" style="max-width:22rem">
+             placeholder="Search for a food to copy from…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" style="max-width:22rem">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
     </div>
     {{ source_filter.select(nutrient_source, source_filters, source_labels, "nutrient_source") }}
@@ -145,7 +145,7 @@
     <input type="hidden" name="nutrient_source_q" value="{{ nutrient_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
-             placeholder="Search for a similar food…" style="max-width:22rem">
+             placeholder="Search for a similar food…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" style="max-width:22rem">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
     </div>
     {{ source_filter.select(aa_source, source_filters, source_labels, "aa_source") }}

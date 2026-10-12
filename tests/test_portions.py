@@ -65,11 +65,22 @@ _MARINARA = {"servings": 11.74, "serving_size": "2/3 cup", "total_weight": 1542.
              "total_weight_unit": "g", "total_volume": None, "total_volume_unit": None}
 
 
-@pytest.mark.parametrize("typed", ["1.125", "1 1/8", "1⅛", "1 1/8 servings", "1.125 srv",
+@pytest.mark.parametrize("typed", ["1⅛ srv", "1 1/8 servings", "1.125 srv", "1.125 Servings",
                                    "1.125 servings (1.13 servings)"])
 def test_recipe_amount_servings(typed) -> None:
     # The meal page's number box was held to 0.01 steps, so 1.125 couldn't go in.
     assert parse_recipe_amount(typed, _MARINARA, 131.3)[0] == pytest.approx(1.125)
+
+
+@pytest.mark.parametrize("typed", ["29", "29 g", "29 gr"])
+def test_recipe_amount_bare_number_is_grams(typed) -> None:
+    # As for a food: "29" meant as grams used to become 29 servings.
+    assert parse_recipe_amount(typed, _MARINARA, 58.0)[0] == pytest.approx(0.5)
+
+
+def test_recipe_amount_bare_number_needs_a_serving_weight() -> None:
+    with pytest.raises(EntryError, match="on its own means grams"):
+        parse_recipe_amount("29", _MARINARA, None)
 
 
 def test_recipe_amount_volume_through_serving_description() -> None:

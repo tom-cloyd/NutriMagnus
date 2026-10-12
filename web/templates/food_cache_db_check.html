@@ -207,11 +207,13 @@ Nutritional Analysis table, plus the amino acids under Protein Quality). Macronu
 calories, protein, carbohydrate, or fat is absent; amino acids only for a food that has protein. A group with
 <em>some</em> values is normal for real data and isn&rsquo;t listed.</p>
 <p class="muted" style="max-width:48rem">Not every gap matters &mdash; macronutrients for a spice, say, since too little is used to count.
-Check <strong>not needed</strong> for any gap like that and click <strong>Save &ldquo;not needed&rdquo; choices</strong>: NuMa stops
-listing it for that food, and leaves it out of any Claude AI prompt.</p>
+Check <strong>not needed</strong> for any gap like that, or <strong>has none (0)</strong> for a food that truly contains none of that
+group (no phytonutrients in meat, no macronutrients in a vitamin pill), and click <strong>Save &ldquo;not needed&rdquo; and &ldquo;has none&rdquo; choices</strong>.
+&ldquo;Not needed&rdquo; stops listing the gap for that food and leaves it out of any Claude AI prompt; &ldquo;has none&rdquo; records 0 for
+each of the group&rsquo;s missing values, so the food counts, as 0, everywhere. {{ manual_link("data-completeness-has-none", "Which to use") }}</p>
 
 {% if saved %}
-<div class="alert alert-success" id="saved-note">&ldquo;Not needed&rdquo; choices saved.</div>
+<div class="alert alert-success" id="saved-note">Choices saved.{% if zeroed %} 0 recorded for {{ zeroed }} gap{{ "s" if zeroed != 1 }}; meals and recipes using {{ "those foods" if zeroed != 1 else "that food" }} are updated to match.{% endif %}</div>
 {% endif %}
 
 {% if track_water() %}
@@ -318,14 +320,15 @@ listing it for that food, and leaves it out of any Claude AI prompt.</p>
    (a plain link there would only scroll). Groups/show_ignored come from prefs. #}
 <form method="get" action="/food/cache/db-check#completeness" id="gap-refresh-form" onsubmit="return confirmGapRefresh()"></form>
 <div class="d-flex flex-wrap gap-2 mb-2">
-  <button type="submit" form="ignore-form" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
+  <button type="submit" form="ignore-form" class="btn btn-sm btn-primary"
+          title="Saves every &ldquo;not needed&rdquo; and &ldquo;has none (0)&rdquo; box in the table below as it is now. &ldquo;Not needed&rdquo; stops listing that gap; &ldquo;has none&rdquo; writes 0 for the gap&rsquo;s missing values (you&rsquo;re asked to confirm first). Unticking a saved &ldquo;not needed&rdquo; box lists that gap again.">Save &ldquo;not needed&rdquo; and &ldquo;has none&rdquo; choices</button>
   <button type="submit" form="gap-fetch-form" class="btn btn-sm btn-outline-primary">Build a Claude AI prompt for the gaps checked &ldquo;ask AI&rdquo;</button>
   <button type="submit" form="gap-refresh-form" class="btn btn-sm btn-outline-secondary"
           title="Check every food again and redraw this list, picking up anything filled in or marked not needed since the page loaded">Refresh list</button>
   <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setAskAI(null, false)">Clear all &ldquo;ask AI&rdquo; checks</button>
 </div>
 <p class="muted mb-1"><small>Check <strong>ask AI</strong> under each gap you want help with &mdash; one food, a few, or a whole column with the
-&ldquo;all&rdquo; link under its heading (<strong>Mark column not needed</strong> there does the same for &ldquo;not needed&rdquo;). The prompt asks for just those gaps&rsquo; missing values, and importing the reply only fills in
+&ldquo;all&rdquo; link under its heading (<strong>Mark column not needed</strong> and <strong>Mark column has none</strong> there do the same for those two). The prompt asks for just those gaps&rsquo; missing values, and importing the reply only fills in
 what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not needed&rdquo; changes first.</small></p>
 <div class="table-responsive mb-2">
   <table class="table table-sm align-middle" style="max-width:60rem">
@@ -335,7 +338,9 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
         {% for g, label, _ in groups if g in checked %}<th class="text-center">{{ label }}<br>
           <small class="fw-normal">ask AI: <a href="#" onclick="setAskAI('{{ g }}', true); return false">all</a> &middot; <a href="#" onclick="setAskAI('{{ g }}', false); return false">none</a></small><br>
           <button type="button" class="btn btn-outline-secondary btn-sm py-0 mt-1 fw-normal js-col-not-needed" data-group="{{ g }}"
-                  title="Tick &ldquo;not needed&rdquo; for every food in this column (nothing is saved until you click Save &ldquo;not needed&rdquo; choices)">Mark column not needed</button></th>{% endfor %}
+                  title="Ticks &ldquo;not needed&rdquo; for every food in this column. Nothing is saved until you click Save; click again (it then reads Unmark column) to untick them all.">Mark column not needed</button>
+          {% if g != "aa" %}<br><button type="button" class="btn btn-outline-secondary btn-sm py-0 mt-1 fw-normal js-col-has-none" data-group="{{ g }}"
+                  title="Ticks &ldquo;has none (0)&rdquo; for every food in this column, for when they all truly contain none of this group. Nothing is written until you click Save; click again (it then reads Unmark column) to untick them all.">Mark column has none</button>{% endif %}</th>{% endfor %}
       </tr>
     </thead>
     <tbody>
@@ -349,6 +354,7 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
           <span class="{{ 'muted' if g in r.ignored else 'text-warning-emphasis' }}">{{ 'ignored' if g in r.ignored else 'missing' }}</span><br>
           {% if g not in r.ignored %}<label style="font-size:0.8rem"><input type="checkbox" class="form-check-input gap-fetch-cb" form="gap-fetch-form" name="want" value="{{ r.fdc_id }}:{{ g }}" data-group="{{ g }}"> ask AI</label><br>{% endif %}
           <label class="muted" style="font-size:0.8rem"><input type="checkbox" class="form-check-input gap-ignore-cb" form="ignore-form" name="ignore" value="{{ r.fdc_id }}:{{ g }}" data-group="{{ g }}" {% if g in r.ignored %}checked{% endif %}> not needed</label>
+          {% if g != "aa" %}<br><label class="muted" style="font-size:0.8rem" title="Tick for a food that truly contains none of this group (no phytonutrients in meat, no macronutrients in a vitamin pill). On Save, 0 is written for each of the group&rsquo;s missing values; values the food already has are left alone, and meals and recipes using it are updated."><input type="checkbox" class="form-check-input gap-none-cb" form="ignore-form" name="zero" value="{{ r.fdc_id }}:{{ g }}" data-group="{{ g }}"> has none (0)</label>{% endif %}
           {% endif %}
         </td>
         {% endfor %}
@@ -358,7 +364,8 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
   </table>
 </div>
 <div class="d-flex flex-wrap gap-2">
-  <button type="submit" form="ignore-form" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
+  <button type="submit" form="ignore-form" class="btn btn-sm btn-primary"
+          title="Saves every &ldquo;not needed&rdquo; and &ldquo;has none (0)&rdquo; box in the table below as it is now. &ldquo;Not needed&rdquo; stops listing that gap; &ldquo;has none&rdquo; writes 0 for the gap&rsquo;s missing values (you&rsquo;re asked to confirm first). Unticking a saved &ldquo;not needed&rdquo; box lists that gap again.">Save &ldquo;not needed&rdquo; and &ldquo;has none&rdquo; choices</button>
   <button type="submit" form="gap-fetch-form" class="btn btn-sm btn-outline-primary">Build a Claude AI prompt for the gaps checked &ldquo;ask AI&rdquo;</button>
   <button type="submit" form="gap-refresh-form" class="btn btn-sm btn-outline-secondary"
           title="Check every food again and redraw this list, picking up anything filled in or marked not needed since the page loaded">Refresh list</button>
@@ -369,26 +376,36 @@ function setAskAI(group, on) {
     if (group === null || cb.dataset.group === group) { cb.checked = on; }
   });
 }
-// Refreshing drops "not needed" ticks that haven't been saved — say so first.
+// Refreshing drops "not needed" / "has none" ticks that haven't been saved — say so first.
 function confirmGapRefresh() {
-  var unsaved = Array.prototype.some.call(document.querySelectorAll('.gap-ignore-cb'),
+  var unsaved = Array.prototype.some.call(document.querySelectorAll('.gap-ignore-cb, .gap-none-cb'),
     function (b) { return b.checked !== b.defaultChecked; });
-  return !unsaved || confirm('You have "not needed" changes that are not saved yet. Refreshing the list will lose them. Refresh anyway?');
+  return !unsaved || confirm('You have "not needed" or "has none" changes that are not saved yet. Refreshing the list will lose them. Refresh anyway?');
 }
-// "Mark column not needed" ticks every "not needed" box in its column
-// (nothing is saved until Save); once all are ticked it reads "Unmark column"
-// and does the reverse.
-document.querySelectorAll('.js-col-not-needed').forEach(function (btn) {
-  var boxes = document.querySelectorAll('.gap-ignore-cb[data-group="' + btn.dataset.group + '"]');
-  function allTicked() { return boxes.length && Array.prototype.every.call(boxes, function (b) { return b.checked; }); }
-  function label() { btn.textContent = allTicked() ? 'Unmark column' : 'Mark column not needed'; }
-  btn.addEventListener('click', function () {
-    var tick = !allTicked();
-    boxes.forEach(function (b) { b.checked = tick; });
+// "has none" writes values into foods, so say how many before saving.
+document.getElementById('ignore-form').addEventListener('submit', function (e) {
+  var n = document.querySelectorAll('.gap-none-cb:checked').length;
+  if (n && !confirm('Record 0 for every missing value in ' + n + ' gap' + (n === 1 ? '' : 's') + ' ticked "has none"? This writes the 0s into those foods (you can change them later on each food\'s Edit page).')) {
+    e.preventDefault();
+  }
+});
+// "Mark column not needed" / "Mark column has none" tick every such box in
+// their column (nothing is saved until Save); once all are ticked the button
+// reads "Unmark column" and does the reverse.
+[['.js-col-not-needed', '.gap-ignore-cb', 'Mark column not needed'],
+ ['.js-col-has-none', '.gap-none-cb', 'Mark column has none']].forEach(function (kind) {
+  document.querySelectorAll(kind[0]).forEach(function (btn) {
+    var boxes = document.querySelectorAll(kind[1] + '[data-group="' + btn.dataset.group + '"]');
+    function allTicked() { return boxes.length && Array.prototype.every.call(boxes, function (b) { return b.checked; }); }
+    function label() { btn.textContent = allTicked() ? 'Unmark column' : kind[2]; }
+    btn.addEventListener('click', function () {
+      var tick = !allTicked();
+      boxes.forEach(function (b) { b.checked = tick; });
+      label();
+    });
+    boxes.forEach(function (b) { b.addEventListener('change', label); });
     label();
   });
-  boxes.forEach(function (b) { b.addEventListener('change', label); });
-  label();
 });
 </script>
 {% endcall %}
@@ -414,7 +431,12 @@ listed here for information, not as a problem. A food whose macronutrients you&r
       {% for r in food_issue_rows %}
       <tr>
         <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
-        <td>{% for i in r.issues %}<div class="{{ 'text-danger' if i.kind == 'impossible' else ('text-warning-emphasis' if i.severity == 'problem' else 'muted') }}">{{ i.text }}</div>{% endfor %}</td>
+        <td>{% for i in r.issues %}<div class="{{ 'text-danger' if i.kind == 'impossible' else ('text-warning-emphasis' if i.severity == 'problem' else 'muted') }}">{{ i.text }}</div>
+          {% if i.kind == "calories_mismatch" %}<form method="post" action="/food/{{ r.fdc_id }}/data-ignore" class="d-inline">
+            <input type="hidden" name="group" value="calories_ok">
+            <input type="hidden" name="next" value="/food/cache/db-check#calories">
+            <button type="submit" class="btn btn-sm btn-outline-secondary py-0" title="Stops checking this food&rsquo;s calories against its protein, carbs and fat, and drops it from this list. For calories that come from something those three don&rsquo;t cover, such as the alcohol in vanilla extract. Undo it with Check them again on the food&rsquo;s own page.">These calories are right &mdash; stop flagging them</button>
+          </form>{% endif %}{% endfor %}</td>
       </tr>
       {% endfor %}
     </tbody>
@@ -455,7 +477,7 @@ in the section above.</small></p>
         <tbody>
           {% for r in rows %}
           <tr>
-            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% endif %}</td>
+            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% elif sec.key == "aa" and r.fill_url %} &middot; <a href="{{ r.fill_url }}" class="small" title="Opens Fill in nutrients from another food, already searching USDA, the other food tables and your Food Cache for this food&rsquo;s name. Pick a similar food and its amino acids are copied, scaled to this food&rsquo;s protein, as an estimate.">find amino acid data</a>{% endif %}</td>
             <td>{{ _uses(r.use) }}</td>
             {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% elif sec.key == "gi" %}<td class="text-end">{{ "%.1f"|format(r.carbs) }}&thinsp;g</td>{% endif %}
             <td><input type="hidden" name="shown" value="{{ r.fdc_id }}:{{ sec.key }}">

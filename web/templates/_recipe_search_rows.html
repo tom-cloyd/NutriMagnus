@@ -38,14 +38,14 @@
                 <input type="hidden" name="recipe_name" value="{{ food.name }}">
                 <input type="hidden" name="q" value="{{ q }}">
                 <div class="input-group" style="max-width:30rem">
-                  <input type="text" class="form-control" name="amount" value="1"
-                         aria-label="Amount" placeholder="1 1/8, 150 g, 3/4 c" required
+                  <input type="text" class="form-control" name="amount" value="1 serving"
+                         aria-label="Amount" placeholder="150 (= g), 1 1/8 srv, 3/4 c" required
                          style="flex:0 0 9rem;min-width:9rem">
                   <button type="submit" class="btn btn-primary">Add to recipe</button>
                 </div>
                 <div style="font-size:0.75rem" class="muted mt-1">
-                  Servings ({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% if food.serving_grams %}, {{ food.serving_grams | round(1) }} g{% endif %}{% elif food.serving_grams %} &middot; 1 serving = {{ food.serving_grams | round(1) }} g{% endif %}) &middot; 1.125, 1 1/8
-                  {%- if food.serving_grams %} &middot; or a weight: g, oz, lb{% endif %}
+                  Servings ({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% if food.serving_grams %}, {{ food.serving_grams | round(1) }} g{% endif %}{% elif food.serving_grams %} &middot; 1 serving = {{ food.serving_grams | round(1) }} g{% endif %}), with the word: 1.125 srv, 1 1/8 servings
+                  {%- if food.serving_grams %} &middot; or a weight: a bare number = grams, oz, lb{% endif %}
                   {%- if food.total_volume or serving_volume_ml(food.serving_size) %} &middot; or a volume: cup (c), T, t, ml{% endif %}
                 </div>
               </form>

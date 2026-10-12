@@ -233,16 +233,21 @@
   </div>
   {% endif %}
   {% set other_gaps = data_gaps | reject("equalto", "macros") | list %}
-  {% if other_gaps or data_gaps_ignored %}
-  <p class="muted mb-2" style="font-size:0.85rem; max-width:42rem">
+  {% if other_gaps or data_gaps_ignored or data_nutrients_ignored %}
+  {# A div, not a p: a form inside a p ends the paragraph early in the browser,
+     so the text after each inline button lost this font and broke onto a new line. #}
+  <div class="muted mb-2" style="font-size:0.85rem">
     {% if other_gaps %}No data for this food's {% for g in other_gaps %}<strong>{{ gap_labels[g] }}</strong>{{ ", " if not loop.last }}{% endfor %}.
     {% if 'macros' not in data_gaps %}
-    Claude AI can usually supply {{ "it" if other_gaps|length == 1 else "them" }} &mdash; and this food's GI and DIAAS too, if you tick that option on the next page.
+    Claude AI can usually supply {{ "it" if other_gaps|length == 1 else "them" }}:
     <form method="post" action="/food/cache/claude-fetch" style="display:inline">
       <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
       {# Sized and styled as a link, to match the plain link beside it. #}
-      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit">Ask Claude AI for the missing data</button>
+      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit"
+              title="Opens a page with a ready-made prompt asking Claude AI for only the values this food is missing, to copy into Claude and import the reply">Ask Claude AI for the missing data</button>
     </form>
+    builds a prompt for just {{ "that" if other_gaps|length == 1 else "those" }}. To ask for this food's GI and DIAAS as well, tick
+    <strong>Also ask for each food&rsquo;s glycemic index (GI) and DIAAS</strong> at the top of the prompt page it opens.
     {% endif %}
     {% endif %}
     {% if data_gaps_ignored %}<span class="d-inline-block">Marked not needed for this food:
@@ -254,7 +259,17 @@
               title="Start flagging this food's missing {{ gap_labels[g] }} again">(undo)</button>
     </form>{{ ", " if not loop.last else "." }}
     {% endfor %}</span>{% endif %}
-  </p>
+    {% if data_nutrients_ignored %}<span class="d-inline-block">No data, marked not needed for this food:
+    {% for k, label in data_nutrients_ignored %}{{ label }}
+    <form method="post" action="/food/{{ food.fdc_id }}/data-gap" style="display:inline">
+      <input type="hidden" name="key" value="{{ k }}">
+      <input type="hidden" name="action" value="needed">
+      <input type="hidden" name="next" value="/food/{{ food.fdc_id }}">
+      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit"
+              title="Removes the not-needed mark for {{ label }}, so this food is listed again among foods with no {{ label }} data under Top Contributors, and asked about in Claude AI prompts">(undo)</button>
+    </form>{{ ", " if not loop.last else "." }}
+    {% endfor %}</span>{% endif %}
+  </div>
   {% endif %}
 </div>
 
@@ -314,17 +329,20 @@
 {% if food.notes or food.prep_context %}
 <section id="sec-food-notes" class="analysis-section">
   <h3 class="section-heading">Notes</h3>
+  {# Same small grey type as the missing-data line near the top of the page. #}
+  <div class="muted" style="font-size:0.85rem">
   {% if food.notes %}
   <div style="white-space:pre-wrap;line-height:1.6">{{ food.notes }}</div>
   {% endif %}
   {% if food.prep_context %}
   <p class="mb-0 {% if food.notes %}mt-2{% endif %}"><strong>Prep context:</strong> {{ food.prep_context }}</p>
   {% endif %}
-  <p class="mt-2 mb-0"><small>
+  <p class="mt-2 mb-0">
     {% if food.user_drafted %}<a href="/food/custom-profiles/{{ food.fdc_id }}/edit">Edit notes</a>{% endif %}
     {% if food.user_drafted and food.prep_context %} &middot; {% endif %}
     {% if food.prep_context %}<a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Edit prep context</a>{% endif %}
-  </small></p>
+  </p>
+  </div>
 </section>
 {% endif %}
 

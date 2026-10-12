@@ -27,7 +27,7 @@
   <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
     <div class="input-group" style="max-width: 40%">
       <input type="text" class="form-control" name="query" value="{{ query }}"
-             placeholder="e.g. salmon, oat bran, lentils" autofocus>
+             placeholder="e.g. salmon, oat bran, lentils" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
     <span id="ap-no-results" class="search-no-results" {% if results or not is_barcode_query %}style="display:none"{% endif %}

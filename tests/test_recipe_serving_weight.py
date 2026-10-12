@@ -117,7 +117,7 @@ class TestServingWeightSafeguard:
     def test_editing_servings_reconfirms_current_weight(self, client, db_conn, weighed):
         client.get(f"/meal/{weighed['meal']}")
         _set_servings(db_conn, weighed["recipe"], 2)
-        client.post(f"/meal/{weighed['meal']}/update/{weighed['item']}", data={"amount": "1.5"})
+        client.post(f"/meal/{weighed['meal']}/update/{weighed['item']}", data={"amount": "1.5 servings"})
         row = _item(db_conn, weighed["item"])
         assert row["amount"] == pytest.approx(1.5)
         assert row["serving_grams"] == pytest.approx(600.0)

@@ -84,7 +84,7 @@
     <div class="input-group" style="max-width:36rem">
       <input type="text" class="form-control" name="search"
              value="{{ search }}"
-             placeholder="Search for a food or recipe to add…" autofocus>
+             placeholder="Search for a food or recipe to add…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
     {% if search %}<span id="compare-search-no-results" class="search-no-results" data-query="{{ search }}" data-field="search"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ search }}</strong>.</span>{% endif %}

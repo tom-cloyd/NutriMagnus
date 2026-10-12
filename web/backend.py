@@ -1785,7 +1785,9 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
     "missing" lists the foods with no data for the ranked nutrient (or, for
     DCP, no amino acid data) — top_contributors.missing_contributors(), over
     `leaves` (leaf foods) when given, else `ingredients`. Empty for GL,
-    whose own "gl_gaps" already name the foods with no GI."""
+    whose own "gl_gaps" already name the foods with no GI. Rows marked not
+    needed stay in it with "ignored" set, for the template's undo list;
+    each row's "has none" / "not needed" buttons post to /food/{id}/data-gap."""
     if not rank:
         return {"items": [], "total": 0.0, "count": 0, "top_n": "all",
                 "top_n_options": ["all"], "is_dcp": False, "is_gl": False, "missing": []}
@@ -1826,7 +1828,8 @@ def _build_contributors(ingredients: list[dict], rank: str | None, top_n: str, c
     if top_n != "all":
         items = items[:int(top_n)]
     missing = ([] if is_gl else
-               _missing_contributors(leaves if leaves is not None else ingredients, rank, is_dcp=is_dcp))
+               _missing_contributors(leaves if leaves is not None else ingredients, rank, is_dcp=is_dcp,
+                                     ignores=_db.food_data_ignores(conn)))
     for m in missing:
         # A custom profile fills in on its Edit page, as on its food page.
         cached = _db.get_cached_food(conn, m["fdc_id"]) if m["fdc_id"] else None
@@ -2583,10 +2586,17 @@ def _search_local_results(query: str, *, clean_query: bool = False) -> list[dict
         cached = _db.search_cached_foods(conn, match_query)
         annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
         pantry_id_by_fdc = _pantry_id_by_fdc(conn)
-    results: list[dict] = []
     matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
-    recipe_aa_status = _recipe_aa_status([r["id"] for r in matching_recipes])
-    for r in matching_recipes:
+    results = _recipe_search_rows(matching_recipes) + _cached_search_rows(cached, annotations, pantry_id_by_fdc)
+    results.extend(_static_source_candidates(match_query))
+    return results
+
+
+def _recipe_search_rows(recipes: list) -> list[dict]:
+    """Search-result rows for recipe rows (db.recipe_list() shape)."""
+    results: list[dict] = []
+    recipe_aa_status = _recipe_aa_status([r["id"] for r in recipes])
+    for r in recipes:
         results.append({
             "_type":             "recipe",
             "recipe_id":         r["id"],
@@ -2606,6 +2616,12 @@ def _search_local_results(query: str, *, clean_query: bool = False) -> list[dict
             "notes":             r["notes"] or "",
             "has_notes":         bool(r["notes"]),
         })
+    return results
+
+
+def _cached_search_rows(cached: list, annotations: dict, pantry_id_by_fdc: dict) -> list[dict]:
+    """Search-result rows for cached foods (db.search_cached_foods() shape)."""
+    results: list[dict] = []
     for row in cached:
         nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
         ann = annotations.get(row["fdc_id"])
@@ -2625,8 +2641,43 @@ def _search_local_results(query: str, *, clean_query: bool = False) -> list[dict
             "notes":     row["notes"] or "",
             "has_notes": bool(row["notes"]),
         })
-    results.extend(_static_source_candidates(match_query))
     return results
+
+
+def _code_search_results(query: str) -> list[dict] | None:
+    """The one food or recipe a search box's whole query names by its code
+    (food_ids.parse_code: U171477, UD4, R21, OFF3, U171477.1 ...), or by a
+    bare number that is a cached food's FDC ID — as a one-row result list,
+    like a typed barcode. None when the query isn't such a code, or names
+    nothing NuMa has (the normal name search then runs). Archived foods and
+    recipes are included: typing the exact code is the request."""
+    text = query.strip()
+    if not text or " " in text:
+        return None
+    try:
+        kind, item_id = _parse_code(text)
+    except ValueError:
+        if not text.isdigit():
+            return None
+        kind, item_id = "food", int(text)
+    with _db.get_db() as conn:
+        if kind == "recipe":
+            recipe = _db.recipe_get(conn, item_id)
+            if recipe is None:
+                return None
+            rows = _recipe_search_rows([recipe])
+        else:
+            food = conn.execute(
+                "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
+                "portions_json, notes, nutrients_json, archived FROM foods WHERE fdc_id = ?",
+                (item_id,)).fetchone()
+            if food is None:
+                return None
+            rows = _cached_search_rows([food], _db.annotations_for_fdcids(conn, [item_id]),
+                                       _pantry_id_by_fdc(conn))
+    for r in rows:
+        r["code_match"] = True
+    return rows
 
 
 def _search_api_query(q: str) -> str:
@@ -2660,6 +2711,15 @@ def _run_food_search(query: str, source: list[str], limit: int, *, sort: str | N
     """
     if sort is None:
         sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    # A typed code (R21, U171477, UD4 ...) is that one item, whatever the
+    # Source boxes say — unless this search can't offer it.
+    code_rows = _code_search_results(query)
+    if code_rows is not None:
+        code_rows = [r for r in code_rows
+                     if not (r.get("_type") == "recipe" and (foods_only or r["recipe_id"] == exclude_recipe_id))
+                     and not (exclude_fdc_id is not None and r.get("fdc_id") == exclude_fdc_id)]
+        if code_rows:
+            return code_rows
     results = _search_local_results(query, clean_query=clean_query)
     if foods_only:
         results = [r for r in results if r.get("_type") != "recipe"]
@@ -3512,7 +3572,8 @@ async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(def
             nutrients = json.loads(cached["nutrients_json"] or "{}")
             ignored = ignores.get(fid, set())
             gaps = _data_completeness.active_gaps(nutrients, ignored, wanted.get(fid, checked))
-            keys = _data_completeness.requested_keys(nutrients, gaps)
+            # Single nutrients marked not needed (Top Contributors) aren't asked for either.
+            keys = [k for k in _data_completeness.requested_keys(nutrients, gaps) if k not in ignored]
             if gi_diaas:
                 ann = anns.get(fid)
                 est = [k for k, col in (("gi", "gi"), ("diaas", "diaas"))
@@ -3723,7 +3784,8 @@ async def food_cache_prune_post(request: Request):
 
 
 @app.get("/food/cache/db-check", response_class=HTMLResponse)
-async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, amounts_fixed: int = 0,
+async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, zeroed: int = 0,
+                                  amounts_fixed: int = 0,
                                   amounts_kept: int = 0,
                                   impact: str = "",
                                   check: list[str] | None = Query(default=None),
@@ -3762,6 +3824,11 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         quality = _data_quality.scan(conn)
         old_copies = _data_quality.old_usda_copies(conn)
         missing_aa = _data_quality.missing_aa_in_use(conn)
+        for r in missing_aa:
+            cached = _db.get_cached_food(conn, r["fdc_id"])
+            custom = bool(cached and cached["user_drafted"] and r["fdc_id"] < 0)
+            r["fill_url"] = _contrib_fill_url({"food_name": r["name"], "fdc_id": r["fdc_id"]}, "protein_g",
+                                              is_dcp=True, custom_profile=custom)
         missing_portions = _data_quality.missing_portions_in_use(conn)
         missing_gi = [] if _gi_opt_out() else _data_quality.missing_gi_in_use(conn)
         generic_density = _data_quality.generic_density_in_use(conn)
@@ -3782,6 +3849,7 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         "repairable": total - len(issues["bad_json"]),
         "repaired": repaired,
         "saved": saved,
+        "zeroed": zeroed,
         "groups": _data_completeness.GROUPS,
         "checked": checked,
         "show_ignored": show_ignored,
@@ -3820,13 +3888,34 @@ async def food_cache_water_backfill():
 @app.post("/food/cache/db-check/completeness", response_class=RedirectResponse)
 async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
                                        ignore: list[str] = Form(default=[]),
+                                       zero: list[str] = Form(default=[]),
                                        back: str = Form("completeness")):
     """Save the Data Completeness table's "not needed" checkboxes. `shown`
     is every "fdc_id:group" cell the page displayed, so unchecking one
     removes its ignore; cells not on the page are left alone. Group "gi" (the
-    no-GI list) sets the food's GI "don't prompt me" flag instead."""
+    no-GI list) sets the food's GI "don't prompt me" flag instead.
+
+    `zero` ("has none (0)") cells record 0 for each of that group's missing
+    values (data_completeness.group_none_keys — blanks only), then update the
+    recipes and meals using the food."""
     wanted = set(ignore)
+    zeroed = 0
     with _db.get_db() as conn:
+        changed: set[int] = set()
+        for cell in dict.fromkeys(zero):
+            fid, _, group = cell.partition(":")
+            if not fid.lstrip("-").isdigit() or cell not in shown:
+                continue
+            food = _db.get_cached_food(conn, int(fid))
+            if not food:
+                continue
+            keys = _data_completeness.group_none_keys(json.loads(food["nutrients_json"] or "{}"), group)
+            if keys:
+                _db.merge_user_supplied_nutrients(conn, int(fid), {k: 0.0 for k in keys})
+                changed.add(int(fid))
+                zeroed += 1
+        for fid in sorted(changed):
+            _recipe_dcp.cascade_food_change(fid, conn)
         for cell in shown:
             fid, _, group = cell.partition(":")
             if not fid.lstrip("-").isdigit():
@@ -3837,7 +3926,7 @@ async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
             elif group in _data_completeness.GROUP_LABELS or group == _data_quality.PORTIONS_IGNORE_KEY:
                 _db.set_food_data_ignore(conn, int(fid), group, cell in wanted)
     anchor = back if back in ("completeness", "missing-aa", "missing-portions", "missing-gi") else "completeness"
-    return RedirectResponse(f"/food/cache/db-check?saved=1#{anchor}", status_code=303)
+    return RedirectResponse(f"/food/cache/db-check?saved=1&zeroed={zeroed}#{anchor}", status_code=303)
 
 
 @app.post("/food/cache/db-check/stale-amounts", response_class=RedirectResponse)
@@ -3964,6 +4053,35 @@ async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = F
     if next.startswith("/") and not next.startswith("//") and "\\" not in next:
         return RedirectResponse(next, status_code=303)
     return RedirectResponse(f"/food/{fdc_id}", status_code=303)
+
+
+@app.post("/food/{fdc_id}/data-gap", response_class=RedirectResponse)
+async def food_data_gap(fdc_id: int, key: str = Form(...), action: str = Form(...),
+                        dcp: int = Form(0), next: str = Form(default="")):
+    """One-click answers for a food on the no-data list under Top
+    Contributors (`key` the ranked nutrient; dcp=1 for the DCP ranking):
+    action "none" records "this food has none" as 0
+    (data_completeness.none_keys — blank values only, never overwriting),
+    "not_needed" / "needed" set or clear the food's per-nutrient ignore
+    (data_completeness.ignore_key). Returns to `next`."""
+    is_dcp = bool(dcp)
+    next_url = _local_next(next, f"/food/{fdc_id}")
+    if key not in _data_completeness.IGNORE_KEYS and not is_dcp:
+        return RedirectResponse(next_url, status_code=303)
+    with _db.get_db() as conn:
+        food = _db.get_cached_food(conn, fdc_id)
+        if not food:
+            return RedirectResponse(next_url, status_code=303)
+        if action == "none":
+            nutrients = json.loads(food["nutrients_json"] or "{}")
+            keys = _data_completeness.none_keys(nutrients, key, is_dcp=is_dcp)
+            if keys:
+                _db.merge_user_supplied_nutrients(conn, fdc_id, {k: 0.0 for k in keys})
+                _recipe_dcp.cascade_food_change(fdc_id, conn)
+        elif action in ("not_needed", "needed"):
+            _db.set_food_data_ignore(conn, fdc_id, _data_completeness.ignore_key(key, is_dcp=is_dcp),
+                                     action == "not_needed")
+    return RedirectResponse(next_url, status_code=303)
 
 
 @app.post("/food/cache/db-check/repair", response_class=RedirectResponse)
@@ -5126,6 +5244,11 @@ def _food_detail_context(
     _all_gaps = _data_completeness.missing_groups(nutrients)
     data_gaps = [g for g in _all_gaps if g not in data_ignored]
     data_gaps_ignored = [g for g in _all_gaps if g in data_ignored]
+    # Single nutrients marked not needed from a Top Contributors no-data list.
+    _labels = {k: label for _g, fs in _EDIT_NUTRIENT_GROUPS for k, label, _u in fs}
+    data_nutrients_ignored = [(k, _labels.get(k, k)) for k in sorted(data_ignored, key=lambda k: _labels.get(k, k))
+                              if k in _labels and k not in _data_completeness.GROUP_LABELS
+                              and nutrients.get(k) is None]
     gi_estimate = ann["gi_estimate"] if ann else None
     gi_source   = (ann["gi_source"] if ann and "gi_source" in ann.keys() else None) \
                   if gi_estimate is not None else None
@@ -5167,6 +5290,7 @@ def _food_detail_context(
         "missing_macros":     missing_macros,
         "data_gaps":          data_gaps,
         "data_gaps_ignored":  data_gaps_ignored,
+        "data_nutrients_ignored": data_nutrients_ignored,
         "gap_labels":         _data_completeness.GROUP_LABELS,
         "no_nutrients":       not nutrients,
         "is_usda_food":       (_classify_food_id(fdc_id) or ("", ""))[1] == "USDA",
@@ -7146,13 +7270,15 @@ async def meal_add_recipe_item(
         return RedirectResponse(f"/meal/{meal_id}", status_code=303)
     name = recipe_name or recipe["name"]
 
-    # One text box: servings, a weight or a volume ("1 1/8", "200 g",
-    # "3/4 c"), converted to servings by parse_recipe_amount(). An amount
+    # One text box: servings, a weight or a volume ("1 1/8 srv", "200 g" or
+    # "200", "3/4 c"), converted to servings by parse_recipe_amount(). An amount
     # that can't be read or converted is refused with a message. (It used to
     # be three number boxes, which the browser held to 0.01 steps, so 1.125
     # servings couldn't be entered, and volume only through a Total volume.)
     try:
-        servings_n, _typed = _parse_recipe_amount(amount or servings or "1", recipe, serving_g)
+        # `servings` is the older form's plain servings count.
+        servings_n, _typed = _parse_recipe_amount(amount or (f"{servings} servings" if servings.strip() else "1 serving"),
+                                                  recipe, serving_g)
     except _entry_parse.EntryError as e:
         return RedirectResponse(f"/meal/{meal_id}?{urlencode({'add_error': f'{name}: {e}'})}", status_code=303)
     servings = round(servings_n, 4)
@@ -9686,7 +9812,7 @@ async def recipe_ingredient_add_recipe(
     q: str = Form(""),
 ):
     """Add a recipe as an ingredient of another recipe. The amount is typed
-    as servings, a weight or a volume ("1 1/8", "150 g", "3/4 c") and
+    as servings, a weight or a volume ("1 1/8 srv", "150 g" or "150", "3/4 c") and
     converted to servings by parse_recipe_amount(), since a sub-recipe
     ingredient is always stored as a servings count. (servings +
     amount_unit="g" is the older form of the same thing, still read.)"""
@@ -9703,7 +9829,10 @@ async def recipe_ingredient_add_recipe(
 
     if ref_recipe_id == recipe_id:
         return _redirect(error="Invalid recipe ingredient.")
-    raw = amount.strip() or (f"{servings} g" if amount_unit == "g" and servings.strip() else servings) or "1"
+    raw = amount.strip()
+    if not raw and servings.strip():
+        raw = f"{servings} g" if amount_unit == "g" else f"{servings} servings"
+    raw = raw or "1 serving"
     with _db.get_db() as conn:
         sub = _db.recipe_get(conn, ref_recipe_id)
         if not sub:

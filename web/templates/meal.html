@@ -201,7 +201,7 @@
     <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
       <div class="input-group" style="max-width:50%">
         <input type="text" class="form-control" name="q" value="{{ q }}"
-               placeholder="Search foods or recipes…" autofocus>
+               placeholder="Search foods or recipes…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </div>
@@ -545,13 +545,13 @@
                          style="width:12rem" required>
                   {% else %}
                   <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
-                  <input type="text" name="amount" value="{{ '%g' | format(item.amount) }}"
-                         class="form-control form-control-sm" placeholder="servings, e.g. 1 1/8; or 200 g, 3/4 c"
+                  <input type="text" name="amount" value="{{ '%g' | format(item.amount) }} serving{{ 's' if item.amount != 1 }}"
+                         class="form-control form-control-sm" placeholder="e.g. 200 (= grams), 1 1/8 srv, 3/4 c"
                          style="width:12rem" required>
                   {% endif %}
                 </div>
                 {% if not item.fdc_id %}
-                <div style="font-size:0.75rem" class="muted">servings (1.125, 1 1/8) &middot; or a weight (g, oz, lb) &middot; or a volume (cup, T, tsp, ml), when the recipe has a total volume or a serving size that is a measure</div>
+                <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; servings with the word (1 1/8 srv, 2 servings) &middot; or a volume (cup, T, tsp, ml), when the recipe has a total volume or a serving size that is a measure</div>
                 {% endif %}
                 {% if item.fdc_id %}
                 <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if item.portions %} &middot; p1, p2… (this food's portions, listed below){% else %} &middot; p1, p2… (USDA portions){% endif %}</div>

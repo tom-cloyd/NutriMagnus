@@ -20,7 +20,7 @@
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
       <input type="text" class="form-control" name="q" value="{{ query or '' }}"
-             placeholder="Search for a food to look up portions…" autofocus>
+             placeholder="Search for a food to look up portions…" title="Type part of a name, or an exact code such as U171477 or UD4 (or a cached food&rsquo;s FDC ID number) to go straight to that one food" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
     {% if query and not food %}<span id="convert-search-no-results" class="search-no-results" data-query="{{ query }}" data-field="q"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ query }}</strong>.</span>{% endif %}

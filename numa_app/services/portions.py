@@ -487,8 +487,9 @@ def _volume_ml(desc: str | None) -> float | None:
 
 
 def parse_recipe_amount(raw: str, recipe, serving_g: float | None) -> tuple[float, str]:
-    """Servings of *recipe* in an amount typed for it: servings ("1.125",
-    "1 1/8", "2 srv"), a weight ("200 g", "8 oz") through *serving_g* (one
+    """Servings of *recipe* in an amount typed for it: servings, always with
+    the word ("1 1/8 srv", "2 servings"), a weight ("200 g", "8 oz", or a
+    bare number, which is grams as it is for a food) through *serving_g* (one
     serving's grams, from recipe_serving_grams()), or a volume ("3/4 c",
     "250 ml") through the recipe's Total yield volume, else through its
     serving description when that is a measure ("2/3 cup"). A trailing
@@ -513,16 +514,20 @@ def parse_recipe_amount(raw: str, recipe, serving_g: float | None) -> tuple[floa
     if len(rest) > 1:
         raise EntryError(f'"{raw}" isn\'t an amount NuMa can read.')
     unit = rest[0] if rest else ""
-    if not unit or unit.lower() in _SERVING_WORDS:
+    if unit.lower() in _SERVING_WORDS:
         return number, typed
 
     total_servings = float(recipe["servings"] or 1)
-    grams_per = _UNIT_TO_GRAMS.get(unit.lower())
+    # A bare number is grams, the same as for a food (decided 2026-10-12;
+    # it used to be servings, so "29" meant to be grams became 29 servings).
+    grams_per = _UNIT_TO_GRAMS.get(unit.lower()) if unit else 1.0
     if grams_per is not None:
         if not serving_g:
             raise EntryError("NuMa doesn't know what one serving of this recipe weighs, so it "
-                             "can't turn a weight into servings. Give the recipe a Total weight "
-                             "on its Edit Recipe page, or enter servings.")
+                             "can't turn a weight into servings"
+                             + (" (a number on its own means grams)" if not unit else "")
+                             + ". Give the recipe a Total weight on its Edit Recipe page, "
+                             "or enter servings, such as \"1 1/8 srv\".")
         return number * grams_per / serving_g, typed
 
     ml_per = _VOLUME_TO_ML.get(unit) or _VOLUME_TO_ML.get(unit.lower())
