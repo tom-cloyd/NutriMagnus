@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-13:0723* / Reading time: 9 hours, 3 minutes
+*Updated 2026-10-13:0750* / Reading time: 9 hours, 5 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -3519,7 +3519,7 @@ After saving a food, its page shows any problem NuMa can see straight away; [Che
 
 ## Part 7 — Essential resources
 
-*(Reading time: 30 minutes)*
+*(Reading time: 31 minutes)*
 
 ---
 
@@ -3834,6 +3834,16 @@ The table of contents in the sidebar opens one level at a time, so even the bigg
 The list starts closed. As you read, it opens just far enough to show where you are, with the current section highlighted.
 
 A short "How to use this list" box sits under the last entry of the table of contents. Its **Got it — hide this** button puts it away for good; the **How to use this list** link beside the "Contents" heading brings it back.
+
+### F. Bookmarking sections of this manual {: #bookmarks-howto}
+You can bookmark any section of this manual to come back to it later. The bookmark buttons sit in one row in the sidebar, between the search box and the "Contents" heading.
+
+- **Bookmark this section** bookmarks the section you're reading now — the one named last in the bar across the top of the page. While you're in a section that's already bookmarked, the same button reads **Remove this bookmark**.
+- **Bookmarks (N) ▾** opens a short drop-down list of your bookmarks, in the order they come in the manual, each with the Part and section it sits under. Click one to jump there.
+- **×** beside a bookmark in that list removes just that one; **Clear all bookmarks**, at the bottom of the list, removes them all (it asks first).
+- In the table of contents, a **★** marks a bookmarked section and a **☆** marks a title with a bookmark somewhere inside it, so you can find bookmarks in closed parts of the list.
+
+Bookmarks are kept by your web browser, on this computer — a different browser won't see them. They survive a manual update, since they point at sections, not at a spot on the page; if an update removes a bookmarked section, the list still shows it, marked as no longer in the manual, so you can clear it.
 
 ## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
@@ -5160,7 +5170,7 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 33 minutes)*
+*(Reading time: 1 hour, 34 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5176,6 +5186,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **58.** MANUAL: The manual can now bookmark sections: **Bookmark this section** in the sidebar, a **Bookmarks** drop-down list to jump back or clear them, and ★ marks in the table of contents.
 - **57.** Compare, opened from a food's Fill in nutrients from another food page, has a button for each compared food that goes straight to filling the first food in from it.
 - **56.** Linoleic acid (omega-6) now has a Daily Goal, its official Adequate Intake.
 - **55.** MANUAL: The essential amino acids, protein complements, omega-3 and glycemic load sections now cite their sources, and the omega-6 note now says correctly that linoleic acid has an official Adequate Intake.
@@ -5233,6 +5244,29 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **3.** Top Contributors can rank a meal's or recipe's foods by glycemic load, and when that load is Medium or High, NuMa suggests lower-GI foods from your Food Cache to swap in, each opening What-if with the swap filled in.
 - **2.** What-if pages now show glycemic load before and after your changes, and say when a swap to a food with no GI makes the "after" look better than it is; every incomplete GL figure now says how much of the carbohydrate it covers.
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
+
+#### October 13 updates
+
+**MANUAL: BOOKMARKS IN THE MANUAL**
+
+The manual's sidebar now has a **Bookmark this section** button and a **Bookmarks** drop-down list: bookmark the section you're reading, jump back to any bookmark from the list, and remove one or all of them there. Bookmarked sections get a ★ in the table of contents. [learn more...](#bookmarks-howto)
+
+<!--
+
+```
+Scope: user manual page (scripts/build_manual.py — #bm-bar HTML, CSS, a new
+Bookmarks script). Bookmarks are heading ids in localStorage
+(numa_manual_bookmarks, [{id, text}]); the scroll-spy now fires a
+"manual-section" event naming the section being read, which the toggle
+button bookmarks. List sorted in manual order, with the enclosing headings
+as a path; a vanished id stays listed as no longer in the manual. TOC links
+get .toc-bookmarked (★) and their ancestors .toc-bookmark-inside (☆).
+Outside click / Escape close the drop-down; a storage event keeps other open
+manual tabs in step. New Part 7 section F (#bookmarks-howto);
+tests/e2e/test_manual_bookmarks_e2e.py.
+```
+
+-->
 
 #### October 12 updates
 

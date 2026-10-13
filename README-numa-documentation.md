@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-13:0723
+UPDATED: 2026-10-13:0750
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -1683,7 +1683,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,012 tests**, all passing (2,007 in the default run plus 5 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,014 tests**, all passing (2,007 in the default run plus 7 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1778,7 +1778,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 
 ### Browser-level end-to-end tests
 
-`tests/e2e/` uses [Playwright](https://playwright.dev/) to drive a real, isolated instance of the app in an actual browser — currently covering Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes async refresh (confirming the JS that re-fetches/re-sorts once external sources respond actually runs, not just that the page ships the right code). Runs weekly (Thursday 06:00 UTC, just ahead of the sweep) and on demand, separately from the rest of the suite (which runs on every change) since a real browser adds real wall-clock time.
+`tests/e2e/` uses [Playwright](https://playwright.dev/) to drive a real, isolated instance of the app in an actual browser — currently covering Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes async refresh (confirming the JS that re-fetches/re-sorts once external sources respond actually runs, not just that the page ships the right code), plus the user manual's bookmarks (set, drop-down list, table-of-contents marks, remove one, clear all — all client-side over localStorage). Runs weekly (Thursday 06:00 UTC, just ahead of the sweep) and on demand, separately from the rest of the suite (which runs on every change) since a real browser adds real wall-clock time.
 
 ### Mutation testing
 

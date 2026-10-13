@@ -297,6 +297,69 @@ body {
     font-weight: normal;
 }
 
+/* Bookmarks: "Bookmark this section" (the section being read, as the
+   scroll-spy tracks it) plus a dropdown list — one row of buttons, so it
+   costs the sidebar almost no room. ★ in the Contents marks a bookmarked
+   entry, ☆ an entry with a bookmark somewhere inside it. */
+#bm-bar {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+    margin: 0 0.25rem 0.75rem;
+    position: relative;
+}
+#bm-bar button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--toc-fg);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 6px;
+}
+#bm-bar button:hover { background: var(--accent-light); color: var(--accent); }
+#bm-toggle.bm-on { color: var(--accent); border-color: var(--accent); }
+#bm-menu-wrap { margin-left: auto; }
+#bm-menu {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 20;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+    padding: 0.4rem 0.5rem;
+    font-size: 13.5px;
+}
+#bm-menu[hidden] { display: none; }
+#bm-list { list-style: none; margin: 0; padding: 0; }
+#bm-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4em;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--border);
+}
+#bm-list a { flex: 1; color: var(--toc-fg); text-decoration: none; }
+#bm-list a:hover { color: var(--accent); }
+#bm-list .bm-path { display: block; font-size: 11.5px; color: var(--muted); }
+#bm-list .bm-gone { flex: 1; color: var(--muted); font-style: italic; }
+#bm-list button.bm-remove { border: none; font-size: 15px; line-height: 1; padding: 0 4px; }
+#bm-empty { margin: 0.2rem 0; color: var(--muted); font-size: 12.5px; }
+#bm-menu-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.4rem;
+    font-size: 12px;
+}
+#toc-sidebar .toc a.toc-bookmark-inside::after { content: " \\2606"; color: var(--muted); }
+#toc-sidebar .toc a.toc-bookmarked::after { content: " \\2605"; color: var(--accent); }
+
 /* Currently-visible section, kept in sync with scroll position */
 #toc-sidebar .toc a.toc-current {
     background: var(--accent-light);
@@ -1097,6 +1160,9 @@ JS = """\
     function activate(id) {
       if (id === current) return;
       updateBreadcrumb(id);
+      // "Bookmark this section" bookmarks whichever section this says is
+      // being read — the same one the breadcrumb bar names.
+      document.dispatchEvent(new CustomEvent('manual-section', { detail: id }));
       if (!tocLinks[id]) { current = id; return; }
       if (current && tocLinks[current]) tocLinks[current].classList.remove('toc-current');
       current = id;
@@ -1165,6 +1231,187 @@ JS = """\
     update();
   });
 })();
+
+/* ── Bookmarks ──
+   Kept in localStorage as [{id, text}] — heading ids, not scroll
+   positions, so a bookmark survives text changes above it in a newer
+   manual. The stored text is only a fallback label for a section a newer
+   manual no longer has. */
+(function () {
+  var KEY = 'numa_manual_bookmarks';
+  var currentId = null;
+
+  function load() {
+    try {
+      var v = JSON.parse(localStorage.getItem(KEY) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function save(list) {
+    try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {}
+  }
+
+  var headings = Array.prototype.slice.call(
+    document.querySelectorAll('#content h1[id], #content h2[id], #content h3[id], #content h4[id]')
+  );
+  var indexOf = {};
+  headings.forEach(function (h, i) { indexOf[h.id] = i; });
+  var tocLinks = {};
+  document.querySelectorAll('#toc-sidebar .toc a[href^="#"]').forEach(function (a) {
+    tocLinks[decodeURIComponent(a.getAttribute('href').slice(1))] = a;
+  });
+
+  function headingText(h) {
+    var clone = h.cloneNode(true);
+    var hl = clone.querySelector('.headerlink');
+    if (hl) hl.remove();
+    return clone.textContent.trim();
+  }
+  function level(h) { return parseInt(h.tagName.charAt(1), 10); }
+
+  /* The headings enclosing heading i, outermost first (page title left out). */
+  function ancestors(i) {
+    var out = [];
+    var lv = level(headings[i]);
+    for (var j = i - 1; j >= 0 && lv > 2; j--) {
+      var lj = level(headings[j]);
+      if (lj < lv) { out.unshift(headings[j]); lv = lj; }
+    }
+    return out;
+  }
+
+  var toggle = document.getElementById('bm-toggle');
+  var menuBtn = document.getElementById('bm-menu-btn');
+  var menu = document.getElementById('bm-menu');
+  var listEl = document.getElementById('bm-list');
+  var countEl = document.getElementById('bm-count');
+  var emptyEl = document.getElementById('bm-empty');
+  var clearAll = document.getElementById('bm-clear-all');
+  if (!toggle || !menu) return;
+
+  function isMarked(id) {
+    return load().some(function (b) { return b.id === id; });
+  }
+
+  function renderToggle() {
+    var h = currentId != null && indexOf[currentId] != null ? headings[indexOf[currentId]] : null;
+    toggle.disabled = !h;
+    var on = !!h && isMarked(currentId);
+    toggle.textContent = on ? 'Remove this bookmark' : 'Bookmark this section';
+    toggle.classList.toggle('bm-on', on);
+    toggle.title = h ? (on ? 'Remove the bookmark on "' : 'Bookmark "') + headingText(h) + '"' : '';
+  }
+
+  function renderToc(list) {
+    Object.keys(tocLinks).forEach(function (id) {
+      tocLinks[id].classList.remove('toc-bookmarked', 'toc-bookmark-inside');
+    });
+    list.forEach(function (b) {
+      var i = indexOf[b.id];
+      if (i == null) return;
+      if (tocLinks[b.id]) tocLinks[b.id].classList.add('toc-bookmarked');
+      ancestors(i).forEach(function (h) {
+        if (tocLinks[h.id]) tocLinks[h.id].classList.add('toc-bookmark-inside');
+      });
+    });
+  }
+
+  function renderList(list) {
+    countEl.textContent = list.length;
+    emptyEl.style.display = list.length ? 'none' : '';
+    clearAll.style.display = list.length ? '' : 'none';
+    listEl.textContent = '';
+    // Manual order, not the order they were added; vanished sections last.
+    var sorted = list.slice().sort(function (a, b) {
+      var ia = indexOf[a.id], ib = indexOf[b.id];
+      return (ia == null ? 1e9 : ia) - (ib == null ? 1e9 : ib);
+    });
+    sorted.forEach(function (b) {
+      var li = document.createElement('li');
+      var i = indexOf[b.id];
+      if (i == null) {
+        var gone = document.createElement('span');
+        gone.className = 'bm-gone';
+        gone.textContent = b.text + ' (this section is no longer in the manual)';
+        li.appendChild(gone);
+      } else {
+        var a = document.createElement('a');
+        a.href = '#' + b.id;
+        var path = ancestors(i).map(headingText).join(' > ');
+        if (path) {
+          var p = document.createElement('span');
+          p.className = 'bm-path';
+          p.textContent = path;
+          a.appendChild(p);
+        }
+        a.appendChild(document.createTextNode(headingText(headings[i])));
+        a.addEventListener('click', function () { openMenu(false); });
+        li.appendChild(a);
+      }
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'bm-remove';
+      x.textContent = '×';
+      x.title = 'Remove this bookmark';
+      x.setAttribute('aria-label', 'Remove this bookmark');
+      x.addEventListener('click', function (e) {
+        e.stopPropagation();
+        save(load().filter(function (o) { return o.id !== b.id; }));
+        render();
+      });
+      li.appendChild(x);
+      listEl.appendChild(li);
+    });
+  }
+
+  function render() {
+    var list = load();
+    renderToggle();
+    renderToc(list);
+    renderList(list);
+  }
+
+  function openMenu(open) {
+    menu.hidden = !open;
+    menuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  document.addEventListener('manual-section', function (e) {
+    currentId = e.detail;
+    renderToggle();
+  });
+
+  toggle.addEventListener('click', function () {
+    if (currentId == null || indexOf[currentId] == null) return;
+    var list = load();
+    if (isMarked(currentId)) {
+      list = list.filter(function (b) { return b.id !== currentId; });
+    } else {
+      list.push({ id: currentId, text: headingText(headings[indexOf[currentId]]) });
+    }
+    save(list);
+    render();
+  });
+  menuBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    openMenu(menu.hidden);
+  });
+  clearAll.addEventListener('click', function () {
+    var n = load().length;
+    if (!window.confirm('Remove all ' + n + ' bookmark' + (n === 1 ? '' : 's') + '?')) return;
+    save([]);
+    render();
+  });
+  menu.addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('click', function () { openMenu(false); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') openMenu(false);
+  });
+  // Another tab of the manual changed them: stay in step.
+  window.addEventListener('storage', function (e) { if (e.key === KEY) render(); });
+
+  render();
+})();
 """
 
 HTML_TEMPLATE = """\
@@ -1207,6 +1454,21 @@ HTML_TEMPLATE = """\
     </div>
     <div id="search-howto-row">
       <a class="search-howto-link" href="#search-howto">How does this search work?</a>
+    </div>
+  </div>
+  <div id="bm-bar">
+    <button type="button" id="bm-toggle">Bookmark this section</button>
+    <div id="bm-menu-wrap">
+      <button type="button" id="bm-menu-btn" aria-expanded="false" aria-controls="bm-menu"
+              title="Show your bookmarks">Bookmarks (<span id="bm-count">0</span>) &#x25BE;</button>
+      <div id="bm-menu" hidden>
+        <ul id="bm-list"></ul>
+        <p id="bm-empty">No bookmarks yet. Scroll to a section, then click <b>Bookmark this section</b>.</p>
+        <div id="bm-menu-foot">
+          <a href="#bookmarks-howto">How bookmarks work</a>
+          <button type="button" id="bm-clear-all">Clear all bookmarks</button>
+        </div>
+      </div>
     </div>
   </div>
   <div id="toc-scroll">
