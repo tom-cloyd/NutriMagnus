@@ -504,6 +504,14 @@ class TestOmega3Ala:
         assert "omega3_dha_mg" not in rda
 
 
+class TestOmega6La:
+    def test_male_under_51_17g(self, male_35):
+        assert compute_rda(male_35)["omega6_la_mg"] == (17000.0, "mg", "minimum")
+
+    def test_female_51_plus_11g(self, female_55):
+        assert compute_rda(female_55)["omega6_la_mg"] == (11000.0, "mg", "minimum")
+
+
 class TestDietAwareIronZinc:
     def test_default_diet_pref_is_all_no_adjustment(self, male_35):
         rda_default = compute_rda(male_35)

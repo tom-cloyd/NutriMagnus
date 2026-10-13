@@ -30,6 +30,19 @@
   <a href="{{ return_to }}" class="btn btn-primary btn-sm">&larr; {{ return_label }}</a>
 </p>
 {% endif %}
+{# Arrived from "Fill in nutrients from another food": go straight from here
+   to the review screen that copies a compared food's values into it. #}
+{% if fill_target %}
+{% set fill_sources = entries | selectattr("kind", "equalto", "food") | rejectattr("id", "equalto", fill_target.fdc_id) | list %}
+{% if fill_sources %}
+<p class="mb-2" id="compare-fill-from">
+  {% for e in fill_sources %}
+  <a class="btn btn-outline-primary btn-sm me-1 mb-1"
+     href="/food/{{ fill_target.fdc_id }}/review-incoming?source=food&source_fdc_id={{ e.id }}&next={{ ('/food/%s' % fill_target.fdc_id) | urlencode }}">Fill in {{ fill_target.name }}{{ food_id_tag(fill_target.fdc_id) }} from {{ e.name }}{{ food_id_tag(e.id) }}&hellip;</a>
+  {% endfor %}
+</p>
+{% endif %}
+{% endif %}
 <h2>Compare {{ manual_link("comparison") }}</h2>
 <p class="muted">Add up to {{ max_items }} foods and/or recipes to compare them per 100 g — the one basis that's fair to compare a food's grams against a recipe's servings on.</p>
 

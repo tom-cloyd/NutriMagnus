@@ -11,6 +11,10 @@
 {% if v is none or v == "" %}<span class="muted">—</span>{% else %}{{ v }}{% if unit %} {{ unit }}{% endif %}{% endif %}
 {%- endmacro %}
 
+{% macro show_num(v, unit="") -%}
+{% if v is none or v == "" %}<span class="muted">—</span>{% else %}{{ "%.3f"|format(v|float) }}{% if unit %} {{ unit }}{% endif %}{% endif %}
+{%- endmacro %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -110,8 +114,8 @@
           <tr>
             <td><input type="checkbox" class="form-check-input review-cb" data-status="{{ f.status }}" data-tracked="1" name="keys" value="{{ f.key }}" id="key-{{ f.key }}" {{ 'checked' if f.checked }}></td>
             <td><label for="key-{{ f.key }}">{{ f.label }}</label></td>
-            <td class="text-end muted">{{ show(f.current, f.unit) }}</td>
-            <td class="text-end"{% if f.key in aa_alt %} data-aa-own="{{ f.incoming }}" data-aa-alt="{{ aa_alt[f.key] }}" data-unit="{{ f.unit }}"{% endif %}><strong>{{ show(f.incoming, f.unit) }}</strong></td>
+            <td class="text-end muted">{{ show_num(f.current, f.unit) }}</td>
+            <td class="text-end"{% if f.key in aa_alt %} data-aa-own="{{ f.incoming }}" data-aa-alt="{{ aa_alt[f.key] }}" data-unit="{{ f.unit }}"{% endif %}><strong>{{ show_num(f.incoming, f.unit) }}</strong></td>
             <td class="muted"><small>{{ "fills a blank" if f.status == "fill" else "differs" }}{% if f.mine %}; <strong>yours</strong>{% endif %}{% if f.estimated %}; yours is an estimate{% endif %}{% if f.key.startswith("aa_") and source == "food" %}; scaled{% endif %}</small></td>
           </tr>
         {% endfor %}
@@ -197,7 +201,7 @@
   function sync() {
     cells.forEach(function (td) {
       var v = proteinCb.checked ? td.getAttribute('data-aa-alt') : td.getAttribute('data-aa-own');
-      td.innerHTML = '<strong>' + v + '</strong> ' + td.getAttribute('data-unit');
+      td.innerHTML = '<strong>' + Number(v).toFixed(3) + '</strong> ' + td.getAttribute('data-unit');
     });
   }
   proteinCb.addEventListener('change', sync);

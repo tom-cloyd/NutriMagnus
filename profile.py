@@ -521,6 +521,16 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
     # especially for plant-based diets relying on ALA as their only source.
     omega3_ala_mg = 1600.0 if male else 1100.0 if female else 1350.0
 
+    # Omega-6 linoleic acid (AI), IOM 2005: 17 g men / 12 g women aged 19-50,
+    # 14 g / 11 g at 51+. Set at median US intake; deficiency is essentially
+    # unknown on ordinary diets. Stored in mg like the other omega keys.
+    if male:
+        omega6_la_mg = 14000.0 if age >= 51 else 17000.0
+    elif female:
+        omega6_la_mg = 11000.0 if age >= 51 else 12000.0
+    else:
+        omega6_la_mg = 12500.0 if age >= 51 else 14500.0
+
     diet_multipliers = _DIET_AWARE_RDA_MULTIPLIERS.get(diet_pref, {})
     iron_mg = round(iron_mg * diet_multipliers.get("iron_mg", 1.0), 1)
     zinc_mg = round(zinc_mg * diet_multipliers.get("zinc_mg", 1.0), 1)
@@ -534,6 +544,7 @@ def compute_rda(profile: UserProfile, diet_pref: str = "all") -> dict[str, tuple
         "sodium_mg":     (2300.0,          "mg",   "limit"),
         "water_g":       (water_g,         "g",    "goal"),
         "omega3_ala_mg": (omega3_ala_mg,   "mg",   "minimum"),
+        "omega6_la_mg":  (omega6_la_mg,    "mg",   "minimum"),
         # Minerals
         "calcium_mg":    (calcium_mg,      "mg",   "minimum"),
         "iron_mg":       (iron_mg,         "mg",   "minimum"),

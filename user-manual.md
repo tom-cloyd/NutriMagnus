@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-12:1347* / Reading time: 8 hours, 58 minutes
+*Updated 2026-10-13:0723* / Reading time: 9 hours, 3 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -734,14 +734,14 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 1 hour, 50 minutes)*
+*(Reading time: 1 hour, 51 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
-Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day:
+Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day[^60]:
 
 > Histidine, Isoleucine, Leucine, Lysine, Methionine, Phenylalanine, Threonine, Tryptophan, Valine
 
-Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively. NuMa evaluates [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr) as combined pairs when scoring protein quality, following [FAO](#gloss-fao) 2013 guidelines.
+Two others — Cystine and Tyrosine — can be made from Methionine and Phenylalanine respectively[^60]. Because of that, cystine in food spares some of the need for methionine, and tyrosine spares some of the need for phenylalanine. So the official scoring pattern judges each pair as one combined figure, and NuMa does the same: it evaluates [Met+Cys](#gloss-met-cys) and [Phe+Tyr](#gloss-phe-tyr) as combined pairs when scoring protein quality, following [FAO](#gloss-fao) 2013 guidelines[^16].
 
 See [Protein Completeness](#complete) and [Amino Acid Gaps](#gap) for how completeness is scored and what a gap means.
 
@@ -751,9 +751,9 @@ When amino acid gaps are detected, NuMa suggests foods that can improve the prot
 
 #### WHEN DOES NUMA SUGGEST PROTEIN COMPLEMENTS? {: #comp-threshold}
 
-The composite [DIAAS](#gloss-diaas) for a meal is defined as the lowest of the nine individual amino acid ratios — the ratio for the [limiting amino acid](#gloss-limiting-amino-acid). This means the meal [DIAAS](#gloss-diaas) and the complement-suggestion threshold are directly connected: if the meal [DIAAS](#gloss-diaas) is 0.95 or above, every single amino acid in the meal is also scoring 0.95 or above, and no suggestions will appear.
+The composite [DIAAS](#gloss-diaas) for a meal is defined as the lowest of the nine individual amino acid ratios — the ratio for the [limiting amino acid](#gloss-limiting-amino-acid)[^16]. This means the meal [DIAAS](#gloss-diaas) and the complement-suggestion threshold are directly connected: if the meal [DIAAS](#gloss-diaas) is 0.95 or above, every single amino acid in the meal is also scoring 0.95 or above, and no suggestions will appear.
 
-NuMa uses **0.95** as its threshold because gaps smaller than that are nutritionally trivial to close — the math works out to needing only a gram or two of additional food, which is not a practical suggestion worth presenting. A meal [DIAAS](#gloss-diaas) of 0.95–0.99 means the [limiting amino acid](#gloss-limiting-amino-acid) is present but slightly below the [FAO](#gloss-fao) ideal; the deficit is real but small, and the protein is considered of good quality for a varied diet.<sup>[FAO 2013]</sup>
+NuMa uses **0.95** as its threshold because gaps smaller than that are nutritionally trivial to close — the math works out to needing only a gram or two of additional food, which is not a practical suggestion worth presenting. A meal [DIAAS](#gloss-diaas) of 0.95–0.99 means the [limiting amino acid](#gloss-limiting-amino-acid) is present but slightly below the [FAO](#gloss-fao) ideal; the deficit is real but small, and the protein still falls within what the [FAO](#gloss-fao) calls a "good" quality protein source (a score of 0.75 to 0.99)[^16].
 
 Below 0.95, a meaningful gap exists, and NuMa will show complement suggestions — foods that supply the missing amino acid and, when added to the meal, raise the composite [DIAAS](#gloss-diaas) toward or above 1.0.
 
@@ -799,7 +799,7 @@ In every mode, one refinement applies: an option that fully completes the amino 
 
 Sometimes the digestibility of the base food is low enough that no practical amount of any single food can "close the gap" mathematically. This happens when the food's raw amino acid ratios are already near the [FAO](#gloss-fao) reference — the gaps are digestibility-driven rather than composition-driven. Adding even a very good complement raises the pool's digestible amino acids but can't fully overcome the base food's own digestibility penalty via the gap-closer formula.
 
-For those situations, [DIAAS](#gloss-diaas)-boosting options are shown instead. These foods raise the combined meal [DIAAS](#gloss-diaas) score toward 0.90 by contributing digestible amino acids that pool with the base food's amino acids. The calculation uses each food's own true [ileal digestibility](#gloss-ileal-digestibility) (not just the [DIAAS](#gloss-diaas) score), so a high-digestibility food like soy protein isolate (95%) contributes disproportionately more digestible amino acids than its raw content alone would suggest.
+For those situations, [DIAAS](#gloss-diaas)-boosting options are shown instead. These foods raise the combined meal [DIAAS](#gloss-diaas) score toward 0.90 by contributing digestible amino acids that pool with the base food's amino acids. The calculation uses each food's own true [ileal digestibility](#gloss-ileal-digestibility) (not just the [DIAAS](#gloss-diaas) score), so a high-digestibility food like soy protein isolate (95%[^86]) contributes disproportionately more digestible amino acids than its raw content alone would suggest.
 
 Each [DIAAS](#gloss-diaas)-boosting suggestion shows a progression of serving sizes — 15 g, 30 g, 60 g, and up to 120 g (roughly 1/2 cup) for meal, food, and daily-summary analyses. Each step shows the meal [DIAAS](#gloss-diaas) before and after adding that amount, so you can choose a realistic portion rather than being given a single impractically large target. Recipe analysis uses larger steps (up to 300 g) because recipe quantities serve multiple people.
 
@@ -825,7 +825,7 @@ If single-food options open a secondary gap, Tier 3 two-food combinations show h
 
 If only [DIAAS](#gloss-diaas)-boosting options are shown (Tier 2), the underlying problem is that the base food is not highly digestible. Adding a well-digested, amino-acid-rich food improves the overall protein quality of the meal even without closing any single gap definitively. This is nutritionally meaningful — a meal [DIAAS](#gloss-diaas) of 0.90 means 90% of the protein is both complete and digestible.
 
-You do not need to eat [complement foods](#gloss-complement-food) at the same meal — meeting daily totals is sufficient for healthy adults. See also [DIAAS](#diaas) and [limiting amino acid](#gap) for background.
+You do not need to eat [complement foods](#gloss-complement-food) at the same meal — meeting daily totals is sufficient for healthy adults[^14]<sup>,</sup>[^15]. See also [DIAAS](#diaas) and [limiting amino acid](#gap) for background.
 
 #### RECIPE ANALYSIS: AMOUNTS ARE SIZED TO THE WHOLE BATCH {: #comp-recipe-scale}
 
@@ -1412,7 +1412,7 @@ For a meal combining multiple foods, the total [GL](#gloss-gl) is the sum of the
 Meal GL = GL(food 1) + GL(food 2) + GL(food 3) + ...
 ```
 
-Adding more carbohydrate-containing foods will always increase the meal total. The reason combining foods physiologically blunts the blood glucose response — as noted in the [GI](#gloss-gi) section — is not reflected in this calculation. Protein, fat, and fiber slow gastric emptying and glucose absorption, reducing the actual blood glucose rise; but because [GL](#gloss-gl) is calculated from fixed [GI](#gloss-gi) values measured for each food in isolation, it has no way to represent that interaction. [GL](#gloss-gl) is therefore a reliable tool for comparing meals of broadly similar macronutrient composition, but becomes less accurate when meals differ significantly in their fat or protein content.
+Adding more carbohydrate-containing foods will always increase the meal total. The reason combining foods physiologically blunts the blood glucose response — as noted in the [GI](#gloss-gi) section — is not reflected in this calculation. Protein, fat, and fiber slow gastric emptying and glucose absorption, reducing the actual blood glucose rise. Gram for gram, protein lowers the rise about twice as much as fat does[^89], and the thick (viscous) kinds of fiber in foods such as oats and legumes do it best[^90]. But because [GL](#gloss-gl) is calculated from fixed [GI](#gloss-gi) values measured for each food in isolation, it has no way to represent that interaction. [GL](#gloss-gl) is therefore a reliable tool for comparing meals of broadly similar macronutrient composition[^91], but becomes less accurate when meals differ significantly in their fat or protein content[^92].
 
 A food can have a high [GI](#gloss-gi) but a low [GL](#gloss-gl) if the serving contains little actual carbohydrate — watermelon is the classic example. Conversely, a moderate-[GI](#gloss-gi) food eaten in a large portion can produce a high [GL](#gloss-gl). For this reason [GL](#gloss-gl) is generally a better guide to real-world blood glucose impact than [GI](#gloss-gi) alone.
 
@@ -1447,7 +1447,7 @@ For a discussion of how [GL](#gloss-gl) compares to other approaches for evaluat
 
 1. **Read a meal's or recipe's [GL](#gloss-gl) and its band.** It's under **Glycemic Load** on the meal or recipe page (one serving for a recipe), against the per-serving scale; a whole day's, on the day's pages and in the **Day GL** column of Recent Days, against the larger day scale. A line under every band says which scale it's on.
 2. **See which foods drive it.** The **Which foods drive it, and lower-GI swaps to try** link under the figure ranks the foods by their share of the [GL](#gloss-gl) ([Top Contributors](#top-contributors)). Usually one or two foods carry most of it.
-3. **Change one of those.** Three levers, in rough order of effect: a **smaller portion** of the top food ([GL](#gloss-gl) halves when the portion does); a **swap** to a similar food with a lower [GI](#gloss-gi) — NuMa [suggests some](#gl-swaps) from your own foods; or **pairing** it with fat, protein, fiber or acid (vinegar, lemon), which slows absorption — real, but not something the [GL](#gloss-gl) number can show (see [why](#gl)).
+3. **Change one of those.** Three levers, in rough order of effect: a **smaller portion** of the top food ([GL](#gloss-gl) halves when the portion does); a **swap** to a similar food with a lower [GI](#gloss-gi) — NuMa [suggests some](#gl-swaps) from your own foods; or **pairing** it with fat, protein, fiber or acid (vinegar, lemon), which slows absorption[^89]<sup>,</sup>[^90]<sup>,</sup>[^93] — real, but not something the [GL](#gloss-gl) number can show (see [why](#gl)).
 4. **Check the whole picture before you commit.** Every swap suggestion opens [What-if](#whatif-gl) with the swap filled in: [GL](#gloss-gl) before and after, and every other nutrient too, for one meal, the last 30 days, or a recipe. Nothing changes until you choose to apply it.
 5. **Compare candidates side by side.** [Compare](#compare-gl) shows [GI](#gloss-gi) and [GL](#gloss-gl) per 100 g for up to 8 foods and recipes, lowest [GL](#gloss-gl) highlighted.
 6. **Set a daily target, if it helps.** An optional [daily glycemic load target](#gl-target) checks every day against a ceiling of your choosing — and What-if counts the days over it before and after a change.
@@ -1589,6 +1589,13 @@ NuMa calculates personalized daily nutrient goals from your user profile (Settin
     for why this is the only omega-3 with an official goal in NuMa.
 </pre>
 
+#### Omega-6 linoleic acid (minimum)
+<pre>
+    17 g/day men, 12 g/day women aged under 51; 14 g/day men, 11 g/day women
+    at 51+ ("other": midpoint) — Adequate Intake for linoleic acid. Shown in mg
+    like the other omega rows (17000 mg and so on).
+</pre>
+
 #### Minerals and vitamins — every age/sex band, in full
 
 All minerals and vitamins use age- and sex-specific values from the Dietary Reference Intakes published by the U.S. National Academies of Sciences[^9]. If your profile's sex is set to "other," NuMa uses the midpoint of the male and female values — except for the handful of nutrients marked below, where the underlying [DRI](#gloss-dri) tables don't publish a distinct value for anything other than male/female, so "other" uses the same value as female.
@@ -1712,15 +1719,15 @@ Your profile isn't fixed forever -- weight, activity level, or even which named 
 
 
 ### U. Omega-3 Fatty Acids {: #omega3}
-NuMa tracks four omega fatty acids: [ALA](#gloss-ala), EPA, and DHA (all omega-3), and linoleic acid (omega-6). Only one of these four -- ALA -- has an official Adequate Intake, so it's the only one that appears as a Daily Goal: 1600 mg/day for men, 1100 mg/day for women.
+NuMa tracks four omega fatty acids: [ALA](#gloss-ala), EPA, and DHA (all omega-3), and linoleic acid (omega-6). Of the three omega-3s, only ALA has an official Adequate Intake, and it appears as a Daily Goal: 1600 mg/day for men, 1100 mg/day for women[^60].
 
-**Why not a goal for [EPA](#gloss-epa) and DHA directly?** No U.S. Dietary Reference Intake exists for EPA or DHA intake on their own -- the official guidance covers only total ALA. This matters because ALA is not itself the fatty acid your body mostly uses; it has to be converted into EPA and then DHA, and that conversion is inefficient -- commonly cited at only around 5-10% for EPA, and considerably less for DHA. Two people can hit the same ALA target and land in very different places on EPA/DHA status depending on the rest of their diet, genetics, and sex (conversion tends to be somewhat more efficient in women).
+**Why not a goal for [EPA](#gloss-epa) and DHA directly?** No U.S. Dietary Reference Intake exists for EPA or DHA intake on their own -- the official guidance covers only total ALA[^60]. This matters because ALA is not itself the fatty acid your body mostly uses; it has to be converted into EPA and then DHA, and that conversion is inefficient -- estimated at under 5-10% for EPA, and only 2-5% for DHA[^87]. Two people can hit the same ALA target and land in very different places on EPA/DHA status depending on the rest of their diet, genetics, and sex (conversion is more efficient in women, possibly because of an effect of estrogen[^88]).
 
-**Why this matters especially for plant-based eaters.** Direct dietary EPA and [DHA](#gloss-dha) come almost entirely from fish, algae, and other seafood. If ALA (from flax, chia, walnuts, hemp, canola and soy oils) is your only omega-3 source, meeting the ALA goal is necessary but may not be sufficient -- your actual EPA/DHA status depends on that inefficient conversion step. Common ways to address this without animal fish: algae-oil supplements (a direct EPA/DHA source independent of the ALA conversion pathway), or simply logging ALA-rich foods generously since the target itself already assumes real-world conversion losses are ahead of it.
+**Why this matters especially for plant-based eaters.** Direct dietary EPA and [DHA](#gloss-dha) come almost entirely from fish, algae, and other seafood. If ALA (from flax, chia, walnuts, hemp, canola and soy oils) is your only omega-3 source, meeting the ALA goal is necessary but may not be sufficient -- your actual EPA/DHA status depends on that inefficient conversion step, which is why total omega-3 needs may be higher for vegetarians than for people who eat fish[^87]. Common ways to address this without animal fish: algae-oil supplements (a direct EPA/DHA source independent of the ALA conversion pathway), or simply logging ALA-rich foods generously since the target itself already assumes real-world conversion losses are ahead of it.
 
-**Setting your own EPA+DHA target.** Because there's no official [DRI](#gloss-dri) to compute automatically, NuMa can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common -- set one yourself as a [Revised Optimal target](#optimal) for the EPA and/or DHA rows in Settings → Nutrient targets.
+**Setting your own EPA+DHA target.** Because there's no official [DRI](#gloss-dri) to compute automatically, NuMa can't put a Daily Goal on the EPA or DHA rows the way it does for ALA. If you want to track against a target anyway -- clinical guidance in the 250-500 mg/day combined EPA+DHA range is common[^13] -- set one yourself as a [Revised Optimal target](#optimal) for the EPA and/or DHA rows in Settings → Nutrient targets.
 
-Linoleic acid (omega-6) is tracked for completeness but has no established goal or known deficiency risk in a typical diet -- most diets, plant-based or not, comfortably exceed the [AI](#gloss-ai) for it.
+Linoleic acid (omega-6) also has an official [AI](#gloss-ai), and it too appears as a Daily Goal: 17 g/day for men and 12 g/day for women aged 19-50, and 14 and 11 g/day from 51 on[^60]. Read it more loosely than most goals. That AI was set at the typical (median) U.S. intake rather than from a measured need, so about half of people fall a little short of it, and deficiency is essentially unknown in people eating ordinary diets[^60]. Falling short is worth a look only if you're well under it day after day.
 
 
 ### V. Profile Revised Optimal (Recent Research) Targets {: #optimal}
@@ -3547,7 +3554,7 @@ NuMa keeps track of *which* values you changed, by remembering what the food's s
 **Refreshing a food, or filling it in from another food.**{: #review-incoming} Both open the same review screen: each value that differs is listed with what the food has now beside what's incoming, and only the values you tick are written.
 
 - **Refresh** (Food Cache list, or **Refresh from USDA** on a USDA food's page) fetches USDA's current copy of the food.
-- **Fill in nutrients from another food** (on the food's page, for any food that isn't one of your custom profiles) lets you search for a similar food and pick from its values. Your custom profiles have the same search on their Edit page.
+- **Fill in nutrients from another food** (on the food's page, for any food that isn't one of your custom profiles) lets you search for a similar food and pick from its values. Tick the **Compare** box on a few results to weigh them up side by side first; Compare then has a **Fill in ... from ...** button for each of them, which opens this review screen with that food's values. Your custom profiles have the same search on their Edit page.
 
 What's ticked for you:
 
@@ -4051,9 +4058,9 @@ A step beyond the per-nutrient targets above: a small number of pre-built *bundl
 
 ### Source citations for major assertions in the manual {: #citations-progress}
 
-This is basic. Claims must be backed up, and source citations are how it's done. NuMa is designed around nutrition research findings, and at first, to move quickly, many of them went unreferenced. That is now being worked through, area by area; this list tracks where things stand (last reviewed 2026-10-10).
+This is basic. Claims must be backed up, and source citations are how it's done. NuMa is designed around nutrition research findings, and at first, to move quickly, many of them went unreferenced. That is now being worked through, area by area; this list tracks where things stand (last reviewed 2026-10-12).
 
-**☑ Sourced** — each with footnotes giving the source and what it does and doesn't support:
+**☑ Sourced** — each with footnotes giving the source and what it does and doesn't support: 
 
 - Daily targets and upper limits ([RDA](#rda), [Maximum Nutrient Limits](#maxlimits)) — the [NIH](#gloss-nih) Dietary Reference Intake tables.
 - [Revised Optimal](#optimal) defaults for vitamin D, [EPA](#gloss-epa) and [DHA](#gloss-dha).
@@ -4062,15 +4069,16 @@ This is basic. Claims must be backed up, and source citations are how it's done.
 - [Digestible complete protein](#dcp).
 - The [glycemic index tables](#gi) and their subject populations, the [definition of glycemic load](#gl), and [choosing a daily GL target](#gl-target-choose).
 - [Protein per meal](#protein-per-meal) and [when to eat protein](#protein-timing).
+- [Essential amino acids](#aa) — the nine essential amino acids, and the Met+Cys and Phe+Tyr pairings.
+- [Protein complement suggestions](#comp) — the "lowest ratio" definition, the FAO quality band, soy protein isolate's digestibility, and complements not needing to share a meal.
+- [Omega-3 fatty acids](#omega3) — the Adequate Intakes, and how poorly [ALA](#gloss-ala) converts to [EPA](#gloss-epa) and [DHA](#gloss-dha).
+- [Glycemic load](#gl) caveats — fat, protein, fiber and acid blunting the blood-glucose response of a mixed meal, and the evidence for and against predicting a meal's response from table values.
 
 **☐ Still to source** — research claims stated without a reference:
 
-- [Essential amino acids](#aa) — the nine essential amino acids, and the Met+Cys and Phe+Tyr pairings.
-- [Protein complement suggestions](#comp) — the complementarity principle itself is partly sourced; its specific claims need checking one by one.
 - [Antinutrients](#antinutrients) — phytate's effect on iron and zinc absorption, bound niacin and nixtamalization, and the other effects described.
 - [Oxalate data](#oxalate) — the Harvard source table is named but not formally cited.
-- [Omega-3 fatty acids](#omega3) — how poorly [ALA](#gloss-ala) converts to [EPA](#gloss-epa) and [DHA](#gloss-dha).
-- [Glycemic load](#gl) caveats — fat, protein and fiber blunting the blood-glucose response of a mixed meal.
+
 - Appendices A–C — each needs a pass for claims of fact.
 
 **☐ NuMa's own choices, to be labelled as such** — these are design decisions, not research findings, so the fix is to say so plainly where they're described rather than to cite anything:
@@ -5031,7 +5039,7 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 
 ##### Omega-6
 
-- **Linoleic acid (LA)**{: #key-la} — *omega6_la_mg* — The essential omega-6 fatty acid. Tracked for completeness; most diets, plant-based or not, comfortably exceed its Adequate Intake, and it has no known deficiency risk in typical eating patterns.
+- **Linoleic acid (LA)**{: #key-la} — *omega6_la_mg* — The essential omega-6 fatty acid. Has a Daily Goal, its Adequate Intake (17 g men, 12 g women under 51); that figure is the typical U.S. intake, and deficiency is essentially unknown on ordinary diets — see [Omega-3 Fatty Acids](#omega3).
     - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources).
 
 ---
@@ -5152,7 +5160,7 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 32 minutes)*
+*(Reading time: 1 hour, 33 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5168,6 +5176,9 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **57.** Compare, opened from a food's Fill in nutrients from another food page, has a button for each compared food that goes straight to filling the first food in from it.
+- **56.** Linoleic acid (omega-6) now has a Daily Goal, its official Adequate Intake.
+- **55.** MANUAL: The essential amino acids, protein complements, omega-3 and glycemic load sections now cite their sources, and the omega-6 note now says correctly that linoleic acid has an official Adequate Intake.
 - **54.** A number typed on its own as a recipe's amount (in a meal, or as a sub-recipe) now means grams, the same as for a food; servings need the word, such as "1 1/8 srv".
 - **53.** Every food and recipe search box now takes a code, such as R21 or U171477, and shows just that food or recipe.
 - **52.** Foods → 9's missing nutrient data list has a **has none (0)** box under each gap, for a food that truly has none of that group; its Food data problems list has a **These calories are right** button; its list of foods with no amino acid data links each one to a search for a similar food's amino acids.
@@ -5224,6 +5235,53 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 12 updates
+
+**PROGRAM: FILL IN A FOOD STRAIGHT FROM COMPARE**
+
+When you compare search results from a food's **Fill in nutrients from another food** page, Compare now has a **Fill in ... from ...** button for each of the other foods; it opens the review screen to copy that food's values in. [learn more...](#review-incoming)
+
+<!--
+```
+Scope: Compare (/compare with return_to=/food/<id>/fill-from...); web/backend.py
+_compare_fill_target() reads the fill-from target out of return_to, compare.html
+renders one review-incoming?source=food link per other compared food (recipes and
+the target itself skipped). Also: Review incoming's nutrient columns now show 3
+decimal places.
+```
+-->
+
+**PROGRAM: LINOLEIC ACID NOW HAS A DAILY GOAL**
+
+The omega-6 row (Linoleic) now has a Daily Goal, the official Adequate Intake: 17 g a day for men and 12 g for women under 51, 14 and 11 g from 51 on. It's the typical U.S. intake rather than a measured need, so read a small shortfall loosely. [learn more...](#omega3)
+
+<!--
+
+```
+Scope: profile.compute_rda() adds omega6_la_mg (minimum), IOM 2005 AI in mg: 17000/12000 under 51,
+14000/11000 at 51+, "other" = midpoint (14500/12500). tests/test_profile.py TestOmega6La. Manual: goals list
+(#goals) gains an Omega-6 linoleic acid entry; #omega3 last paragraph and Appendix G #key-la rewritten to match.
+```
+
+-->
+
+**MANUAL: SOURCES FOR AMINO ACIDS, PROTEIN COMPLEMENTS, OMEGA-3 AND GLYCEMIC LOAD**
+
+Four more parts of Part 4 now have footnotes for their research claims: why nine amino acids are essential and why Met+Cys and Phe+Tyr are scored as pairs, the main claims behind protein complement suggestions, how poorly ALA converts to EPA and DHA, and how fat, protein, fiber and vinegar soften a meal's blood-glucose rise. The omega-6 note also now says correctly that linoleic acid has an official Adequate Intake. [learn more...](#citations-progress)
+
+<!--
+
+```
+Scope: user-manual.md Part 4 sections A (#aa), B (#comp), O (#gl, #gl-uses), U (#omega3); Part 9 #citations-progress
+checklist (four items moved from Still to source to Sourced); footnotes 86-93 added (Mathai 2017, Davis &
+Kris-Etherton 2003, Burdge & Calder 2005, Moghaddam 2006, Jenkins 1978, Wolever 2006, Flint 2004, Ostman 2005),
+existing 13/14/15/16/60 cited at new points. Corrections made while sourcing: the inline "<sup>[FAO 2013]</sup>"
+replaced by footnote 16 and the vague "good quality for a varied diet" by FAO's actual "good" band (0.75-0.99);
+"commonly cited 5-10% ... considerably less for DHA" made exact (under 5-10% EPA, 2-5% DHA); omega-3 section
+previously said only ALA has an AI and that most diets "comfortably exceed" linoleic acid's AI -- both wrong (IOM
+2005 sets LA AI at 17/12 g, at median US intake). No program change: profile.py still gives no LA Daily Goal.
+```
+
+-->
 
 **PROGRAM: A PLAIN NUMBER FOR A RECIPE'S AMOUNT NOW MEANS GRAMS**
 
@@ -9000,6 +9058,22 @@ paragraph promoted to a heading). No behaviour change beyond the new panel.
 [^84]: EFSA Panel on Dietetic Products, Nutrition, and Allergies. "Scientific Opinion on Dietary reference values for water." *EFSA Journal* 8(3):1459, 2010. https://doi.org/10.2903/j.efsa.2010.1459 — EFSA's Adequate Intakes for total water: 2.5 L a day for men, 2.0 L for women. EFSA publishes no drinks figure; NuMa's drinks goal under EFSA is 80% of the total (2.0 and 1.6 L), from EFSA's own assumption that food supplies about 20%.
 
 [^85]: National Institute for Health and Care Excellence. *Intravenous fluid therapy in adults in hospital* (Clinical Guideline CG174), 2013, updated 2017. https://www.nice.org.uk/guidance/cg174 — routine maintenance starts at 25–30 mL/kg/day of water; for patients with obesity, the prescription is adjusted to ideal body weight, and patients rarely need more than 3 L a day in total.
+
+[^86]: Mathai, J. K., Liu, Y. & Stein, H. H. "Values for digestible indispensable amino acid scores (DIAAS) for some dairy and plant proteins may better describe protein quality than values calculated using the concept for protein digestibility-corrected amino acid scores (PDCAAS)." *British Journal of Nutrition* 117(4):490–499, 2017. https://doi.org/10.1017/S0007114517000125 — Measured in growing pigs, the animal model used for regulatory DIAAS work. For soy protein isolate, the standardised ileal digestibility of crude protein was 94%, and of the indispensable amino acids 96% on average (Tables 4–5). NuMa's 0.95 sits between the two, and is the same coefficient its digestibility table uses for soy protein isolate.
+
+[^87]: Davis, B. C. & Kris-Etherton, P. M. "Achieving optimal essential fatty acid status in vegetarians: current knowledge and practical implications." *American Journal of Clinical Nutrition* 78(3 Suppl):640S–646S, 2003. https://doi.org/10.1093/ajcn/78.3.640S — Reports that conversion of ALA to EPA is inefficient, under 5–10%, and to DHA 2–5%; that vegetarian and vegan diets supply little if any EPA and DHA; and that total omega-3 requirements may therefore be higher for vegetarians than for non-vegetarians, who get some EPA and DHA directly.
+
+[^88]: Burdge, G. C. & Calder, P. C. "Conversion of α-linolenic acid to longer-chain polyunsaturated fatty acids in human adults." *Reproduction Nutrition Development* 45(5):581–597, 2005. https://doi.org/10.1051/rnd:2005047 — A review of stable-isotope tracer studies: in men, conversion of ALA to EPA happens but is limited, and further conversion to DHA is very low; in women the fractional conversion is greater, possibly because of a regulatory effect of estrogen, and less ALA is burned for energy. The authors conclude ALA is a limited source of the longer-chain omega-3s.
+
+[^89]: Moghaddam, E., Vogt, J. A. & Wolever, T. M. S. "The effects of fat and protein on glycemic responses in nondiabetic humans vary with waist circumference, fasting plasma insulin, and dietary fiber intake." *Journal of Nutrition* 136(10):2506–2511, 2006. https://pubmed.ncbi.nlm.nih.gov/16988118/ — 20 nondiabetic adults drank 50 g glucose with 0–30 g each of added fat and protein, 18 times each. Both lowered the glucose response; gram for gram, protein lowered it about twice as much as fat. How strong the effect was varied from person to person (with waist size, fasting insulin and fiber intake). The authors note the findings came from drinks and may not carry over to solid meals.
+
+[^90]: Jenkins, D. J. A., Wolever, T. M. S., Leeds, A. R. et al. "Dietary fibres, fibre analogues, and glucose tolerance: importance of viscosity." *British Medical Journal* 1(6124):1392–1394, 1978. https://pmc.ncbi.nlm.nih.gov/articles/PMC1604761/ — Adding fibres such as guar, pectin or wheat bran to a 50 g glucose drink lowered the blood glucose rise, and the more viscous the fibre, the bigger the effect; guar lost its effect once broken down into a non-viscous form. Small groups of 4–6 volunteers.
+
+[^91]: Wolever, T. M. S., Yang, M., Zeng, X. Y., Atkinson, F. & Brand-Miller, J. C. "Food glycemic index, as given in glycemic index tables, is a significant determinant of glycemic responses elicited by composite breakfast meals." *American Journal of Clinical Nutrition* 83(6):1306–1312, 2006. — Testing typical mixed breakfasts in 26 healthy people in Sydney and Toronto, the GI values from published tables did predict the blood glucose response of the whole meal. This is the opposite of what the study in footnote 92 found; the authors argued that earlier negative findings like that one came from problems of method.
+
+[^92]: Flint, A., Møller, B. K., Raben, A. et al. "The use of glycaemic index tables to predict glycaemic index of composite breakfast meals." *British Journal of Nutrition* 91(6):979–989, 2004. https://doi.org/10.1079/BJN20041124 — 28 healthy young men ate 13 breakfasts, each with 50 g available carbohydrate but very different in energy, fat and protein. The meal GI predicted from the tables showed no association with the GI actually measured, and the more energy and fat a meal held, the lower its measured GI.
+
+[^93]: Östman, E., Granfeldt, Y., Persson, L. & Björck, I. "Vinegar supplementation lowers glucose and insulin responses and increases satiety after a bread meal in healthy subjects." *European Journal of Clinical Nutrition* 59(9):983–988, 2005. https://doi.org/10.1038/sj.ejcn.1602197 — In 12 healthy volunteers, white bread eaten with vinegar gave a lower blood glucose rise at 30 and 45 minutes, and a lower insulin response, than the same bread alone, more so at higher doses. Small, short-term, and about vinegar's acetic acid specifically; NuMa's mention of lemon rests on the same reasoning (acid) rather than its own study.
 
 
 ---

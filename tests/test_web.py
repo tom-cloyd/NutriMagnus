@@ -6718,6 +6718,26 @@ def test_custom_profile_compare_checked_foods_puts_profile_first_with_return(
     assert 'id="compare-return"' not in hostile.text
 
 
+def test_compare_from_fill_from_links_to_review(client: TestClient, db_conn, cached_food) -> None:
+    """Compare opened from a food's fill-from page offers, for each other
+    compared food, a jump to the review screen that fills the first food
+    from it; opened from anywhere else, it doesn't."""
+    fdc_id = cached_food["fdcId"]
+    _db.cache_food(db_conn, fdc_id=-778, name="Fill source", data_type="User Drafted",
+                   brand=None, serving_size=None, serving_unit=None,
+                   nutrients={"protein_g": 5.0}, portions=[])
+    db_conn.commit()
+    page = client.get("/compare", params={
+        "items": f"f{fdc_id},f-778", "return_to": f"/food/{fdc_id}/fill-from?q=okara"}).text
+    assert 'id="compare-fill-from"' in page
+    assert (f"/food/{fdc_id}/review-incoming?source=food&source_fdc_id=-778"
+            f"&next=/food/{fdc_id}") in page
+    assert f"Fill in {cached_food['name']}" in page and "from Fill source" in page
+    assert f"source_fdc_id={fdc_id}&" not in page  # never from itself
+    plain = client.get("/compare", params={"items": f"f{fdc_id},f-778"}).text
+    assert 'id="compare-fill-from"' not in plain
+
+
 @pytest.mark.parametrize("n,folded", [(6, False), (7, True)])
 def test_db_check_folds_a_list_longer_than_six(client: TestClient, n: int, folded: bool) -> None:
     """Foods -> 9: a list of more than 6 entries starts folded behind its
@@ -7580,3 +7600,16 @@ def test_search_by_typed_code_finds_that_one_item(client: TestClient, db_conn, m
 
     page = client.get(f"/meal/{meal_id}", params={"q": f"R{rid}"}).text
     assert "Lentil stew" in page
+
+
+def test_recipe_edit_ingredient_names_link_to_their_analysis(client: TestClient, db_conn, cached_food) -> None:
+    """Edit Recipe's ingredient names link to the food's analysis at the
+    recipe's amount, and a sub-recipe's to that recipe."""
+    sub = _db.recipe_create(db_conn, "Sub Sauce", "", 2, "")
+    rid = _db.recipe_create(db_conn, "Linked Bowl", "", 1, "")
+    _db.recipe_add_ingredient(db_conn, rid, cached_food["fdcId"], cached_food["name"], 200.0, "g")
+    _db.recipe_add_ingredient(db_conn, rid, 0, "Sub Sauce", 1, "servings", ref_recipe_id=sub)
+    db_conn.commit()
+    page = client.get(f"/recipe/{rid}/edit").text
+    assert f'<a href="/food/{cached_food["fdcId"]}?amount=200.0&from_context=recipe">{cached_food["name"]}</a>' in page
+    assert f'<a href="/recipe/{sub}">Sub Sauce</a>' in page

@@ -8486,6 +8486,18 @@ def _compare_return_label(return_to: str) -> str:
     return "Back to the page you came from"
 
 
+def _compare_fill_target(return_to: str) -> dict | None:
+    """The food being filled in, when Compare was opened from its "Fill in
+    nutrients from another food" page — so each compared food can offer a
+    straight jump to the review screen that copies its values in."""
+    m = re.fullmatch(r"/food/(-?\d+)/fill-from", re.split(r"[?#]", return_to or "")[0])
+    if not m:
+        return None
+    with _db.get_db() as conn:
+        row = _db.get_cached_food(conn, int(m.group(1)))
+    return {"fdc_id": row["fdc_id"], "name": row["name"]} if row else None
+
+
 # Compare's "Compare amounts" choice (remembered in prefs as compare_basis):
 # per 100 g of each item (the default), or each recipe per serving or whole,
 # as written. A plain food has no recipe amounts: it stays per 100 g.
@@ -8786,6 +8798,7 @@ async def compare_get(
         "return_to":            return_to,
         "return_label":         _compare_return_label(return_to) if return_to else "",
         "return_qs":            _with_return("", return_to),
+        "fill_target":          _compare_fill_target(return_to),
         "basis":                basis,
         "compare_bases":        _COMPARE_BASES,
         "any_recipe":           any(e["kind"] == "recipe" for e in entries),
