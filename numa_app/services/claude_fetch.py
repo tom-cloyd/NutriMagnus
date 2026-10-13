@@ -345,9 +345,6 @@ def build_notes(food: dict) -> str | None:
         parts.append(f"Source: {food['source']}")
     if food.get("confidence_note"):
         parts.append(f"Confidence: {food['confidence_note']}")
-    if food.get("diaas_source"):
-        # food_annotations has no column for this; gi_source has its own.
-        parts.append(f"DIAAS source: {food['diaas_source']}")
     return "  |  ".join(parts) if parts else None
 
 
@@ -438,5 +435,6 @@ def _import_annotations(conn, food: dict, overwrite: bool) -> None:
         gi_estimate=food["gi"] if gi else None,
         gi_source=(food.get("gi_source") or "Claude AI reply") if gi else None,
         diaas_estimate=food["diaas"] if "diaas" in add else None,
+        diaas_source=(food.get("diaas_source") or "Claude AI reply") if "diaas" in add else None,
     )
     _db.refresh_user_edited(conn, food["fdc_id"])

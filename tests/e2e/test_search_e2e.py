@@ -164,6 +164,10 @@ def test_meal_item_submits_save_the_scroll_offset(live_server, page):
     )
 
     # And a form that does not change the item list must NOT hijack the offset.
+    # Only this page's own key is checked: base.html's site-wide submit stash
+    # (numa_ui_submit_scroll, since 2026-10-04) records every submit, and only
+    # acts if the next page is this same one — so "storage stays empty", which
+    # this used to assert, stopped being true for reasons unrelated to meal.html.
     page.goto(f"{meal_url}?q=")
     ignored = page.evaluate("""() => {
         sessionStorage.clear();
@@ -171,6 +175,38 @@ def test_meal_item_submits_save_the_scroll_offset(live_server, page):
         f.setAttribute('action', '/settings');
         document.body.appendChild(f);
         f.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
-        return sessionStorage.length;
+        return sessionStorage.getItem('""" + key + """');
     }""")
-    assert ignored == 0
+    assert ignored is None
+
+
+def test_gi_source_box_follows_the_lookup_but_keeps_a_typed_source(live_server, page):
+    """Picking a lookup row fills the source box; typing a GI by hand then
+    clears that row's provenance (it no longer describes the number), but a
+    source the user typed themselves is theirs and stays."""
+    page.goto(f"{live_server}/food/annotate?q=Chickpeas")
+    page.click("a.btn:has-text('Edit')")
+    page.click("#gi-lookup-details summary")
+    page.fill("#gi-lookup-query", "Chickpeas")
+    with page.expect_response(lambda r: "/gi-lookup?" in r.url):
+        page.click("#gi-lookup-search")
+    page.wait_for_selector(".gi-pick-row", timeout=10_000)
+    page.query_selector(".gi-pick-row td").click()
+    assert page.input_value("#gi_source").startswith("Atkinson 20")
+
+    page.fill("#gi_estimate", "41")
+    assert page.input_value("#gi_source") == ""
+
+    page.fill("#gi_source", "glycemicindex.com")
+    page.fill("#gi_estimate", "40")
+    assert page.input_value("#gi_source") == "glycemicindex.com"
+
+
+def test_gi_lookup_with_no_match_says_what_to_try(live_server, page):
+    page.goto(f"{live_server}/food/annotate?q=Chickpeas")
+    page.click("a.btn:has-text('Edit')")
+    page.click("#gi-lookup-details summary")
+    page.fill("#gi-lookup-query", "zzqxnotafood")
+    with page.expect_response(lambda r: "/gi-lookup?" in r.url):
+        page.click("#gi-lookup-search")
+    page.wait_for_selector("#gi-lookup-results >> text=Search with fewer, plainer words", timeout=10_000)

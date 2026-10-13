@@ -6215,6 +6215,48 @@ def test_nutrient_plot_legend_placement_round_trips(client: TestClient, cached_f
 # Glycemic load — day-scale banding, portion GL, and the GL trend
 # ---------------------------------------------------------------------------
 
+def test_typed_gi_and_diaas_sources_are_saved_and_shown(client: TestClient, cached_food) -> None:
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}",
+                data={"gi_estimate": "42", "gi_source": "  glycemicindex.com,   lentils  ",
+                      "diaas_estimate": "0.62", "diaas_source": "Estimated from pea protein"},
+                follow_redirects=False)
+    with _db.get_db() as conn:
+        ann = _db.get_food_annotation(conn, fdc_id)
+    assert (ann["gi_source"], ann["diaas_source"]) == ("glycemicindex.com, lentils", "Estimated from pea protein")
+    page = client.get(f"/food/annotate/{fdc_id}").text
+    assert 'id="diaas_source"' in page and 'value="Estimated from pea protein"' in page
+    assert 'value="glycemicindex.com, lentils"' in page
+    food = client.get(f"/food/{fdc_id}").text
+    assert "Value taken from: glycemicindex.com, lentils" in food
+    assert "value taken from: Estimated from pea protein" in food
+
+
+def test_a_diaas_source_without_a_diaas_value_is_dropped(client: TestClient, cached_food) -> None:
+    fdc_id = cached_food["fdcId"]
+    client.post(f"/food/annotate/{fdc_id}", data={"diaas_estimate": "", "diaas_source": "orphan"},
+                follow_redirects=False)
+    with _db.get_db() as conn:
+        assert _db.get_food_annotation(conn, fdc_id)["diaas_source"] is None
+
+
+def test_annotate_page_says_what_to_do_when_the_gi_lookup_finds_nothing(client: TestClient, cached_food) -> None:
+    r = client.get(f"/food/annotate/{cached_food['fdcId']}")
+    assert r.status_code == 200
+    help_start = r.text.index('<template id="gi-no-match-help">')
+    help_html = r.text[help_start:r.text.index("</template>", help_start)]
+    for advice in ("Search with fewer, plainer words", "Use a similar food", "glycemicindex.com",
+                   "Leave the GI blank"):
+        assert advice in help_html
+    assert "document.getElementById('gi-no-match-help').innerHTML" in r.text
+
+
+def test_annotate_page_says_where_a_diaas_value_comes_from(client: TestClient, cached_food) -> None:
+    r = client.get(f"/food/annotate/{cached_food['fdcId']}")
+    assert "no lookup for DIAAS" in r.text
+    assert 'href="/manual#diaas-estimate-table"' in r.text
+
+
 def _gl_rice(db_conn) -> int:
     """A carb-heavy food with a GI annotation, so a logged day has a real GL."""
     db_conn.execute(
@@ -6336,6 +6378,122 @@ def test_meal_with_a_missing_gi_shows_an_incomplete_lower_bound(client: TestClie
     assert "at least 20.4" in r.text
     assert "incomplete, missing GI data" in r.text
     assert "Bread, plain" in r.text and "no GI recorded yet" in r.text
+
+
+def test_meal_page_shows_estimated_gi_with_its_coverage(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    bread = _gl_bread(db_conn)
+    meal_id = _log_gl_day(client, rice, datetime.date.today().isoformat(), grams="100 g")
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": bread, "food_name": "Bread, plain", "portion_str": "50 g"},
+                follow_redirects=False)
+    r = client.get(f"/meal/{meal_id}")
+    assert "Estimated GI:" in r.text and "<strong>73</strong>" in r.text
+    # 28 g of 52.5 g carbohydrate has a GI
+    assert "GI of the 53% of carbohydrate with a GI value" in r.text
+    assert "22&ndash;50% lower" in r.text
+
+
+def test_meal_under_ten_grams_of_carbohydrate_gives_no_gi(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    meal_id = _log_gl_day(client, rice, datetime.date.today().isoformat(), grams="30 g")   # 8.4 g carbs
+    r = client.get(f"/meal/{meal_id}")
+    assert "less than 10&thinsp;g of carbohydrate here" in r.text
+    assert "Estimated GI:</strong> about" not in r.text
+
+
+def test_recipe_gi_flags_uncooked_ingredients_until_marked_as_eaten(client: TestClient, db_conn) -> None:
+    db_conn.execute(
+        "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?,?,?,?,?)",
+        (900003, "Wheat flour, white", "SR Legacy", json.dumps({"carbs_g": 76.0, "fiber_g": 2.7}), "[]"))
+    _db.set_food_annotation(db_conn, 900003, gi_estimate=70.0, gi_no_prompt=False,
+                            diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
+    rid = _db.recipe_create(db_conn, name="Flatbread", description="", servings=2, instructions="")
+    _db.recipe_add_ingredient(db_conn, rid, 900003, "Wheat flour, white", 200.0, "g")
+    db_conn.commit()
+
+    r = client.get(f"/recipe/{rid}")
+    assert "Estimated GI:" in r.text
+    assert "may not be for the form it&rsquo;s eaten in" in r.text and "Wheat flour, white" in r.text
+    assert "stop flagging them" in r.text
+
+    resp = client.post(f"/recipe/{rid}/gi-as-eaten", data={"as_eaten": "1"}, follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"].endswith("#sec-glycemic")
+    r = client.get(f"/recipe/{rid}")
+    assert "may not be for the form" not in r.text
+    assert "Flag uncooked ingredients again" in r.text
+
+    client.post(f"/recipe/{rid}/gi-as-eaten", data={"as_eaten": "0"})
+    assert "may not be for the form" in client.get(f"/recipe/{rid}").text
+
+
+def test_meal_names_the_recipe_an_uncooked_ingredient_is_in(client: TestClient, db_conn) -> None:
+    db_conn.execute(
+        "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+        "VALUES (?,?,?,?,?)",
+        (900003, "Oats, uncooked", "SR Legacy", json.dumps({"carbs_g": 66.0, "fiber_g": 10.0}), "[]"))
+    _db.set_food_annotation(db_conn, 900003, gi_estimate=55.0, gi_no_prompt=False,
+                            diaas_estimate=None, diaas_no_prompt=False, prep_context=None)
+    rid = _db.recipe_create(db_conn, name="Porridge", description="", servings=1, instructions="")
+    _db.recipe_add_ingredient(db_conn, rid, 900003, "Oats, uncooked", 50.0, "g")
+    db_conn.commit()
+    resp = client.post("/meals/create", data={"name": "Breakfast", "meal_date": datetime.date.today().isoformat()},
+                       follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    _db_meal_add_recipe(meal_id, rid)
+    r = client.get(f"/meal/{meal_id}")
+    assert f'(in <a href="/recipe/{rid}#sec-glycemic">Porridge</a>' in r.text
+    assert "Oats, uncooked" in r.text
+    assert "stop flagging them" not in r.text      # the switch lives on the recipe page
+
+
+def _db_meal_add_recipe(meal_id: int, rid: int) -> None:
+    with _db.get_db() as conn:
+        _db.meal_add_recipe(conn, meal_id, rid, "Porridge", 1.0)
+
+
+def test_meals_list_shows_each_meals_gl_after_calories(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    bread = _gl_bread(db_conn)
+    today = datetime.date.today().isoformat()
+    complete = _log_gl_day(client, rice, today, grams="100 g")          # GL 20.4
+    partial = _log_gl_day(client, rice, today, grams="50 g")            # 10.2 counted
+    client.post(f"/meal/{partial}/add",
+                data={"fdc_id": bread, "food_name": "Bread, plain", "portion_str": "50 g"},
+                follow_redirects=False)
+    nogi = _log_gl_day(client, bread, today, grams="10 g")
+    r = client.get("/meals?sort=date")
+    head = r.text[r.text.index("<thead"):r.text.index("</thead>")]
+    assert head.index(">Calories<") < head.index(">GL<")
+    assert "20.4<br><small class=\"muted\">High</small>" in r.text
+    # 14 g of 38.5 g carbohydrate has a GI
+    assert "&ge;&thinsp;10.2" in r.text and "36% with GI" in r.text
+    assert "no GI</span>" in r.text
+    assert "GL = the meal&rsquo;s glycemic load" in r.text
+    assert 'value="gl"' in r.text
+
+
+def test_meals_list_sorts_by_gl_with_no_figure_last(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    bread = _gl_bread(db_conn)
+    today = datetime.date.today().isoformat()
+    small = _log_gl_day(client, rice, today, grams="50 g")
+    nogi = _log_gl_day(client, bread, today, grams="10 g")
+    big = _log_gl_day(client, rice, today, grams="200 g")
+    r = client.get("/meals?sort=gl&limit=2")
+    rows = r.text[r.text.index("<tbody"):]
+    assert f'/meal/{big}"' in rows and f'/meal/{small}"' in rows and f'/meal/{nogi}"' not in rows
+    assert rows.index(f'/meal/{big}"') < rows.index(f'/meal/{small}"')
+
+
+def test_meals_list_hides_gl_when_gi_is_turned_off(client: TestClient, db_conn, monkeypatch) -> None:
+    import web.backend as backend
+    monkeypatch.setattr(backend, "_gi_opt_out", lambda: True)
+    _log_gl_day(client, _gl_rice(db_conn), datetime.date.today().isoformat(), grams="100 g")
+    r = client.get("/meals?sort=gl")
+    assert ">GL<" not in r.text and 'value="gl"' not in r.text
+    assert r.status_code == 200
 
 
 def test_nutrient_plot_offers_daily_gl_as_a_series(client: TestClient, db_conn) -> None:

@@ -1,6 +1,7 @@
 {# Glycemic load figure from a glycemic_load.py result dict
    ({"total", "complete", "gaps", coverage fields}) — shared by the food, recipe, meal, day and
-   print pages so an incomplete GL reads the same everywhere.
+   print pages so an incomplete GL reads the same everywhere. gl_figure()
+   ends with the estimated GI of the mixture (gi_estimate()).
    scope: "serving" or "day" (which GL bands apply). label: optional bold text
    before the figure. links: False on printouts. #}
 
@@ -55,7 +56,43 @@ If that describes you, {{ "these are the right values" if plural else "it's the 
   {% if links %}{{ manual_link("gl-target") }}{% endif %}</small></p>
 {% endif %}{% endmacro %}
 
-{% macro gl_figure(gl, scope="serving", label="", links=True, target=None) %}
+{# The estimated GI of a meal, recipe or day (glycemic_load._result()'s
+   "gi" fields), with every condition that goes with it: the share of
+   carbohydrate it covers, the 10 g floor, closeness to a band boundary, why
+   it is only an estimate, and recipe ingredients whose GI may not describe
+   them as eaten. recipe: the recipe row when shown on that recipe's own page
+   — only there is the "eaten as listed" switch offered. Nothing for a
+   single food (its GI is shown as its own). #}
+{% macro gi_estimate(gl, links=True, recipe=None) %}{% if gl.mixture %}
+{% if gl.gi is not none %}
+<p class="mb-1"><strong>Estimated GI:</strong> about <strong>{{ gl.gi }}</strong>
+  <small class="muted">&mdash; {{ gl.gi_band }}{% if gl.gi_near %}, close to {{ gl.gi_near }}{% endif %}{% if gl.coverage_pct is not none and gl.coverage_pct < 100 %} (GI of the {{ gl.coverage_pct }}% of carbohydrate with a GI value){% endif %}</small></p>
+<p class="muted mb-1"><small>Worked out from each food&rsquo;s own GI, weighted by how much carbohydrate it brings. It describes what&rsquo;s in the food, not a measured blood-sugar response: in one study, measured meal GIs came out 22&ndash;50% lower than this calculation, and the fat, protein and fiber eaten alongside aren&rsquo;t counted. GI scale: Low 55 or under, Medium 56&ndash;69, High 70 or more.{% if links %} {{ manual_link("mixture-gi", "More about this estimate") }}{% endif %}</small></p>
+{% elif gl.gi_too_little_carb %}
+<p class="muted mb-1"><small><strong>Estimated GI:</strong> not given &mdash; there&rsquo;s less than 10&thinsp;g of carbohydrate here. With this little, the same person&rsquo;s blood-sugar response to the same food can differ a lot from one day to the next, so a GI figure would mean little. The glycemic load still applies.{% if links %} {{ manual_link("mixture-gi", "Why") }}{% endif %}</small></p>
+{% endif %}
+{% if gl.uncooked and (gl.gi is not none or gl.gi_too_little_carb) %}
+<p class="muted mb-1"><small>&#9888; {% if gl.uncooked | length == 1 %}This ingredient&rsquo;s GI may not be for the form it&rsquo;s eaten in{% else %}These ingredients&rsquo; GIs may not be for the form they&rsquo;re eaten in{% endif %}:
+  {% for u in gl.uncooked %}{{ u.name }}{{ food_id_tag(u.fdc_id) }}{% if not recipe or u.recipe_id != recipe.id %} (in {% if links %}<a href="/recipe/{{ u.recipe_id }}#sec-glycemic">{{ u.recipe }}</a>{% else %}{{ u.recipe }}{% endif %}{{ food_id_tag(None, recipe_id=u.recipe_id) }}){% endif %}{{ ", " if not loop.last else "." }}{% endfor %}
+  Cooking, baking and grinding change how fast starch is digested &mdash; flour, water and yeast don&rsquo;t have the GI of bread &mdash; so the estimate may be off.{% if links and not recipe %} If a recipe&rsquo;s ingredients really are eaten as listed, you can say so on its page.{% endif %}</small></p>
+{% endif %}
+{% if links and recipe %}
+{% set own = gl.uncooked | selectattr("recipe_id", "equalto", recipe.id) | list %}
+{% if own or recipe.gi_as_eaten %}
+<form method="post" action="/recipe/{{ recipe.id }}/gi-as-eaten" class="mb-2">
+  <input type="hidden" name="as_eaten" value="{{ 0 if recipe.gi_as_eaten else 1 }}">
+  {% if recipe.gi_as_eaten %}
+  <small class="muted">You&rsquo;ve said this recipe&rsquo;s ingredients are eaten as listed, so raw, dry or flour ingredients aren&rsquo;t flagged.</small>
+  <button type="submit" class="btn btn-sm btn-outline-secondary py-0">Flag uncooked ingredients again</button>
+  {% else %}
+  <button type="submit" class="btn btn-sm btn-outline-secondary py-0" title="For a recipe whose ingredients are eaten in the form listed, such as raw fruit in a smoothie">These ingredients are eaten as listed &mdash; stop flagging them</button>
+  {% endif %}
+</form>
+{% endif %}
+{% endif %}
+{% endif %}{% endmacro %}
+
+{% macro gl_figure(gl, scope="serving", label="", links=True, target=None, recipe=None) %}
 {% if gl.complete %}
 <p>{% if label %}<strong>{{ label }}</strong> {% endif %}<strong>{{ gl.total }}</strong>
   <small class="muted">&mdash; {{ gl_band(gl.total, scope) }}</small></p>
@@ -71,4 +108,5 @@ If that describes you, {{ "these are the right values" if plural else "it's the 
 {{ gl_target_line(target, links) }}
 {% if gl.total is not none %}{{ gl_band_help(scope, links) }}{% endif %}
 {{ gi_population_note(gl.impaired, links) }}
+{{ gi_estimate(gl, links, recipe) }}
 {% endmacro %}

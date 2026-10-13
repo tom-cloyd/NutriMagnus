@@ -128,14 +128,14 @@
                min="0" max="100" step="0.1" placeholder="Leave blank if unknown">
 
         {# Provenance of the GI value: filled in by the lookup below when you pick
-           a row, cleared by it if you then type over the number by hand. Saved
-           with the annotation and shown on the food's own page. #}
-        <input type="hidden" id="gi_source" name="gi_source"
-               value="{{ annotation.gi_source if annotation and annotation.gi_source else '' }}">
-        <p class="muted mt-1 mb-0" id="gi-source-line"
-           style="font-size:0.85rem{% if not (annotation and annotation.gi_source) %};display:none{% endif %}">
-          <strong>Value taken from:</strong> <span id="gi-source-text">{{ annotation.gi_source if annotation and annotation.gi_source else '' }}</span>
-        </p>
+           a row (and cleared again if you then type over that number by hand),
+           or typed by you for a value from anywhere else. Saved with the
+           annotation and shown on the food's own page. #}
+        <label for="gi_source" class="form-label mt-2 mb-1" style="font-size:0.9rem">Where this GI value came from <span class="muted">(optional)</span></label>
+        <input type="text" class="form-control form-control-sm" id="gi_source" name="gi_source" maxlength="300"
+               value="{{ annotation.gi_source if annotation and annotation.gi_source else '' }}"
+               placeholder="e.g. glycemicindex.com, &ldquo;Lentils, red, boiled&rdquo;; or: same as boiled chickpeas">
+        <p class="muted mt-1 mb-0" style="font-size:0.8rem">Filled in for you when you pick a value from the lookup below. Not saved without a GI value.</p>
         <p class="muted mt-1 mb-0" id="gi-pop-note" style="font-size:0.85rem{% if not (annotation and annotation.gi_source | gi_impaired) %};display:none{% endif %}">
           {% import "_gl_result.html" as _glr_pop %}&#9432; Measured in people with impaired glucose tolerance or diabetes. {{ _glr_pop.gi_impaired_advice() }}
         </p>
@@ -191,6 +191,18 @@
             {# overflow-x: the results table can be wider than this card; without it
                the table spilled out sideways over the reading-guide panel. #}
             <div id="gi-lookup-results" class="small" style="overflow-x:auto"></div>
+            {# Shown in place of the results when a search finds nothing — what to
+               try next, so an empty search isn't a dead end. #}
+            <template id="gi-no-match-help">
+              <p class="mb-1"><strong>No matches found.</strong> What to try next:</p>
+              <ul class="mb-1 ps-3">
+                <li><strong>Search with fewer, plainer words.</strong> One key word (&ldquo;lentil&rdquo;, &ldquo;bagel&rdquo;) often finds what the food&rsquo;s full name misses. Try another name for it too (&ldquo;garbanzo&rdquo; or &ldquo;chickpea&rdquo;), and set the population to <em>Normal + Impaired</em>.</li>
+                {% if not gi_table or gi_table.edition != 2021 %}<li><strong>Build the 2021 table</strong> &mdash; it has over 4,000 foods, against about 2,500 in the 2008 one. <a href="/settings#gi-table">How, in Settings</a></li>{% endif %}
+                <li><strong>Use a similar food&rsquo;s value</strong> &mdash; the same kind of food, prepared the same way (boiled potato for boiled potato, not for chips).</li>
+                <li><strong>Look it up on glycemicindex.com</strong> (the University of Sydney&rsquo;s online GI database), then type the number into the GI box above.</li>
+                <li><strong>Still nothing?</strong> Leave the GI blank. Meals with this food will then show their glycemic load as incomplete. For a food with little carbohydrate (meat, eggs, oil, most leafy vegetables) a GI hardly matters: tick <em>Don&rsquo;t prompt me for a GI estimate for this food again</em> below.</li>
+              </ul>
+            </template>
           </div>
         </details>
       </div>
@@ -207,6 +219,11 @@
         <input type="number" class="form-control" id="diaas_estimate" name="diaas_estimate"
                value="{{ annotation.diaas_estimate if annotation and annotation.diaas_estimate is not none else '' }}"
                min="0" max="2.0" step="0.01" placeholder="Leave blank if unknown">
+        <label for="diaas_source" class="form-label mt-2 mb-1" style="font-size:0.9rem">Where this DIAAS value came from <span class="muted">(optional)</span></label>
+        <input type="text" class="form-control form-control-sm" id="diaas_source" name="diaas_source" maxlength="300"
+               value="{{ annotation.diaas_source if annotation and annotation.diaas_source else '' }}"
+               placeholder="e.g. estimated from pea protein, manual table; or a study cited">
+        <p class="muted mt-1 mb-0" style="font-size:0.85rem">Not saved without a DIAAS value. There&rsquo;s no lookup for DIAAS: published values exist for only a few foods. A DIAAS belongs mostly to the food&rsquo;s protein source (pea, soy, wheat, milk), not to the brand, so estimate it from the main protein source on the ingredients list, using {{ manual_link("diaas-estimate-table", "the table in the manual") }}. Needed mainly for packaged foods with no amino acid data. If you can&rsquo;t settle on a value, leave it blank.</p>
       </div>
 
       <div class="mb-3">
@@ -358,24 +375,36 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
   var detailsBox = document.getElementById('gi-lookup-details');
   var saveBtn    = document.getElementById('save-annotation-btn');
   var srcInput   = document.getElementById('gi_source');
-  var srcLine    = document.getElementById('gi-source-line');
-  var srcText    = document.getElementById('gi-source-text');
+  // True while the source box holds what the lookup put there (or a saved
+  // value written by it, recognised by the wording the lookup uses, below and
+  // in older saves), rather than something typed by hand.
+  var LOOKUP_SOURCE_RE = /^(Atkinson 20(08|21) international GI tables|Foster-Powell 2008)/;
+  var srcFromLookup = !!(srcInput && LOOKUP_SOURCE_RE.test(srcInput.value));
 
-  function setSource(text) {
-    if (!srcInput) return;
-    srcInput.value = text || '';
-    if (srcText) srcText.textContent = text || '';
-    if (srcLine) srcLine.style.display = text ? '' : 'none';
+  function showPopNote() {
     // Same test as glycemic_load.gi_measured_impaired().
+    var text = srcInput ? srcInput.value : '';
     var popNote = document.getElementById('gi-pop-note');
-    if (popNote) popNote.style.display = (text && text.indexOf('Impaired glucose tolerance') !== -1) ? '' : 'none';
+    if (popNote) popNote.style.display = (text.indexOf('Impaired glucose tolerance') !== -1) ? '' : 'none';
   }
 
-  // A hand-typed number is nobody else's value, so the saved provenance of the
-  // previous one has to go with it — otherwise the food's page would cite a
-  // reference-table row that no longer has anything to do with the figure shown.
+  function setSource(text, fromLookup) {
+    if (!srcInput) return;
+    srcInput.value = text || '';
+    srcFromLookup = !!fromLookup && !!text;
+    srcInput.dispatchEvent(new Event('change', {bubbles: true}));
+    showPopNote();
+  }
+
+  // A hand-typed number is nobody else's value, so a reference-table row's
+  // provenance has to go with it — otherwise the food's page would cite a row
+  // that no longer has anything to do with the figure shown. A source the user
+  // typed themselves is theirs, and stays.
   if (giInput) {
-    giInput.addEventListener('input', function () { setSource(''); });
+    giInput.addEventListener('input', function () { if (srcFromLookup) setSource('', false); });
+  }
+  if (srcInput) {
+    srcInput.addEventListener('input', function () { srcFromLookup = false; showPopNote(); });
   }
 
   // Picking a value clears the results list and closes the lookup panel
@@ -385,7 +414,7 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
   // then highlighted and focused so it can't be walked past.
   function usePick(row) {
     giInput.value = row.getAttribute('data-gi');
-    setSource(row.getAttribute('data-source'));
+    setSource(row.getAttribute('data-source'), true);
     // A value set by script fires no event, so tell the leave guard and the
     // unsaved-changes badge: this pick is a real, not-yet-saved edit. A
     // 'change' (not 'input') event, so the input listener above doesn't wipe
@@ -412,7 +441,7 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
     fetch(url).then(function (r) { return r.json(); }).then(function (data) {
       var results = data.results || [];
       if (!results.length) {
-        resultsBox.innerHTML = '<span class="muted">No matches found.</span>';
+        resultsBox.innerHTML = document.getElementById('gi-no-match-help').innerHTML;
         return;
       }
       var html = '<table class="table table-sm table-hover mb-0"><tbody>';

@@ -114,14 +114,15 @@ def rank_contributors_by_gl(ingredients: list[dict], conn: sqlite3.Connection,
         if not fid or ann is None or ann["gi_estimate"] is None:
             continue
         nuts = ing.get("nutrients_100g") or {}
+        carbs_100g = _gl.available_carbs_100g(nuts, fid)
         row = by_food.setdefault(fid, {
             "food_name": ing["food_name"], "fdc_id": fid, "recipe_id": None,
             "amount": 0.0, "grams": 0.0, "gi": ann["gi_estimate"],
-            "carbs_100g": nuts.get("carbs_g") or 0.0,
+            "carbs_100g": carbs_100g,
             "impaired": _gl.gi_measured_impaired(ann["gi_source"]),
         })
         row["grams"] += ing["grams"]
-        row["amount"] += ann["gi_estimate"] * (nuts.get("carbs_g") or 0.0) * ing["grams"] / 10000.0
+        row["amount"] += ann["gi_estimate"] * carbs_100g * ing["grams"] / 10000.0
     contributions = [c for c in by_food.values() if c["amount"] > 0]
     total = sum(c["amount"] for c in contributions)
     contributions.sort(key=lambda c: c["amount"], reverse=True)

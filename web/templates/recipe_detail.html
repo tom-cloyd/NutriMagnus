@@ -866,9 +866,9 @@ document.getElementById('complements-form').addEventListener('change', function 
 {# ── Glycemic Load ────────────────────────────────────────────────────── #}
 {% if gl %}
 <section id="sec-glycemic" class="analysis-section">
-  <h3 class="section-heading">Glycemic Load {{ manual_link("glycemic") }}</h3>
+  <h3 class="section-heading">Glycemic Load and GI {{ manual_link("glycemic") }}</h3>
   <div class="protein-meta mt-2">
-    {{ _gl.gl_figure(gl, "serving", "Per serving:" if servings == 1 else "For " ~ ("%g" | format(servings)) ~ " servings:") }}
+    {{ _gl.gl_figure(gl, "serving", "Per serving:" if servings == 1 else "For " ~ ("%g" | format(servings)) ~ " servings:", recipe=recipe) }}
     {% if gl.total %}<p class="mb-1"><small><a href="/recipe/{{ recipe.id }}?rank=gl&amp;servings={{ servings }}#sec-contributors">Which foods drive it, and lower-GI swaps to try &rarr;</a></small></p>{% endif %}
   </div>
 </section>

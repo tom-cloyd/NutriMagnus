@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-13:0750* / Reading time: 9 hours, 5 minutes
+*Updated 2026-10-13:1441* / Reading time: 9 hours, 12 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -1434,7 +1434,7 @@ A whole day's total is a much larger number and goes against its own scale:
 
 **Treat that second table more loosely than the first.** The per-serving bands are the ones published with the international [GI](#gloss-gi) tables and are well established. The daily bands are a widely-repeated convention rather than a clinically validated target, and expert groups define them inconsistently — the University of Sydney group, for instance, describes a daily [GL](#gloss-gl) under 80 per 2,000 kcal as a *moderate* diet rather than a low one. A day's [GL](#gloss-gl) also rises with how much you eat, so a large or very active person naturally runs higher without that meaning anything is wrong. NuMa shows the daily band for orientation, and repeats this caveat underneath it every time.
 
-NuMa shows [GL](#gloss-gl) for every food (per 100 g, and for the exact portion you are analyzing — halve the portion and the [GL](#gloss-gl) halves with it while the [GI](#gloss-gi) stays put, which is the whole point of the measure), every recipe (per serving) and every meal and day. When some foods have no [GI](#gloss-gi) value the figure is marked incomplete rather than hidden — see [Glycemic Load Output](#glycemic). Like [GI](#gloss-gi), it is shown for reference and does not affect protein quality calculations.
+NuMa shows [GL](#gloss-gl) for every food (per 100 g, and for the exact portion you are analyzing — halve the portion and the [GL](#gloss-gl) halves with it while the [GI](#gloss-gi) stays put, which is the whole point of the measure), every recipe (per serving) and every meal and day. When some foods have no [GI](#gloss-gi) value the figure is marked incomplete rather than hidden — see [Glycemic Load Output](#glycemic). Recipes, meals and days also get an [estimated GI](#mixture-gi), worked out from their foods' own values. Like [GI](#gloss-gi), it is shown for reference and does not affect protein quality calculations.
 
 **Averages beat single days.** A single day's [GL](#gloss-gl) swings with whatever happened to be eaten. **Nutrient averages across days** (from Analysis → Daily summary) shows your average daily [GL](#gloss-gl) across the last 7, 14 or 30 days, and the [Nutrient Plot](#nutrient-plot) offers **Daily glycemic load** as a plottable series so you can see the pattern — weekends, late evenings, stressful weeks — instead of a snapshot. Both skip any day whose [GL](#gloss-gl) is incomplete rather than counting it as a low day, and both tell you how many days actually contributed.
 
@@ -1984,7 +1984,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 10 minutes)*
+*(Reading time: 1 hour, 14 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2346,7 +2346,7 @@ See [DIAAS](#diaas) for [DIAAS](#gloss-diaas) background. See [digestible comple
 
 
 #### Meals and Log List {: #meals-list}
-The main Meals & Log screen lists your recent meals, 9 at a time by default, sorted by date (most recent first). Change the sort order — Date, Name, Meal [DCP](#gloss-dcp), or Calories — via the sort dropdown; your choice is remembered as the default the next time you open Meals & Log. A **Number shown** field raises or lowers how many meals are listed, and a **Show meals on or before** date filter narrows the list to a cutoff date — both persist in the page's own controls, not as separate "older/newer" pagination links.
+The main Meals & Log screen lists your recent meals, 9 at a time by default, sorted by date (most recent first). Change the sort order — Date, Name, Meal [DCP](#gloss-dcp), Calories, or Glycemic load ([GL](#gloss-gl)) — via the sort dropdown; your choice is remembered as the default the next time you open Meals & Log. A **Number shown** field raises or lowers how many meals are listed, and a **Show meals on or before** date filter narrows the list to a cutoff date — both persist in the page's own controls, not as separate "older/newer" pagination links.
 
 Columns:
 
@@ -2368,6 +2368,13 @@ Columns:
                     topmost row for each date only.
     Calories        Calories for this meal alone, with its share of the
                     day's calorie goal in parentheses underneath.
+    GL              Glycemic load of the whole meal, with its band (Low,
+                    Medium, High, on the per-serving scale) underneath.
+                    "≥ 9.1" over "49% with GI" means some foods in the
+                    meal have carbohydrate but no GI value, so the true
+                    figure is higher; the % is the share of the meal's
+                    carbohydrate that does have one. "no GI" means none of
+                    them has one. Hidden if you've turned GI off in Settings.
     Profile         Which profile the day is pinned to — shown only if you
                     have more than one (see Per-Day Profile Tracking).
 
@@ -2390,6 +2397,8 @@ Opening and analyzing a meal also saves its DCP and calories automatically.
           was available.
 
 % of goal requires a user profile (Settings → 1. Your Profile). Blank if no profile is set.
+
+GL is worked out fresh each time the list is shown, so it never needs calculating and is never out of date. Sorting by GL puts the highest first; an incomplete figure sorts by the part that could be counted, and meals with no figure come last. See [Glycemic Load Output](#glycemic) for what the figure means.
 
 Click a meal to view or edit it, or delete it from there. **Search meal history** (a separate page, linked from Meals & Log) searches every logged food/recipe item by name only — no date filter, sort control, or pagination of its own. Results show a flat "All Occurrences" table (one row per time that food or recipe was logged, linked to its meal) and a "Summary by Food" table grouping those occurrences by name with times-used count, total grams, and first/last-seen dates. Ingredients inside a logged recipe aren't searched — only the recipe itself, by name.
 
@@ -2823,7 +2832,32 @@ A band (Low, Medium, High) is shown only for a complete figure, since the missin
 
 [GL](#gloss-gl) = ([GI](#gloss-gi) x grams of available carbohydrate) / 100 per ingredient, summed across all ingredients in the meal.
 
+**Which carbohydrate counts.** [GI](#gloss-gi) is measured on *available* carbohydrate, the part your body digests into glucose, so fiber is left out. [USDA](#gloss-usda) and the Canadian table give total carbohydrate, fiber included, so NuMa takes the fiber off. It does the same for Open Food Facts products and foods you entered yourself, since those mostly come from US labels, which also count fiber in. The UK, Australian and French tables already leave fiber out, so their figure is used as it is. For a high-fiber food the difference is large: beans with 60 g carbohydrate and 34 g fiber per 100 g have 26 g available. (An Open Food Facts product from Europe already leaves fiber out, and the label doesn't say which kind it is, so for such a product NuMa's figure runs low by its fiber.)
+
+Below the [GL](#gloss-gl) figure, a meal, recipe or day also gets an [estimated GI](#mixture-gi).
+
 [GL](#gloss-gl) is shown for reference only and does not affect protein quality scores. See [glycemic load](#gl) for a full explanation of glycemic load and its limitations. See [glycemic index](#gi) for background on the glycemic index.
+
+
+#### Estimated GI of a meal or recipe {: #mixture-gi}
+A meal, a recipe and a whole day each get an estimated [GI](#gloss-gi), shown under the [GL](#gloss-gl) figure. It is each food's own [GI](#gloss-gi), averaged according to how much carbohydrate each food brings:
+
+    GI = sum of (food's GI x its carbohydrate) / total carbohydrate
+
+So a meal of 40 g carbohydrate from sugar (GI 65) and 15 g from milk (GI 39) comes out at about 58. It is the same arithmetic as [GL](#gloss-gl) run the other way: 100 x [GL](#gloss-gl) / carbohydrate. A single food's page shows that food's own [GI](#gloss-gi) instead.
+
+It is read on the usual [GI](#gloss-gi) scale: Low 55 or under, Medium 56–69, High 70 or more. A figure within 5 of a boundary is shown as close to the next band ("Medium, close to Low"). The estimate isn't precise enough to treat 54 and 57 as different.
+
+**It's an estimate of what's in the food, not a measured blood-sugar response.** It's the standard way of working out a meal's [GI](#gloss-gi), and studies disagree on how well it works. One found that table [GI](#gloss-gi) values did predict the response to mixed breakfasts[^91]. Another found no connection at all for meals that differed a lot in fat and energy[^92]. A third measured three meals and found the calculation came out 22–50% higher than the [GI](#gloss-gi) actually measured[^94]. Fat, protein and fiber eaten with the carbohydrate slow its absorption, and the calculation can't see that (see [glycemic load](#gl) for why).
+
+The estimate comes with these conditions:
+
+- **Only foods with a GI count.** If some foods have carbohydrate but no [GI](#gloss-gi), the estimate describes the rest and says so: "GI of the 72% of carbohydrate with a GI value". Unlike [GL](#gloss-gl), it isn't a lower limit. The missing foods could push it either way.
+- **Not given under 10 g of carbohydrate.** [GI](#gloss-gi) is measured with 25 or 50 g of carbohydrate. With much less, the same person's response to the same food varies a lot from one test to the next: in one study the variation was about twice as large with 5 g of carbohydrate as with 20 g[^95]. So for a cup of coffee with a teaspoon of sugar and a splash of milk (about 5.5 g), NuMa gives the [GL](#gloss-gl) (about 3) but no [GI](#gloss-gi), and says why.
+- **Ingredients that may not be eaten as listed.** In a recipe, an ingredient whose name says it is raw, dry, uncooked or a flour is flagged if its [GI](#gloss-gi) counts. Cooking, baking and grinding change how fast starch is digested: flour, water and yeast don't have the [GI](#gloss-gi) of bread. If the [GI](#gloss-gi) you gave such an ingredient was for the form you eat, or the ingredient really is eaten as listed (raw fruit in a smoothie), click **These ingredients are eaten as listed — stop flagging them** on the recipe's page. **Flag uncooked ingredients again** turns the flag back on. The switch covers that recipe's own ingredients, not those of recipes used inside it, which have their own. A meal or day containing the recipe names the flagged ingredient and the recipe it's in, linked so you can get to the switch. Matching on names is rough. Dried fruit ("Apricots, dried, uncooked") is left out, since it's eaten as it is, but a branded food whose name doesn't say it is dry (a bag of small red beans, named just that) isn't caught.
+- **Values measured in people with diabetes.** The same note as for [GL](#gloss-gl) names any food whose [GI](#gloss-gi) was measured in people with impaired glucose tolerance or diabetes. See [GI populations](#gi-populations).
+
+A day's estimated [GI](#gloss-gi) is what research calls a *dietary GI*: the [GI](#gloss-gi) of everything you ate that day, weighted the same way.
 
 
 #### Meal History Tables {: #meal-history}
@@ -3066,13 +3100,21 @@ What you can set:
 
 <pre>
     GI estimate      Glycemic index (0-100). See <a href="#gi">Glycemic Index</a>.
+    GI source        Where the GI value came from. Filled in for you when
+                     you pick a value from the lookup; type your own for a
+                     value from anywhere else.
     DIAAS estimate   Your protein quality estimate (0.00-2.00). Useful for
                      packaged foods that lack amino acid data in USDA. See
                      <a href="#diaas">DIAAS</a>.
+    DIAAS source     Where the DIAAS value came from.
     Prep context     A short preparation note (e.g. "boiled 20 min", "raw").
 </pre>
 
-**Looking up a GI value instead of typing one.** Open **Look up a GI value from the published reference table** and search it by name. Click anywhere on a result to take its value: the list closes, the GI box fills in, and the **Save annotation** button highlights — the value is not stored until you press it. See [Where GI values come from](#gi) for the table and how to pick a population.
+**Note where each value came from.** A source is kept only alongside its value: clear the value and its source goes too. Both appear on the food's page after "Value taken from". If you pick a value from the GI lookup and then type a different number over it, the lookup's citation is cleared, since it no longer describes your number. A source you typed yourself stays.
+
+**Looking up a GI value instead of typing one.** Open **Look up a GI value from the published reference table** and search it by name. Click anywhere on a result to take its value: the list closes, the GI box fills in, and the **Save annotation** button highlights — the value is not stored until you press it. See [Where GI values come from](#gi) for the table and how to pick a population. If a search finds nothing, the page lists what to try next: plainer words, another name for the food, a similar food's value, or glycemicindex.com.
+
+**There's no lookup for DIAAS**, since published values exist for only a few foods. A note under the box says how to estimate one from the food's main protein source, using [the table in the DIAAS section](#diaas-estimate-table).
 
 **The two "don't prompt me again" checkboxes** are only for deliberately leaving a value blank. Saving a GI or DIAAS estimate already stops NuMa asking about that one, so you do not need to tick anything to make the prompt stop.
 
@@ -5170,7 +5212,7 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 34 minutes)*
+*(Reading time: 1 hour, 36 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5186,6 +5228,10 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **62.** Meals & Log has a GL column after Calories, showing each meal's glycemic load with its band, or how much of its carbohydrate has a GI when the figure is incomplete; the list can also be sorted by GL.
+- **61.** The Annotate page has a box for where each GI and DIAAS value came from, shown on the food's page; it also says what to try when the GI lookup finds nothing, and how to estimate a DIAAS.
+- **60.** Meals, recipes and days now show an estimated GI under their glycemic load, with the conditions that go with it. A recipe flags raw, dry or flour ingredients whose GI may not match how they're eaten, and has a switch to stop flagging them.
+- **59.** Glycemic load now counts available carbohydrate (fiber left out), as GI is defined; USDA, Canadian, Open Food Facts and your own foods used to count their fiber too, which overstated GL for high-fiber foods.
 - **58.** MANUAL: The manual can now bookmark sections: **Bookmark this section** in the sidebar, a **Bookmarks** drop-down list to jump back or clear them, and ★ marks in the table of contents.
 - **57.** Compare, opened from a food's Fill in nutrients from another food page, has a button for each compared food that goes straight to filling the first food in from it.
 - **56.** Linoleic acid (omega-6) now has a Daily Goal, its official Adequate Intake.
@@ -5246,6 +5292,92 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 13 updates
+
+**PROGRAM: GLYCEMIC LOAD ON MEALS & LOG**
+
+Meals & Log now has a GL column right after Calories: each meal's glycemic load, with its band beneath it. When some foods have no GI value, it reads "≥ 9.1" over "49% with GI", the share of the meal's carbohydrate that does have one. A note under the table explains both, and the list can be sorted by GL. [learn more...](#meals-list)
+
+<!--
+
+```
+Scope: Meals & Log (web/backend.py _meals_list_ctx, meals_list,
+_meals_sorted_by_gl; web/templates/meals.html). GL is worked out live per
+row with meal_gl() (_compute_gl), hidden with every other GL figure when
+GI is opted out (show_gl_col, as Recent Days). Sort "gl" is new in
+_MEALS_SORT_KEYS: GL isn't stored, so it fetches every meal in range
+(meal_list_recent limit=-1), computes each, sorts by (no figure,
+-total) stably, then slices; falls back to date when GI is opted out.
+Coverage is written "N% with GI" rather than "(N%)", since parentheses
+in this table already mean a meal's share of the day's goal. 3 tests.
+```
+
+-->
+
+**PROGRAM: NOTE WHERE A GI OR DIAAS VALUE CAME FROM**
+
+The Annotate page now has a box under each of the GI and DIAAS values for where that value came from. The GI one fills itself in when you pick from the lookup. The food's page shows both. When the GI lookup finds nothing, the page now lists what to try next, and the DIAAS box explains how to estimate a value from the food's main protein source. [learn more...](#annotate)
+
+<!--
+
+```
+Scope: Foods → Annotate a Food (web/templates/food_annotate.html), the
+food's page, Claude imports. New food_annotations.diaas_source column
+(migration); set_food_annotation()/upsert_food_annotation() take
+diaas_source, and set_ drops it when diaas_estimate is None (as gi_source).
+gi_source is now a visible text input; the page script clears it on a
+hand-typed GI only while it holds a lookup citation (LOOKUP_SOURCE_RE on
+the lookup's wording), never a typed source. claude_fetch writes the
+reply's diaas_source to the column instead of appending "DIAAS source: ..."
+to the food's notes. GI no-match advice is a <template> swapped into the
+results box. Tests: test_web.py (typed sources saved/shown, orphan source
+dropped, no-match and DIAAS help), test_claude_fetch.py, two e2e tests.
+```
+
+-->
+
+**PROGRAM: ESTIMATED GI FOR MEALS, RECIPES AND DAYS**
+
+Under the glycemic load of a meal, recipe or day you now see an estimated GI: each food's GI, weighted by its carbohydrate. It says how much of the carbohydrate it covers, isn't given under 10 g of carbohydrate, notes when it is close to a band boundary, and in a recipe flags raw, dry or flour ingredients whose GI may not be for the form they're eaten in, with a **These ingredients are eaten as listed** switch to stop that. [learn more...](#mixture-gi)
+
+<!--
+
+```
+Scope: recipe, recipe portion, meal, day, Daily Summary and print pages
+(web/templates/_gl_result.html gi_estimate(), called at the end of
+gl_figure()); numa_app/services/glycemic_load.py. _result() gains gi
+(100 x GL / carbs with a GI, rounded), gi_band / gi_near (bands 55/69,
+"close to" within 5 of a boundary), gi_too_little_carb (counted available
+carbs < GI_MIN_CARBS_G = 10), mixture (False for food_gl, whose GI is the
+food's own) and uncooked [{name, recipe_id, recipe}]. looks_uncooked()
+matches raw|uncooked|unprepared|dry|flour, not "dried"; checked only for a
+recipe's direct ingredients whose GI counts with >= 1 g carbs, unless the
+recipe's new recipes.gi_as_eaten column is set (POST
+/recipe/{id}/gi-as-eaten). combine_gl() merges the flags. Method and
+cautions from glycemic-index-food-mixture.md (Dodd 2011, Spolar 2006 —
+new footnotes 94, 95). New manual section #mixture-gi.
+```
+
+-->
+
+**PROGRAM: GLYCEMIC LOAD USES AVAILABLE CARBOHYDRATE**
+
+Glycemic load now counts only available carbohydrate, the part that's digested to glucose, as GI itself is defined. Foods from USDA, the Canadian table, Open Food Facts and your own entries have their fiber taken off; the UK, Australian and French tables already leave it out. High-fiber foods such as beans now show a lower, more accurate GL. [learn more...](#glycemic)
+
+<!--
+
+```
+Scope: every GL figure, Top Contributors' GL ranking and lower-GL swaps.
+glycemic_load.available_carbs_100g(nutrients, fdc_id): carbs_g as stored
+for CoFID/AFCD/CIQUAL (food_ids.source_key(), new), else max(carbs_g -
+fiber_g, 0); used by _food_share() (now takes fdc_id), top_contributors
+rank_contributors_by_gl() and gl_swaps.suggest_swaps(). Older food
+versions are treated as total carbohydrate (nearly all USDA). EU products
+on OFF already exclude fiber, so they now read low by their fiber — the
+label doesn't say which convention it uses. data_quality's
+GI_LIST_MIN_CARBS check still uses total carbs (deliberately unchanged).
+```
+
+-->
 
 **MANUAL: BOOKMARKS IN THE MANUAL**
 
@@ -9108,6 +9240,10 @@ paragraph promoted to a heading). No behaviour change beyond the new panel.
 [^92]: Flint, A., Møller, B. K., Raben, A. et al. "The use of glycaemic index tables to predict glycaemic index of composite breakfast meals." *British Journal of Nutrition* 91(6):979–989, 2004. https://doi.org/10.1079/BJN20041124 — 28 healthy young men ate 13 breakfasts, each with 50 g available carbohydrate but very different in energy, fat and protein. The meal GI predicted from the tables showed no association with the GI actually measured, and the more energy and fat a meal held, the lower its measured GI.
 
 [^93]: Östman, E., Granfeldt, Y., Persson, L. & Björck, I. "Vinegar supplementation lowers glucose and insulin responses and increases satiety after a bread meal in healthy subjects." *European Journal of Clinical Nutrition* 59(9):983–988, 2005. https://doi.org/10.1038/sj.ejcn.1602197 — In 12 healthy volunteers, white bread eaten with vinegar gave a lower blood glucose rise at 30 and 45 minutes, and a lower insulin response, than the same bread alone, more so at higher doses. Small, short-term, and about vinegar's acetic acid specifically; NuMa's mention of lemon rests on the same reasoning (acid) rather than its own study.
+
+[^94]: Dodd, H., Williams, S., Brown, R. & Venn, B. "Calculating meal glycemic index by using measured and published food values compared with directly measured meal glycemic index." *American Journal of Clinical Nutrition* 94(4):992–996, 2011. — 30 healthy adults ate three meals of 50 g carbohydrate each. The meal GI calculated from the foods' GIs was 22–50% higher than the GI measured for the whole meal.
+
+[^95]: Spolar, M., Gibbs, A. L., Wolever, T. M. S., Hitchner, E. V. & Heimowitz, C. "Equivalent glycemic load (EGL): a method for quantifying the glycemic responses elicited by low carbohydrate foods." *Nutrition & Metabolism* 3:33, 2006. https://doi.org/10.1186/1743-7075-3-33 — Repeating the same portion of white bread in the same people, the response varied by about 65% (coefficient of variation) with 5 g carbohydrate, against about 31% with 20 g. The authors also note that glycemic load can't be used directly for low-carbohydrate foods, and propose a measured alternative.
 
 
 ---

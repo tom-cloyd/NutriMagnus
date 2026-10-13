@@ -52,6 +52,7 @@
         <option value="name"     {% if sort == "name"     %}selected{% endif %}>Name</option>
         <option value="meal_bcp" {% if sort == "meal_bcp" %}selected{% endif %}>Meal DCP</option>
         <option value="calories" {% if sort == "calories" %}selected{% endif %}>Calories</option>
+        {% if show_gl_col %}<option value="gl"       {% if sort == "gl"       %}selected{% endif %}>Glycemic load (GL)</option>{% endif %}
       </select>
     </div>
   </form>
@@ -111,6 +112,7 @@ pinned to, or, with the <strong>current profile</strong> switch under its date t
       <th class="num-col" title="Sum of DCP across all meals with computed data on this date (marked * if any meal isn't complete yet)">Day<br>DCP</th>
       {% if show_pct_col %}<th class="num-col" title="Day DCP ÷ that date's own protein target (minimum — meet or exceed)">% of<br>goal (min)</th>{% endif %}
       <th class="num-col">Calories</th>
+      {% if show_gl_col %}<th class="num-col" title="Glycemic load of the whole meal, on the per-serving scale (Low 10 or under, Medium 11-19, High 20 or more)">GL</th>{% endif %}
       {% if show_profile_col %}<th title="Profile this date is scored against">Profile</th>{% endif %}
       {% for col in meal_nutrient_cols %}
       <th class="num-col" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
@@ -169,6 +171,15 @@ pinned to, or, with the <strong>current profile</strong> switch under its date t
           <span class="muted">—</span>
         {% endif %}
       </td>
+      {% if show_gl_col %}
+      <td class="num-col" style="white-space:nowrap">
+        {% set g = meal.gl %}
+        {% if g.total is not none and g.complete %}{{ "%.1f"|format(g.total) }}<br><small class="muted">{{ gl_band(g.total) }}</small>
+        {% elif g.total is not none %}<span title="Some foods in this meal have carbohydrate but no GI, so the true figure is higher">&ge;&thinsp;{{ "%.1f"|format(g.total) }}</span><br><small class="muted" title="Share of this meal&rsquo;s carbohydrate that comes from foods with a GI value">{{ g.coverage_pct }}% with GI</small>
+        {% elif g.gaps %}<span class="muted" title="No food with carbohydrate in this meal has a GI value">no GI</span>
+        {% else %}<span class="muted">—</span>{% endif %}
+      </td>
+      {% endif %}
       {% if show_profile_col %}
       <td>
         {% if meal.first_of_date %}
@@ -204,6 +215,7 @@ pinned to, or, with the <strong>current profile</strong> switch under its date t
   </tbody>
 </table>
 <p class="muted"><small>* Day DCP / % goal includes a meal not yet marked complete — the total may change as you keep editing that meal.</small></p>
+{% if show_gl_col %}<p class="muted"><small>GL = the meal&rsquo;s glycemic load, read on the per-serving scale: Low 10 or under, Medium 11&ndash;19, High 20 or more. &ge; and &ldquo;% with GI&rdquo; = some foods in the meal have carbohydrate but no GI value, so the true figure is higher; the % is the share of the meal&rsquo;s carbohydrate that does have one (see <a href="/food/cache/db-check#missing-gi">foods you use with no GI</a>). &ldquo;no GI&rdquo; = none of them has one. {{ manual_link("glycemic") }}</small></p>{% endif %}
 
 {% else %}
 <p class="muted mt-2">

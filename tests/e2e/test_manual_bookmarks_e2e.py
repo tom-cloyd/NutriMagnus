@@ -20,6 +20,12 @@ def _goto(page, base, anchor, heading_words):
     page.wait_for_function(
         "w => document.getElementById('bm-toggle').title.indexOf(w) !== -1", arg=heading_words
     )
+    # Let the jump settle before the caller's next one. Chromium drops a
+    # #fragment jump that comes within about 150 ms of the previous one (it
+    # changes the URL but never scrolls); measured 2026-10-13, when the
+    # manual grew enough for the next _goto() to land in that window and
+    # time out. Real clicks are never that fast.
+    page.wait_for_timeout(300)
 
 
 def test_bookmark_list_toc_marks_remove_and_clear(live_server, page):

@@ -74,6 +74,18 @@ def classify_food_id(fdc_id: int | None, recipe_id: int | None = None) -> tuple[
     return f"UD{-fdc_id}", "User-drafted"
 
 
+def source_key(fdc_id: int | None) -> str | None:
+    """The outside source a synthetic fdc_id belongs to ("off", "cnf",
+    "cofid", "afcd", "ciqual"), or None for USDA, user-drafted, an older
+    version, or no id. Pure arithmetic on the id — no DB lookup."""
+    if fdc_id is None:
+        return None
+    for key, start, end, _label in _SYNTHETIC_ID_RANGES:
+        if start <= fdc_id <= end:
+            return key
+    return None
+
+
 def _split_version(code: str) -> tuple[str, int | None]:
     """"U171477.2" -> ("U171477", 2); a code with no ".n" -> (code, None)."""
     base, dot, ver = code.rpartition(".")

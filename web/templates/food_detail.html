@@ -199,7 +199,7 @@
   {% if has_annotation %}
   <div class="d-flex flex-wrap align-items-center gap-2 mb-2" id="annotation-status">
     {# A set GI is already shown in full in the GI / GL paragraph above. #}
-    <span>{% if gi_estimate is none %}GI not set / {% endif %}DIAAS {% if diaas_estimate is not none %}set at <strong>{{ "%.2f" | format(diaas_estimate) }}</strong>{% else %}not set{% endif %}</span>
+    <span>{% if gi_estimate is none %}GI not set / {% endif %}DIAAS {% if diaas_estimate is not none %}set at <strong>{{ "%.2f" | format(diaas_estimate) }}</strong>{% if diaas_source %} <small class="muted">&mdash; value taken from: {{ diaas_source }}</small>{% endif %}{% else %}not set{% endif %}</span>
     <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}" class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
   </div>
   {% endif %}

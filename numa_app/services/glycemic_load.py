@@ -2,18 +2,28 @@
 glycemic_load.py — glycemic load (GL) for foods, recipes, meals and days,
 used by the web backend (backend.py).
 
-GL = GI x carbohydrate grams / 100, summed over every food eaten. A recipe's GL
+GL = GI x available carbohydrate grams / 100, summed over every food eaten
+(available_carbs_100g() — fiber excluded, as GI tables measure it). A recipe's GL
 is worked out live from its ingredients, through any sub-recipes, rather than
 read from a saved figure, so it is never stale and never missing just because
 nobody "analyzed" the recipe. A food with no GI value can't be counted; instead
 of hiding the whole figure, the result keeps the GL of everything that could be
 counted and lists each food that couldn't, with the reason — so a page can say
 "at least 14.2, incomplete" and name what is missing.
+
+Every result from more than one food also carries an estimated GI of the
+mixture — the carbohydrate-weighted average of its foods' GIs, which is just
+100 x GL / carbohydrate with a GI — with the conditions that go with it: the
+share of carbohydrate it covers, a floor below which it isn't given
+(GI_MIN_CARBS_G), and any recipe ingredients whose GI may not describe them
+as eaten (looks_uncooked()).
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/glycemic_load.py — GL aggregation"
 """
 import json
+import re
 
 import db as _db
+from numa_app.services.food_ids import source_key
 from numa_app.services.rda_status import rda_status
 
 # A food without a GI whose carbohydrate in the amount eaten is under this
@@ -22,6 +32,78 @@ from numa_app.services.rda_status import rda_status
 # acid data (recipe_dcp.py), so a pinch of spice or a splash of oil never
 # makes a recipe's GL "incomplete".
 NEGLIGIBLE_CARBS_G = 1.0
+
+# Below this much available carbohydrate a meal's or recipe's GI isn't given.
+# GI is measured on 25-50 g portions; at 5 g, one person's response to the
+# same food varies by about 65% from test to test (Spolar et al. 2006, CV
+# 65 +/- 25% at 5 g vs 31 +/- 16% at 20 g) — see user-manual.md #mixture-gi.
+GI_MIN_CARBS_G = 10.0
+
+# GI bands (Atkinson et al. 2021): Low 55 or under, Medium 56-69, High 70 or
+# over. A figure within GI_NEAR_BAND of a boundary is reported as close to
+# the neighbouring band: a calculated meal GI isn't precise enough for 54 and
+# 57 to be told apart (Dodd et al. 2011 found it 22-50% above measured).
+GI_LOW_MAX = 55
+GI_MEDIUM_MAX = 69
+GI_NEAR_BAND = 5
+
+# Sources whose carbs_g is already available carbohydrate (fiber not in it):
+# UK CoFID, Australian AFCD and French CIQUAL all report it that way. USDA and
+# CNF report total carbohydrate by difference, which includes fiber; so do US
+# food labels, which most Open Food Facts and user-drafted foods come from.
+# (An EU product on OFF already excludes fiber, so subtracting it there
+# understates its carbohydrate — the label doesn't say which it is.) An older
+# version of a food (db.create_food_version) is treated as total: nearly all
+# are USDA refreshes.
+_AVAILABLE_CARB_SOURCES = {"cofid", "afcd", "ciqual"}
+
+# A recipe ingredient whose name says it is raw, dry, uncooked or a flour may
+# be eaten in a different form from the one its GI describes — cooking,
+# baking and grinding change how fast starch is digested, so flour + water +
+# yeast is not bread. Dried fruit ("Apricots, dried, uncooked") is eaten as
+# it is, so "dried" in a name cancels the match. A heuristic: it misses a
+# food whose name doesn't say (a branded "SMALL RED BEANS"), and it flags
+# raw fruit that really is eaten raw — hence recipes.gi_as_eaten.
+_UNCOOKED_RE = re.compile(r"\b(raw|uncooked|unprepared|dry|flour)\b", re.I)
+_DRIED_RE = re.compile(r"\bdried\b", re.I)
+
+
+def looks_uncooked(name: str | None) -> bool:
+    """True if a food's name says it is raw, dry, uncooked or a flour (see
+    _UNCOOKED_RE) — and not dried fruit."""
+    return bool(name) and bool(_UNCOOKED_RE.search(name)) and not _DRIED_RE.search(name)
+
+
+def available_carbs_100g(nutrients: dict, fdc_id: int | None = None) -> float:
+    """Available carbohydrate per 100 g — what GI and GL are defined on.
+    carbs_g as stored, for a source that already reports it that way
+    (_AVAILABLE_CARB_SOURCES); otherwise carbs_g minus fiber_g, never below
+    zero. A food with no fiber figure keeps its whole carbs_g."""
+    carbs = nutrients.get("carbs_g") or 0.0
+    if source_key(fdc_id) in _AVAILABLE_CARB_SOURCES:
+        return carbs
+    return max(carbs - (nutrients.get("fiber_g") or 0.0), 0.0)
+
+
+def gi_band(gi: float | None) -> str | None:
+    """"Low" / "Medium" / "High" for a GI figure, or None."""
+    if gi is None:
+        return None
+    if gi <= GI_LOW_MAX:
+        return "Low"
+    return "Medium" if gi <= GI_MEDIUM_MAX else "High"
+
+
+def gi_near_band(gi: float | None) -> str | None:
+    """The neighbouring band a GI figure is within GI_NEAR_BAND of, or None."""
+    if gi is None:
+        return None
+    for boundary, below, above in ((GI_LOW_MAX + 0.5, "Low", "Medium"),
+                                   (GI_MEDIUM_MAX + 0.5, "Medium", "High")):
+        if abs(gi - boundary) < GI_NEAR_BAND:
+            return above if gi < boundary else below
+    return None
+
 
 # Why a food's share of the GL could not be counted (gap["reason"]).
 GAP_NO_GI      = "no_gi"       # no GI recorded yet
@@ -76,11 +158,17 @@ def _add_gap(gaps: list[dict], gap: dict) -> None:
 
 def _new_acc() -> dict:
     """Running tallies behind a result's coverage and population fields."""
-    return {"with_gi": 0.0, "counted": 0.0, "impaired": []}
+    return {"with_gi": 0.0, "counted": 0.0, "impaired": [], "uncooked": []}
+
+
+def _add_uncooked(acc: dict, entry: dict) -> None:
+    if all((u["name"], u["recipe_id"]) != (entry["name"], entry["recipe_id"]) for u in acc["uncooked"]):
+        acc["uncooked"].append(entry)
 
 
 def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool,
-                acc: dict | None = None, name: str | None = None) -> tuple[float, str | None]:
+                acc: dict | None = None, name: str | None = None,
+                fdc_id: int | None = None, in_recipe: dict | None = None) -> tuple[float, str | None]:
     """(GL of `grams` of a food, gap reason or None). A food with no
     carbohydrate value at all (an oil, say) counts as carbohydrate-free, the
     same as every other nutrient total treats it.
@@ -88,8 +176,13 @@ def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool,
     `acc`, when given (see _new_acc()), collects carbs with a GI and carbs
     that count, for the coverage figure (see _result()) — a negligible amount
     and a food whose GI is "not wanted" count in neither — and `name` when
-    the GI counted was measured in people with impaired glucose tolerance."""
-    carbs_g = (nutrients.get("carbs_g") or 0.0) * grams / 100.0
+    the GI counted was measured in people with impaired glucose tolerance.
+
+    Carbohydrate here is available carbohydrate (available_carbs_100g()).
+    in_recipe ({"id", "name"}) is the recipe this food is a direct ingredient
+    of, when that recipe's ingredients are being checked for looks_uncooked();
+    a match whose GI counts is noted in acc["uncooked"]."""
+    carbs_g = available_carbs_100g(nutrients, fdc_id) * grams / 100.0
     if ann is not None and ann["gi_estimate"] is not None:
         if acc is not None:
             acc["with_gi"] += carbs_g
@@ -97,6 +190,9 @@ def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool,
             if (name and carbs_g >= NEGLIGIBLE_CARBS_G and gi_measured_impaired(_ann_source(ann))
                     and name not in acc["impaired"]):
                 acc["impaired"].append(name)
+            if in_recipe and carbs_g >= NEGLIGIBLE_CARBS_G and looks_uncooked(name):
+                _add_uncooked(acc, {"name": name, "fdc_id": fdc_id, "recipe_id": in_recipe["id"],
+                                    "recipe": in_recipe["name"]})
         return ann["gi_estimate"] * carbs_g / 100.0, None
     if carbs_g < NEGLIGIBLE_CARBS_G:
         return 0.0, None
@@ -106,10 +202,13 @@ def _food_share(nutrients: dict, grams: float, ann, gi_opt_out: bool,
     return 0.0, GAP_NOT_WANTED if not_wanted else GAP_NO_GI
 
 
-def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out, acc) -> float:
+def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out, acc,
+                in_recipe: dict | None = None) -> float:
     """GL of `line_items` x `scale`, appending a gap per item that can't be
     counted. `seen` holds the recipes already being expanded on this path, so
-    a reference cycle stops instead of recursing forever."""
+    a reference cycle stops instead of recursing forever. in_recipe: see
+    _food_share() — set for a recipe's own ingredients unless that recipe is
+    marked gi_as_eaten; each recipe's mark covers its direct ingredients only."""
     food_ids = [li["fdc_id"] for li in line_items if li["kind"] == "food" and li.get("fdc_id")]
     ann_map = _db.annotations_for_fdcids(conn, food_ids) if food_ids else {}
     total = 0.0
@@ -127,9 +226,10 @@ def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out, acc) -> float:
             if rid in seen:
                 continue
             servings = recipe["servings"] or 1
+            check = None if recipe["gi_as_eaten"] else {"id": rid, "name": recipe["name"]}
             total += _accumulate(_ingredient_line_items(conn, rid), conn,
                                  scale * (li["amount"] or 0.0) / servings,
-                                 seen | {rid}, gaps, gi_opt_out, acc)
+                                 seen | {rid}, gaps, gi_opt_out, acc, check)
             continue
 
         cached = _db.get_cached_food(conn, li["fdc_id"]) if li.get("fdc_id") else None
@@ -138,16 +238,19 @@ def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out, acc) -> float:
             continue
         share, reason = _food_share(json.loads(cached["nutrients_json"]),
                                     (li["amount"] or 0.0) * scale,
-                                    ann_map.get(li["fdc_id"]), gi_opt_out, acc, li["name"])
+                                    ann_map.get(li["fdc_id"]), gi_opt_out, acc, li["name"],
+                                    li["fdc_id"], in_recipe)
         total += share
         if reason:
             gap(li["name"], li["fdc_id"], None, reason)
     return total
 
 
-def _result(total: float, gaps: list[dict], acc: dict | None = None) -> dict:
+def _result(total: float, gaps: list[dict], acc: dict | None = None,
+            mixture: bool = True) -> dict:
     """{"total", "complete", "gaps", "carbs_with_gi_g", "carbs_g", "coverage_pct",
-    "impaired"}.
+    "impaired", "mixture", "gi", "gi_band", "gi_near", "gi_too_little_carb",
+    "uncooked"}.
     total is the GL of everything that could be counted, rounded — a lower
     bound when gaps is non-empty — or None when nothing with carbohydrate
     could be counted at all ("at least 0" would say nothing). complete is
@@ -158,9 +261,19 @@ def _result(total: float, gaps: list[dict], acc: dict | None = None) -> dict:
     meal's carbohydrate" — or None when there is none to cover.
 
     impaired names the counted foods whose GI was measured in people with
-    impaired glucose tolerance or diabetes (gi_measured_impaired())."""
+    impaired glucose tolerance or diabetes (gi_measured_impaired()).
+
+    gi is the estimated GI of the mixture: carbohydrate-weighted mean of the
+    GIs that count, = 100 x total / carbs_with_gi_g, so when coverage is under
+    100 it describes only that share. None when nothing with a GI counted, or
+    when the carbohydrate here is under GI_MIN_CARBS_G (gi_too_little_carb is
+    then True). mixture is False for a single food (food_gl()), whose "GI"
+    is just its own. uncooked: [{"name", "recipe_id", "recipe"}], recipe
+    ingredients whose GI may not describe them as eaten (looks_uncooked())."""
     acc = acc or _new_acc()
     with_gi, counted = acc["with_gi"], acc["counted"]
+    too_little = counted < GI_MIN_CARBS_G
+    gi = round(100.0 * total / with_gi) if with_gi > 0 and not too_little else None
     return {
         "total":    None if gaps and total <= 0 else round(total, 1),
         "complete": not gaps,
@@ -169,6 +282,12 @@ def _result(total: float, gaps: list[dict], acc: dict | None = None) -> dict:
         "carbs_g":         round(counted, 1),
         "coverage_pct":    round(with_gi / counted * 100) if counted > 0 else None,
         "impaired":        list(acc["impaired"]),
+        "mixture":            mixture,
+        "gi":                 gi,
+        "gi_band":            gi_band(gi),
+        "gi_near":            gi_near_band(gi),
+        "gi_too_little_carb": too_little and with_gi > 0,
+        "uncooked":           list(acc.get("uncooked", [])),
     }
 
 
@@ -201,7 +320,8 @@ def gl_for_leaves(leaves: list[dict], conn, *, gi_opt_out: bool = False) -> dict
     total = 0.0
     for lf in leaves:
         share, reason = _food_share(lf["nutrients_100g"], lf["grams"],
-                                    ann_map.get(lf.get("fdc_id")), gi_opt_out, acc, lf["food_name"])
+                                    ann_map.get(lf.get("fdc_id")), gi_opt_out, acc, lf["food_name"],
+                                    lf.get("fdc_id"))
         total += share
         if reason:
             _add_gap(gaps, {"name": lf["food_name"], "fdc_id": lf.get("fdc_id"),
@@ -214,9 +334,9 @@ def food_gl(name: str, fdc_id: int, nutrients: dict, grams: float, ann, *,
     """GL of `grams` of one food, from nutrients and an annotation row the
     caller already has (the food page may show a food not yet cached)."""
     acc = _new_acc()
-    share, reason = _food_share(nutrients, grams, ann, gi_opt_out, acc, name)
+    share, reason = _food_share(nutrients, grams, ann, gi_opt_out, acc, name, fdc_id)
     gaps = [{"name": name, "fdc_id": fdc_id, "recipe_id": None, "reason": reason}] if reason else []
-    return _result(share, gaps, acc)
+    return _result(share, gaps, acc, mixture=False)
 
 
 def recipe_gl(conn, recipe_id: int, servings: float = 1.0, *, gi_opt_out: bool = False) -> dict:
@@ -241,7 +361,11 @@ def combine_gl(results: list[dict]) -> dict:
             _add_gap(gaps, g)
     acc = {"with_gi": sum(r.get("carbs_with_gi_g", 0.0) for r in results),
            "counted": sum(r.get("carbs_g", 0.0) for r in results),
-           "impaired": list(dict.fromkeys(n for r in results for n in r.get("impaired", [])))}
+           "impaired": list(dict.fromkeys(n for r in results for n in r.get("impaired", []))),
+           "uncooked": []}
+    for r in results:
+        for u in r.get("uncooked", []):
+            _add_uncooked(acc, u)
     return _result(total, gaps, acc)
 
 

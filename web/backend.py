@@ -5080,6 +5080,7 @@ async def food_annotate_edit_post(
     gi_estimate:     str = Form(""),
     gi_source:       str = Form(""),
     diaas_estimate:  str = Form(""),
+    diaas_source:    str = Form(""),
     prep_context:    str = Form(""),
     gi_no_prompt:    str = Form(""),
     diaas_no_prompt: str = Form(""),
@@ -5089,9 +5090,11 @@ async def food_annotate_edit_post(
     dias = float(diaas_estimate) if diaas_estimate.strip() else None
     prep = prep_context.strip() or None
     # gi_source is filled in by the reference-table lookup on the page (and
-    # cleared by it if the GI box is then hand-edited), so it arrives as
-    # ordinary form text -- trimmed to a sane length before it is stored.
+    # cleared by it if the GI box is then hand-edited), or typed by the user;
+    # diaas_source is always typed. Both arrive as ordinary form text --
+    # trimmed to a sane length before they are stored.
     src  = " ".join(gi_source.split())[:300] or None
+    dsrc = " ".join(diaas_source.split())[:300] or None
     keep_gi_no_prompt = _gi_opt_out()
     with _db.get_db() as conn:
         if keep_gi_no_prompt:
@@ -5111,6 +5114,7 @@ async def food_annotate_edit_post(
             diaas_estimate=dias,
             diaas_no_prompt=bool(diaas_no_prompt),
             prep_context=prep,
+            diaas_source=dsrc,
         )
         # An annotation is an edit (owner's decision) — see foods.user_edited.
         if gi is not None or dias is not None or prep:
@@ -5302,6 +5306,7 @@ def _food_detail_context(
         "gi_estimate":        gi_estimate,
         "gi_source":          gi_source,
         "diaas_estimate":     ann["diaas_estimate"] if ann else None,
+        "diaas_source":       (ann["diaas_source"] if ann and ann["diaas_estimate"] is not None else None),
         "gl_100g":            gl_100g,
         "gl_portion":         gl_portion,
     }
@@ -6658,6 +6663,15 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
         else:
             m["day_pct"] = None
 
+    # Each meal's glycemic load, worked out live (nothing is stored); hidden
+    # with every other GL figure when GI is turned off in Settings. The GL
+    # sort (meals_list) has usually worked these out already.
+    show_gl_col = not _gi_opt_out()
+    if show_gl_col:
+        for m in meals:
+            if "gl" not in m:
+                m["gl"] = _compute_gl(m["id"])
+
     return {
         "meals":          meals,
         "total":          total,
@@ -6670,10 +6684,25 @@ def _meals_list_ctx(meals_rows, limit: int, total: int, before_date: str | None,
         "show_pct_col":   show_pct_col,
         "show_profile_col": show_profile_col,
         "meal_nutrient_cols": meal_nutrient_cols,
+        "show_gl_col":    show_gl_col,
     }
 
 
-_MEALS_SORT_KEYS = {"date", "name", "meal_bcp", "calories"}
+_MEALS_SORT_KEYS = {"date", "name", "meal_bcp", "calories", "gl"}
+
+
+def _meals_sorted_by_gl(limit: int, before_date: str | None) -> list[dict]:
+    """The `limit` meals with the highest glycemic load. GL isn't stored, so
+    every meal in range is worked out and sorted here rather than in SQL: an
+    incomplete figure sorts by the part that could be counted (a lower
+    bound), and a meal with no figure at all goes last, newest first."""
+    with _db.get_db() as conn:
+        rows = [dict(r) for r in _db.meal_list_recent(conn, limit=-1, before_date=before_date)]
+    for m in rows:
+        m["gl"] = _compute_gl(m["id"])
+    # Stable sort: ties keep meal_list_recent()'s newest-first order.
+    rows.sort(key=lambda m: (m["gl"]["total"] is None, -(m["gl"]["total"] or 0.0)))
+    return rows[:limit]
 
 
 @app.get("/meals", response_class=HTMLResponse)
@@ -6681,9 +6710,14 @@ async def meals_list(request: Request, limit: int = 9, date: str = "", sort: str
     sort = _resolve_sort(sort, "sort_meals", "date", _MEALS_SORT_KEYS)
     before_date = date.strip() or None
     limit = max(1, limit)
+    if sort == "gl" and _gi_opt_out():
+        sort = "date"
     with _db.get_db() as conn:
-        meals_rows = _db.meal_list_recent(conn, limit=limit, before_date=before_date, sort=sort)
+        meals_rows = (None if sort == "gl" else
+                      _db.meal_list_recent(conn, limit=limit, before_date=before_date, sort=sort))
         total = _db.meal_count_recent(conn, before_date=before_date)
+    if sort == "gl":
+        meals_rows = _meals_sorted_by_gl(limit, before_date)
     return templates.TemplateResponse(request, "meals.html",
                                       _meals_list_ctx(meals_rows, limit, total, before_date, sort))
 
@@ -9673,6 +9707,16 @@ async def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = 
             _db.set_recipe_is_drink(conn, recipe_id, bool(is_drink))
             _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(_local_next(next, f"/recipe/{recipe_id}#drink-toggle"), status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/gi-as-eaten", response_class=RedirectResponse)
+async def recipe_set_gi_as_eaten(recipe_id: int, as_eaten: int = Form(0), next: str = Form("")):
+    """Say this recipe's raw/dry/flour ingredients are eaten as they are, so
+    its estimated GI stops flagging them — or start flagging them again."""
+    with _db.get_db() as conn:
+        if _db.recipe_get(conn, recipe_id):
+            _db.set_recipe_gi_as_eaten(conn, recipe_id, bool(as_eaten))
+    return RedirectResponse(_local_next(next, f"/recipe/{recipe_id}#sec-glycemic"), status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/archive", response_class=RedirectResponse)

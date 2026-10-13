@@ -16,7 +16,7 @@ import json
 import re
 
 import db as _db
-from numa_app.services.glycemic_load import gi_measured_impaired
+from numa_app.services.glycemic_load import available_carbs_100g, gi_measured_impaired
 
 # A suggestion's GI must be at least this much lower than the original's:
 # GI values are measured with a spread of several points, so a smaller
@@ -43,7 +43,7 @@ def suggest_swaps(conn, gl_items: list[dict], *, max_items: int = 2, per_item: i
     pool = []
     for r in _db.foods_with_gi(conn):
         nuts = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
-        carbs = nuts.get("carbs_g") or 0.0
+        carbs = available_carbs_100g(nuts, r["fdc_id"])
         if carbs > 0:
             pool.append((r["fdc_id"], r["name"], carbs, r["gi_estimate"], _tokens(r["name"]),
                          gi_measured_impaired(r["gi_source"])))

@@ -127,6 +127,7 @@ def init_db() -> None:
                 gi_source       TEXT,
                 gi_no_prompt    INTEGER DEFAULT 0,
                 diaas_estimate  REAL,
+                diaas_source    TEXT,
                 diaas_no_prompt INTEGER DEFAULT 0,
                 prep_context    TEXT,
                 -- 1 once the user has saved the Annotate form for this food,
@@ -264,7 +265,8 @@ def init_db() -> None:
         # personal preference, not a data edit, so has_user_annotation()
         # deliberately ignores it.
         for _col in ("gi_no_prompt INTEGER DEFAULT 0", "diaas_no_prompt INTEGER DEFAULT 0",
-                     "gi_source TEXT", "reviewed INTEGER DEFAULT 0", "max_meal_g REAL"):
+                     "gi_source TEXT", "reviewed INTEGER DEFAULT 0", "max_meal_g REAL",
+                     "diaas_source TEXT"):
             try:
                 conn.execute(f"ALTER TABLE food_annotations ADD COLUMN {_col}")
             except sqlite3.OperationalError:
@@ -592,6 +594,14 @@ def init_db() -> None:
             conn.execute("UPDATE foods SET is_drink = 1 WHERE lower(name) LIKE 'beverages,%'")
         try:
             conn.execute("ALTER TABLE recipes ADD COLUMN is_drink INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        # recipes.gi_as_eaten: the user has said this recipe's ingredients are
+        # eaten in the form their GI describes (a smoothie of raw fruit), so
+        # its GI stops flagging raw/dry/flour ingredients — see
+        # glycemic_load.looks_uncooked().
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN gi_as_eaten INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
         # recipes.updated_at: when the recipe's content last changed — its own
@@ -943,6 +953,12 @@ def set_recipe_is_drink(conn: sqlite3.Connection, recipe_id: int, is_drink: bool
     conn.execute("UPDATE recipes SET is_drink = ? WHERE id = ?", (1 if is_drink else 0, recipe_id))
 
 
+def set_recipe_gi_as_eaten(conn: sqlite3.Connection, recipe_id: int, as_eaten: bool) -> None:
+    """Mark a recipe's ingredients as eaten in the form their GI describes
+    (stops the uncooked-ingredient flag on its GI), or clear the mark."""
+    conn.execute("UPDATE recipes SET gi_as_eaten = ? WHERE id = ?", (1 if as_eaten else 0, recipe_id))
+
+
 def food_references(conn: sqlite3.Connection, fdc_id: int) -> dict[str, list[int]]:
     """Return the ids of pantry entries, recipes, and meals still referencing this food.
 
@@ -1257,6 +1273,7 @@ def upsert_food_annotation(
     diaas_no_prompt: int | None = None,
     prep_context: str | None = None,
     gi_source: str | None = None,
+    diaas_source: str | None = None,
 ) -> None:
     """Update annotation fields for a food. Pass None to leave a field unchanged.
     gi_no_prompt / diaas_no_prompt: 0 = re-enable prompts, 1 = suppress prompts.
@@ -1264,12 +1281,12 @@ def upsert_food_annotation(
     Any caller writing gi_estimate should write gi_source too (even to say where
     a hand-typed value came from): the fields are only meaningful together, and
     leaving gi_source alone here would keep an older value's provenance beside a
-    new number."""
+    new number. The same goes for diaas_estimate and diaas_source."""
     conn.execute("""
         INSERT INTO food_annotations
             (fdc_id, gi_estimate, gi_source, gi_no_prompt, diaas_estimate, diaas_no_prompt,
-             prep_context, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+             prep_context, diaas_source, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(fdc_id) DO UPDATE SET
             gi_estimate     = COALESCE(excluded.gi_estimate,     gi_estimate),
             gi_source       = COALESCE(excluded.gi_source,       gi_source),
@@ -1277,9 +1294,10 @@ def upsert_food_annotation(
             diaas_estimate  = COALESCE(excluded.diaas_estimate,  diaas_estimate),
             diaas_no_prompt = COALESCE(excluded.diaas_no_prompt, diaas_no_prompt),
             prep_context    = COALESCE(excluded.prep_context,    prep_context),
+            diaas_source    = COALESCE(excluded.diaas_source,    diaas_source),
             updated_at      = datetime('now')
     """, (fdc_id, gi_estimate, gi_source, gi_no_prompt, diaas_estimate, diaas_no_prompt,
-          prep_context))
+          prep_context, diaas_source))
 
 
 def set_food_annotation(
@@ -1293,6 +1311,7 @@ def set_food_annotation(
     prep_context: str | None,
     gi_source: str | None = None,
     reviewed: bool = True,
+    diaas_source: str | None = None,
 ) -> None:
     """Write all annotation fields at once (explicit NULLs clear existing values).
     Use this for web forms; use upsert_food_annotation for a single field-at-a-time update.
@@ -1304,15 +1323,19 @@ def set_food_annotation(
     write annotation values without counting as a review.
 
     gi_source is the provenance of gi_estimate — the reference-table row a value
-    was picked from (see gi_lookup.py). It is descriptive text only, and is
-    meaningless without gi_estimate, so it is dropped whenever that is None."""
+    was picked from (see gi_lookup.py), or whatever the user typed for a value
+    entered by hand. It is descriptive text only, and is meaningless without
+    gi_estimate, so it is dropped whenever that is None. diaas_source is the
+    same for diaas_estimate (always typed — there is no DIAAS lookup)."""
     if gi_estimate is None:
         gi_source = None
+    if diaas_estimate is None:
+        diaas_source = None
     conn.execute("""
         INSERT INTO food_annotations
             (fdc_id, gi_estimate, gi_source, gi_no_prompt, diaas_estimate, diaas_no_prompt,
-             prep_context, reviewed, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+             prep_context, reviewed, diaas_source, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
         ON CONFLICT(fdc_id) DO UPDATE SET
             gi_estimate     = excluded.gi_estimate,
             gi_source       = excluded.gi_source,
@@ -1320,6 +1343,7 @@ def set_food_annotation(
             diaas_estimate  = excluded.diaas_estimate,
             diaas_no_prompt = excluded.diaas_no_prompt,
             prep_context    = excluded.prep_context,
+            diaas_source    = excluded.diaas_source,
             -- Never un-reviews a food: a later non-review write (a GI seed
             -- import, say) must not make an already-settled food start
             -- interrupting again.
@@ -1327,7 +1351,7 @@ def set_food_annotation(
             updated_at      = datetime('now')
     """, (fdc_id, gi_estimate, gi_source, 1 if gi_no_prompt else 0,
           diaas_estimate, 1 if diaas_no_prompt else 0, prep_context,
-          1 if reviewed else 0))
+          1 if reviewed else 0, diaas_source))
     # Clearing the last annotation can end a food's user-edited status.
     refresh_user_edited(conn, fdc_id)
 

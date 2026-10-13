@@ -266,7 +266,8 @@ class TestGiDiaas:
         with _db.get_db() as conn:
             ann = _db.get_food_annotation(conn, 170115)
             assert (ann["gi_estimate"], ann["gi_source"], ann["diaas_estimate"]) == (78.0, "Atkinson 2021", 0.85)
-            assert "DIAAS source: calc" in _db.get_cached_food(conn, 170115)["notes"]
+            assert ann["diaas_source"] == "calc"
+            assert "DIAAS source" not in (_db.get_cached_food(conn, 170115)["notes"] or "")
             second = [self._food(gi=60, diaas=0.5)]
             assert _cf.plan_import(conn, second)[0]["ann_keep"] == ["gi", "diaas"]
             _cf.import_foods(conn, second, None)
@@ -277,3 +278,4 @@ class TestGiDiaas:
         with _db.get_db() as conn:
             ann = _db.get_food_annotation(conn, 170115)
             assert (ann["gi_estimate"], ann["diaas_estimate"]) == (60.0, 0.5)
+            assert (ann["gi_source"], ann["diaas_source"]) == ("Claude AI reply", "Claude AI reply")
