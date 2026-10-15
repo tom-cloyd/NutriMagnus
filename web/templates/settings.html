@@ -159,7 +159,10 @@
     </div>
     {% endif %}
 
-    <div class="mb-3">
+    {# Hidden, not left out, while glycemic load is off (Settings → 8):
+       the profile form must still carry the saved target, or saving the
+       profile would clear it. #}
+    <div class="mb-3" {% if not show_gl() %}hidden{% endif %}>
       <label for="gl_day_target" class="form-label">Daily glycemic load target (optional) {{ manual_link("gl-target") }}</label>
       <input type="number" class="form-control" id="gl_day_target" name="gl_day_target" min="1" step="1"
              style="max-width:10rem" placeholder="e.g. 80"
@@ -269,100 +272,9 @@
   </form>
 </details>
 
-{# ── 4. Keyboard shortcuts ─────────────────────────────────────────────── #}
+{# ── 4. Protein digestibility overrides ───────────────────────────────── #}
 <details>
-  <summary data-ak="4"><u class="ak">4</u>. <strong>Keyboard Shortcuts</strong>
-    <span class="muted"> — Alt+Shift shortcut keys, works in any desktop browser</span>
-    {{ manual_link("web-shortcuts") }}
-  </summary>
-  <div class="row mt-2 g-3">
-    <div class="col-auto">
-      <p class="mb-1"><strong>Navigation</strong> (<kbd>Alt+Shift</kbd>+key):</p>
-      <ul class="mb-0">
-        <li><kbd>F</kbd> — Foods</li>
-        <li><kbd>R</kbd> — Recipes</li>
-        <li><kbd>C</kbd> — Compare</li>
-        <li><kbd>M</kbd> — Meals &amp; Log</li>
-        <li><kbd>N</kbd> — Analysis</li>
-        <li><kbd>S</kbd> — Settings</li>
-        <li><kbd>A</kbd> — Manual</li>
-      </ul>
-    </div>
-    <div class="col-auto">
-      <p class="mb-1"><strong>Settings sections</strong> (<kbd>Alt+Shift</kbd>+key):</p>
-      <ul class="mb-0">
-        <li><kbd>1</kbd> — Your Profile</li>
-        <li><kbd>2</kbd> — Computed Daily Targets</li>
-        <li><kbd>3</kbd> — Dietary Preferences</li>
-        <li><kbd>4</kbd> — Keyboard Shortcuts</li>
-        <li><kbd>5</kbd> — USDA API Key</li>
-        <li><kbd>6</kbd> — Protein Digestibility Overrides</li>
-        <li><kbd>7</kbd> — Nutrient Targets</li>
-        <li><kbd>8</kbd> — Meals &amp; Log Columns</li>
-        <li><kbd>9</kbd> — Starter Data</li>
-        <li><kbd>0</kbd> — Browser to Launch (section 10)</li>
-        <li><kbd>G</kbd> — Glycemic Index Reference Table (11)</li>
-        <li><kbd>Y</kbd> — System Issues (12; <kbd>S</kbd> is taken by Settings)</li>
-        <li><kbd>D</kbd> — Data Quality Reminder (13)</li>
-      </ul>
-    </div>
-  </div>
-  <p class="mb-0 mt-2"><strong>Inside a Foods/Recipes/Analysis menu:</strong> once it's open, press its plain number key (no Alt/Shift) to jump straight to that item — e.g. <kbd>5</kbd> for "5. Food Cache" in the Foods menu.</p>
-  <div class="form-check mt-3">
-    <input class="form-check-input" type="checkbox" id="shortcuts-toggle">
-    <label class="form-check-label" for="shortcuts-toggle">Enable keyboard shortcuts</label>
-  </div>
-  <p class="muted mt-1"><small>Setting is stored in your browser and takes effect immediately.</small></p>
-</details>
-
-{# ── 5. USDA API key ───────────────────────────────────────────────────── #}
-<details>
-  <summary data-ak="5"><u class="ak">5</u>. <strong>USDA API Key</strong>
-    <span class="muted"> — for higher search rate limits</span>
-    {{ manual_link("food-data") }}
-  </summary>
-
-  {% if saved == 'api_key' %}
-  <p class="status-met mt-2"><strong>&#10003; API key saved.</strong></p>
-  {% endif %}
-
-  <p class="mt-2 muted"><small>Without a key, food searches use <code>DEMO_KEY</code> (30 requests/hour).
-  A free key raises this to 1,000/hour. Register at
-  <a href="https://fdc.nal.usda.gov/api-guide.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>.</small></p>
-
-  <form method="post" action="/settings/api-key" class="mt-2">
-    <div class="mb-2" style="max-width:420px">
-      <label class="form-label">API key</label>
-      <input type="text" class="form-control font-monospace" name="api_key"
-             value="{{ api_key or '' }}" placeholder="Paste your USDA API key here">
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">Save key</button>
-    {% if api_key %}
-    <button type="submit" name="api_key" value="" class="btn btn-outline-secondary btn-sm ms-1">Clear key</button>
-    {% endif %}
-  </form>
-
-  {% if saved == 'search_boost' %}
-  <p class="status-met mt-2"><strong>&#10003; Search result depth saved.</strong></p>
-  {% endif %}
-
-  <p class="mt-3 muted"><small>When a search isn't restricted to one data type, the app also runs a
-  Foundation/SR Legacy-only pass so plain/raw foods (the ones most likely to carry amino-acid data)
-  aren't buried under branded or prepared-dish results. This sets how many of those results it fetches.</small></p>
-
-  <form method="post" action="/settings/search-boost" class="mt-2">
-    <div class="mb-2" style="max-width:200px">
-      <label class="form-label">Search result depth <span class="muted">(0 = no cap, all hits)</span></label>
-      <input type="number" min="0" step="1" class="form-control" name="search_boost_page_size"
-             value="{{ search_boost_page_size }}">
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-  </form>
-</details>
-
-{# ── 6. Protein digestibility overrides ───────────────────────────────── #}
-<details>
-  <summary data-ak="6"><u class="ak">6</u>. <strong>Protein Digestibility Overrides</strong>
+  <summary data-ak="4"><u class="ak">4</u>. <strong>Protein Digestibility Overrides</strong>
     <span class="muted"> — advanced: per-food DIAAS coefficients</span>
     {{ manual_link("dcp-overrides") }}
   </summary>
@@ -428,9 +340,9 @@
   </form>
 </details>
 
-{# ── 7. Nutrient targets: Revised Optimal + custom max limits ──────────── #}
+{# ── 5. Nutrient targets: Revised Optimal + custom max limits ──────────── #}
 <details id="nutrient-targets" {% if saved in ('nutrient_target', 'nutrient_target_defaults') or target_error %}open{% endif %}>
-  <summary data-ak="7"><u class="ak">7</u>. <strong>Nutrient Targets</strong>
+  <summary data-ak="5"><u class="ak">5</u>. <strong>Nutrient Targets - Researched</strong>
     <span class="muted"> — custom Revised Optimal (Recent Research) targets and max limits, on top of your standard RDA</span>
     {{ manual_link("optimal") }}
   </summary>
@@ -499,9 +411,235 @@
   {% endif %}
 </details>
 
-{# ── 8. Meals & Log columns ──────────────────────────────────────────── #}
+{# ── 6. USDA API key ───────────────────────────────────────────────────── #}
+<details>
+  <summary data-ak="6"><u class="ak">6</u>. <strong>USDA API Key</strong>
+    <span class="muted"> — for higher search rate limits</span>
+    {{ manual_link("food-data") }}
+  </summary>
+
+  {% if saved == 'api_key' %}
+  <p class="status-met mt-2"><strong>&#10003; API key saved.</strong></p>
+  {% endif %}
+
+  <p class="mt-2 muted"><small>Without a key, food searches use <code>DEMO_KEY</code> (30 requests/hour).
+  A free key raises this to 1,000/hour. Register at
+  <a href="https://fdc.nal.usda.gov/api-guide.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>.</small></p>
+
+  <form method="post" action="/settings/api-key" class="mt-2">
+    <div class="mb-2" style="max-width:420px">
+      <label class="form-label">API key</label>
+      <input type="text" class="form-control font-monospace" name="api_key"
+             value="{{ api_key or '' }}" placeholder="Paste your USDA API key here">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save key</button>
+    {% if api_key %}
+    <button type="submit" name="api_key" value="" class="btn btn-outline-secondary btn-sm ms-1">Clear key</button>
+    {% endif %}
+  </form>
+
+  {% if saved == 'search_boost' %}
+  <p class="status-met mt-2"><strong>&#10003; Search result depth saved.</strong></p>
+  {% endif %}
+
+  <p class="mt-3 muted"><small>When a search isn't restricted to one data type, the app also runs a
+  Foundation/SR Legacy-only pass so plain/raw foods (the ones most likely to carry amino-acid data)
+  aren't buried under branded or prepared-dish results. This sets how many of those results it fetches.</small></p>
+
+  <form method="post" action="/settings/search-boost" class="mt-2">
+    <div class="mb-2" style="max-width:200px">
+      <label class="form-label">Search result depth <span class="muted">(0 = no cap, all hits)</span></label>
+      <input type="number" min="0" step="1" class="form-control" name="search_boost_page_size"
+             value="{{ search_boost_page_size }}">
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save</button>
+  </form>
+</details>
+
+{# ── 7. Glycemic index reference table ───────────────────────────────────── #}
+{# Read-only status, not a setting: which edition answers a GI lookup depends
+   on whether a gi_data_local.json exists, and both its arrival and its
+   disappearance are otherwise invisible. Deliberately opens itself when the
+   bundled 2008 fallback is what is in use, since that is the state a user is
+   most likely not to have noticed. #}
+<details id="gi-table" {% if (gi_table.edition != 2021 and not gi_opt_out) or gi_build.running or gi_build.result or gi_build.error or gi_build_error %}open{% endif %}>
+  <summary data-ak="7"><u class="ak">7</u>. <strong>Glycemic Index Reference Table</strong>
+    {% if gi_opt_out %}
+    <span class="muted"> — not in use{% if gi_table.edition == 2021 %} (2021 edition present){% elif gi_table.edition == 2008 %} (2008 edition bundled){% endif %}</span>
+    {% elif gi_table.edition == 2021 %}
+    <span class="status-met"> — 2021 edition, {{ "{:,}".format(gi_table.rows) }} foods</span>
+    {% elif gi_table.edition == 2008 %}
+    <span class="muted"> — 2008 edition (bundled), {{ "{:,}".format(gi_table.rows) }} foods</span>
+    {% else %}
+    <span class="text-danger"> — none found</span>
+    {% endif %}
+  </summary>
+
+  <p class="mt-2">Which published table answers the GI lookup on a food's
+  <a href="/food/annotate">Annotate</a> page {{ manual_link("gi") }}. NuMa ships the 2008
+  edition, which is Creative Commons licensed. The 2021 edition is over 4,000 foods, each
+  with the year its study was run, but its licence permits text and data mining while
+  forbidding redistribution — so NuMa ships the program that builds it and never the
+  result. You build your own copy, from your own access to the published tables — see
+  <a href="#gi-build-form">Build the 2021 table</a> below. {{ manual_link("gi-editions") }}</p>
+
+  {% if gi_build.running %}
+  <p class="mt-2" id="gi-build-running"><span class="spinner-border spinner-border-sm me-1" role="status"></span>
+  <strong>Building your 2021 table…</strong> This takes about a minute. This page refreshes itself
+  when it's done — you can also leave and come back.</p>
+  <script>setTimeout(function () { location.reload(); }, 4000);</script>
+  {% elif gi_build.result %}
+  <p class="status-met mt-2"><strong>&#10003; 2021 table built and now in use:</strong>
+  {{ "{:,}".format(gi_build.result.table1 + gi_build.result.table2) }} foods from the 2021 edition,
+  plus {{ gi_build.result.legacy }} carried forward from 2008 for foods 2021 does not appear to cover.</p>
+  {% elif gi_build.error or gi_build_error %}
+  <p class="numa-error mt-2"><strong>The 2021 table was not built.</strong>
+  {% if gi_build_error == 'count' %}Choose both PDF files — Supplemental Table 1 and Supplemental Table 2 — together, in one go.
+  {% elif gi_build_error == 'size' %}One of the files is far larger than either supplemental table (about 1.6 MB each), so it can't be one of them.
+  {% else %}{{ gi_build.error }}{% endif %}
+  {% if gi_table.edition == 2021 %}Your existing 2021 table is unchanged and still in use.{% endif %}</p>
+  {% endif %}
+
+  {% if gi_table.edition == 2021 %}
+  <p class="status-met mt-2"><strong>&#10003; Your locally-built 2021 table is in use.</strong></p>
+  <table class="nutrient-table mt-2" style="max-width:40rem">
+    <tbody>
+      <tr><td>In use</td><td><strong>2021 edition</strong> (locally built, supersedes the bundled table)</td></tr>
+      <tr><td>File</td><td><code>{{ gi_table.path }}</code></td></tr>
+      <tr><td>Built</td><td>{{ gi_table.built }}</td></tr>
+      <tr><td>Foods</td><td>{{ "{:,}".format(gi_table.rows) }} —
+        {{ "{:,}".format(gi_table.rows_2021) }} from the 2021 edition,
+        {{ gi_table.rows_2008 }} carried forward from 2008 for foods 2021 does not appear to cover</td></tr>
+      <tr><td>Subject groups</td><td>{{ "{:,}".format(gi_table.normal) }} normal glucose tolerance
+        &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
+    </tbody>
+  </table>
+  <p class="mt-2 muted"><small>Every lookup result names the edition it came from, and so does the
+  provenance line saved with a GI value you pick. Delete, rename or move that file and the lookup
+  silently falls back to the bundled 2008 table — this section is where to check.</small></p>
+  {% elif gi_table.edition == 2008 %}
+  <p class="mt-2"><strong>The bundled 2008 table is in use.</strong> No locally-built 2021 table
+  was found, so lookup results carry no year of test.</p>
+  <table class="nutrient-table mt-2" style="max-width:40rem">
+    <tbody>
+      <tr><td>In use</td><td><strong>2008 edition</strong> (bundled with NuMa)</td></tr>
+      <tr><td>File</td><td><code>{{ gi_table.path }}</code></td></tr>
+      <tr><td>Foods</td><td>{{ "{:,}".format(gi_table.rows) }}</td></tr>
+      <tr><td>Subject groups</td><td>{{ "{:,}".format(gi_table.normal) }} normal glucose tolerance
+        &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
+    </tbody>
+  </table>
+  {% else %}
+  <p class="numa-error mt-2"><strong>No GI reference table could be read at all.</strong>
+  The lookup on the Annotate page will find nothing. The bundled table,
+  <code>gi_data.json</code>, appears to be missing from this install.</p>
+  {% endif %}
+
+  {% if not gi_build.running %}
+  <h6 class="mt-3" id="gi-build-form">{% if gi_table.edition == 2021 %}Rebuild the 2021 table{% else %}Build the 2021 table{% endif %}</h6>
+  <ol class="mb-2">
+    <li>Open the article's page at the publisher,
+      <a href="https://doi.org/10.1093/ajcn/nqab233" target="_blank" rel="noopener">doi.org/10.1093/ajcn/nqab233</a>,
+      find its <strong>Supplementary data</strong> section, and download both PDFs there:
+      Supplemental Table 1 and Supplemental Table 2. (NuMa can't fetch them for you — the publisher's
+      site turns away programs.)</li>
+    <li>Choose both files below, together — in either order.</li>
+    <li>Click <strong>Build</strong>. It takes about a minute; nothing else in NuMa is affected meanwhile.</li>
+  </ol>
+  <form method="post" action="/settings/gi-table/build" enctype="multipart/form-data"
+        class="d-flex flex-wrap align-items-center gap-2">
+    <input type="file" name="files" accept=".pdf,application/pdf" multiple required
+           class="form-control form-control-sm" style="max-width:28rem"
+           title="Select both supplemental-table PDFs at once (Ctrl-click or Shift-click the second one)">
+    <button type="submit" class="btn btn-sm btn-primary"
+            title="Read both PDFs and build your own copy of the 2021 GI table, used by the Annotate page's GI lookup from then on">
+      {% if gi_table.edition == 2021 %}Rebuild my 2021 GI table{% else %}Build my 2021 GI table{% endif %}</button>
+  </form>
+  <p class="muted mt-1"><small>The PDFs themselves aren't kept — only the table built from them, saved
+  for your use alone at <code>{{ gi_table_candidates[0] }}</code>. If the files turn out to be wrong,
+  NuMa says so and changes nothing.</small></p>
+  {% endif %}
+
+  {# Opt-out for anyone not recording GI data at all. Distinct from the home
+     banner's own "do not remind me again", which silences one message that has
+     been read; this turns the whole subject off, and stays off. #}
+  <hr class="mt-3">
+  {% if saved == 'gi_notices' %}
+  <p class="status-met mt-2"><strong>&#10003; Glycemic index setting saved.</strong></p>
+  {% endif %}
+  <form method="post" action="/settings/gi-notices" class="mt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="gi_opt_out" value="1"
+             id="gi-notices-off" {{ 'checked' if gi_opt_out }}>
+      <label class="form-check-label" for="gi-notices-off">
+        <strong>I do not record glycemic index data.</strong> Stop asking me for GI values,
+        and stop telling me which GI reference table is in use.
+      </label>
+    </div>
+    <p class="muted mb-2"><small>Tick this and adding a food never detours to the Annotate page
+    just to ask for a GI value, the per-food "don't prompt me for a GI estimate" tick-box goes
+    away as redundant, and the home-page notices about this table stop — including the warning
+    that a 2021 table you built has gone missing. Nothing already recorded is hidden or deleted:
+    a saved GI value is still shown and still used to work out glycemic load, this section still
+    reports the state of the table, and the GI field is still there on the Annotate page if you
+    want it. Un-ticking this puts everything back, including any per-food prompt choices you had
+    made.</small></p>
+    <button type="submit" class="btn btn-primary btn-sm">Save glycemic index setting</button>
+  </form>
+</details>
+
+{# ── 8. Glycemic load ─────────────────────────────────────────────────── #}
+<details id="gl-tracking" {% if saved == 'gl' %}open{% endif %}>
+  <summary data-ak="8"><u class="ak">8</u>. <strong>Glycemic Load</strong>
+    <span class="muted"> — glycemic load and estimated GI for foods, meals, recipes and days</span>
+  </summary>
+  <p class="mt-2" style="max-width:48rem">With this on, NuMa shows glycemic load (GL) everywhere it applies: on food, meal,
+  recipe and day pages (with an estimated GI for meals, recipes and days), the day&rsquo;s GL so far under a meal&rsquo;s
+  and a day&rsquo;s title, the GL columns and sort on Meals &amp; Log and Recent Days, the GL trend and plot series,
+  Compare, What-if, Top Contributors&rsquo; GL ranking and lower-GL swaps, printouts, and your daily GL target. Turning
+  it off hides all of that. GI values are still shown and kept, and nothing is deleted &mdash; turning it back on brings
+  everything back, including a daily target you&rsquo;ve set. To stop NuMa asking you for GI values instead, see
+  <a href="#gi-table">11. Glycemic Index Reference Table</a>. {{ manual_link("gl") }}</p>
+  {% if saved == 'gl' %}
+  <p class="status-met mt-2"><strong>&#10003; Glycemic load is now {{ "shown" if show_gl() else "hidden" }}.</strong></p>
+  {% endif %}
+  <form method="post" action="/settings/gl" class="mt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="track_gl" value="1" id="track-gl" {{ 'checked' if show_gl() }}>
+      <label class="form-check-label" for="track-gl">Show glycemic load</label>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save glycemic load setting</button>
+  </form>
+</details>
+
+{# ── 9. Water tracking ────────────────────────────────────────────────── #}
+<details id="water-tracking" {% if saved == 'water' %}open{% endif %}>
+  <summary data-ak="9"><u class="ak">9</u>. <strong>Water Tracking</strong>
+    <span class="muted"> — water from drinks and from food, against a daily goal</span>
+  </summary>
+  <p class="mt-2" style="max-width:48rem">With this on, meal, recipe and day pages show a Water row split into water from
+  drinks and water from food. Foods and recipes get a &ldquo;This is a drink&rdquo; tick-box, and NuMa flags a food whose
+  name says it&rsquo;s dry (a flour or powder, say) but whose data says it&rsquo;s mostly water &mdash; the sign of a wet
+  food picked in place of the dry one. Turning it off hides all of this; no water values are deleted, so turning it
+  back on brings everything back. The goals are the US Institute of Medicine&rsquo;s: total water 3.7&nbsp;L a day for men
+  and 2.7&nbsp;L for women, of which drinks 3.0 and 2.2&nbsp;L. From age 65, a day&rsquo;s page also warns when its drinks come
+  to less than the minimum the European Society for Clinical Nutrition and Metabolism (ESPEN) recommends for older people
+  (2.0&nbsp;L men, 1.6&nbsp;L women). {{ manual_link("water-older") }}</p>
+  {% if saved == 'water' %}
+  <p class="status-met mt-2"><strong>&#10003; Water tracking is now {{ "on" if track_water() else "off" }}.</strong></p>
+  {% endif %}
+  <form method="post" action="/settings/water" class="mt-2">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="track_water" value="1" id="track-water" {{ 'checked' if track_water() }}>
+      <label class="form-check-label" for="track-water">Track my water intake</label>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save water tracking setting</button>
+  </form>
+</details>
+
+{# ── 10. Meals & Log columns (Alt+Shift+0: the 0 in "10") ──────────────────────────────────────────── #}
 <details id="meal-list-nutrients" {% if saved in ('meal_nutrients', 'meal_nutrients_defaults') %}open{% endif %}>
-  <summary data-ak="8"><u class="ak">8</u>. <strong>Meals &amp; Log columns</strong>
+  <summary data-ak="0">1<u class="ak">0</u>. <strong>Meals &amp; Log columns</strong>
     <span class="muted"> — extra nutrients shown as columns on the Meals &amp; Log list and Recent Days</span>
     {{ manual_link("meal-columns") }}
   </summary>
@@ -551,9 +689,9 @@
   </form>
 </details>
 
-{# ── 9. Starter data ─────────────────────────────────────────────────── #}
+{# ── 11. Starter data (Alt+Shift+T) ─────────────────────────────────────────────────── #}
 <details id="starter-data" {% if starter_changes.improved_foods or starter_changes.improved_recipes or starter_changes.new_foods or starter_changes.new_recipes %}open{% endif %}>
-  <summary data-ak="9"><u class="ak">9</u>. <strong>Starter Data</strong>
+  <summary data-ak="t">11. <strong>S<u class="ak">t</u>arter Data</strong>
     <span class="muted"> — curated foods and recipes to explore or build on</span>
   </summary>
 
@@ -742,10 +880,57 @@
   </details>
 </details>
 
+{# ── 12. Keyboard shortcuts (Alt+Shift+K) ─────────────────────────────────────────────── #}
+<details>
+  <summary data-ak="k">12. <strong><u class="ak">K</u>eyboard Shortcuts</strong>
+    <span class="muted"> — Alt+Shift shortcut keys, works in any desktop browser</span>
+    {{ manual_link("web-shortcuts") }}
+  </summary>
+  <div class="row mt-2 g-3">
+    <div class="col-auto">
+      <p class="mb-1"><strong>Navigation</strong> (<kbd>Alt+Shift</kbd>+key):</p>
+      <ul class="mb-0">
+        <li><kbd>F</kbd> — Foods</li>
+        <li><kbd>R</kbd> — Recipes</li>
+        <li><kbd>C</kbd> — Compare</li>
+        <li><kbd>M</kbd> — Meals &amp; Log</li>
+        <li><kbd>N</kbd> — Analysis</li>
+        <li><kbd>S</kbd> — Settings</li>
+        <li><kbd>A</kbd> — Manual</li>
+      </ul>
+    </div>
+    <div class="col-auto">
+      <p class="mb-1"><strong>Settings sections</strong> (<kbd>Alt+Shift</kbd>+key):</p>
+      <ul class="mb-0">
+        <li><kbd>1</kbd> — Your Profile</li>
+        <li><kbd>2</kbd> — Computed Daily Targets</li>
+        <li><kbd>3</kbd> — Dietary Preferences</li>
+        <li><kbd>4</kbd> — Protein Digestibility Overrides</li>
+        <li><kbd>5</kbd> — Nutrient Targets - Researched</li>
+        <li><kbd>6</kbd> — USDA API Key</li>
+        <li><kbd>7</kbd> — Glycemic Index Reference Table</li>
+        <li><kbd>8</kbd> — Glycemic Load</li>
+        <li><kbd>9</kbd> — Water Tracking</li>
+        <li><kbd>0</kbd> — Meals &amp; Log Columns (section 10)</li>
+        <li><kbd>T</kbd> — Starter Data (11; <kbd>S</kbd> is taken by Settings)</li>
+        <li><kbd>K</kbd> — Keyboard Shortcuts (12)</li>
+        <li><kbd>B</kbd> — Browser to Launch (13)</li>
+        <li><kbd>D</kbd> — Data Quality Reminder (14)</li>
+        <li><kbd>Y</kbd> — System Issues (15)</li>
+      </ul>
+    </div>
+  </div>
+  <p class="mb-0 mt-2"><strong>Inside a Foods/Recipes/Analysis menu:</strong> once it's open, press its plain number key (no Alt/Shift) to jump straight to that item — e.g. <kbd>5</kbd> for "5. Food Cache" in the Foods menu.</p>
+  <div class="form-check mt-3">
+    <input class="form-check-input" type="checkbox" id="shortcuts-toggle">
+    <label class="form-check-label" for="shortcuts-toggle">Enable keyboard shortcuts</label>
+  </div>
+  <p class="muted mt-1"><small>Setting is stored in your browser and takes effect immediately.</small></p>
+</details>
 
-{# ── 10. Browser to launch (Alt+Shift+0: the 0 in "10") ────────────────── #}
+{# ── 13. Browser to launch (Alt+Shift+B) ──────────────────────────────── #}
 <details id="browser-preference">
-  <summary data-ak="0">1<u class="ak">0</u>. <strong>Browser to Launch</strong>
+  <summary data-ak="b">13. <strong><u class="ak">B</u>rowser to Launch</strong>
     <span class="muted"> — which browser opens when NuMa starts</span>
   </summary>
 
@@ -772,141 +957,36 @@
   </form>
 </details>
 
-{# ── Glycemic index reference table ───────────────────────────────────── #}
-{# Read-only status, not a setting: which edition answers a GI lookup depends
-   on whether a gi_data_local.json exists, and both its arrival and its
-   disappearance are otherwise invisible. Deliberately opens itself when the
-   bundled 2008 fallback is what is in use, since that is the state a user is
-   most likely not to have noticed. #}
-<details id="gi-table" {% if (gi_table.edition != 2021 and not gi_opt_out) or gi_build.running or gi_build.result or gi_build.error or gi_build_error %}open{% endif %}>
-  <summary data-ak="g">11. <strong><u class="ak">G</u>lycemic Index Reference Table</strong>
-    {% if gi_opt_out %}
-    <span class="muted"> — not in use{% if gi_table.edition == 2021 %} (2021 edition present){% elif gi_table.edition == 2008 %} (2008 edition bundled){% endif %}</span>
-    {% elif gi_table.edition == 2021 %}
-    <span class="status-met"> — 2021 edition, {{ "{:,}".format(gi_table.rows) }} foods</span>
-    {% elif gi_table.edition == 2008 %}
-    <span class="muted"> — 2008 edition (bundled), {{ "{:,}".format(gi_table.rows) }} foods</span>
-    {% else %}
-    <span class="text-danger"> — none found</span>
-    {% endif %}
+{# ── 14. Data quality reminder (Home page banner) ─────────────────────────── #}
+<details id="data-check-reminder" {% if saved == 'data-check-reminder' %}open{% endif %}>
+  <summary data-ak="d">14. <strong><u class="ak">D</u>ata Quality Reminder</strong>
+    <span class="muted"> — a Home page note when your food data has new problems</span>
   </summary>
-
-  <p class="mt-2">Which published table answers the GI lookup on a food's
-  <a href="/food/annotate">Annotate</a> page {{ manual_link("gi") }}. NuMa ships the 2008
-  edition, which is Creative Commons licensed. The 2021 edition is over 4,000 foods, each
-  with the year its study was run, but its licence permits text and data mining while
-  forbidding redistribution — so NuMa ships the program that builds it and never the
-  result. You build your own copy, from your own access to the published tables — see
-  <a href="#gi-build-form">Build the 2021 table</a> below. {{ manual_link("gi-editions") }}</p>
-
-  {% if gi_build.running %}
-  <p class="mt-2" id="gi-build-running"><span class="spinner-border spinner-border-sm me-1" role="status"></span>
-  <strong>Building your 2021 table…</strong> This takes about a minute. This page refreshes itself
-  when it's done — you can also leave and come back.</p>
-  <script>setTimeout(function () { location.reload(); }, 4000);</script>
-  {% elif gi_build.result %}
-  <p class="status-met mt-2"><strong>&#10003; 2021 table built and now in use:</strong>
-  {{ "{:,}".format(gi_build.result.table1 + gi_build.result.table2) }} foods from the 2021 edition,
-  plus {{ gi_build.result.legacy }} carried forward from 2008 for foods 2021 does not appear to cover.</p>
-  {% elif gi_build.error or gi_build_error %}
-  <p class="numa-error mt-2"><strong>The 2021 table was not built.</strong>
-  {% if gi_build_error == 'count' %}Choose both PDF files — Supplemental Table 1 and Supplemental Table 2 — together, in one go.
-  {% elif gi_build_error == 'size' %}One of the files is far larger than either supplemental table (about 1.6 MB each), so it can't be one of them.
-  {% else %}{{ gi_build.error }}{% endif %}
-  {% if gi_table.edition == 2021 %}Your existing 2021 table is unchanged and still in use.{% endif %}</p>
+  <p class="mt-2" style="max-width:48rem">With this on, the Home page tells you when new data problems have turned up
+  since you last opened the <a href="/food/cache/db-check">database check</a> (Foods &rarr; 9): a food with no calories, an
+  impossible value, a recipe amount that no longer matches, and so on. If nothing new has appeared, it says nothing. You can
+  also ask for a reminder every so many weeks even when nothing is new, as a routine. {{ manual_link("checking-your-data") }}</p>
+  {% if saved == 'data-check-reminder' %}
+  <p class="status-met mt-2"><strong>&#10003; Reminder settings saved.</strong></p>
   {% endif %}
-
-  {% if gi_table.edition == 2021 %}
-  <p class="status-met mt-2"><strong>&#10003; Your locally-built 2021 table is in use.</strong></p>
-  <table class="nutrient-table mt-2" style="max-width:40rem">
-    <tbody>
-      <tr><td>In use</td><td><strong>2021 edition</strong> (locally built, supersedes the bundled table)</td></tr>
-      <tr><td>File</td><td><code>{{ gi_table.path }}</code></td></tr>
-      <tr><td>Built</td><td>{{ gi_table.built }}</td></tr>
-      <tr><td>Foods</td><td>{{ "{:,}".format(gi_table.rows) }} —
-        {{ "{:,}".format(gi_table.rows_2021) }} from the 2021 edition,
-        {{ gi_table.rows_2008 }} carried forward from 2008 for foods 2021 does not appear to cover</td></tr>
-      <tr><td>Subject groups</td><td>{{ "{:,}".format(gi_table.normal) }} normal glucose tolerance
-        &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
-    </tbody>
-  </table>
-  <p class="mt-2 muted"><small>Every lookup result names the edition it came from, and so does the
-  provenance line saved with a GI value you pick. Delete, rename or move that file and the lookup
-  silently falls back to the bundled 2008 table — this section is where to check.</small></p>
-  {% elif gi_table.edition == 2008 %}
-  <p class="mt-2"><strong>The bundled 2008 table is in use.</strong> No locally-built 2021 table
-  was found, so lookup results carry no year of test.</p>
-  <table class="nutrient-table mt-2" style="max-width:40rem">
-    <tbody>
-      <tr><td>In use</td><td><strong>2008 edition</strong> (bundled with NuMa)</td></tr>
-      <tr><td>File</td><td><code>{{ gi_table.path }}</code></td></tr>
-      <tr><td>Foods</td><td>{{ "{:,}".format(gi_table.rows) }}</td></tr>
-      <tr><td>Subject groups</td><td>{{ "{:,}".format(gi_table.normal) }} normal glucose tolerance
-        &middot; {{ gi_table.impaired }} impaired &middot; {{ gi_table.unknown }} not stated</td></tr>
-    </tbody>
-  </table>
-  {% else %}
-  <p class="numa-error mt-2"><strong>No GI reference table could be read at all.</strong>
-  The lookup on the Annotate page will find nothing. The bundled table,
-  <code>gi_data.json</code>, appears to be missing from this install.</p>
-  {% endif %}
-
-  {% if not gi_build.running %}
-  <h6 class="mt-3" id="gi-build-form">{% if gi_table.edition == 2021 %}Rebuild the 2021 table{% else %}Build the 2021 table{% endif %}</h6>
-  <ol class="mb-2">
-    <li>Open the article's page at the publisher,
-      <a href="https://doi.org/10.1093/ajcn/nqab233" target="_blank" rel="noopener">doi.org/10.1093/ajcn/nqab233</a>,
-      find its <strong>Supplementary data</strong> section, and download both PDFs there:
-      Supplemental Table 1 and Supplemental Table 2. (NuMa can't fetch them for you — the publisher's
-      site turns away programs.)</li>
-    <li>Choose both files below, together — in either order.</li>
-    <li>Click <strong>Build</strong>. It takes about a minute; nothing else in NuMa is affected meanwhile.</li>
-  </ol>
-  <form method="post" action="/settings/gi-table/build" enctype="multipart/form-data"
-        class="d-flex flex-wrap align-items-center gap-2">
-    <input type="file" name="files" accept=".pdf,application/pdf" multiple required
-           class="form-control form-control-sm" style="max-width:28rem"
-           title="Select both supplemental-table PDFs at once (Ctrl-click or Shift-click the second one)">
-    <button type="submit" class="btn btn-sm btn-primary"
-            title="Read both PDFs and build your own copy of the 2021 GI table, used by the Annotate page's GI lookup from then on">
-      {% if gi_table.edition == 2021 %}Rebuild my 2021 GI table{% else %}Build my 2021 GI table{% endif %}</button>
-  </form>
-  <p class="muted mt-1"><small>The PDFs themselves aren't kept — only the table built from them, saved
-  for your use alone at <code>{{ gi_table_candidates[0] }}</code>. If the files turn out to be wrong,
-  NuMa says so and changes nothing.</small></p>
-  {% endif %}
-
-  {# Opt-out for anyone not recording GI data at all. Distinct from the home
-     banner's own "do not remind me again", which silences one message that has
-     been read; this turns the whole subject off, and stays off. #}
-  <hr class="mt-3">
-  {% if saved == 'gi_notices' %}
-  <p class="status-met mt-2"><strong>&#10003; Glycemic index setting saved.</strong></p>
-  {% endif %}
-  <form method="post" action="/settings/gi-notices" class="mt-2">
+  <form method="post" action="/settings/data-check-reminder" class="mt-2">
     <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="gi_opt_out" value="1"
-             id="gi-notices-off" {{ 'checked' if gi_opt_out }}>
-      <label class="form-check-label" for="gi-notices-off">
-        <strong>I do not record glycemic index data.</strong> Stop asking me for GI values,
-        and stop telling me which GI reference table is in use.
-      </label>
+      <input type="hidden" name="enabled" value="0">
+      <input class="form-check-input" type="checkbox" name="enabled" value="1" id="dcr-enabled" {{ 'checked' if data_check_reminder.enabled }}>
+      <label class="form-check-label" for="dcr-enabled">Tell me on the Home page when new data problems appear</label>
     </div>
-    <p class="muted mb-2"><small>Tick this and adding a food never detours to the Annotate page
-    just to ask for a GI value, the per-food "don't prompt me for a GI estimate" tick-box goes
-    away as redundant, and the home-page notices about this table stop — including the warning
-    that a 2021 table you built has gone missing. Nothing already recorded is hidden or deleted:
-    a saved GI value is still shown and still used to work out glycemic load, this section still
-    reports the state of the table, and the GI field is still there on the Annotate page if you
-    want it. Un-ticking this puts everything back, including any per-food prompt choices you had
-    made.</small></p>
-    <button type="submit" class="btn btn-primary btn-sm">Save glycemic index setting</button>
+    <div class="d-flex align-items-center gap-2 mt-2">
+      <label for="dcr-weeks">Also remind me every</label>
+      <input type="number" min="0" max="52" class="form-control form-control-sm" style="width:5rem" id="dcr-weeks" name="weeks" value="{{ data_check_reminder.weeks }}">
+      <span>weeks, even if nothing is new <span class="muted">(0 = never)</span></span>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-2">Save reminder settings</button>
   </form>
 </details>
 
-{# ── 12. System issues (Alt+Shift+Y: S is already the Settings nav link) ── #}
+{# ── 15. System issues (Alt+Shift+Y: S is already the Settings nav link) ── #}
 <details id="system-issues" {% if recompute_errors %}open{% endif %}>
-  <summary data-ak="y">12. <strong>S<u class="ak">y</u>stem Issues</strong>
+  <summary data-ak="y">15. <strong>S<u class="ak">y</u>stem Issues</strong>
     {% if recompute_errors %}
     <span class="text-danger"> — {{ recompute_errors|length }} unresolved</span>
     {% else %}
@@ -958,57 +1038,6 @@
   {% endif %}
 </details>
 
-{# ── Data quality reminder (Home page banner) ─────────────────────────── #}
-<details id="data-check-reminder" {% if saved == 'data-check-reminder' %}open{% endif %}>
-  <summary data-ak="d">13. <strong><u class="ak">D</u>ata Quality Reminder</strong>
-    <span class="muted"> — a Home page note when your food data has new problems</span>
-  </summary>
-  <p class="mt-2" style="max-width:48rem">With this on, the Home page tells you when new data problems have turned up
-  since you last opened the <a href="/food/cache/db-check">database check</a> (Foods &rarr; 9): a food with no calories, an
-  impossible value, a recipe amount that no longer matches, and so on. If nothing new has appeared, it says nothing. You can
-  also ask for a reminder every so many weeks even when nothing is new, as a routine. {{ manual_link("checking-your-data") }}</p>
-  {% if saved == 'data-check-reminder' %}
-  <p class="status-met mt-2"><strong>&#10003; Reminder settings saved.</strong></p>
-  {% endif %}
-  <form method="post" action="/settings/data-check-reminder" class="mt-2">
-    <div class="form-check">
-      <input type="hidden" name="enabled" value="0">
-      <input class="form-check-input" type="checkbox" name="enabled" value="1" id="dcr-enabled" {{ 'checked' if data_check_reminder.enabled }}>
-      <label class="form-check-label" for="dcr-enabled">Tell me on the Home page when new data problems appear</label>
-    </div>
-    <div class="d-flex align-items-center gap-2 mt-2">
-      <label for="dcr-weeks">Also remind me every</label>
-      <input type="number" min="0" max="52" class="form-control form-control-sm" style="width:5rem" id="dcr-weeks" name="weeks" value="{{ data_check_reminder.weeks }}">
-      <span>weeks, even if nothing is new <span class="muted">(0 = never)</span></span>
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm mt-2">Save reminder settings</button>
-  </form>
-</details>
-
-{# ── 14. Water tracking ────────────────────────────────────────────────── #}
-<details id="water-tracking" {% if saved == 'water' %}open{% endif %}>
-  <summary data-ak="w">14. <strong><u class="ak">W</u>ater Tracking</strong>
-    <span class="muted"> — water from drinks and from food, against a daily goal</span>
-  </summary>
-  <p class="mt-2" style="max-width:48rem">With this on, meal, recipe and day pages show a Water row split into water from
-  drinks and water from food. Foods and recipes get a &ldquo;This is a drink&rdquo; tick-box, and NuMa flags a food whose
-  name says it&rsquo;s dry (a flour or powder, say) but whose data says it&rsquo;s mostly water &mdash; the sign of a wet
-  food picked in place of the dry one. Turning it off hides all of this; no water values are deleted, so turning it
-  back on brings everything back. The goals are the US Institute of Medicine&rsquo;s: total water 3.7&nbsp;L a day for men
-  and 2.7&nbsp;L for women, of which drinks 3.0 and 2.2&nbsp;L. From age 65, a day&rsquo;s page also warns when its drinks come
-  to less than the minimum the European Society for Clinical Nutrition and Metabolism (ESPEN) recommends for older people
-  (2.0&nbsp;L men, 1.6&nbsp;L women). {{ manual_link("water-older") }}</p>
-  {% if saved == 'water' %}
-  <p class="status-met mt-2"><strong>&#10003; Water tracking is now {{ "on" if track_water() else "off" }}.</strong></p>
-  {% endif %}
-  <form method="post" action="/settings/water" class="mt-2">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="track_water" value="1" id="track-water" {{ 'checked' if track_water() }}>
-      <label class="form-check-label" for="track-water">Track my water intake</label>
-    </div>
-    <button type="submit" class="btn btn-primary btn-sm mt-2">Save water tracking setting</button>
-  </form>
-</details>
 
 <script>
 function toggleHeight(unit) {

@@ -199,6 +199,25 @@
     {% if _rb %}{{ _rb }}{% else %}Quit NuMa completely, then start it again.{% endif %} Nothing you entered is lost.
   </div>
   {% endif %}
+  {# System Issues: a recalculation that failed (Settings → 15). On every page,
+     not just Home, so it can't go unseen; dismissing it hides it until a new
+     failure, while the issue itself stays listed in Settings until resolved. #}
+  {% set _sys_issues = system_issue_count() %}
+  {% if _sys_issues %}
+  <div class="alert alert-danger text-center mb-0 rounded-0" role="alert" id="system-issues-banner">
+    <strong>{{ _sys_issues }} recalculation{{ 's' if _sys_issues != 1 }} failed</strong> and
+    {{ 'need' if _sys_issues != 1 else 'needs' }} a look: a food or recipe change should have
+    updated something (such as a recipe's protein-quality score), but the update didn't complete.
+    <a href="/settings#system-issues">See Settings → 15. System Issues</a>.
+    <form method="post" action="/recompute-errors/ack-banner" class="d-inline-block ms-2 mb-0">
+      <input type="hidden" name="return_to" value="{{ request.url.path ~ ('?' ~ request.url.query if request.url.query else '') }}">
+      <div class="form-check d-inline-block mb-0">
+        <input class="form-check-input" type="checkbox" id="ack-banner-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
+        <label class="form-check-label" for="ack-banner-checkbox">Got it. Don't remind me again.</label>
+      </div>
+    </form>
+  </div>
+  {% endif %}
   {# Analysis pages override layout_class + sidebar_nav blocks to get two-column layout #}
   <div class="{% block layout_class %}container{% endblock %}">
     {% block sidebar_nav %}{% endblock %}
@@ -1347,6 +1366,71 @@
           }
         }
       });
+    });
+  })();
+  </script>
+  <script>
+  (function () {
+    // Keep-scroll: a row button on a list page that has to leave the page
+    // and come back (a Food Cache row's pantry, USDA-refresh or starter button)
+    // is marked class="js-keep-scroll"
+    // and data-return-to="<the list URL it comes back to>". The scroll
+    // position is saved against that URL and restored only when that same
+    // URL loads again within half an hour — so the list comes back with its
+    // filter, sort and place intact, and an unrelated later visit to the
+    // list still starts at the top.
+    var KEY = 'numa-keep-scroll';
+    function norm(u) {
+      try { return decodeURIComponent(u.split('#')[0]).replace(/\+/g, ' '); } catch (e) { return u; }
+    }
+    function save(returnTo) {
+      try {
+        sessionStorage.setItem(KEY, JSON.stringify({
+          url: norm(returnTo || (location.pathname + location.search)),
+          y: window.scrollY, t: Date.now() }));
+      } catch (e) {}
+    }
+    try {
+      var saved = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+      if (saved && saved.url === norm(location.pathname + location.search)
+          && Date.now() - saved.t < 30 * 60 * 1000) {
+        sessionStorage.removeItem(KEY);
+        // After load, and a tick later: a filter box's autofocus can
+        // otherwise scroll the page back up to it.
+        window.addEventListener('load', function () {
+          setTimeout(function () { window.scrollTo(0, saved.y); }, 0);
+        });
+      }
+    } catch (e) {}
+    document.querySelectorAll('form.js-keep-scroll').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        if (!e.defaultPrevented) save(form.dataset.returnTo);
+      });
+    });
+    document.querySelectorAll('a.js-keep-scroll').forEach(function (a) {
+      a.addEventListener('click', function () { save(a.dataset.returnTo); });
+    });
+  })();
+  </script>
+  <script>
+  // Search buttons light up while their text box has something in it, so the
+  // next step after typing is plain to see. Found by label ("Search",
+  // "Filter", "Filter this list") or by a data-search-button attribute; the
+  // box is the text input in the button's .input-group, else beside it in the
+  // same parent. "Search online" and "Redo search" are left alone: each sits
+  // next to a primary button that already lights.
+  (function () {
+    var LABEL_RE = /^(search|filter|filter this list)$/i;
+    document.querySelectorAll('button').forEach(function (btn) {
+      if (!btn.hasAttribute('data-search-button') &&
+          !LABEL_RE.test(btn.textContent.trim())) return;
+      var box = btn.closest('.input-group') || btn.parentElement;
+      var input = box && box.querySelector(
+        'input[type="text"], input[type="search"], input:not([type])');
+      if (!input) return;
+      function sync() { btn.classList.toggle('btn-search-ready', input.value.trim() !== ''); }
+      input.addEventListener('input', sync);
+      sync();
     });
   })();
   </script>

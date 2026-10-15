@@ -26,7 +26,7 @@
   &mdash; foods with no calories or impossible values, missing nutrient data, amounts that no longer match.
   {% endif %}
   <a href="/food/cache/db-check">Review them</a>. {{ manual_link("checking-your-data", "About data checks") }}
-  <br><small class="muted">Opening the check clears this note. Turn it off or set a routine reminder in <a href="/settings#data-check-reminder">Settings &rarr; 13</a>.</small>
+  <br><small class="muted">Opening the check clears this note. Turn it off or set a routine reminder in <a href="/settings#data-check-reminder">Settings &rarr; 14</a>.</small>
 </div>
 {% endif %}
 {% if db_issue_count %}
@@ -103,7 +103,7 @@
   {% if starter_preview_text %}
   <br><small><strong>Starter foods and recipes:</strong> this update {{ starter_preview_text }}. After updating, NuMa will list them for you to choose from — nothing is added or changed on its own.</small>
   {% elif not update_available.starter_manifest %}
-  <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 9. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
+  <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 11. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
   {% endif %}
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0" id="update-now-form">
@@ -153,7 +153,7 @@
 <div class="alert alert-info mt-4">
   <strong>NEW STARTER ITEMS:</strong> This version of NuMa {{ starter_changes_text }}.
   Nothing in your data has been changed — you choose which ones you want in
-  <a href="/settings#starter-data">Settings → 9. Starter Data</a>.
+  <a href="/settings#starter-data">Settings → 11. Starter Data</a>.
   <form method="post" action="/starter-notice/ack" class="mt-2 mb-0">
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="starter-notice-ack" onchange="if(this.checked) this.form.requestSubmit();">
@@ -190,20 +190,6 @@
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="manual-notice-dismiss-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
       <label class="form-check-label" for="manual-notice-dismiss-checkbox">Don't show this again for this manual version.</label>
-    </div>
-  </form>
-</div>
-{% endif %}
-{% if unacked_errors %}
-<div class="alert alert-warning mt-4">
-  <strong>{{ unacked_errors|length }} recalculation{{ 's' if unacked_errors|length != 1 }} failed</strong> and
-  {{ 'need' if unacked_errors|length != 1 else 'needs' }} a look — a food or recipe change should have
-  triggered an update (e.g. a recipe's protein-quality score) but the update itself didn't complete.
-  See <a href="/settings#system-issues">Settings &gt; System Issues</a> for details.
-  <form method="post" action="/recompute-errors/ack-banner" class="mt-2 mb-0">
-    <div class="form-check">
-      <input class="form-check-input" type="checkbox" id="ack-banner-checkbox" onchange="if(this.checked) this.form.requestSubmit();">
-      <label class="form-check-label" for="ack-banner-checkbox">Got it. Don't remind me again.</label>
     </div>
   </form>
 </div>

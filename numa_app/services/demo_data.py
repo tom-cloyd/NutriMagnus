@@ -658,7 +658,7 @@ def restore_selected(conn, food_fdc_ids: list[int], pantry_names: list[str], rec
 # one short content hash per item — and the manifest this install last ran
 # with is kept in _VERSIONS_FILE. The first run of a newer version diffs the
 # two and remembers the result until the user has seen it (home-page notice)
-# and acted on it (Settings -> 9, which offers improved versions item by item
+# and acted on it (Settings -> 11, which offers improved versions item by item
 # and never applies one on its own).
 #
 # The same manifest is published with each GitHub release
@@ -781,7 +781,7 @@ def record_version_changes(*, silent: bool = False) -> dict:
 
 
 def acknowledge_version_changes() -> None:
-    """Hide the home-page notice. The changes stay listed in Settings -> 9
+    """Hide the home-page notice. The changes stay listed in Settings -> 11
     until each improved item is updated or declined."""
     state = _read_versions()
     if state is not None:

@@ -30,7 +30,7 @@
 <div class="alert alert-success">Restored.</div>
 {% endif %}
 
-<p class="mb-2">{{ archived_toggle("/pantry", show_archived, "pantry items") }}</p>
+<p class="mb-2">{{ archived_toggle("/pantry", show_archived, "pantry items", {"filter": filter}) }}</p>
 
 {% if link_id and link_name %}
 <div class="alert alert-info">
@@ -140,6 +140,9 @@
 {# External form — each row has its own archive/remove forms, so nesting isn't allowed;
    checkboxes point back at this form via `form="compare-pantry-form"`. #}
 <form method="post" action="/compare/add-multiple" id="compare-pantry-form"></form>
+{# Where Archive/Remove land if their in-place (fetch) submit falls back to a
+   full page load: this same filtered list, not the unfiltered Pantry. #}
+{% set list_url = "/pantry?filter=%s" % (filter | urlencode) if filter else "/pantry" %}
 <p class="mb-2">
   <button type="submit" form="compare-pantry-form" class="btn btn-sm btn-outline-secondary" data-compare-btn>Compare nutrition of selected (up to 8)</button>
 </p>
@@ -219,12 +222,14 @@
         <form method="post" action="/pantry/{{ item.id }}/archive" style="display:inline"
               class="js-row-archive" data-archive-title="Hide from complement suggestions, without losing it"
               data-restore-title="Restore to normal use">
+          <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
                   title="{% if item.archived %}Restore to normal use{% else %}Hide from complement suggestions, without losing it{% endif %}">
             {% if item.archived %}Restore{% else %}Archive{% endif %}
           </button>
         </form>
         <form method="post" action="/pantry/remove/{{ item.id }}" style="display:inline" class="js-row-remove">
+          <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-sm btn-outline-danger"
                   onclick="return confirm('Remove {{ item.food_name | replace("'", "\\'") }} from pantry?')">
             Remove

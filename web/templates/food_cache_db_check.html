@@ -16,6 +16,7 @@
     <li class="sb-item"><a class="sb-toggle" href="#missing-aa">Foods you use with no amino acid data</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#missing-portions">Foods you use with no portion weights</a></li>
     {% if missing_gi or not gi_opt_out %}<li class="sb-item"><a class="sb-toggle" href="#missing-gi">Foods you use with no GI</a></li>{% endif %}
+    <li class="sb-item"><a class="sb-toggle" href="#days-eaten">Foods: days eaten</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#generic-density">Amounts converted with a generic density</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#stale-amounts">Amounts that no longer match</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#old-copies">USDA copies over a year old</a></li>
@@ -419,6 +420,13 @@ document.getElementById('ignore-form').addEventListener('submit', function (e) {
 A food that arrived with protein, carbs and fat but no calories got an <strong>estimated</strong> figure automatically &mdash;
 listed here for information, not as a problem. A food whose macronutrients you&rsquo;ve marked &ldquo;not needed&rdquo; above
 (a supplement, a spice) isn&rsquo;t checked for calories.</p>
+{% if fixed_food %}
+<p class="status-met" style="max-width:48rem"><strong>&#10003; Corrected <a href="/food/{{ fixed_food.fdc_id }}">{{ fixed_food.name }}</a>{{ food_id_tag(fixed_food.fdc_id) }}.</strong>
+  {% for c in fixed_food.corrections %}{{ c.reason[:1]|upper }}{{ c.reason[1:] }}.{% endfor %}
+  The food&rsquo;s page lists the change, and every recipe and meal using it has been recalculated.</p>
+{% elif fix_stale %}
+<p class="text-warning-emphasis" style="max-width:48rem"><strong>Nothing changed:</strong> that problem had already been fixed or changed since this page was opened. The list below is up to date.</p>
+{% endif %}
 {% if not food_issue_rows %}
 <p class="muted"><strong>Every food&rsquo;s data checks out.</strong></p>
 {% else %}
@@ -430,22 +438,31 @@ listed here for information, not as a problem. A food whose macronutrients you&r
     <tbody>
       {% for r in food_issue_rows %}
       <tr>
-        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
-        <td>{% for i in r.issues %}<div class="{{ 'text-danger' if i.kind == 'impossible' else ('text-warning-emphasis' if i.severity == 'problem' else 'muted') }}">{{ i.text }}</div>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}
+          {# The ways to fix it by hand, for whatever the one-click fixes don't cover. #}
+          <div class="small mt-1">
+            {% if r.is_usda %}<a href="/food/{{ r.fdc_id }}/review-incoming?source=usda" title="Fetch USDA&rsquo;s current figures and compare them with this food&rsquo;s, value by value, before taking any">Refresh from USDA</a> &middot; {% endif %}
+            <a href="{{ r.fill_url }}" title="Search for a similar food and copy its figures into this one, after reviewing them">Fill in from another food</a>
+            {% if r.edit_url %} &middot; <a href="{{ r.edit_url }}">Edit values</a>{% endif %}
+          </div></td>
+        <td>{% for i in r.issues %}<div class="{{ 'mt-2' if not loop.first }}"><span class="{{ 'text-danger' if i.kind == 'impossible' else ('text-warning-emphasis' if i.severity == 'problem' else 'muted') }}">{{ i.text }}</span>{% for f in i.fixes if f.hint %}<span class="muted"> &mdash; {{ f.hint }}</span>{% endfor %}</div>
+          {% if i.fixes or i.kind == "calories_mismatch" %}<div class="d-flex flex-wrap gap-1 mt-1">
+          {% for f in i.fixes %}<form method="post" action="/food/{{ r.fdc_id }}/data-fix" class="d-inline">
+            <input type="hidden" name="fix" value="{{ f.id }}">
+            <button type="submit" class="btn btn-sm {{ 'btn-outline-primary' if loop.first else 'btn-outline-secondary' }} py-0" title="Changes this food&rsquo;s value and notes why on its page. {{ f.reason[:1]|upper }}{{ f.reason[1:] }}.">{{ f.label }}</button>
+          </form>{% endfor %}
           {% if i.kind == "calories_mismatch" %}<form method="post" action="/food/{{ r.fdc_id }}/data-ignore" class="d-inline">
             <input type="hidden" name="group" value="calories_ok">
             <input type="hidden" name="next" value="/food/cache/db-check#calories">
             <button type="submit" class="btn btn-sm btn-outline-secondary py-0" title="Stops checking this food&rsquo;s calories against its protein, carbs and fat, and drops it from this list. For calories that come from something those three don&rsquo;t cover, such as the alcohol in vanilla extract. Undo it with Check them again on the food&rsquo;s own page.">These calories are right &mdash; stop flagging them</button>
-          </form>{% endif %}{% endfor %}</td>
+          </form>{% endif %}
+          </div>{% endif %}{% endfor %}</td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
-<p class="muted"><small>To fix one: open the food and use <strong>Refresh from USDA</strong> (for a USDA food), <strong>Fill in nutrients
-from another food</strong>, or edit its values directly. Alcohol, sugar alcohols or very high fiber can make calories legitimately
-differ from protein, carbs and fat. For a food that doesn&rsquo;t need calories at all, mark its macronutrients &ldquo;not needed&rdquo;
-in the section above.</small></p>
+<p class="muted"><small>A fix button changes only that value, and the food&rsquo;s page then lists what changed, from what, and why. On a USDA or other outside food the changed value counts as yours, so a later Refresh shows the source&rsquo;s figure beside it rather than taking it back silently. Where NuMa can&rsquo;t tell which figure is wrong it offers no fix: use the links under the food&rsquo;s name. Alcohol, sugar alcohols or very high fiber can make calories legitimately differ from protein, carbs and fat. For a food that doesn&rsquo;t need calories at all, mark its macronutrients &ldquo;not needed&rdquo; in the section above. {{ manual_link("calorie-checks", "More in the manual") }}</small></p>
 {% endcall %}
 {% endif %}
 
@@ -494,6 +511,71 @@ in the section above.</small></p>
   {% endif %}
 </details>
 {% endfor %}
+
+{% macro _days_cell(r) %}{{ r.days }}{% if r.recipe_days %} <span class="muted small">({{ "all" if r.recipe_days == r.days else r.recipe_days }} in a recipe)</span>{% endif %}{% endmacro %}
+{% set de_no_gi = days_eaten | selectattr("gi_gap_days") | sort(attribute="gi_gap_days", reverse=True) | list %}
+{% set de_no_carbs = days_eaten | selectattr("carbs", "none") | rejectattr("carbs_not_needed") | list %}
+<hr class="mt-5">
+<details id="days-eaten" class="mt-4"{% if days_eaten_asked %} open{% endif %}>
+  <summary><strong>Foods: days eaten</strong> &mdash; {{ days_eaten|length }} food{{ "s" if days_eaten|length != 1 }} eaten
+    {{ days_eaten_start }} to {{ days_eaten_end }}{% if not gi_opt_out %}, {{ de_no_gi|length }} with no GI{% endif %}, {{ de_no_carbs|length }} with no carbohydrate value</summary>
+  <p class="muted mt-2" style="max-width:48rem">Every food eaten in the days you choose, and on how many of those days &mdash;
+  whether logged on its own or as part of a recipe (sub-recipes included). The lists below pick out the foods missing data,
+  most days first, so fixing the top of each list completes the most days. {{ manual_link("days-eaten") }}</p>
+  <form method="get" action="/food/cache/db-check#days-eaten" class="row g-2 align-items-end mb-3" style="max-width:36rem">
+    <div class="col-auto"><label for="de-days" class="form-label small mb-0">Days to cover</label>
+      <input type="number" min="1" max="3650" class="form-control form-control-sm" id="de-days" name="de_days" value="{{ days_eaten_n }}" style="width:6rem"></div>
+    <div class="col-auto"><label for="de-end" class="form-label small mb-0">Going back from</label>
+      <input type="date" class="form-control form-control-sm" id="de-end" name="de_end" value="{{ days_eaten_end }}"></div>
+    <div class="col-auto"><button type="submit" class="btn btn-sm btn-primary">Show foods eaten in these days</button></div>
+  </form>
+  {% if not days_eaten %}
+  <p class="muted">No meals logged in these days.</p>
+  {% else %}
+  <h4 class="h6 mt-3" id="days-eaten-all">All foods eaten ({{ days_eaten|length }})</h4>
+  {% call fold_list(days_eaten|length, "de-all", (days_eaten|length) ~ " foods", only_when_folded=True) %}
+  <div class="table-responsive mb-2">
+    <table class="table table-sm align-middle" style="max-width:52rem">
+      <thead class="table-light"><tr><th>Food</th><th class="text-end">Days eaten</th></tr></thead>
+      <tbody>{% for r in days_eaten %}
+        <tr><td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td><td class="text-end">{{ _days_cell(r) }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% endcall %}
+  {% if not gi_opt_out %}
+  <h4 class="h6 mt-3" id="days-eaten-no-gi">Eaten with no GI ({{ de_no_gi|length }})</h4>
+  <p class="muted small mb-1" style="max-width:48rem">Foods with no glycemic index (GI) that left a day&rsquo;s glycemic load incomplete, ranked by how many days. A food eaten in amounts too small to matter (a pinch of cinnamon) isn&rsquo;t counted, just as glycemic load itself doesn&rsquo;t count it; one with its GI marked not needed still leaves the day incomplete, so it stays listed.</p>
+  {% if de_no_gi %}
+  {% call fold_list(de_no_gi|length, "de-no-gi", (de_no_gi|length) ~ " foods", only_when_folded=True) %}
+  <div class="table-responsive mb-2">
+    <table class="table table-sm align-middle" style="max-width:52rem">
+      <thead class="table-light"><tr><th>Food</th><th class="text-end">Days left incomplete</th><th class="text-end">Days eaten</th><th class="text-end">Carbs / 100&thinsp;g</th></tr></thead>
+      <tbody>{% for r in de_no_gi %}
+        <tr><td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23days-eaten-no-gi" class="small">look up a GI</a>{% if r.gi_not_needed %} <span class="muted small">(GI marked not needed)</span>{% endif %}</td>
+          <td class="text-end">{{ r.gi_gap_days }}</td><td class="text-end">{{ _days_cell(r) }}</td><td class="text-end">{% if r.carbs is not none %}{{ "%.1f"|format(r.carbs) }}&thinsp;g{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% endcall %}
+  {% else %}<p class="muted">None.</p>{% endif %}
+  {% endif %}
+  <h4 class="h6 mt-3" id="days-eaten-no-carbs">Eaten with no carbohydrate value ({{ de_no_carbs|length }})</h4>
+  <p class="muted small mb-1" style="max-width:48rem">No carbohydrate figure at all (not even 0), so it adds nothing to carbohydrate totals or glycemic load. Open the food to fill it in, or record 0 if it truly has none. A supplement with no carbohydrate drops off this list once its Macronutrients are ticked not needed under Missing nutrient data above.</p>
+  {% if de_no_carbs %}
+  {% call fold_list(de_no_carbs|length, "de-no-carbs", (de_no_carbs|length) ~ " foods", only_when_folded=True) %}
+  <div class="table-responsive mb-2">
+    <table class="table table-sm align-middle" style="max-width:52rem">
+      <thead class="table-light"><tr><th>Food</th><th class="text-end">Days eaten</th></tr></thead>
+      <tbody>{% for r in de_no_carbs %}
+        <tr><td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td><td class="text-end">{{ _days_cell(r) }}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+  {% endcall %}
+  {% else %}<p class="muted">None.</p>{% endif %}
+  {% endif %}
+</details>
 
 <hr class="mt-5">
 <details id="generic-density" class="mt-4">

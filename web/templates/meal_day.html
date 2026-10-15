@@ -38,6 +38,7 @@
 <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; it will be broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
 {% endif %}
 {% endif %}
+{% if gl and show_gl() %}{{ _gl.gl_so_far_line(gl, "Glycemic load for the day so far (" ~ meals|length ~ " meal" ~ ("s" if meals|length != 1 else "") ~ ")", gl_target) }}{% endif %}
 
 {% if day_profile_name %}
 <div class="muted mb-2">
@@ -379,7 +380,7 @@
 {% endif %}
 
 {# ── Glycemic load ────────────────────────────────────────────────────── #}
-{% if gl %}
+{% if gl and show_gl() %}
 <details>
   <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
@@ -421,7 +422,7 @@
       {% for row in section.rows %}
       <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
         <td>{{ row.label }}</td>
-        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
+        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
         <td class="muted">{{ row.unit }}</td>
         {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}

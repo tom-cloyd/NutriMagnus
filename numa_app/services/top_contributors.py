@@ -89,6 +89,63 @@ def rank_contributors_by_dcp(ingredients: list[dict], conn: sqlite3.Connection |
     return {"items": contributions, "total": total}
 
 
+def rank_by_meal_item(ingredients: list[dict], nutrient_key: str, conn: sqlite3.Connection | None, *,
+                      is_dcp: bool = False, is_gl: bool = False, gi_opt_out: bool = False) -> dict:
+    """The same ranking with each meal item kept whole: a recipe is one row,
+    not its foods. `ingredients` are leaf foods carrying the meal item they
+    came from ("item_id", "item_name", "item_fdc_id", "item_recipe_id" —
+    backend._meal_expand_for_diaas()), or, for a food merged across the
+    meal, "item_parts" giving each item's grams of it; leaves with neither
+    are skipped.
+
+    Per item: a nutrient is the sum over its foods; glycemic load too (it
+    adds up — glycemic_load.gl_for_leaves(), counting only foods with a GI);
+    protein (is_dcp) is the item's own standalone DCP, its foods pooled as if
+    it were the whole meal, so a recipe gets its own complementarity — the
+    same per-row meaning as rank_contributors_by_dcp(). Returns
+    rank_contributors()'s {"items", "total"}; each item's "fdc_id" or
+    "recipe_id" is the meal item's own."""
+    groups: dict = {}
+    for ing in ingredients:
+        # A food merged across the meal (backend._group_ingredients_by_food)
+        # lists each meal item's grams of it in "item_parts"; its own item_*
+        # tags name only the first of them.
+        parts = ing.get("item_parts")
+        if parts:
+            for part in parts:
+                groups.setdefault(part["item_id"], []).append({**ing, **part})
+        elif ing.get("item_id") is not None:
+            groups.setdefault(ing["item_id"], []).append(ing)
+    contributions = []
+    total = 0.0
+    for leaves in groups.values():
+        first = leaves[0]
+        if is_dcp:
+            amount = _diaas.meal_level_diaas(leaves, conn).get("digestible_complete_protein_g") or 0.0
+        elif is_gl:
+            # Unrounded per food, as glycemic_load counts it: gl_for_leaves()'s
+            # total is rounded to 0.1, and rounding each item before adding
+            # them up made small loads vanish (two 0.025s summed to 0.0
+            # against the meal's 0.1 — found by
+            # tests/test_contributors_by_item_properties.py).
+            ann_map = _db.annotations_for_fdcids(conn, [lf["fdc_id"] for lf in leaves if lf.get("fdc_id")])
+            amount = sum(_gl._food_share(lf["nutrients_100g"], lf["grams"], ann_map.get(lf.get("fdc_id")),
+                                         gi_opt_out, None, lf["food_name"], lf.get("fdc_id"))[0]
+                         for lf in leaves if not lf.get("is_supplement"))
+        else:
+            amount = sum(((ing.get("nutrients_100g") or {}).get(nutrient_key) or 0.0) * ing["grams"] / 100.0
+                         for ing in leaves)
+        if amount <= 0:
+            continue
+        contributions.append({"food_name": first["item_name"], "fdc_id": first.get("item_fdc_id"),
+                              "recipe_id": first.get("item_recipe_id"), "amount": amount})
+        total += amount
+    contributions.sort(key=lambda c: c["amount"], reverse=True)
+    for c in contributions:
+        c["pct"] = round(c["amount"] / total * 100, 4) if total else 0.0
+    return {"items": contributions, "total": total}
+
+
 def rank_contributors_by_gl(ingredients: list[dict], conn: sqlite3.Connection,
                             gi_opt_out: bool = False) -> dict:
     """Rank leaf foods by their glycemic load (GI x carbohydrate g / 100).
@@ -198,8 +255,8 @@ def missing_contributors(ingredients: list[dict], nutrient_key: str, *, is_dcp: 
     rows: dict = {}
     for ing in ingredients:
         grams = ing.get("grams") or 0.0
-        if grams <= 0:
-            continue
+        if grams <= 0 or ing.get("is_supplement"):
+            continue   # a supplement lacks what isn't on its label, not data (supplements.py)
         per100 = ing.get("nutrients_100g") or {}
         if is_dcp:
             protein = per100.get("protein_g")

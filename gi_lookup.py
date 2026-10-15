@@ -165,6 +165,133 @@ def _score(query_norm: str, entry_norm: str) -> float:
     return difflib.SequenceMatcher(None, query_norm, entry_norm).ratio()
 
 
+def _tiebreak(query_norm: str, name: str) -> tuple:
+    """Order among equal scores. Every name containing the query scores the same
+    0.9, and a common ingredient sits inside hundreds of dish names ("wheat
+    flour" in 264 of the 2021 rows), so without this the plain ingredient is
+    buried under whichever cakes come first in the table. Prefer a name whose
+    first comma-separated part — usually what the food actually is — IS the
+    query ("Wheat flour, raw"), then one that starts with it ("Wheat flour
+    bread"), then one whose first part contains it, then shorter names.
+    Generic rows go ahead of all of those that are a named company's product:
+    a plain "Biscuits, filled with peanut butter" is a better guide to a food
+    than one manufacturer's bar."""
+    entry_norm = _normalize(name)
+    head = _normalize(name.split(",", 1)[0])
+    return (
+        is_branded(name),
+        head != query_norm,
+        not entry_norm.startswith(query_norm),
+        query_norm not in head,
+        len(entry_norm),
+    )
+
+
+# A row is one company's product when it carries a trademark sign, names a
+# company form in brackets, or ends a bracketed list with a country --
+# "(M&M/Mars, USA)", "(Arnott's Pty Ltd, Australia)". A bare "(Canada)" is
+# only where a generic food was tested, and a bracketed list ending in
+# anything else is description ("(six-rowed, hulled, normal barley)").
+_COUNTRIES = (
+    "Australia|Canada|USA|Italy|UK|Japan|France|New Zealand|NZ|China|Sweden|"
+    "Belgium|Netherlands|Singapore|Czech Republic|Thailand|Finland|Germany|UAE|"
+    "Greece|Malaysia|H\\.K\\.|Hong Kong|India|Spain|Taiwan|Denmark|South Africa|"
+    "Brazil|Poland|Ireland|Norway|Russia|Scotland|South Korea|Switzerland"
+)
+_BRANDED_RE = re.compile(
+    r"[®™]"
+    r"|\([^()]*\b(?:Inc|LLC|Ltd|Pty|Corp|Corporation|Company|GmbH|AG)\b[^()]*\)"
+    r"|\([^()]*,\s*(?:" + _COUNTRIES + r")\s*\)"
+)
+
+
+def is_branded(name: str) -> bool:
+    """True when a table row is a named company's product, not a generic food."""
+    return bool(_BRANDED_RE.search(name))
+
+
+def _words(text: str) -> frozenset[str]:
+    """The words of a food name, bracketed asides and trailing footnote digits
+    dropped, each made singular the crude way ("peanuts" -> "peanut")."""
+    text = re.sub(r"\([^()]*\)", " ", text)
+    out = set()
+    for w in _normalize(text).split():
+        if w.isdigit():
+            continue
+        if len(w) > 3 and w.endswith("es") and w[:-2].endswith(("ch", "sh", "x", "o")):
+            w = w[:-2]
+        elif len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+            w = w[:-1]
+        out.add(w)
+    return frozenset(out)
+
+
+def _names_the_food(query_words: frozenset[str], name: str) -> bool:
+    """Is this row the food itself rather than something containing it? Its
+    first comma part, or its whole name, has exactly the query's words --
+    "Peanuts" for "peanut", "Bread, white" for "white bread"; not "Peanut
+    butter bar" for "peanut butter"."""
+    return query_words in (_words(name.split(",", 1)[0]), _words(name))
+
+
+def has_direct_match(query: str, results: list[dict]) -> bool:
+    """True when at least one result is the food itself (see _names_the_food).
+    False means every row only contains, or merely resembles, what was typed --
+    the picker says so, so a food the table lacks doesn't look like a bad search."""
+    head = query.split(",", 1)[0]
+    qw = _words(head)
+    if not qw:
+        return False
+    qc = _compact(head)
+    return any(_names_the_food(qw, r["name"])
+               or qc == _compact(r["name"].split(",", 1)[0])
+               for r in results)
+
+
+def _compact(text: str) -> str:
+    """A name with brackets, spaces and a trailing "s" gone, so "corn flakes"
+    and "Cornflakes" compare equal."""
+    return _normalize(re.sub(r"\([^()]*\)", " ", text)).replace(" ", "").rstrip("s")
+
+
+def stand_ins(query: str, population: str = "both", per_word: int = 3,
+              exclude: tuple[str, ...] = ()) -> list[dict]:
+    """Rows for each single word of the query's food name that the table does
+    hold as a plain food -- "Peanuts" for "peanut butter" -- offered as a
+    possible stand-in when the food itself has no row.
+
+    Returns [{"word": "peanut", "rows": [result, ...]}, ...] in the query's
+    word order, words with no plain row left out. Whether a stand-in fits is
+    the user's call (whole peanuts for peanut butter: yes; butter for it: no),
+    so this only finds them; the picker labels them as stand-ins, and a picked
+    one says so in its saved source. Names in `exclude` are not repeated."""
+    head = query.split(",", 1)[0]
+    words = [w for w in _normalize(re.sub(r"\([^()]*\)", " ", head)).split()
+             if len(w) > 2 and not w.isdigit()]
+    if len(words) < 2:
+        return []
+    data = _data()
+    if population == "both":
+        pools = [data.get("normal", []), data.get("impaired", []), data.get("unknown", [])]
+    else:
+        pools = [data.get(population, []), data.get("unknown", [])]
+    seen = set(exclude)
+    out = []
+    for word in dict.fromkeys(words):
+        ww = _words(word)
+        rows = [e for pool in pools for e in pool
+                if e["name"] not in seen and _names_the_food(ww, e["name"])]
+        # A row that is nothing but the word ("Peanuts") before one that only
+        # leads with it ("Bread, Garden milk bar bun"); generic before branded.
+        rows.sort(key=lambda e: (_words(e["name"]) != ww, is_branded(e["name"]),
+                                 len(e["name"])))
+        rows = rows[:per_word]
+        if rows:
+            seen.update(r["name"] for r in rows)
+            out.append({"word": word, "rows": [{**r, "score": None} for r in rows]})
+    return out
+
+
 def search(query: str, population: str = "both", limit: int = 8, cutoff: float = 0.5) -> list[dict]:
     """Return up to `limit` candidate table entries for `query`, ranked by
     name-match quality (best first). `population` is "normal", "impaired",
@@ -192,6 +319,11 @@ def search(query: str, population: str = "both", limit: int = 8, cutoff: float =
     else:
         pools = [data.get(population, []), data.get("unknown", [])]
 
+    if "," in query:
+        by_words = _search_by_words(query, pools, limit)
+        if by_words:
+            return by_words
+
     scored = []
     for pool in pools:
         for entry in pool:
@@ -199,5 +331,59 @@ def search(query: str, population: str = "both", limit: int = 8, cutoff: float =
             if s >= cutoff:
                 scored.append({**entry, "score": s})
 
-    scored.sort(key=lambda e: e["score"], reverse=True)
+    scored.sort(key=lambda e: (-e["score"], *_tiebreak(query_norm, e["name"])))
     return scored[:limit]
+
+
+# Words in a USDA-style name that say nothing about which table row fits.
+_FILLER_WORDS = frozenset(
+    "with without and in of the a to for added includes food usda ns salt".split())
+
+# USDA first parts that name a category, the food itself coming second:
+# "Nuts, almonds, dry roasted", "Spices, cloves, ground".
+_CATEGORY_HEADS = frozenset({"nut", "spice", "beverage", "seed"})
+
+
+def _search_by_words(query: str, pools: list[list[dict]], limit: int) -> list[dict]:
+    """Search for a comma-separated name such as the USDA's "Peanut butter,
+    smooth style, with salt" -- the name the Annotate page's search box starts
+    with. Matched as whole strings, a long name like that resembles nothing:
+    "Peas, split, mature seeds, cooked, boiled, without salt" came back as
+    salted cassava. Its first part is the food and the rest describe it, so:
+    keep the rows containing every word of the first part (or of the second,
+    after a category such as "Nuts,"), then rank them by how many of the other
+    words they share ("Peas, dried, boiled" shares "boiled"), a row whose own
+    first part is the food counting as one more, generic rows before branded. If no row has every word,
+    the first word alone is tried ("Amaranth grain" -> amaranth rows). []
+    when even that finds nothing; search() then falls back to whole-string
+    matching."""
+    parts = [p for p in query.split(",") if _words(p) - _FILLER_WORDS]
+    if not parts:
+        return []
+    if len(parts) > 1 and _words(parts[0]) <= _CATEGORY_HEADS:
+        parts = parts[1:]
+    head_words = _words(parts[0]) - _FILLER_WORDS
+    rest_words = _words(query) - head_words - _FILLER_WORDS - _CATEGORY_HEADS
+    first = [w for w in _normalize(re.sub(r"\([^()]*\)", " ", parts[0])).split()
+             if w not in _FILLER_WORDS]
+
+    def collect(required):
+        found = []
+        for pool in pools:
+            for entry in pool:
+                words = _words(entry["name"])
+                if required <= words:
+                    head_eq = _words(entry["name"].split(",", 1)[0]) == head_words
+                    found.append((len(rest_words & words) + head_eq, head_eq, entry))
+        return found
+
+    found = collect(head_words)
+    if not found and len(head_words) > 1 and first:
+        found = collect(_words(first[0]))
+    # Generic rows first outright, not just on a tie: a long product name
+    # picks up incidental shared words ("Honey & Roasted Almond flavor"), and
+    # a comma-style name like this is almost always a generic food's.
+    found.sort(key=lambda t: (is_branded(t[2]["name"]), -t[0], not t[1],
+                              len(t[2]["name"])))
+    top = max(len(rest_words) + 1, 1)
+    return [{**e, "score": round(0.8 + 0.2 * n / top, 3)} for n, _, e in found[:limit]]

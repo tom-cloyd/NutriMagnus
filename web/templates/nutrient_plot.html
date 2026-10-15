@@ -288,6 +288,17 @@ marked complete, and <strong>Roll to last complete day</strong> leaves those day
   <small class="muted">{{ manual_link("plot-file-formats", "Which format should I pick?") }}</small>
 </div>
 <p class="muted mt-2"><small>{{ smoothing_info.plotted_days }} day(s) plotted, {{ plot_first }} to {{ plot_last }}.</small></p>
+{% if smoothing_info.empty_series %}
+<div class="alert alert-warning mt-2" style="max-width:48rem"><small><strong>Not on the plot:</strong>
+{{ smoothing_info.empty_series | join(", ") }} &mdash; no day in this range has a value for {{ "it" if smoothing_info.empty_series | length == 1 else "them" }}.
+{% if "gl" in chosen and smoothing_info.gl_thin_days %}Daily glycemic load is drawn only for a day where foods with a GI make up at least {{ smoothing_info.gl_min_coverage }}% of its carbohydrate; add GI values to the foods you eat most on the <a href="/food/annotate">Annotate</a> page.{% endif %}</small></div>
+{% endif %}
+{% if smoothing_info.gl_partial_days or (smoothing_info.gl_thin_days and smoothing_info.gl_thin_days < smoothing_info.plotted_days) %}
+<p class="muted mt-1"><small><strong>Daily glycemic load:</strong>
+{% if smoothing_info.gl_partial_days %}{{ smoothing_info.gl_partial_days }} day{{ "s" if smoothing_info.gl_partial_days != 1 }} {{ "is" if smoothing_info.gl_partial_days == 1 else "are" }} partial (hollow points): some carbohydrate foods eaten that day have no GI, so the real GL was at least that high.{% endif %}
+{% if smoothing_info.gl_thin_days %}{{ smoothing_info.gl_thin_days }} day{{ "s" if smoothing_info.gl_thin_days != 1 }} {{ "is" if smoothing_info.gl_thin_days == 1 else "are" }} left out, because foods with a GI made up under {{ smoothing_info.gl_min_coverage }}% of that day&rsquo;s carbohydrate.{% endif %}
+</small></p>
+{% endif %}
 {% import "_smoothing_note.html" as _smooth %}{{ _smooth.note(smoothing_info) }}
 {% endif %}
 <script>

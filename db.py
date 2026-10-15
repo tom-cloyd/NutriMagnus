@@ -581,6 +581,23 @@ def init_db() -> None:
             conn.execute("ALTER TABLE foods ADD COLUMN estimated_keys_json TEXT")
         except sqlite3.OperationalError:
             pass
+        # foods.name_by_user: the user renamed this food (POST /food/{id}/
+        # rename), so the name is theirs — Refresh from USDA then offers the
+        # source's name unticked rather than putting it back by default.
+        # Cleared when they take the source's name again (update_food_fields).
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN name_by_user INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        # foods.corrections_json: why a value was changed by one of Foods →
+        # 9's data-problem fixes ("kilojoules entered as calories") —
+        # [{key, from, to, reason, at}], newest last. Shown on the food's page
+        # and the Refresh review while the value is still the corrected one
+        # (food_corrections()). NULL = none.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN corrections_json TEXT")
+        except sqlite3.OperationalError:
+            pass
         # foods.is_drink / recipes.is_drink: the food's (or the whole recipe's)
         # water counts as "water from drinks" rather than "from food" in meal,
         # recipe and day totals (numa_app/services/water.py). New foods are
@@ -596,6 +613,21 @@ def init_db() -> None:
             conn.execute("ALTER TABLE recipes ADD COLUMN is_drink INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
+        # foods.is_supplement: counted per unit, not a food — no food checks,
+        # no weight, and its nutrients tracked as "from supplements"
+        # (numa_app/services/supplements.py). Backfilled from supplement mode
+        # (a serving of exactly 1 tablet / capsule / scoop ...); meals using
+        # those are marked for recalculation so their totals gain the split.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN is_supplement INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        else:
+            from numa_app.services import supplements as _supps
+            for _r in conn.execute("SELECT fdc_id, serving_size, serving_unit FROM foods").fetchall():
+                if _supps.looks_like_supplement(_r["serving_size"], _r["serving_unit"]):
+                    conn.execute("UPDATE foods SET is_supplement = 1 WHERE fdc_id = ?", (_r["fdc_id"],))
+                    mark_meals_stale_for_food(conn, _r["fdc_id"])
         # recipes.gi_as_eaten: the user has said this recipe's ingredients are
         # eaten in the form their GI describes (a smoothie of raw fruit), so
         # its GI stops flagging raw/dry/flour ingredients — see
@@ -925,7 +957,7 @@ def list_cached_foods(conn: sqlite3.Connection, *, include_archived: bool = Fals
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-        "nutrients_json, portions_json, notes, curator_notes, archived "
+        "nutrients_json, portions_json, notes, curator_notes, archived, is_supplement "
         f"FROM foods {archived_clause} ORDER BY name"
     ).fetchall()
 
@@ -945,6 +977,17 @@ def set_food_is_drink(conn: sqlite3.Connection, fdc_id: int, is_drink: bool) -> 
     """Mark a cached food as a drink (its water counts as water from drinks)
     or not. Callers cascade the change to recipes/meals (recipe_dcp)."""
     conn.execute("UPDATE foods SET is_drink = ? WHERE fdc_id = ?", (1 if is_drink else 0, fdc_id))
+
+
+def set_food_is_supplement(conn: sqlite3.Connection, fdc_id: int, is_supplement: bool) -> None:
+    """Mark a cached food as a supplement or not (numa_app/services/
+    supplements.py). Callers cascade the change to recipes/meals."""
+    conn.execute("UPDATE foods SET is_supplement = ? WHERE fdc_id = ?", (1 if is_supplement else 0, fdc_id))
+
+
+def supplement_ids(conn: sqlite3.Connection) -> set[int]:
+    """Every food marked as a supplement."""
+    return {r[0] for r in conn.execute("SELECT fdc_id FROM foods WHERE is_supplement = 1")}
 
 
 def set_recipe_is_drink(conn: sqlite3.Connection, recipe_id: int, is_drink: bool) -> None:
@@ -1622,6 +1665,7 @@ def recipe_compute_weight(conn: sqlite3.Connection,
     if not ingredients:
         return None
     seen = _seen | {recipe_id}
+    supplements = supplement_ids(conn)
     total = 0.0
     complete = True
     for ing in ingredients:
@@ -1635,6 +1679,8 @@ def recipe_compute_weight(conn: sqlite3.Connection,
                 grams, sub_complete = per_serving
                 total += grams * float(ing["amount"] or 0)
                 complete = complete and sub_complete and bool(ing["amount"])
+        elif ing["fdc_id"] and ing["fdc_id"] in supplements:
+            continue   # weighs nothing: its "grams" are 100 per tablet
         else:
             if not ing["amount"] or ing["amount"] <= 0:
                 complete = False
@@ -3062,6 +3108,11 @@ def update_food_fields(conn: sqlite3.Connection, fdc_id: int, **fields) -> None:
     list, stored as JSON), leaving nutrients, flags and notes alone. Used by
     the incoming-data review (numa_app/services/incoming_review.py)."""
     sets, values = [], []
+    old_name = None
+    if "name" in fields:
+        row = conn.execute("SELECT name FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+        old_name = row["name"] if row else None
+        sets.append("name_by_user = 0")   # the source's name again, not the user's
     for key, value in fields.items():
         if key not in _FOOD_FIELD_COLUMNS:
             raise ValueError(f"not an updatable food field: {key}")
@@ -3074,6 +3125,8 @@ def update_food_fields(conn: sqlite3.Connection, fdc_id: int, **fields) -> None:
     if sets:
         conn.execute(f"UPDATE foods SET {', '.join(sets)} WHERE fdc_id = ?", (*values, fdc_id))
         refresh_user_edited(conn, fdc_id)
+        if old_name is not None and fields["name"] and fields["name"] != old_name:
+            propagate_food_name(conn, fdc_id, fields["name"], old_name=old_name)
 
 
 def estimated_keys(conn: sqlite3.Connection, fdc_id: int) -> set[str]:
@@ -3094,6 +3147,61 @@ def update_estimated_keys(conn: sqlite3.Connection, fdc_id: int, *,
     keys = (estimated_keys(conn, fdc_id) | set(add)) - set(remove)
     conn.execute("UPDATE foods SET estimated_keys_json = ? WHERE fdc_id = ?",
                  (json.dumps(sorted(keys)) if keys else None, fdc_id))
+
+
+def correct_food_values(conn: sqlite3.Connection, fdc_id: int, changes: dict, reason: str, *,
+                        estimated: "set[str] | list[str]" = ()) -> None:
+    """Apply one data-problem fix (data_quality fixes): set each key in
+    `changes` to its value, or remove it when the value is None; mark the keys
+    in `estimated` as estimates and every other changed key as measured; and
+    log each change with `reason` in foods.corrections_json. On an
+    outside-source food the changed values then show as the user's own
+    (food_edited_keys), so a later Refresh offers the source's figure beside
+    them rather than taking it silently. Callers cascade (recipe_dcp)."""
+    row = conn.execute("SELECT nutrients_json, corrections_json FROM foods WHERE fdc_id = ?",
+                       (fdc_id,)).fetchone()
+    if row is None:
+        return
+    nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+    try:
+        log = json.loads(row["corrections_json"]) if row["corrections_json"] else []
+    except ValueError:
+        log = []
+    from datetime import datetime as _dt
+    at = _dt.now().strftime("%Y-%m-%d")
+    for key, value in changes.items():
+        log.append({"key": key, "from": nutrients.get(key), "to": value, "reason": reason, "at": at})
+        if value is None:
+            nutrients.pop(key, None)
+        else:
+            nutrients[key] = value
+    conn.execute("UPDATE foods SET nutrients_json = ?, corrections_json = ?, cached_at = datetime('now') "
+                 "WHERE fdc_id = ?", (json.dumps(nutrients), json.dumps(log), fdc_id))
+    est = set(estimated)
+    update_estimated_keys(conn, fdc_id, add=est, remove=set(changes) - est)
+    refresh_user_edited(conn, fdc_id)
+
+
+def food_corrections(conn: sqlite3.Connection, fdc_id: int) -> list[dict]:
+    """The fixes still in force on this food: for each key, its latest logged
+    correction, kept only while the food's value is still the one that fix
+    set (an edit, Refresh or later fix since replaces it). Newest first."""
+    row = conn.execute("SELECT nutrients_json, corrections_json FROM foods WHERE fdc_id = ?",
+                       (fdc_id,)).fetchone()
+    if row is None or not row["corrections_json"]:
+        return []
+    try:
+        log = json.loads(row["corrections_json"])
+    except ValueError:
+        return []
+    nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+    latest = {}
+    for i, entry in enumerate(log):
+        latest[entry["key"]] = (i, entry)
+    out = [(i, e) for k, (i, e) in latest.items()
+           if (e["to"] is None and nutrients.get(k) is None)
+           or (e["to"] is not None and nutrients.get(k) is not None and _same_value(nutrients[k], e["to"]))]
+    return [e for _i, e in sorted(out, key=lambda t: -t[0])]
 
 
 def cache_user_supplied_food(conn: sqlite3.Connection, *, fdc_id: int, data_type: str, **kwargs) -> None:
@@ -3398,6 +3506,22 @@ def propagate_food_name(conn: sqlite3.Connection, fdc_id: int, name: str,
         conn.execute("UPDATE diaas_overrides SET food_name = ? WHERE lower(food_name) = lower(?)",
                      (name, old_name))
     return total
+
+
+def rename_food_by_user(conn: sqlite3.Connection, fdc_id: int, new_name: str) -> int:
+    """The user renames a food — any food, USDA's included (POST /food/{id}/
+    rename). Only the name changes: the food keeps its source link and
+    values, and its data isn't marked edited (names aren't tracked data). The
+    name is marked theirs (foods.name_by_user), so a Refresh doesn't put the
+    source's back by default, and copied to every recipe, meal and pantry
+    line using the food (propagate_food_name); returns how many."""
+    row = conn.execute("SELECT name FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if row is None:
+        return 0
+    conn.execute("UPDATE foods SET name = ?, name_by_user = 1 WHERE fdc_id = ?", (new_name, fdc_id))
+    if row["name"] == new_name:
+        return 0
+    return propagate_food_name(conn, fdc_id, new_name, old_name=row["name"])
 
 
 def rename_cached_food(conn: sqlite3.Connection, fdc_id: int, new_name: str) -> None:

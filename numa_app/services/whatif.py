@@ -26,6 +26,7 @@ import profile as _profile
 import usda as _usda
 from numa_app.services import glycemic_load as _gl
 from numa_app.services import water as _water
+from numa_app.services import supplements as _supps
 from numa_app.services.rda_status import rda_status
 from numa_app.services.recipe_dcp import recipe_dcp_per_serving
 from numa_app.services.recipe_nutrients import expand_recipe_ingredients, recipe_serving_grams
@@ -94,7 +95,9 @@ class _Ctx:
     def nutrients_100g(self, fdc_id: int) -> dict:
         if fdc_id not in self.food_nuts:
             cached = _db.get_cached_food(self.conn, fdc_id)
-            self.food_nuts[fdc_id] = (_water.tag(json.loads(cached["nutrients_json"]), _water.is_drink(cached))
+            self.food_nuts[fdc_id] = (_supps.tag(_water.tag(json.loads(cached["nutrients_json"]),
+                                                            _water.is_drink(cached)),
+                                                 _supps.is_supplement(cached))
                                       if cached and cached["nutrients_json"] else {})
         return self.food_nuts[fdc_id]
 
@@ -289,7 +292,7 @@ def _missing_keys(ctx: _Ctx, item: Item, keys: list[str]) -> set[str]:
     if kind == "food":
         nuts = ctx.nutrients_100g(item_id)
         return {k for k in keys if nuts.get(k) is None}
-    leaves = expand_recipe_ingredients(item_id, ctx.conn)
+    leaves = [leaf for leaf in expand_recipe_ingredients(item_id, ctx.conn) if not leaf.get("is_supplement")]
     weight = sum(leaf["grams"] for leaf in leaves)
     if weight <= 0:
         return set(keys)

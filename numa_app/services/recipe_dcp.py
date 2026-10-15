@@ -188,7 +188,10 @@ def _save_recipe_nutrients_100g(recipe_id: int, conn) -> None:
     here must never affect the DCP value already saved above.
     """
     try:
-        whole_batch_leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=1.0)
+        # A supplement weighs nothing (its "grams" are 100 per unit), so it
+        # stays out of the per-100 g figures.
+        whole_batch_leaves = [leaf for leaf in expand_recipe_ingredients(recipe_id, conn, portion_factor=1.0)
+                              if not leaf.get("is_supplement")]
         total_weight_g = sum(leaf["grams"] for leaf in whole_batch_leaves if leaf["grams"] > 0)
         if total_weight_g <= 0:
             return

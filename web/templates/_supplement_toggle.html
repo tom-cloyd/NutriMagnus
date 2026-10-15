@@ -1,0 +1,18 @@
+{# "This is a supplement" checkbox on a food's page (services/supplements.py):
+   no food checks, no weight, nutrients counted as from supplements. #}
+{% macro toggle(food) %}
+<form method="post" action="/food/{{ food.fdc_id }}/supplement" class="mb-2" id="supplement-toggle">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="is_supplement" value="1" id="is_supplement"
+           {% if food.is_supplement %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="is_supplement">This is a supplement
+      <small class="muted">(a tablet, capsule or scoop: NuMa won&rsquo;t check it for calories, amino acids, GI or portions, it adds no weight, and its nutrients count as <em>from supplements</em> in your totals)</small>
+      {{ manual_link("supplements") }}</label>
+  </div>
+  {% if food.is_supplement and not food.supp_unit %}
+  <p class="text-warning-emphasis small mb-0 mt-1">This food&rsquo;s figures are per 100&thinsp;g, not per tablet.
+    To log it by the tablet, set its serving to <strong>1 tablet</strong> (or capsule, scoop&hellip;) and enter the label&rsquo;s per-tablet amounts{% if food.user_drafted %} on <a href="/food/custom-profiles/{{ food.fdc_id }}/edit">Edit nutrients</a>{% else %}: <strong>Copy as custom-food draft</strong>, above, makes an editable copy{% endif %}.</p>
+  {% endif %}
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary mt-1">Save the supplement setting</button></noscript>
+</form>
+{% endmacro %}

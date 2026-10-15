@@ -130,6 +130,45 @@
 {{ missing_table(missing, contributor_options, contributor_rank, is_dcp) }}
 {% endmacro %}
 
+{# The same ranking with each meal item kept whole — a recipe is one row
+   (top_contributors.rank_by_meal_item()). Shown under the food-level table
+   on a meal page that has a recipe in it. #}
+{% macro by_item(result, contributor_unit, is_dcp=False, is_gl=False) %}
+<h4 class="h6 mt-4 mb-1" id="contrib-by-item">By meal item, recipes kept whole</h4>
+<p class="muted mb-1"><small>The same ranking, with each recipe counted as one item instead of being split into its foods.{% if is_dcp %} A recipe&rsquo;s figure is its own standalone digestible complete protein, its foods pooled together as if it were the whole meal, so it can be more than its foods&rsquo; standalone figures added up.{% elif is_gl %} Only foods with a GI count, as above.{% endif %}</small></p>
+{% if result["items"] %}
+<table class="nutrient-table">
+  <thead>
+    <tr>
+      <th>Food or recipe</th>
+      <th class="num-col">{% if is_dcp %}Digestible Complete Protein (standalone){% elif is_gl %}Glycemic load{% else %}Amount{% endif %}</th>
+      <th class="num-col">% of total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in result["items"] %}
+    <tr>
+      <td>{% if c.recipe_id %}<a href="/recipe/{{ c.recipe_id }}">{{ c.food_name }}</a>{{ food_id_tag(None, recipe_id=c.recipe_id) }} <small class="muted">recipe</small>
+          {% elif c.fdc_id %}<a href="/food/{{ c.fdc_id }}">{{ c.food_name }}</a>{{ food_id_tag(c.fdc_id) }}
+          {% else %}{{ c.food_name }}{% endif %}</td>
+      <td class="num-col">{{ c.amount | small_amount }}&thinsp;{{ contributor_unit }}</td>
+      <td class="num-col">{{ c.pct | small_amount }}%</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="fw-bold">
+      <td>Total, all items{% if result["items"]|length < result.count %} ({{ result["items"]|length }} of {{ result.count }} shown){% endif %}</td>
+      <td class="num-col">{{ result.total | round(1) }}&thinsp;{{ contributor_unit }}</td>
+      <td class="num-col">100%</td>
+    </tr>
+  </tfoot>
+</table>
+{% else %}
+<p class="muted">No data available for this nutrient.</p>
+{% endif %}
+{% endmacro %}
+
 {# Foods that can't be ranked because they have no data for the nutrient
    (DCP: no amino acid data) — top_contributors.missing_contributors().
    Folded by default: an offer, under the ranking, not part of it — opened

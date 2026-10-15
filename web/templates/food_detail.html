@@ -90,6 +90,23 @@
 <div class="mb-2">
   <h2>{% if from_context == "recipe" %}Recipe ingredient amount: {% elif from_context == "meal" %}Meal item amount: {% endif %}{{ food.name }}</h2>
   {{ food_id_tag(food.fdc_id) }}
+  {# Rename any food, USDA's included (POST /food/{id}/rename): the new name
+     reaches every recipe, meal and pantry line, and stays yours through a
+     Refresh (foods.name_by_user). #}
+  {% set _renamed = request.query_params.get("renamed") %}
+  {% if _renamed is not none %}
+  <p class="status-met mb-1" style="max-width:48rem"><small>&#10003; Renamed{% if _renamed not in ("0", "") %}, and the new name copied to the {{ _renamed }} recipe, meal and pantry line{{ "s" if _renamed != "1" }} that use{{ "" if _renamed != "1" else "s" }} it{% endif %}.</small></p>
+  {% endif %}
+  <details class="d-inline-block mb-1" id="rename" {% if request.query_params.get("rename_error") %}open{% endif %}>
+    <summary class="muted"><small>Rename this food</small></summary>
+    <form method="post" action="/food/{{ food.fdc_id }}/rename" class="d-flex flex-wrap gap-2 align-items-center mt-1">
+      <input type="text" class="form-control form-control-sm" name="name" value="{{ food.name }}" maxlength="200"
+             style="width:28rem" aria-label="New name" required>
+      <button type="submit" class="btn btn-sm btn-primary">Save the new name</button>
+    </form>
+    {% if request.query_params.get("rename_error") %}<p class="numa-error small mb-0 mt-1">A name can&rsquo;t be blank.</p>{% endif %}
+    <p class="muted small mb-0 mt-1" style="max-width:40rem">Changes only the name, everywhere it shows: every recipe, meal and pantry line using this food gets the new one.{% if food.fdc_id > 0 and not food.user_drafted %} The food stays linked to its source, so <strong>Refresh</strong> still works, and it shows the source&rsquo;s own name beside yours, unticked, rather than putting it back.{% endif %} {{ manual_link("rename-food") }}</p>
+  </details>
   {% if protein and protein.dcp_g is not none and protein.protein_raw %}
   <p class="mb-1">{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} / {{ amount }}&thinsp;g{% endif %}{% else %}{{ amount }}&thinsp;g{% endif %} &rArr;
     <strong>{{ protein.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash; {{ (100 * protein.dcp_g / protein.protein_raw) | round | int }}% of {{ protein.protein_raw }}&thinsp;g raw protein</p>
@@ -104,7 +121,9 @@
     {% if food.serving_size %} &middot; Serving: {{ food.serving_size }}&thinsp;{{ food.serving_unit }}{% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}/print?amount={{ amount }}&portion_str={{ portion_str | urlencode }}">Print / Save as PDF</a>
   </p>
-  {% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/food/%s/drink" % food.fdc_id, food.is_drink, "food") }}
+  {% import "_supplement_toggle.html" as _supp %}{{ _supp.toggle(food) }}
+  {% if not food.is_supplement %}{% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/food/%s/drink" % food.fdc_id, food.is_drink, "food") }}{% endif %}
+  {% if food.water_estimated and track_water() %}<p class="muted mt-n1 mb-2"><small>Water estimated as 100&thinsp;g minus protein, carbs and fat &mdash; this food&rsquo;s data had no water value. {{ manual_link("water") }}</small></p>{% endif %}
   {% if version_info %}
   <div class="alert alert-secondary py-2" style="max-width:52rem" id="older-version-note">
     This is an <strong>older version</strong> of
@@ -139,12 +158,27 @@
   <p class="muted mb-2"><small>You edited this food before NuMa kept track of which values you changed.
     <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda">Refresh from USDA</a> once and it will know.</small></p>
   {% endif %}
+  {# Values changed by one of Foods → 9's data-problem fixes, with why
+     (db.food_corrections: only those still in force). #}
+  {% if corrections %}
+  <div class="mb-2" id="corrections" style="max-width:48rem">
+    <p class="mb-1"><small><strong>Corrected on Foods &rarr; 9</strong> {{ manual_link("calorie-checks") }}</small></p>
+    <ul class="mb-0 small">
+      {% for c in corrections %}<li><strong>{{ nutrient_label(c.key) }}</strong>:
+        {% if c["from"] is not none %}{{ "%g"|format(c["from"]) }}{% else %}blank{% endif %} &rarr;
+        {% if c["to"] is not none %}{{ "%g"|format(c["to"]) }}{% else %}removed{% endif %}
+        <span class="muted">&mdash; {{ c.reason }} ({{ c.at }})</span></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
   {# GI (with the reference-table row it was taken from — the value is only as
      good as its source) and GL per 100 g and for the portion being analyzed. #}
   {% macro _gl_part(gl, what) %}{% if gl.complete %}<strong>GL {{ gl.total }}</strong> {{ what }} ({{ gl_band(gl.total, "serving") }}){% else %}GL {{ what }} not available{% endif %}{% endmacro %}
-  {% if not missing_macros %}
+  {# With glycemic load turned off (Settings → 8) only the GI part shows. #}
+  {% if not food.is_supplement and not missing_macros and (show_gl() or gi_estimate is not none) %}
   <p class="muted mb-2" style="font-size:0.85rem">
-    {% if gi_estimate is not none %}<strong>GI {{ gi_estimate | round | int }}</strong> (glycemic index, annotated) &middot;{% endif %}
+    {% if gi_estimate is not none %}<strong>GI {{ gi_estimate | round | int }}</strong> (glycemic index, annotated){% if show_gl() %} &middot;{% endif %}{% endif %}
+    {% if show_gl() %}
     {{ _gl_part(gl_100g, "per 100&thinsp;g" | safe) }}{% if amount != 100 %} &middot;
     {{ _gl_part(gl_portion, "for this " ~ (portion_label or ("%g" | format(amount)) ~ " g")) }}{% endif %}
     {% if gi_estimate is none %}
@@ -153,11 +187,12 @@
       {% else %}&mdash; no GI recorded for this food yet &middot; <a href="/food/annotate/{{ food.fdc_id }}">add a GI</a>{% endif %}
     {% endif %}
     {{ manual_link("gl") }}
-    {% if gi_estimate is not none %}<br><span class="ms-0">GL = GI &times; the portion&rsquo;s carbohydrate grams &divide; 100, so halving the portion halves the GL while the GI stays put.</span>{% endif %}
+    {% else %}{{ manual_link("gi") }}{% endif %}
+    {% if gi_estimate is not none and show_gl() %}<br><span class="ms-0">GL = GI &times; the portion&rsquo;s carbohydrate grams &divide; 100, so halving the portion halves the GL while the GI stays put.</span>{% endif %}
     {% if gi_source %}<br><span class="ms-0">Value taken from: {{ gi_source }}</span>{% endif %}
     {% if gi_source | gi_impaired %}{% import "_gl_result.html" as _glr_pop %}<br><span class="ms-0">&#9432; This GI was measured in people with impaired glucose tolerance or diabetes. {{ _glr_pop.gi_impaired_advice() }}</span>{% endif %}
   </p>
-  {% if gi_estimate is not none %}{% import "_gl_result.html" as _glr %}{{ _glr.gl_band_help("serving") }}{% endif %}
+  {% if gi_estimate is not none and show_gl() %}{% import "_gl_result.html" as _glr %}{{ _glr.gl_band_help("serving") }}{% endif %}
   {% endif %}
   {% if incoming_applied %}
   <div class="alert alert-success" style="max-width:42rem">
@@ -314,6 +349,10 @@
   <p class="muted"><small>You can add a cup/tbsp weight for this food once from
     <a href="/food/cache/{{ food.fdc_id }}/portions">Food Cache → Portions</a>, and volume amounts will convert automatically after that. {{ manual_link("ts-no-volume-portion") }}</small></p>
   {% endif %}
+  {% elif portion_label and food.is_supplement and food.supp_unit %}
+  {% if portion_label != "1 " ~ food.supp_unit %}<small class="muted">Showing values for <strong>{{ portion_label }}</strong>
+    &middot; <a href="/food/{{ food.fdc_id }}">back to 1 {{ food.supp_unit }}</a>
+  </small>{% endif %}
   {% elif portion_label %}
   <small class="muted">Showing values for <strong>{{ portion_label }}</strong>{% if " g" not in portion_label %} ({{ amount }}&thinsp;g){% endif %}
     &middot; <a href="/food/{{ food.fdc_id }}">back to 100 g</a>
@@ -407,7 +446,7 @@
     <thead>
       <tr>
         <th>Nutrient</th>
-        <th class="num-col">{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label %} ({{ amount }}&thinsp;g){% endif %}{% else %}{{ amount | int }}{% if amount != amount | int %}{{ amount }}{% endif %}&thinsp;g{% endif %}</th>
+        <th class="num-col">{% if portion_label %}{{ portion_label }}{% if " g" not in portion_label and not (food.is_supplement and food.supp_unit) %} ({{ amount }}&thinsp;g){% endif %}{% else %}{{ amount | int }}{% if amount != amount | int %}{{ amount }}{% endif %}&thinsp;g{% endif %}</th>
         <th>Unit</th>
         {% if has_profile %}{{ _rdagoal.header('Minimum') }}{% endif %}
         {% if has_profile %}{{ _rdagoal.header('Target') }}{% endif %}

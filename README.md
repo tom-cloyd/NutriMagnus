@@ -25,12 +25,15 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Recipes** — build, save, and fully analyze recipes; develop them interactively with live nutritional feedback
 - **Meal logging** — log meals by date; view and analyze what you ate; daily nutrition summary
 - **Protein completeness (DIAAS)** — see not just how much protein a food contains, but how much your body can actually use, adjusted for digestibility and amino acid balance
-- **Complement suggestions** — NutriMagnus identifies which essential amino acids are missing and suggests specific foods — drawn from your personal pantry first — to fill the gap
+- **Complement suggestions** — NutriMagnus identifies which essential amino acids are missing and suggests specific foods — drawn from your personal pantry first — to fill the gap, each within a realistic most-per-meal amount
+- **Protein per meal** — see whether each meal carries the amount of usable protein research recommends for muscle, personalised from your weight and age, and how many of a day's meals reached it
+- **Water tracking** — water from everything you log, split into water from drinks and water from food, against daily goals from the IOM or EFSA, with an older-adult drinks minimum and an optional clinician's fluid limit
+- **Supplements** — mark a food as a supplement and it reads per tablet, weighs nothing, and every nutrient table shows how much of each nutrient came from supplements
 - **Oxalate tracking** — flags high-oxalate foods with practical notes (relevant for kidney stone risk and calcium absorption)
 - **Multiple user profiles** — different RDA targets for different household members (age, sex, weight, activity level)
 - **Personalized nutrient targets** — set a custom "optimal" target above the standard RDA for any nutrient (e.g. higher Vitamin D for older adults), and custom max limits that warn you as you approach them
 - **Personal pantry** — keep a list of protein sources on hand; the complement advisor draws from it first
-- **Glycemic load tracking** — see the glycemic load of foods, recipes, full meals and whole days (a day judged on the daily scale, not the per-meal one); plot daily glycemic load over time, or average it across 7, 14 or 30 days
+- **Glycemic load tracking** — see the glycemic load of foods, recipes, full meals and whole days (a day judged on the daily scale, not the per-meal one), with an estimated GI for meals and recipes; set an optional daily target, plot daily glycemic load over time, or average it across 7, 14 or 30 days; get lower-GI swap suggestions from your own foods
 - **Glycemic index lookup** — search the published GI reference tables by food name, for normal or impaired glucose tolerance, and attach a value to any food in one click. The 2008 edition (~2,500 entries) is built in; the 2021 edition (over 4,000 foods) can be added from Settings in a few clicks — its licence doesn't allow it to ship with the program
 - **Nutrient trends over time** — average your intake over 7, 14, or 30 days, or plot any nutrient across your logged days, to catch a chronic shortfall a single day's numbers would hide
 - **CSV export/import** — move foods and recipes between installs, or edit them in a spreadsheet

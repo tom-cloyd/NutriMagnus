@@ -7,7 +7,10 @@ read from here, so they can't drift apart. The checks themselves:
 
 - food_issues(): one food's problems — no calories, calories estimated from
   protein/carbs/fat, calories that don't fit them (energy_check.py), and
-  impossible values (impossible_values()).
+  impossible values (impossible_values()) — each with the one-click fixes
+  that can be offered for it (a likely cause such as kilojoules entered as
+  calories, where the figures show one); apply_fix() applies one, logged
+  with its reason (db.correct_food_values).
 - stale_amounts(): recipe ingredients and logged meal foods entered as a
   volume or portion ("1/3 c", "2 T", "p1") whose stored grams no longer match
   what that entry works out to now — the food's portions changed, or NuMa's
@@ -33,6 +36,10 @@ read from here, so they can't drift apart. The checks themselves:
   but no GI, most-used first — they leave glycemic load incomplete and can't
   be offered as lower-GL swaps. "Not needed" here is the GI "don't prompt me"
   flag (food_annotations.gi_no_prompt), the one glycemic load already honours.
+- foods_days_eaten(): every food eaten in a chosen span of days (on its own
+  or inside a logged recipe), with how many days, for Foods → 9's "Foods:
+  days eaten" — the page then picks out those that left a day's glycemic
+  load incomplete (ranked by those days) and those with no carbohydrate value.
 - wet_dry_in_use(): foods named dry ("okara flour") — by their own name or
   the name typed for them in a recipe or meal — whose data says mostly water,
   i.e. the wet record picked for the dry food (water.wet_dry_conflict()).
@@ -76,58 +83,159 @@ _STALE_FRACTION = 0.02
 _STALE_MIN_G = 0.5
 
 
+def _fix(fix_id: str, label: str, changes: dict, reason: str, *, hint: str = "",
+         estimated: tuple = ()) -> dict:
+    """One offered correction: `changes` {key: new value, or None to remove},
+    the `reason` logged with it (db.correct_food_values), and an optional
+    `hint` saying what probably went wrong."""
+    return {"id": fix_id, "label": label, "changes": changes, "reason": reason,
+            "hint": hint, "estimated": list(estimated)}
+
+
+def _impossible_items(nutrients: dict) -> list[tuple[str, list[dict]]]:
+    """impossible_values(), each with the fixes that can be offered for it."""
+    out = []
+    neg = sorted(k for k, v in nutrients.items() if isinstance(v, (int, float)) and v < 0)
+    if neg:
+        out.append(("negative value" + ("s" if len(neg) > 1 else "") + " (" + ", ".join(neg) + ")",
+                    [_fix("remove_negative", "Remove the negative value" + ("s" if len(neg) > 1 else ""),
+                          {k: None for k in neg},
+                          "a negative amount can't be right, so the value was removed")]))
+    for k in _GRAM_KEYS:
+        v = nutrients.get(k)
+        if v is not None and v > _SINGLE_LIMIT_G:
+            fixes = []
+            if v / 1000 <= _SINGLE_LIMIT_G:
+                fixes.append(_fix(f"mg_to_g:{k}", f"Divide by 1,000 ({v / 1000:g} g)",
+                                  {k: round(v / 1000, 4)},
+                                  f"{v:g} g of {_LABELS[k]} per 100 g can't be right; probably milligrams "
+                                  "entered as grams, so divided by 1,000",
+                                  hint="probably milligrams entered as grams"))
+            out.append((f"{v:g} g of {_LABELS[k]} per 100 g", fixes))
+    p, c, f = (nutrients.get(k) for k in ("protein_g", "carbs_g", "fat_g"))
+    if None not in (p, c, f) and p + c + f > _MACRO_SUM_LIMIT_G and not any(
+            nutrients.get(k, 0) > _SINGLE_LIMIT_G for k in ("protein_g", "carbs_g", "fat_g")):
+        out.append((f"protein, carbohydrate and fat add up to {p + c + f:.0f} g per 100 g", []))
+    sugar = nutrients.get("sugar_g")
+    if sugar is not None and c is not None and sugar > c * 1.05 + 0.5:
+        out.append((f"more sugars ({sugar:g} g) than carbohydrate ({c:g} g)",
+                    [_fix("sugar_to_carbs", f"Set sugars to {c:g} g, the carbohydrate figure",
+                          {"sugar_g": c},
+                          f"sugars ({sugar:g} g) were more than carbohydrate ({c:g} g), which includes them; "
+                          "set equal to carbohydrate")]))
+    parts = [nutrients.get(k) for k in ("saturated_fat_g", "mono_fat_g", "poly_fat_g")]
+    if f is not None and any(x is not None for x in parts):
+        total = sum(x or 0 for x in parts)
+        if total > f * 1.1 + 0.5:
+            out.append((f"the three fat types ({total:.1f} g) add up to more than total fat ({f:g} g)",
+                        [_fix("fat_from_parts", f"Set total fat to {total:.1f} g, the sum of its types",
+                              {"fat_g": round(total, 2)},
+                              f"the three fat types ({total:.1f} g) added up to more than total fat "
+                              f"({f:g} g); total fat set to their sum")]))
+    return out
+
+
 def impossible_values(nutrients: dict) -> list[str]:
     """Plain-language descriptions of values that can't be right per 100 g:
     negatives, any one macronutrient over 100 g, protein + carbs + fat over
     100 g, sugars more than carbohydrate, or the three fat types more than
     total fat (each is a part of the other)."""
-    out = []
-    neg = [k for k, v in nutrients.items() if isinstance(v, (int, float)) and v < 0]
-    if neg:
-        out.append("negative value" + ("s" if len(neg) > 1 else "") + " (" + ", ".join(sorted(neg)) + ")")
-    for k in _GRAM_KEYS:
-        v = nutrients.get(k)
-        if v is not None and v > _SINGLE_LIMIT_G:
-            out.append(f"{v:g} g of {_LABELS[k]} per 100 g")
-    p, c, f = (nutrients.get(k) for k in ("protein_g", "carbs_g", "fat_g"))
-    if None not in (p, c, f) and p + c + f > _MACRO_SUM_LIMIT_G and not any(
-            nutrients.get(k, 0) > _SINGLE_LIMIT_G for k in ("protein_g", "carbs_g", "fat_g")):
-        out.append(f"protein, carbohydrate and fat add up to {p + c + f:.0f} g per 100 g")
-    sugar = nutrients.get("sugar_g")
-    if sugar is not None and c is not None and sugar > c * 1.05 + 0.5:
-        out.append(f"more sugars ({sugar:g} g) than carbohydrate ({c:g} g)")
-    parts = [nutrients.get(k) for k in ("saturated_fat_g", "mono_fat_g", "poly_fat_g")]
-    if f is not None and any(x is not None for x in parts):
-        total = sum(x or 0 for x in parts)
-        if total > f * 1.1 + 0.5:
-            out.append(f"the three fat types ({total:.1f} g) add up to more than total fat ({f:g} g)")
-    return out
+    return [text for text, _fixes in _impossible_items(nutrients)]
+
+
+def _calorie_fixes(nutrients: dict, mm: dict, serving_g: float | None) -> list[dict]:
+    """Fixes for calories that don't fit the macros: a likely cause first
+    when the figure fits one (kilojoules entered as calories; a per-serving
+    figure entered as per 100 g), then the 4/4/9 estimate."""
+    stored, expected = mm["stored"], mm["expected"]
+    fixes = []
+
+    def fits(cal):
+        return _energy.calorie_mismatch({**nutrients, "calories": cal}) is None
+
+    if stored > 0 and fits(stored / 4.184):
+        kcal = round(stored / 4.184, 1)
+        fixes.append(_fix("kj_to_kcal", f"Convert from kilojoules: {kcal:g} kcal",
+                          {"calories": kcal},
+                          f"calories ({stored:g}) were about 4.2 times what protein, carbs and fat imply; "
+                          "kilojoules entered as calories, so divided by 4.184",
+                          hint="looks like kilojoules entered as calories"))
+    elif serving_g and abs(serving_g - 100) > 5 and stored > 0 and fits(stored * 100 / serving_g):
+        per100 = round(stored * 100 / serving_g, 1)
+        fixes.append(_fix("per_serving", f"Convert to per 100 g: {per100:g} kcal",
+                          {"calories": per100},
+                          f"calories ({stored:g}) matched one {serving_g:g} g serving, not 100 g; "
+                          "converted to per 100 g",
+                          hint=f"looks like the calories for one {serving_g:g} g serving"))
+    if expected > 0:
+        fixes.append(_fix("use_estimate", f"Use the estimate: {expected:.0f} kcal",
+                          {"calories": round(expected, 1)},
+                          f"calories ({stored:g}) didn't fit protein, carbs and fat; replaced with "
+                          "the 4/4/9 estimate", estimated=("calories",)))
+    return fixes
 
 
 def food_issues(nutrients: dict, *, estimated: set[str] = frozenset(),
-                ignored: set[str] = frozenset()) -> list[dict]:
-    """One food's data problems as [{"kind", "severity", "text"}], worst
-    first. kind: impossible | calories_missing | calories_mismatch |
+                ignored: set[str] = frozenset(), serving_g: float | None = None) -> list[dict]:
+    """One food's data problems as [{"kind", "severity", "text", "fixes"}],
+    worst first. kind: impossible | calories_missing | calories_mismatch |
     calories_estimated. severity "problem" or "note" (an estimate is
     information, not something wrong). Calorie checks are skipped for a food
     whose macronutrients the user marked "not needed"; the mismatch check
-    alone is skipped for one whose calories they confirmed (CALORIES_OK_KEY)."""
-    out = [{"kind": "impossible", "severity": "problem", "text": t}
-           for t in impossible_values(nutrients)]
+    alone is skipped for one whose calories they confirmed (CALORIES_OK_KEY).
+
+    "fixes": the one-click corrections Foods → 9 offers for the problem (see
+    _fix(); applied by apply_fix()), most likely first; [] when NuMa can't
+    tell which value is wrong. `serving_g`, the food's serving in grams,
+    lets a per-serving calorie figure be recognised."""
+    out = [{"kind": "impossible", "severity": "problem", "text": t, "fixes": fixes}
+           for t, fixes in _impossible_items(nutrients)]
     if "macros" not in ignored:
         if _energy.calories_missing(nutrients):
+            est = _energy.atwater_estimate(nutrients)
+            fixes = [_fix("estimate_calories", f"Fill in calories from protein, carbs and fat: {est:.0f} kcal",
+                          {"calories": round(est, 1)},
+                          "no calorie value; estimated from protein, carbs and fat (4/4/9)",
+                          estimated=("calories",))] if est and est > 0 else []
             out.append({"kind": "calories_missing", "severity": "problem",
-                        "text": "no calorie value, so it adds nothing to any calorie total"})
+                        "text": "no calorie value, so it adds nothing to any calorie total",
+                        "fixes": fixes})
         elif "calories" in estimated:
             out.append({"kind": "calories_estimated", "severity": "note",
-                        "text": "calories estimated from its protein, carbs and fat (its source gave none)"})
+                        "text": "calories estimated from its protein, carbs and fat (its source gave none)",
+                        "fixes": []})
         elif CALORIES_OK_KEY not in ignored:
             mm = _energy.calorie_mismatch(nutrients)
             if mm:
                 out.append({"kind": "calories_mismatch", "severity": "problem",
                             "text": (f"its calories ({mm['stored']:.0f} kcal per 100 g) are far from what its "
-                                     f"protein, carbs and fat imply (about {mm['expected']:.0f})")})
+                                     f"protein, carbs and fat imply (about {mm['expected']:.0f})"),
+                            "fixes": _calorie_fixes(nutrients, mm, serving_g)})
     return out
+
+
+def serving_grams(serving_size, serving_unit) -> float | None:
+    """A food's serving in grams when its unit is grams, else None."""
+    try:
+        size = float(serving_size)
+    except (TypeError, ValueError):
+        return None
+    unit = (serving_unit or "").strip().lower()
+    return size if size > 0 and unit in ("g", "gr", "gram", "grams") else None
+
+
+def apply_fix(conn, fdc_id: int, fix_id: str) -> dict | None:
+    """Apply the fix `fix_id` if the food still has the problem it was
+    offered for — worked out again from the food as it is now, so a stale
+    page can't write a figure that no longer fits. Returns the fix applied,
+    or None. Callers cascade (recipe_dcp.cascade_food_change)."""
+    for issue in issues_for_food(conn, fdc_id):
+        for fix in issue["fixes"]:
+            if fix["id"] == fix_id:
+                _db.correct_food_values(conn, fdc_id, fix["changes"], fix["reason"],
+                                        estimated=fix["estimated"])
+                return fix
+    return None
 
 
 def issues_for_food(conn, fdc_id: int) -> list[dict]:
@@ -138,8 +246,12 @@ def issues_for_food(conn, fdc_id: int) -> list[dict]:
         nutrients = json.loads(row["nutrients_json"] or "{}")
     except (ValueError, TypeError):
         return []
+    ignored = _db.food_data_ignores(conn).get(fdc_id, set())
+    if row["is_supplement"]:
+        ignored = ignored | SUPPLEMENT_SKIPS
     return food_issues(nutrients, estimated=_db.estimated_keys(conn, fdc_id),
-                       ignored=_db.food_data_ignores(conn).get(fdc_id, set()))
+                       ignored=ignored,
+                       serving_g=serving_grams(row["serving_size"], row["serving_unit"]))
 
 
 def _has_explicit_weight(unit: str) -> bool:
@@ -336,7 +448,8 @@ def scan(conn) -> dict:
     ignores = _db.food_data_ignores(conn)
     checked = set(_completeness.DEFAULT_CHECKED)
     food_rows, gaps, keys = [], [], set()
-    for row in conn.execute("SELECT fdc_id, name, nutrients_json FROM foods WHERE archived = 0 ORDER BY name"):
+    for row in conn.execute("SELECT fdc_id, name, nutrients_json, serving_size, serving_unit, user_drafted, "
+                            "is_supplement FROM foods WHERE archived = 0 ORDER BY name"):
         try:
             n = json.loads(row["nutrients_json"] or "{}")
         except (ValueError, TypeError):
@@ -344,9 +457,13 @@ def scan(conn) -> dict:
         if not isinstance(n, dict):
             continue
         ign = ignores.get(row["fdc_id"], set())
-        issues = food_issues(n, estimated=estimated.get(row["fdc_id"], set()), ignored=ign)
+        if row["is_supplement"]:
+            ign = ign | SUPPLEMENT_SKIPS
+        issues = food_issues(n, estimated=estimated.get(row["fdc_id"], set()), ignored=ign,
+                             serving_g=serving_grams(row["serving_size"], row["serving_unit"]))
         if issues:
-            food_rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "issues": issues})
+            food_rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "issues": issues,
+                              "user_drafted": bool(row["user_drafted"])})
             keys |= {f"food:{row['fdc_id']}:{i['kind']}" for i in issues if i["severity"] == "problem"}
         active = _completeness.active_gaps(n, ign, checked)
         if active:
@@ -366,6 +483,10 @@ def scan(conn) -> dict:
 # Group key for "not needed" on the portion list (food_data_ignores; the
 # amino-acid list shares data_completeness's "aa" key).
 PORTIONS_IGNORE_KEY = "portions"
+# Everything a supplement (supplements.py) is never checked for: every
+# nutrient group (so no calorie check and no missing-data gap), amino acids,
+# portions. Applied as if marked "not needed", without writing those marks.
+SUPPLEMENT_SKIPS = frozenset(_completeness.GROUP_KEYS) | {"aa", PORTIONS_IGNORE_KEY}
 
 
 def usage_counts(conn) -> dict[int, dict]:
@@ -391,9 +512,10 @@ def usage_counts(conn) -> dict[int, dict]:
 def _foods_in_use(conn):
     usage = usage_counts(conn)
     ignores = _db.food_data_ignores(conn)
-    for row in conn.execute("SELECT fdc_id, name, nutrients_json, portions_json FROM foods WHERE archived = 0"):
-        if row["fdc_id"] not in usage:
-            continue
+    for row in conn.execute("SELECT fdc_id, name, nutrients_json, portions_json, is_supplement "
+                            "FROM foods WHERE archived = 0"):
+        if row["fdc_id"] not in usage or row["is_supplement"]:
+            continue   # a supplement has none of these food gaps
         try:
             n = json.loads(row["nutrients_json"] or "{}")
             portions = json.loads(row["portions_json"] or "[]") or []
@@ -450,6 +572,97 @@ def missing_gi_in_use(conn) -> list[dict]:
     return rows
 
 
+DAYS_EATEN_DEFAULT = 30
+
+
+def _recipe_food_ids(conn, recipe_id: int, memo: dict[int, set[int]],
+                     visiting: frozenset = frozenset()) -> set[int]:
+    """Every food in a recipe, through its sub-recipes (a cycle stops)."""
+    if recipe_id in memo:
+        return memo[recipe_id]
+    if recipe_id in visiting:
+        return set()
+    ids: set[int] = set()
+    for ing in _db.recipe_get_ingredients(conn, recipe_id):
+        if ing["ref_recipe_id"]:
+            ids |= _recipe_food_ids(conn, ing["ref_recipe_id"], memo, visiting | {recipe_id})
+        elif ing["fdc_id"] is not None:
+            ids.add(ing["fdc_id"])
+    memo[recipe_id] = ids
+    return ids
+
+
+def foods_days_eaten(conn, end_date: str, days: int = DAYS_EATEN_DEFAULT) -> list[dict]:
+    """Every food eaten in the `days` days ending on end_date (ISO), with
+    the number of distinct days it was eaten — on its own in a meal, or
+    inside a logged recipe (through sub-recipes). Most days first.
+
+    Each row: fdc_id, name, days, recipe_days (days it came only from a
+    recipe), carbs (per 100 g, None when the food has no carbohydrate
+    value), carbs_not_needed (its macronutrients marked not needed, e.g. a
+    supplement), gi_gap_days (days it left that day's glycemic load
+    incomplete — glycemic_load's own rule, so a pinch of cinnamon, too
+    little carbohydrate to matter, never counts) and gi_not_needed (GI
+    "don't prompt me", which still leaves a day incomplete)."""
+    from numa_app.services.glycemic_load import GAP_NO_GI, GAP_NOT_WANTED, combine_gl, meal_gl
+    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    start = (end - timedelta(days=max(days, 1) - 1)).isoformat()
+    direct: dict[int, set[str]] = {}
+    via_recipe: dict[int, set[str]] = {}
+    memo: dict[int, set[int]] = {}
+    gi_gap: dict[int, set[str]] = {}
+    meals = _db.meal_list_by_date_range(conn, start, end.isoformat())
+    by_date: dict[str, list] = {}
+    for meal in meals:
+        by_date.setdefault(meal["meal_date"], []).append(meal)
+    for d, day_meals in by_date.items():
+        for g in combine_gl([meal_gl(conn, m["id"]) for m in day_meals])["gaps"]:
+            if g["reason"] in (GAP_NO_GI, GAP_NOT_WANTED) and g["fdc_id"] is not None:
+                gi_gap.setdefault(g["fdc_id"], set()).add(d)
+    for meal in meals:
+        d = meal["meal_date"]
+        for item in _db.meal_get_items(conn, meal["id"]):
+            if item["item_type"] == "recipe" and item["recipe_id"]:
+                for fid in _recipe_food_ids(conn, item["recipe_id"], memo):
+                    via_recipe.setdefault(fid, set()).add(d)
+            elif item["fdc_id"] is not None:
+                direct.setdefault(item["fdc_id"], set()).add(d)
+    ids = set(direct) | set(via_recipe)
+    if not ids:
+        return []
+    ph = ",".join("?" * len(ids))
+    foods = {r["fdc_id"]: r for r in conn.execute(
+        f"SELECT fdc_id, name, nutrients_json, is_supplement FROM foods WHERE fdc_id IN ({ph})", list(ids))}
+    ann = {r["fdc_id"]: r for r in conn.execute(
+        f"SELECT fdc_id, gi_no_prompt FROM food_annotations WHERE fdc_id IN ({ph})", list(ids))}
+    ignores = _db.food_data_ignores(conn)
+    rows = []
+    for fid in ids:
+        food = foods.get(fid)
+        if food is None:
+            continue   # a food no longer cached; broken references are listed above
+        try:
+            n = json.loads(food["nutrients_json"] or "{}")
+        except (ValueError, TypeError):
+            n = {}
+        if not isinstance(n, dict):
+            n = {}
+        carbs = n.get("carbs_g")
+        carbs = float(carbs) if carbs is not None else None
+        a = ann.get(fid)
+        own = direct.get(fid, set())
+        all_days = own | via_recipe.get(fid, set())
+        rows.append({"fdc_id": fid, "name": food["name"], "days": len(all_days),
+                     "recipe_days": len(all_days - own), "carbs": carbs,
+                     # A supplement needs no carbohydrate value, as if marked not needed.
+                     "carbs_not_needed": "macros" in ignores.get(fid, set()) or bool(food["is_supplement"]),
+                     "is_supplement": bool(food["is_supplement"]),
+                     "gi_gap_days": len(gi_gap.get(fid, set())),
+                     "gi_not_needed": bool(a is not None and a["gi_no_prompt"])})
+    rows.sort(key=lambda r: (-r["days"], r["name"].lower()))
+    return rows
+
+
 def wet_dry_in_use(conn) -> list[dict]:
     """Foods whose own name, or the name typed for them in a recipe or meal,
     says dry ("okara flour") while their data says mostly water
@@ -457,7 +670,7 @@ def wet_dry_in_use(conn) -> list[dict]:
     food. Each row names where it is used under a dry-sounding name
     ("recipes" / "meals": [{"id", "label", "typed"}]); used or not, a food
     whose OWN name conflicts is listed too. Only foods with a water value can
-    be judged. Shown only while water tracking is on (Settings → 14)."""
+    be judged. Shown only while water tracking is on (Settings → 9)."""
     from numa_app.services import water as _water
     typed: dict[int, list[tuple[str, int, str, str]]] = {}
     for r in conn.execute("""SELECT ri.fdc_id, ri.food_name, r.id, r.name FROM recipe_ingredients ri

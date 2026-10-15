@@ -9,8 +9,8 @@ import pytest
 
 import db as _db
 from numa_app.services.glycemic_load import (GAP_NO_DATA, GAP_NO_GI, GAP_NO_RECIPE, GAP_NOT_WANTED,
-                                             average_day_gl, combine_gl, day_gl_total,
-                                             day_gl_totals, food_gl, gl_band, gl_band_caveat,
+                                             average_day_gl, combine_gl, day_gl_plot_values,
+                                             day_gl_total, day_gl_totals, food_gl, gl_band, gl_band_caveat,
                                              gl_for_items, meal_gl, meal_line_items, recipe_gl,
                                              available_carbs_100g, gi_band, gi_near_band, looks_uncooked)
 from numa_app.services.food_ids import _SYNTHETIC_ID_RANGES
@@ -64,7 +64,7 @@ class TestGlForItems:
         db_conn.commit()
         r = gl_for_items([_food_item(rice_food, "Rice", 100.0)], db_conn)
         # carbs_g=28 per 100g * 70 GI / 100 = 19.6
-        assert r == {"total": 19.6, "complete": True, "gaps": [],
+        assert r == {"total": 19.6, "total_exact": pytest.approx(19.6), "complete": True, "gaps": [],
                      "carbs_with_gi_g": 28.0, "carbs_g": 28.0, "coverage_pct": 100, "impaired": [],
                      "mixture": True, "gi": 70, "gi_band": "High", "gi_near": "Medium",
                      "gi_too_little_carb": False, "uncooked": []}
@@ -110,7 +110,7 @@ class TestGlForItems:
     def test_negligible_carbohydrate_without_gi_counts_as_zero(self, db_conn, rice_food):
         # 3 g of rice holds 0.84 g carbohydrate: under the 1 g floor.
         r = gl_for_items([_food_item(rice_food, "Rice", 3.0)], db_conn)
-        assert r == {"total": 0.0, "complete": True, "gaps": [], "carbs_with_gi_g": 0.0, "carbs_g": 0.0, "coverage_pct": None, "impaired": [],
+        assert r == {"total": 0.0, "total_exact": 0.0, "complete": True, "gaps": [], "carbs_with_gi_g": 0.0, "carbs_g": 0.0, "coverage_pct": None, "impaired": [],
                      "mixture": True, "gi": None, "gi_band": None, "gi_near": None, "gi_too_little_carb": False, "uncooked": []}
         # 4 g holds 1.12 g: now it matters.
         assert gl_for_items([_food_item(rice_food, "Rice", 4.0)], db_conn)["complete"] is False
@@ -118,7 +118,7 @@ class TestGlForItems:
     def test_food_with_no_carbs_value_contributes_zero(self, db_conn):
         _add_food(db_conn, 4, "Oil", json.dumps({"fat_g": 100.0}))
         db_conn.commit()
-        assert gl_for_items([_food_item(4, "Oil", 100.0)], db_conn) == {"total": 0.0, "complete": True, "gaps": [], "carbs_with_gi_g": 0.0, "carbs_g": 0.0, "coverage_pct": None, "impaired": [],
+        assert gl_for_items([_food_item(4, "Oil", 100.0)], db_conn) == {"total": 0.0, "total_exact": 0.0, "complete": True, "gaps": [], "carbs_with_gi_g": 0.0, "carbs_g": 0.0, "coverage_pct": None, "impaired": [],
                      "mixture": True, "gi": None, "gi_band": None, "gi_near": None, "gi_too_little_carb": False, "uncooked": []}
 
     def test_food_with_no_nutrient_data_is_a_gap(self, db_conn):
@@ -397,6 +397,42 @@ class TestDayGlTotals:
         db_conn.commit()
         totals = day_gl_totals(db_conn, ["2026-09-23", "2026-09-24"])
         assert totals == {"2026-09-23": pytest.approx(9.8), "2026-09-24": None}
+
+
+class TestDayGlPlotValues:
+    """The Nutrient Plot draws a partly annotated day once enough of its
+    carbohydrate has a GI; day_gl_total stays strict for averages."""
+
+    @pytest.fixture()
+    def bread(self, db_conn):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (2, "Bread", "SR Legacy", json.dumps({"carbs_g": 49.0}), "[]"),
+        )
+        return 2
+
+    def _day(self, db_conn, date, rice_id, bread_id, bread_g):
+        mid = _db.meal_create(db_conn, "Lunch", date)
+        _db.meal_add_food(db_conn, mid, rice_id, "Rice", 100.0, "g")
+        _db.meal_add_food(db_conn, mid, bread_id, "Bread", bread_g, "g")
+        db_conn.commit()
+
+    def test_mostly_annotated_day_is_plotted_as_partial(self, db_conn, rice_with_gi, bread):
+        self._day(db_conn, "2026-09-21", rice_with_gi, bread, 5.0)   # ~92% of carbs have a GI
+        assert day_gl_total(db_conn, "2026-09-21") is None
+        value, partial = day_gl_plot_values(db_conn, ["2026-09-21"])["2026-09-21"]
+        assert partial is True and value == pytest.approx(19.6)
+
+    def test_thinly_annotated_day_is_left_out(self, db_conn, rice_with_gi, bread):
+        self._day(db_conn, "2026-09-21", rice_with_gi, bread, 100.0)  # ~36%
+        assert day_gl_plot_values(db_conn, ["2026-09-21"]) == {"2026-09-21": (None, False)}
+
+    def test_complete_day_and_empty_day(self, db_conn, rice_with_gi):
+        mid = _db.meal_create(db_conn, "Dinner", "2026-09-23")
+        _db.meal_add_food(db_conn, mid, rice_with_gi, "Rice", 50.0, "g")
+        db_conn.commit()
+        values = day_gl_plot_values(db_conn, ["2026-09-23", "2026-09-24"])
+        assert values == {"2026-09-23": (pytest.approx(9.8), False), "2026-09-24": (None, False)}
 
 
 class TestAverageDayGl:

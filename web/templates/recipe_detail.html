@@ -91,7 +91,7 @@
   </li>
   {% endif %}
   {% endif %}
-  {% if gl %}
+  {% if gl and show_gl() %}
   <li class="sb-item" data-target="sec-glycemic">
     <a class="sb-toggle" href="#sec-glycemic">Glycemic Load</a>
   </li>
@@ -426,7 +426,7 @@
       {% for row in section.rows %}
       <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
         <td>{{ row.label }}</td>
-        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
+        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
         <td class="muted">{{ row.unit }}</td>
         {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
@@ -864,7 +864,7 @@ document.getElementById('complements-form').addEventListener('change', function 
 {% endif %}{# end complements block #}
 
 {# ── Glycemic Load ────────────────────────────────────────────────────── #}
-{% if gl %}
+{% if gl and show_gl() %}
 <section id="sec-glycemic" class="analysis-section">
   <h3 class="section-heading">Glycemic Load and GI {{ manual_link("glycemic") }}</h3>
   <div class="protein-meta mt-2">

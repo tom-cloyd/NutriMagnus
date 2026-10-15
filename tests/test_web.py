@@ -1513,7 +1513,7 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
 
 
 def test_settings_nutrient_target_reads_units_and_reports_errors(client: TestClient) -> None:
-    """Settings -> 7 used to drop an unreadable value without a word."""
+    """Settings -> 5 used to drop an unreadable value without a word."""
     client.post("/settings/nutrient-target",
                 data={"key": "vitamin_d_mcg", "optimal": "2,000 IU", "limit": ""}, follow_redirects=False)
     assert _profile.load_profile().optimal_targets == {"vitamin_d_mcg": 50.0}
@@ -1690,13 +1690,49 @@ def test_settings_browser_lists_chromium_once(client: TestClient) -> None:
     assert "checked" in radio
 
 
-def test_settings_sections_11_to_13_have_letter_shortcuts(client: TestClient) -> None:
+def test_system_issues_alert_shows_on_every_page_until_dismissed(client: TestClient, db_conn) -> None:
+    for page in ("/", "/recipes", "/settings"):
+        assert 'id="system-issues-banner"' not in client.get(page).text
+    _db.log_recompute_error(db_conn, "recipe", 5, "something failed")
+    db_conn.commit()
+    for page in ("/", "/recipes", "/pantry", "/settings"):
+        text = client.get(page).text
+        assert 'id="system-issues-banner"' in text, page
+        assert "1 recalculation failed" in text
+    # Dismissing returns to the page it was dismissed on, and hides it everywhere.
+    resp = client.post("/recompute-errors/ack-banner", data={"return_to": "/recipes?q=oat"},
+                       follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"] == "/recipes?q=oat"
+    for page in ("/", "/recipes"):
+        assert 'id="system-issues-banner"' not in client.get(page).text
+    # Still listed in Settings until actually resolved.
+    assert "1 unresolved" in client.get("/settings").text
+    # An outside address is never a redirect target.
+    resp = client.post("/recompute-errors/ack-banner", data={"return_to": "//evil.example"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/"
+
+
+def test_settings_sections_order_and_shortcut_keys(client: TestClient) -> None:
+    """The fifteen Settings sections, in order, each with its Alt+Shift key:
+    digits for 1-10 (0 = 10), a letter of its name for 11-15."""
+    import re
     text = client.get("/settings").text
-    for key in ("g", "y", "d"):
-        assert f'data-ak="{key}"' in text
-    # None of them may collide with a main-nav shortcut.
+    found = [(k, re.sub(r"<[^>]+>", "", t).strip())
+             for k, t in re.findall(r'<summary data-ak="(\w)">.*?<strong>(.*?)</strong>', text, re.S)]
+    assert found == [
+        ("1", "Your Profile"), ("2", "Your Computed Daily Targets"),
+        ("3", "Dietary Preferences"), ("4", "Protein Digestibility Overrides"),
+        ("5", "Nutrient Targets - Researched"), ("6", "USDA API Key"),
+        ("7", "Glycemic Index Reference Table"), ("8", "Glycemic Load"),
+        ("9", "Water Tracking"), ("0", "Meals &amp; Log columns"),
+        ("t", "Starter Data"), ("k", "Keyboard Shortcuts"),
+        ("b", "Browser to Launch"), ("d", "Data Quality Reminder"),
+        ("y", "System Issues"),
+    ]
+    # No letter may collide with a main-nav shortcut.
     nav_keys = {"f", "r", "c", "m", "n", "s", "a"}
-    assert not nav_keys & {"g", "y", "d"}
+    assert not nav_keys & {k for k, _ in found}
 
 
 def test_nav_memory_skips_own_section() -> None:
@@ -1905,6 +1941,40 @@ def test_food_cache_add_to_pantry_button(client: TestClient, cached_food, db_con
     assert db_conn.execute("SELECT 1 FROM pantry WHERE fdc_id = ?", (fdc_id,)).fetchone()
     page = client.get("/food/cache").text
     assert "In pantry" in page and "Add to pantry" not in page
+
+
+def test_food_cache_row_buttons_return_to_same_list(client: TestClient, cached_food) -> None:
+    """Add to pantry / Refresh / starter toggle come back to the same
+    filtered, sorted, archived-or-not list (no #row anchor, which would move
+    the scroll position), and are marked for base.html's keep-scroll."""
+    fdc_id = cached_food["fdcId"]
+    q = cached_food["name"].split()[0]
+    page = client.get(f"/food/cache?q={q}&sort=name&show_archived=1").text
+    list_url = f"/food/cache?q={urllib.parse.quote(q)}&amp;sort=name&amp;show_archived=1"
+    assert f'name="next" value="{list_url}"' in page
+    assert f'data-return-to="{list_url}"' in page
+    assert f"#food-{fdc_id}" not in page
+    assert 'class="js-keep-scroll"' in page
+
+
+def test_pantry_and_recipe_row_fallbacks_keep_filter(client: TestClient, db_conn) -> None:
+    """A full (non-fetch) Archive/Remove/Delete submit lands back on the
+    filtered list it came from, not the unfiltered default."""
+    _db.pantry_add(db_conn, "Filter Me Oats")
+    pid = db_conn.execute("SELECT id FROM pantry WHERE food_name = 'Filter Me Oats'").fetchone()[0]
+    rid = _db.recipe_create(db_conn, "Filter Me Bowl", "", 1, "")
+    db_conn.commit()
+    assert 'name="next" value="/pantry?filter=Filter%20Me"' in client.get("/pantry?filter=Filter Me").text
+    resp = client.post(f"/pantry/{pid}/archive", data={"next": "/pantry?filter=Filter%20Me"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/pantry?filter=Filter%20Me&archived=1"
+    resp = client.post(f"/pantry/remove/{pid}", data={"next": "/pantry?filter=x"}, follow_redirects=False)
+    assert resp.headers["location"] == "/pantry?filter=x"
+    resp = client.post(f"/recipe/{rid}/archive", data={"next": "/recipes?q=Filter&sort=name&show_archived=0"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/recipes?q=Filter&sort=name&show_archived=0&archived=1"
+    resp = client.post(f"/recipe/{rid}/delete", data={"next": "//evil.example/"}, follow_redirects=False)
+    assert resp.headers["location"] == "/recipes"
 
 
 def test_pantry_add_ignores_offsite_next(client: TestClient) -> None:
@@ -3835,6 +3905,23 @@ def test_food_annotate_page_prefills_saved_gi(client: TestClient, cached_food) -
     assert 'value="55.0"' in resp.text, gi_input
 
 
+def test_annotate_page_warns_raw_versus_cooked_gi(client: TestClient, cached_food, db_conn) -> None:
+    """The GI lookup lists raw and cooked forms side by side, and their GIs can
+    differ fourfold (raw flour ~20, bread 70-90), so the warning is always shown
+    beside the GI box -- and says more when the food's own name is raw/dry/flour."""
+    fdc_id = cached_food["fdcId"]
+    db_conn.execute("UPDATE foods SET name = ? WHERE fdc_id = ?", ("Lentils, boiled", fdc_id))
+    db_conn.commit()
+    text = client.get(f"/food/annotate/{fdc_id}").text
+    assert 'id="gi-raw-cooked-warning"' in text
+    assert "This food&rsquo;s name says it is raw" not in text
+
+    db_conn.execute("UPDATE foods SET name = ? WHERE fdc_id = ?", ("Wheat flour, whole-grain", fdc_id))
+    db_conn.commit()
+    text = client.get(f"/food/annotate/{fdc_id}").text
+    assert "This food&rsquo;s name says it is raw" in text
+
+
 def test_gi_source_is_saved_and_shown_on_the_food_page(client: TestClient, cached_food) -> None:
     """A GI picked off the reference table is only as good as the row behind it,
     so the row is stored with it and shown wherever the value is -- the Annotate
@@ -4102,6 +4189,23 @@ def test_food_annotate_gi_lookup_returns_candidates(client: TestClient, cached_f
     body = resp.json()
     assert body["results"]
     assert all("gi_glucose" in r for r in body["results"])
+
+
+def test_food_annotate_gi_lookup_flags_a_missing_food_and_offers_stand_ins(
+        client: TestClient, cached_food, monkeypatch) -> None:
+    # Eight rows containing the name fill the result list, as in the real
+    # table, so "Peanuts" can only appear as a stand-in.
+    rows = [{"name": f"Snack bar {i}, with peanut butter", "gi_glucose": 40.0,
+             "population": "normal"} for i in range(8)]
+    rows.append({"name": "Peanuts", "gi_glucose": 14.0, "population": "normal"})
+    monkeypatch.setattr(backend._gi_lookup, "_data_cache",
+                        {"normal": rows, "impaired": [], "unknown": []})
+    body = client.get(f"/food/annotate/{cached_food['fdcId']}/gi-lookup?q=peanut+butter").json()
+    assert body["direct_match"] is False
+    assert body["stand_ins"][0]["rows"][0]["name"] == "Peanuts"
+    body = client.get(f"/food/annotate/{cached_food['fdcId']}/gi-lookup?q=peanuts").json()
+    assert body["direct_match"] is True
+    assert body["stand_ins"] == []
 
 
 def test_food_annotate_gi_lookup_blank_query(client: TestClient, cached_food) -> None:
@@ -6496,6 +6600,62 @@ def test_meals_list_hides_gl_when_gi_is_turned_off(client: TestClient, db_conn, 
     assert r.status_code == 200
 
 
+def test_meal_page_shows_the_days_gl_up_to_this_meal(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    day = datetime.date.today().isoformat()
+    first = _log_gl_day(client, rice, day, grams="100 g")     # 20.4
+    second = _log_gl_day(client, rice, day, grams="50 g")     # 10.2
+    _log_gl_day(client, rice, day, grams="200 g")              # 40.9, later
+    r = client.get(f"/meal/{second}")
+    assert f"Glycemic load for {day} up to and including this meal (2 of 3 meals):" in r.text
+    # 150 g of rice is 30.675: rounded once, 30.7. Adding the meals' already
+    # rounded 20.4 + 10.2 gave 30.6 until combine_gl() used total_exact.
+    assert "<strong>30.7</strong>" in r.text
+    r = client.get(f"/meal/{first}")
+    assert "(1 of 3 meals):" in r.text and "<strong>20.4</strong>" in r.text
+
+
+def test_day_page_shows_the_days_gl_so_far(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    bread = _gl_bread(db_conn)
+    day = datetime.date.today().isoformat()
+    m = _log_gl_day(client, rice, day, grams="100 g")
+    _log_gl_day(client, bread, day, grams="50 g")
+    r = client.get(f"/meal/{m}/day")
+    assert "Glycemic load for the day so far (2 meals):" in r.text
+    assert "&ge;&thinsp;20.4" in r.text and "53% of the carbohydrate has a GI" in r.text
+
+
+def test_turning_glycemic_load_off_hides_it_everywhere_but_keeps_gi(client: TestClient, db_conn) -> None:
+    rice = _gl_rice(db_conn)
+    day = datetime.date.today().isoformat()
+    meal_id = _log_gl_day(client, rice, day, grams="100 g")
+    rid = _db.recipe_create(db_conn, name="Rice pot", description="", servings=4, instructions="")
+    _db.recipe_add_ingredient(db_conn, rid, rice, "Rice, white, cooked", 400.0, "g")
+    db_conn.commit()
+    assert 'id="sec-glycemic"' in client.get(f"/meal/{meal_id}").text
+
+    r = client.post("/settings/gl", data={}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].endswith("#gl-tracking")
+    meal = client.get(f"/meal/{meal_id}").text
+    assert 'id="sec-glycemic"' not in meal and "up to and including this meal" not in meal
+    assert "Glycemic Load — Full Day" not in client.get(f"/meal/{meal_id}/day").text
+    assert "Glycemic load for the day so far" not in client.get(f"/meal/{meal_id}/day").text
+    assert 'id="sec-glycemic"' not in client.get(f"/recipe/{rid}").text
+    meals = client.get("/meals?sort=gl").text
+    assert ">GL<" not in meals and 'value="gl"' not in meals
+    food = client.get(f"/food/{rice}?amount=100").text
+    assert "GI 73" in food and "GL 20.4" not in food
+    settings = client.get("/settings").text
+    assert 'id="track-gl"' in settings and 'id="track-gl" checked' not in settings
+    # The daily target box is hidden, not removed, so saving the profile keeps it.
+    i = settings.index('id="gl_day_target"')
+    assert "hidden" in settings[settings.rfind("<div", 0, i):i]
+
+    client.post("/settings/gl", data={"track_gl": "1"}, follow_redirects=False)
+    assert 'id="sec-glycemic"' in client.get(f"/meal/{meal_id}").text
+
+
 def test_nutrient_plot_offers_daily_gl_as_a_series(client: TestClient, db_conn) -> None:
     fdc_id = _gl_rice(db_conn)
     today = datetime.date.today().isoformat()
@@ -6508,6 +6668,43 @@ def test_nutrient_plot_offers_daily_gl_as_a_series(client: TestClient, db_conn) 
     r2 = client.get("/summary/nutrient-plot?nutrients=gl")
     assert r2.status_code == 200
     assert "Daily glycemic load" in r2.text
+
+
+def test_nutrient_plot_says_why_a_series_is_missing(client: TestClient, db_conn) -> None:
+    """A chosen series with no point in range (here GL: the day's only
+    carbohydrate has no GI) gets a note instead of silently not appearing."""
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+        (900002, "Bread", "SR Legacy", json.dumps({"carbs_g": 49.0, "protein_g": 9.0}), "[]"),
+    )
+    db_conn.commit()
+    today = datetime.date.today().isoformat()
+    resp = client.post("/meals/create", data={"name": "Meal", "meal_date": today}, follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add", data={"fdc_id": 900002, "food_name": "Bread", "portion_str": "100 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?submitted=1&nutrients=gl&nutrients=protein_g&smoothing=1")
+    assert "Not on the plot:" in r.text
+    assert "at least 80% of its carbohydrate" in r.text
+
+
+def test_nutrient_plot_marks_partial_gl_days(client: TestClient, db_conn) -> None:
+    fdc_id = _gl_rice(db_conn)
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+        (900002, "Bread", "SR Legacy", json.dumps({"carbs_g": 49.0}), "[]"),
+    )
+    db_conn.commit()
+    today = datetime.date.today().isoformat()
+    meal_id = _log_gl_day(client, fdc_id, today)
+    client.post(f"/meal/{meal_id}/add", data={"fdc_id": 900002, "food_name": "Bread", "portion_str": "10 g"},
+                follow_redirects=False)
+
+    r = client.get("/summary/nutrient-plot?submitted=1&nutrients=gl&smoothing=1")
+    assert "Not on the plot:" not in r.text
+    assert "1 day is partial (hollow points)" in r.text
+    assert client.get("/summary/nutrient-plot/image?nutrients=gl&smoothing=1").status_code == 200
 
 
 def test_trend_page_averages_daily_gl(client: TestClient, db_conn) -> None:
@@ -7537,6 +7734,7 @@ def test_profile_save_repins_today_and_apply_to_days_and_day_switch(client: Test
     for d in (past, today):
         _db.meal_create(db_conn, "Lunch", d)
         _dp.ensure_day_profile(db_conn, d)
+        _dp.restore_pinned(db_conn, d)  # new days follow the current profile; these keep their own
     db_conn.commit()
     form = {"age": 40, "sex": "female", "weight": 52, "activity_level": "moderate"}
 

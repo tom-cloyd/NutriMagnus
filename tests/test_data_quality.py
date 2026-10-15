@@ -409,3 +409,144 @@ def test_meal_add_keeps_typed_amount_so_portion_fixes_reach_it(client):
         _food(conn, 997031, "Okara meal test", {**GOOD}, [{"description": "1 cup", "gram_weight": 99.0}])
         stale = dq.stale_amounts(conn, fdc_id=997031)
     assert [(s["where"], s["typed"], round(s["now_g"], 1)) for s in stale] == [("meal", "0.5 c", 49.5)]
+
+
+def _days_eaten_setup(conn):
+    """Rice (no GI) eaten on its own one day and inside a sub-recipe another;
+    cinnamon (no GI, a pinch) and a carb-less supplement (no carbs value)."""
+    _food(conn, 997101, "Rice test", {"carbs_g": 28.0, "protein_g": 2.7, "fat_g": 0.3})
+    _food(conn, 997102, "Cinnamon test", {"carbs_g": 80.0, "protein_g": 4.0, "fat_g": 1.2})
+    _food(conn, 997103, "Vitamin test", {"vitamin_c_mg": 1000.0})
+    inner = _db.recipe_create(conn, "Inner test", "", 1, "")
+    _db.recipe_add_ingredient(conn, inner, 997101, "Rice test", 150.0, "150 g")
+    outer = _db.recipe_create(conn, "Outer test", "", 1, "")
+    _db.recipe_add_ingredient(conn, outer, 0, "Inner test", 1.0, "servings", ref_recipe_id=inner)
+    m1 = _db.meal_create(conn, "Lunch", "2026-10-01")
+    _db.meal_add_food(conn, m1, 997101, "Rice test", 150.0, "g")
+    _db.meal_add_food(conn, m1, 997102, "Cinnamon test", 0.5, "g")
+    _db.meal_add_food(conn, m1, 997103, "Vitamin test", 1.0, "g")
+    m2 = _db.meal_create(conn, "Lunch", "2026-10-02")
+    _db.meal_add_recipe(conn, m2, outer, "Outer test", 1.0)
+    m3 = _db.meal_create(conn, "Lunch", "2026-09-01")   # outside the span
+    _db.meal_add_food(conn, m3, 997101, "Rice test", 150.0, "g")
+
+
+def test_foods_days_eaten_counts_foods_inside_recipes():
+    with _db.get_db() as conn:
+        _days_eaten_setup(conn)
+        rows = {r["name"]: r for r in dq.foods_days_eaten(conn, "2026-10-02", 30)}
+    assert (rows["Rice test"]["days"], rows["Rice test"]["recipe_days"]) == (2, 1)
+    assert rows["Rice test"]["gi_gap_days"] == 2
+    # A pinch is too little carbohydrate to leave glycemic load incomplete.
+    assert rows["Cinnamon test"]["days"] == 1 and rows["Cinnamon test"]["gi_gap_days"] == 0
+    assert rows["Vitamin test"]["carbs"] is None
+    with _db.get_db() as conn:
+        assert [r["name"] for r in dq.foods_days_eaten(conn, "2026-10-02", 1)] == ["Rice test"]
+
+
+def test_days_eaten_section_on_db_check(client):
+    with _db.get_db() as conn:
+        _days_eaten_setup(conn)
+    page = client.get("/food/cache/db-check?de_days=30&de_end=2026-10-02").text
+    assert 'id="days-eaten" class="mt-4" open' in page
+    assert "2026-09-03 to 2026-10-02" in page
+    no_gi = page.split('id="days-eaten-no-gi"')[1].split('id="days-eaten-no-carbs"')[0]
+    assert "Rice test" in no_gi and "Cinnamon test" not in no_gi
+    no_carbs = page.split('id="days-eaten-no-carbs"')[1].split("</details>")[0]
+    assert "Vitamin test" in no_carbs
+    # Bad input falls back to the defaults instead of failing.
+    assert client.get("/food/cache/db-check?de_days=abc&de_end=nope").status_code == 200
+
+
+# --- One-click fixes for food data problems (Foods → 9) -------------------
+
+def _fix_ids(n, **kw):
+    return [f["id"] for i in dq.food_issues(n, **kw) for f in i["fixes"]]
+
+
+def test_kilojoules_entered_as_calories_offers_the_conversion_first():
+    n = {"calories": 1550.0, "protein_g": 10.0, "carbs_g": 60.0, "fat_g": 15.0}   # 4/4/9 = 415
+    issue = dq.food_issues(n)[0]
+    assert issue["kind"] == "calories_mismatch"
+    assert [f["id"] for f in issue["fixes"]] == ["kj_to_kcal", "use_estimate"]
+    assert issue["fixes"][0]["changes"] == {"calories": round(1550 / 4.184, 1)}
+    assert "kilojoules" in issue["fixes"][0]["hint"]
+
+
+def test_per_serving_calories_recognised_from_the_serving_weight():
+    n = {"calories": 120.0, "protein_g": 10.0, "carbs_g": 60.0, "fat_g": 15.0}    # 415 per 100 g
+    assert _fix_ids(n, serving_g=30.0) == ["per_serving", "use_estimate"]
+    fix = dq.food_issues(n, serving_g=30.0)[0]["fixes"][0]
+    assert fix["changes"] == {"calories": 400.0}
+    # Without a serving weight there's no telling: only the estimate is offered.
+    assert _fix_ids(n) == ["use_estimate"]
+
+
+def test_missing_calories_offers_the_estimate_only_when_one_is_possible():
+    assert _fix_ids({"protein_g": 10.0, "carbs_g": 20.0, "fat_g": 5.0}) == ["estimate_calories"]
+    assert _fix_ids({"protein_g": 10.0}) == []
+
+
+@pytest.mark.parametrize("n,fix_id,changes", [
+    ({"carbs_g": 1333.33, "protein_g": 0, "fat_g": 0, "calories": 0}, "mg_to_g:carbs_g", {"carbs_g": 1.3333}),
+    ({"carbs_g": 10, "sugar_g": 20}, "sugar_to_carbs", {"sugar_g": 10}),
+    ({"fat_g": 40, "saturated_fat_g": 10, "mono_fat_g": 20, "poly_fat_g": 16.7}, "fat_from_parts", {"fat_g": 46.7}),
+    ({"iron_mg": -1, "zinc_mg": -2}, "remove_negative", {"iron_mg": None, "zinc_mg": None}),
+])
+def test_impossible_values_offer_a_fix(n, fix_id, changes):
+    fix = next(f for i in dq.food_issues(n) for f in i["fixes"] if f["id"] == fix_id)
+    assert fix["changes"] == changes
+
+
+def test_macros_over_100_g_offer_no_fix():
+    """NuMa can't tell which of the three is wrong."""
+    n = {"protein_g": 40, "carbs_g": 40, "fat_g": 40, "calories": 680}
+    assert dq.food_issues(n)[0]["fixes"] == []
+
+
+def test_a_fix_corrects_the_value_logs_why_and_counts_as_the_users_edit(client):
+    n = {"calories": 1550.0, "protein_g": 10.0, "carbs_g": 60.0, "fat_g": 15.0}
+    with _db.get_db() as conn:
+        _food(conn, 997201, "Kilojoule test", n)
+        rid = _db.recipe_create(conn, "Uses it", "", 1, "")
+        _db.recipe_add_ingredient(conn, rid, 997201, "Kilojoule test", 100, "g")
+    page = client.get("/food/cache/db-check").text
+    assert "Convert from kilojoules" in page and "looks like kilojoules entered as calories" in page
+    # The ways to fix it by hand: a USDA food (positive id) can be refreshed;
+    # only a custom food gets Edit values.
+    assert "/food/997201/review-incoming?source=usda" in page
+    assert "/food/997201/fill-from?q=Kilojoule+test" in page
+    assert "/food/custom-profiles/997201/edit" not in page
+    resp = client.post("/food/997201/data-fix", data={"fix": "kj_to_kcal"}, follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"].startswith("/food/cache/db-check?fixed=997201")
+    page = client.get(resp.headers["location"]).text
+    assert "Corrected" in page and "divided by 4.184" in page
+    with _db.get_db() as conn:
+        food = _db.get_cached_food(conn, 997201)
+        assert json.loads(food["nutrients_json"])["calories"] == round(1550 / 4.184, 1)
+        assert "calories" in (_db.food_edited_keys(conn, 997201) or [])     # yours, so Refresh won't take it back
+        assert not dq.issues_for_food(conn, 997201)
+        [c] = _db.food_corrections(conn, 997201)
+        assert (c["key"], c["from"], c["to"]) == ("calories", 1550.0, round(1550 / 4.184, 1))
+    detail = client.get("/food/997201").text
+    assert 'id="corrections"' in detail and "divided by 4.184" in detail
+    # The same fix again: the problem is gone, so nothing is written.
+    resp = client.post("/food/997201/data-fix", data={"fix": "kj_to_kcal"}, follow_redirects=False)
+    assert "fix_stale=1" in resp.headers["location"]
+
+
+def test_a_correction_stops_showing_once_the_value_changes_again():
+    with _db.get_db() as conn:
+        _food(conn, 997202, "Sugar test", {"calories": 40, "protein_g": 0, "carbs_g": 10, "fat_g": 0, "sugar_g": 20})
+        assert dq.apply_fix(conn, 997202, "sugar_to_carbs")
+        assert [c["key"] for c in _db.food_corrections(conn, 997202)] == ["sugar_g"]
+        _db.update_food_nutrients_partial(conn, 997202, {"sugar_g": 8.0})
+        assert _db.food_corrections(conn, 997202) == []
+
+
+def test_estimate_fix_marks_calories_estimated():
+    with _db.get_db() as conn:
+        _food(conn, 997203, "Mismatch test", {"calories": 900.0, "protein_g": 10.0, "carbs_g": 10.0, "fat_g": 1.0})
+        assert dq.apply_fix(conn, 997203, "use_estimate")
+        assert "calories" in _db.estimated_keys(conn, 997203)
+        assert [i["kind"] for i in dq.issues_for_food(conn, 997203)] == ["calories_estimated"]

@@ -233,6 +233,8 @@ def _accumulate(line_items, conn, scale, seen, gaps, gi_opt_out, acc,
             continue
 
         cached = _db.get_cached_food(conn, li["fdc_id"]) if li.get("fdc_id") else None
+        if cached is not None and cached["is_supplement"]:
+            continue   # a supplement stays out of glycemic load (supplements.py)
         if not cached or not cached["nutrients_json"]:
             gap(li["name"], li.get("fdc_id"), None, GAP_NO_DATA)
             continue
@@ -253,8 +255,11 @@ def _result(total: float, gaps: list[dict], acc: dict | None = None,
     "uncooked"}.
     total is the GL of everything that could be counted, rounded — a lower
     bound when gaps is non-empty — or None when nothing with carbohydrate
-    could be counted at all ("at least 0" would say nothing). complete is
-    True only when nothing was left out.
+    could be counted at all ("at least 0" would say nothing). total_exact is
+    the same figure unrounded (0.0 rather than None): anything that adds GLs
+    up — a day's meals, Top Contributors' items — adds these, so rounding
+    happens once, at the end, not once per part. complete is True only when
+    nothing was left out.
 
     coverage_pct is the share of the carbohydrate that counts (see
     _food_share()) that came from foods with a GI — "GL covers 72% of this
@@ -276,6 +281,7 @@ def _result(total: float, gaps: list[dict], acc: dict | None = None,
     gi = round(100.0 * total / with_gi) if with_gi > 0 and not too_little else None
     return {
         "total":    None if gaps and total <= 0 else round(total, 1),
+        "total_exact": total,
         "complete": not gaps,
         "gaps":     gaps,
         "carbs_with_gi_g": round(with_gi, 1),
@@ -319,6 +325,8 @@ def gl_for_leaves(leaves: list[dict], conn, *, gi_opt_out: bool = False) -> dict
     acc = _new_acc()
     total = 0.0
     for lf in leaves:
+        if lf.get("is_supplement"):
+            continue   # a supplement stays out of glycemic load (supplements.py)
         share, reason = _food_share(lf["nutrients_100g"], lf["grams"],
                                     ann_map.get(lf.get("fdc_id")), gi_opt_out, acc, lf["food_name"],
                                     lf.get("fdc_id"))
@@ -354,7 +362,8 @@ def meal_gl(conn, meal_id: int, *, gi_opt_out: bool = False) -> dict:
 
 def combine_gl(results: list[dict]) -> dict:
     """Sum several GL results (a day's meals), keeping every gap once."""
-    total = sum(r["total"] for r in results if r["total"] is not None)
+    # Unrounded parts, so a day of small loads doesn't round away meal by meal.
+    total = sum(r.get("total_exact", r["total"] or 0.0) for r in results)
     gaps: list[dict] = []
     for r in results:
         for g in r["gaps"]:
@@ -521,6 +530,38 @@ def day_gl_totals(conn, dates: list[str]) -> dict[str, float | None]:
     GL trend and the Nutrient Plot's GL series both need. Every requested
     date is present as a key, with None where the day's GL is unknown."""
     return {d: day_gl_total(conn, d) for d in dates}
+
+
+# The Nutrient Plot's own looser rule. A plot whose GL line only appears on
+# fully annotated days drew nothing at all for a real 30-day range (every
+# day had some carb food without a GI), so the plot also draws a partial
+# day once at least this share of its carbohydrate has a GI, marked as
+# partial. Averages (trends, the daily GL target) keep the strict rule.
+PLOT_MIN_GL_COVERAGE_PCT = 80
+
+
+def day_gl_plot_values(conn, dates: list[str],
+                       min_coverage_pct: int = PLOT_MIN_GL_COVERAGE_PCT
+                       ) -> dict[str, tuple[float | None, bool]]:
+    """{date: (gl, partial)} for the Nutrient Plot. A complete day is
+    (total, False); an incomplete one whose carbohydrate with a GI is at
+    least min_coverage_pct of the total is (partial total, True) -- a lower
+    bound, read as "at least"; anything less, or nothing logged, is
+    (None, False)."""
+    out: dict[str, tuple[float | None, bool]] = {}
+    for d in dates:
+        meals = _db.meal_list_by_date(conn, d)
+        if not meals:
+            out[d] = (None, False)
+            continue
+        day = combine_gl([meal_gl(conn, m["id"]) for m in meals])
+        if day["complete"]:
+            out[d] = (day["total"], False)
+        elif (day["coverage_pct"] or 0) >= min_coverage_pct:
+            out[d] = (day["total"], True)
+        else:
+            out[d] = (None, False)
+    return out
 
 
 def average_day_gl(day_totals: dict[str, float | None]) -> tuple[float | None, int]:

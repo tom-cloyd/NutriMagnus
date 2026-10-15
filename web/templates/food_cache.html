@@ -122,6 +122,10 @@
    checkbox instead points back at this form via its own `form="claude-fetch-form"`
    attribute, which HTML allows even when the input isn't a descendant. #}
 <form method="post" action="/food/cache/claude-fetch" id="claude-fetch-form"></form>
+{# Where a row button that leaves this page comes back to: this same list,
+   same filter/sort/archived view — base.html's js-keep-scroll restores the
+   scroll position there too. #}
+{% set list_url = "/food/cache?q=%s&sort=%s&show_archived=%d" % ((q or "") | urlencode, sort, 1 if show_archived else 0) %}
 {# Compare form is likewise external — same nesting restriction as claude-fetch-form above. #}
 <form method="post" action="/compare/add-multiple" id="compare-form"></form>
 <p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
@@ -212,10 +216,11 @@
         <a href="/pantry" class="btn btn-sm btn-outline-success me-1"
            title="This food is already in your Pantry — click to open the Pantry">In pantry</a>
         {% else %}
-        <form method="post" action="/pantry/add" style="display:inline">
+        <form method="post" action="/pantry/add" style="display:inline"
+              class="js-keep-scroll" data-return-to="{{ list_url }}">
           <input type="hidden" name="food_name" value="{{ food.name }}">
           <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
-          <input type="hidden" name="next" value="/food/cache?q={{ (q or '') | urlencode }}&sort={{ sort }}#food-{{ food.fdc_id }}">
+          <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
                   title="Add this food to your Pantry (the foods you keep on hand, used for complement suggestions), then return here">Add to pantry</button>
         </form>
@@ -229,13 +234,14 @@
           </button>
         </form>
         {% if food.fdc_id > 0 %}
-        <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda&next={{ ('/food/cache?q=%s&sort=%s#food-%s' % ((q or '') | urlencode, sort, food.fdc_id)) | urlencode }}"
-           class="btn btn-sm btn-outline-secondary me-1"
+        <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda&next={{ list_url | urlencode }}"
+           class="btn btn-sm btn-outline-secondary me-1 js-keep-scroll" data-return-to="{{ list_url }}"
            title="Fetch USDA's current copy and choose which changed values to take">Refresh</a>
         {% endif %}
         {% if is_curator() %}
-        <form method="post" action="/food/{{ food.fdc_id }}/toggle-starter" style="display:inline" class="js-keep-scroll">
-          <input type="hidden" name="next" value="/food/cache?q={{ (q or '') | urlencode }}&sort={{ sort }}">
+        <form method="post" action="/food/{{ food.fdc_id }}/toggle-starter" style="display:inline"
+              class="js-keep-scroll" data-return-to="{{ list_url }}">
+          <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1 py-0" style="line-height:1.1; vertical-align:middle"
                   title="Toggles the &quot;* &quot; starter-data name prefix used by scripts/export_starter_data.py -- a plain rename; does not mark this food user-edited or block USDA refreshes. Shown only when NuMa runs from source.">
             {% if food.name.startswith("*") %}Unmark as<br>starter food{% else %}Mark as<br>starter food{% endif %}
@@ -309,28 +315,4 @@ function toggleNotes(fdcId) {
 <p>No foods in cache{% if q %} matching that filter{% else %} yet. <a href="/settings#starter-data">Load starter data</a> to explore the app{% endif %}.</p>
 {% if q %}<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>{% endif %}
 {% endif %}
-<script>
-  // The starter toggle renames a food, which can move it in a name-sorted
-  // list. Come back to the same spot in the list, not to the food's new row.
-  (function () {
-    var KEY = 'numa-food-cache-scroll';
-    try {
-      var saved = sessionStorage.getItem(KEY);
-      if (saved !== null) {
-        sessionStorage.removeItem(KEY);
-        var y = parseInt(saved, 10) || 0;
-        // After load, and a tick later: the filter box's autofocus can
-        // otherwise scroll the page back up to it.
-        window.addEventListener('load', function () {
-          setTimeout(function () { window.scrollTo(0, y); }, 0);
-        });
-      }
-    } catch (e) {}
-    document.querySelectorAll('form.js-keep-scroll').forEach(function (form) {
-      form.addEventListener('submit', function () {
-        try { sessionStorage.setItem(KEY, String(window.scrollY)); } catch (e) {}
-      });
-    });
-  })();
-</script>
 {% endblock %}

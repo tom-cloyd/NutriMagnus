@@ -62,6 +62,9 @@
 {# External form — each row has its own copy/archive/delete forms, so nesting isn't
    allowed; checkboxes point back at this form via `form="compare-recipe-form"`. #}
 <form method="post" action="/compare/add-multiple" id="compare-recipe-form"></form>
+{# Where Archive/Delete land if their in-place (fetch) submit falls back to a
+   full page load: this same filtered/sorted list. #}
+{% set list_url = "/recipes?q=%s&sort=%s&show_archived=%d" % ((q or "") | urlencode, sort, 1 if show_archived else 0) %}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <button type="submit" form="compare-recipe-form" class="btn btn-sm btn-outline-secondary">Compare nutrition of selected (up to 8)</button>
   <form method="post" action="/recipes/compute-bcp" style="display:inline">
@@ -117,6 +120,7 @@
         <form method="post" action="/recipe/{{ r.id }}/archive" style="display:inline"
               class="js-row-archive" data-archive-title="Hide from default lists and search, without losing it"
               data-restore-title="Restore to normal use">
+          <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-outline-secondary btn-sm"
                   title="{% if r.archived %}Restore to normal use{% else %}Hide from default lists and search, without losing it{% endif %}">
             {% if r.archived %}Restore{% else %}Archive{% endif %}
@@ -124,6 +128,7 @@
         </form>
         <form method="post" action="/recipe/{{ r.id }}/delete" style="display:inline" class="js-row-remove"
               onsubmit='return confirm({{ r.delete_warning | tojson }})'>
+          <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-outline-danger btn-sm">Delete</button>
         </form>
       </td>

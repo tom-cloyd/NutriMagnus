@@ -104,11 +104,13 @@ def nutrient_review(current: dict, incoming: dict, groups, *, prefer_incoming: b
 
 
 def meta_review(current: dict, incoming: dict, *, prefer_incoming: bool,
-                mine: "set[str] | None" = None) -> list[dict]:
+                mine: "set[str] | None" = None, name_mine: bool = False) -> list[dict]:
     """Rows for the name/brand/type/serving fields whose incoming value is
     non-empty and differs from the food's own. `mine` as in
     nutrient_review(), for the tracked ones (serving size and unit); name,
-    brand and type aren't tracked, so they follow prefer_incoming."""
+    brand and type aren't tracked, so they follow prefer_incoming — except a
+    name the user gave the food (`name_mine`, foods.name_by_user), which is
+    theirs: left unticked and marked so."""
     rows = []
     for key, label in META_FIELDS:
         inc = incoming.get(key)
@@ -120,9 +122,12 @@ def meta_review(current: dict, incoming: dict, *, prefer_incoming: bool,
         status = "fill" if cur in (None, "") else "differs"
         tracked = key in TRACKED_META
         take = (key not in mine) if (mine is not None and tracked) else prefer_incoming
+        users_name = key == "name" and name_mine and status == "differs"
+        if users_name:
+            take = False
         rows.append({"key": key, "label": label, "current": cur, "incoming": inc,
                      "status": status, "checked": status == "fill" or take, "tracked": tracked,
-                     "mine": mine is not None and tracked and key in mine and status == "differs"})
+                     "mine": users_name or (mine is not None and tracked and key in mine and status == "differs")})
     return rows
 
 

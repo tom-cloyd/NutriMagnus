@@ -92,10 +92,12 @@
             <input type="hidden" name="food_name" value="{{ food.name }}">
             <input type="hidden" name="off_code" value="{{ food.off_code or '' }}">
             <input type="hidden" name="q" value="{{ q }}">
+            {% set _supp_unit = supplement_unit(food.fdc_id) if food.fdc_id else none %}
             <div class="d-flex flex-wrap align-items-center gap-3">
               <div class="input-group" style="width:26rem">
                 <input type="text" class="form-control form-control-sm" name="portion_str"
                        placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1, 6 p1"
+                       {% if _supp_unit %}value="1 {{ _supp_unit }}" title="A supplement: type how many {{ _supp_unit }}s (2 {{ _supp_unit }}s, or 2)"{% endif %}
                        aria-label="Amount" required>
                 <button type="submit" class="btn btn-primary btn-sm">Add to meal</button>
               </div>
@@ -105,7 +107,7 @@
             <div class="mt-1"><small class="muted">
               Portions:
               {% for p in food.portions %}
-              <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+              <strong>p{{ loop.index }}</strong> {{ p.description }}{% if not _supp_unit %} ({{ p.gram_weight | round(1) }}&thinsp;g){% endif %}{% if not loop.last %} &middot; {% endif %}
               {% endfor %}
             </small></div>
             {% endif %}

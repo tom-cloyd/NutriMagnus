@@ -94,7 +94,7 @@
   </li>
   {% endif %}
   {% endif %}
-  {% if gl %}
+  {% if gl and show_gl() %}
   <li class="sb-item" data-target="sec-glycemic">
     <a class="sb-toggle" href="#sec-glycemic">Glycemic Load</a>
   </li>
@@ -135,6 +135,9 @@
 <p class="muted mb-1"><small>{{ unusable_g }}&thinsp;g ({{ (100 * unusable_g / diaas.total_protein_g) | round | int }}%) of that protein cannot be built into tissue &mdash; it will be broken down and converted to energy or excreted instead. {{ manual_link("unusable-protein-fate", "Learn more") }}</small></p>
 {% endif %}
 {% endif %}
+{% if gl_so_far %}{{ _gl.gl_so_far_line(gl_so_far.gl,
+     "Glycemic load for " ~ meal.meal_date ~ " up to and including this meal" ~ ((" (" ~ gl_so_far.count ~ " of " ~ gl_so_far.of ~ " meals)") if gl_so_far.of > 1 else ""),
+     gl_so_far.target) }}{% endif %}
 
 {# ── Management actions ───────────────────────────────────────────────── #}
 {{ _failsafe.note('"Rename / change date"', "meal-rename-failsafe-note", autosave=True) }}
@@ -669,6 +672,7 @@
                       contributor_total, contributor_count, contributor_unit,
                       contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl, missing=contributor_missing,
                       always_food_level=True) }}
+  {% if contributor_by_item %}{{ _contrib.by_item(contributor_by_item, contributor_unit, is_dcp=contributor_is_dcp, is_gl=contributor_gl is not none) }}{% endif %}
 </section>
 {% endif %}
 
@@ -712,7 +716,7 @@
       {% for row in section.rows %}
       <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
         <td>{{ row.label }}</td>
-        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
+        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
         <td class="muted">{{ row.unit }}</td>
         {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
@@ -1185,7 +1189,7 @@ document.getElementById('complements-form').addEventListener('change', function 
 {% endif %}{# end complements block #}
 
 {# ── Glycemic Load ────────────────────────────────────────────────────── #}
-{% if gl %}
+{% if gl and show_gl() %}
 <section id="sec-glycemic" class="analysis-section">
   <h3 class="section-heading">Glycemic Load {{ manual_link("glycemic") }}</h3>
   <div class="protein-meta mt-2">

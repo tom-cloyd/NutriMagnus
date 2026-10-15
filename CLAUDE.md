@@ -118,6 +118,17 @@ numa_app/
                          also starter identity (starter_key/starter_uid),
                          edit-safe clear, and the between-version starter
                          manifest (starter_manifest(), apply_improvements())
+    supplements.py      — foods marked as supplements (foods.is_supplement): skipped
+                         by every food check, no weight, out of GL, read per tablet;
+                         tag() adds "<key>__supp" copies at summation (next to
+                         water.tag) so totals carry the from-supplements split
+    water.py            — water from drinks vs from food: tag() splits a food's
+                         water_g into water_drinks_g / water_food_g at summation
+                         (foods.is_drink / recipes.is_drink); the two always add
+                         up to water_g
+    water_backfill.py   — Foods → 9's "Fill in water from USDA": background-thread
+                         fill of water_g for cached USDA foods lacking it
+                         (blanks only, via db.fill_source_nutrient)
     data_quality.py     — every data-quality check in one place: food_issues(),
                          stale_amounts() ("Amounts that no longer match"),
                          generic_density_in_use(), duplicate_groups(),
@@ -254,6 +265,9 @@ Valid keys (from `usda_api.NUTRIENT_MAP`):
 # Macros
 calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
 saturated_fat_g, mono_fat_g, poly_fat_g
+
+# Water (g) — total moisture; drinks/food split is derived, see water.py
+water_g
 
 # Omega fatty acids (mg)
 omega3_ala_mg, omega3_epa_mg, omega3_dha_mg, omega6_la_mg

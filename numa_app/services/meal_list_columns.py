@@ -13,7 +13,7 @@ import usda as _usda
 
 MAX_MEAL_LIST_NUTRIENTS = 6
 
-# Columns used until the user saves their own choice in Settings → 8 (and
+# Columns used until the user saves their own choice in Settings → 10 (and
 # what its "Restore defaults" button puts back). Protein here is raw protein;
 # DCP is never a picker choice, since both lists already show it as fixed
 # columns of their own.

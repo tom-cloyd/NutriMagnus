@@ -141,6 +141,16 @@ def _weight_on(conn, d: str) -> float:
 
 
 class TestFollowCurrent:
+    def test_a_new_day_follows_the_current_profile(self, db_conn):
+        _day_profile.ensure_day_profile(db_conn, "2026-07-01")
+        assert _day_profile.follows_current(_db.day_profile_get(db_conn, "2026-07-01"))
+        _weigh(55.0)
+        _day_profile.refresh_after_profile_save(db_conn, "2026-07-20")
+        assert _weight_on(db_conn, "2026-07-01") == 55.0
+        # Switched off, it keeps the profile as it was when the day was first logged.
+        assert _day_profile.restore_pinned(db_conn, "2026-07-01")
+        assert _weight_on(db_conn, "2026-07-01") != 55.0
+
     def test_switch_on_follows_saves_and_switch_off_restores_exactly(self, db_conn):
         _day_profile.ensure_day_profile(db_conn, "2026-07-01")
         original = dict(_db.day_profile_get(db_conn, "2026-07-01"))
@@ -173,6 +183,7 @@ class TestFollowCurrent:
         _save_travel_profile()
         for d in ("2026-07-01", "2026-07-20"):
             _day_profile.ensure_day_profile(db_conn, d)
+            _day_profile.restore_pinned(db_conn, d)  # a day set to keep its own profile
         _weigh(55.0)
         assert _day_profile.refresh_after_profile_save(db_conn, "2026-07-20") == ["2026-07-20"]
         assert _weight_on(db_conn, "2026-07-20") == 55.0
@@ -185,6 +196,7 @@ class TestFollowCurrent:
         _save_travel_profile()
         for d in ("2026-06-30", "2026-07-01", "2026-07-02", "2026-07-03"):
             _day_profile.ensure_day_profile(db_conn, d)
+            _day_profile.restore_pinned(db_conn, d)
         _day_profile.set_day_profile_override(db_conn, "2026-07-02", "Travel")
         _weigh(55.0)
         assert _day_profile.follow_current_between(db_conn, "2026-07-01", "2026-07-03") == ["2026-07-01", "2026-07-03"]

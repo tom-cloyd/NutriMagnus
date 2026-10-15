@@ -55,6 +55,18 @@ def is_drink(row) -> bool:
         return False
 
 
+def estimate_water(nutrients: dict) -> float | None:
+    """Water per 100 g by difference — 100 minus protein, carbs and fat — for
+    a drink whose data has no water value (branded labels never list it).
+    Ignores ash and alcohol, so it runs a little high; close for juices,
+    sodas and milks. None unless all three macros are present, or when they
+    leave nothing over."""
+    if any(nutrients.get(k) is None for k in ("protein_g", "carbs_g", "fat_g")):
+        return None
+    water = 100.0 - float(nutrients["protein_g"]) - float(nutrients["carbs_g"]) - float(nutrients["fat_g"])
+    return round(water, 1) if water > 0 else None
+
+
 def looks_like_drink(name: str | None, category: str | None) -> bool:
     """Best guess, for a newly cached food, at whether it is a drink: USDA
     files drinks under a "Beverages" category (Foundation / SR Legacy),

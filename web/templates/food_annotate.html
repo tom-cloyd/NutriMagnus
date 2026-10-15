@@ -127,6 +127,21 @@
                value="{{ annotation.gi_estimate if annotation and annotation.gi_estimate is not none else '' }}"
                min="0" max="100" step="0.1" placeholder="Leave blank if unknown">
 
+        {# Raw vs cooked: a GI measured on one form is wrong for the other —
+           raw flour stirred into water tests near 20, baked bread 70–90. The
+           lookup lists both kinds side by side, so warn before a pick. #}
+        <div class="alert alert-warning border border-warning border-2 mt-2 mb-2" role="alert" id="gi-raw-cooked-warning">
+          <strong>&#9888; Raw or cooked? Pick the GI for the form you actually eat.</strong>
+          Cooking, baking and grinding change GI a great deal: raw wheat flour stirred into water
+          tests around 20, while bread baked from it is 70&ndash;90. Check each lookup result&rsquo;s
+          name for <em>raw</em>, <em>boiled</em>, <em>baked</em>, <em>dry</em> before you pick it.
+          {% if looks_uncooked %}
+          <div class="mt-1"><strong>This food&rsquo;s name says it is raw, dry, uncooked or a flour.</strong>
+          If you mostly cook or bake it into something else, a raw-form GI will make those meals look
+          better than they are &mdash; use the GI of what you make from it, or leave this blank.</div>
+          {% endif %}
+        </div>
+
         {# Provenance of the GI value: filled in by the lookup below when you pick
            a row (and cleared again if you then type over that number by hand),
            or typed by you for a value from anywhere else. Saved with the
@@ -440,12 +455,17 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
               '&population=' + encodeURIComponent(popSelect.value);
     fetch(url).then(function (r) { return r.json(); }).then(function (data) {
       var results = data.results || [];
-      if (!results.length) {
-        resultsBox.innerHTML = document.getElementById('gi-no-match-help').innerHTML;
+      var noMatchHelp = document.getElementById('gi-no-match-help').innerHTML;
+      if (!results.length && !(data.stand_ins || []).length) {
+        resultsBox.innerHTML = noMatchHelp;
         return;
       }
-      var html = '<table class="table table-sm table-hover mb-0"><tbody>';
-      results.forEach(function (r, i) {
+      function esc(t) {
+        return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      }
+      // One picker row. standInFor is set for a row offered in place of a food
+      // the table lacks; the saved source then says it was a stand-in.
+      function rowHtml(r, standInFor) {
         var popLabel = r.population === 'impaired' ? 'Impaired glucose tolerance'
                      : r.population === 'unknown'  ? 'Subject group not stated'
                      :                               'Normal glucose tolerance';
@@ -493,10 +513,11 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
                  + ' \u00b7 ' + popLabel;
         }
         if (r.ref) source += ' \u00b7 ref ' + r.ref;
+        if (standInFor) source += ' \u00b7 used as a stand-in for \u201c' + standInFor + '\u201d';
         var safeSource = source.replace(/</g, '&lt;').replace(/"/g, '&quot;');
         var safeTitle  = dateTitle.replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
-        html += '<tr class="gi-pick-row" data-gi="' + r.gi_glucose + '" data-name="' + safeName +
+        return '<tr class="gi-pick-row" data-gi="' + r.gi_glucose + '" data-name="' + safeName +
           '" data-source="' + safeSource + '" title="Use this GI value">' +
           '<td>' + safeName + '</td>' +
           '<td class="text-nowrap">' + giText + '</td>' +
@@ -504,8 +525,35 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
           '<td class="muted">' + popLabel + (r.ref ? ' \u00b7 ref ' + r.ref : '') + '</td>' +
           '<td><button type="button" class="btn btn-sm btn-outline-primary gi-pick">Use this GI value</button></td>' +
           '</tr>';
-      });
-      html += '</tbody></table>';
+      }
+
+      var html = '';
+      // Every row only contains (or resembles) what was typed: say so, so a
+      // food the table lacks doesn't pass for a bad search.
+      if (!results.length) {
+        html += noMatchHelp;
+      } else if (!data.direct_match) {
+        html += '<p class="mb-1 gi-no-direct-match"><strong>No row in the table is \u201c' + esc(q) +
+                '\u201d itself.</strong> The rows below only contain it or have similar names, ' +
+                'so check each before using its value.</p>';
+      }
+      if (results.length) {
+        html += '<table class="table table-sm table-hover mb-0"><tbody>';
+        results.forEach(function (r) { html += rowHtml(r, null); });
+        html += '</tbody></table>';
+      }
+      var standIns = data.stand_ins || [];
+      if (standIns.length) {
+        html += '<p class="mt-2 mb-1 gi-stand-ins"><strong>Possible stand-ins:</strong> plain rows for one word of ' +
+                'your search. Use one only if your food is mostly that ingredient, for example whole peanuts for ' +
+                'peanut butter but not butter. The saved source will say it was a stand-in.</p>' +
+                '<table class="table table-sm table-hover mb-0"><tbody>';
+        standIns.forEach(function (g) {
+          html += '<tr><td colspan="5" class="muted pt-2"><em>Plain \u201c' + esc(g.word) + '\u201d</em></td></tr>';
+          g.rows.forEach(function (r) { html += rowHtml(r, q); });
+        });
+        html += '</tbody></table>';
+      }
       resultsBox.innerHTML = html;
       // The whole row is the target, not just the button — clicking the food
       // name is the obvious thing to try, and used to do nothing at all.

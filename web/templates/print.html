@@ -249,7 +249,7 @@
     {% for row in section.rows %}
     <tr{% if row.is_dcp_row %} class="dcp-row"{% elif row.is_subtype %} class="subtype-row"{% endif %}>
       <td>{{ row.label }}</td>
-      <td class="num">{% if row.value is none %}no data{% else %}{{ row.value }}{% endif %}</td>
+      <td class="num">{% if row.value is none %}no data{% else %}{{ row.value }}{% endif %}{% if row.supp %}<br><small>{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</small>{% endif %}</td>
       <td class="muted">{{ row.unit }}</td>
       {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}

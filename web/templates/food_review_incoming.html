@@ -116,7 +116,7 @@
             <td><label for="key-{{ f.key }}">{{ f.label }}</label></td>
             <td class="text-end muted">{{ show_num(f.current, f.unit) }}</td>
             <td class="text-end"{% if f.key in aa_alt %} data-aa-own="{{ f.incoming }}" data-aa-alt="{{ aa_alt[f.key] }}" data-unit="{{ f.unit }}"{% endif %}><strong>{{ show_num(f.incoming, f.unit) }}</strong></td>
-            <td class="muted"><small>{{ "fills a blank" if f.status == "fill" else "differs" }}{% if f.mine %}; <strong>yours</strong>{% endif %}{% if f.estimated %}; yours is an estimate{% endif %}{% if f.key.startswith("aa_") and source == "food" %}; scaled{% endif %}</small></td>
+            <td class="muted"><small>{{ "fills a blank" if f.status == "fill" else "differs" }}{% if f.mine %}; <strong>yours</strong>{% endif %}{% if corrected and f.key in corrected %}; <span title="{{ corrected[f.key] }}">a correction you made on Foods &rarr; 9</span>{% endif %}{% if f.estimated %}; yours is an estimate{% endif %}{% if f.key.startswith("aa_") and source == "food" %}; scaled{% endif %}</small></td>
           </tr>
         {% endfor %}
         </tbody>

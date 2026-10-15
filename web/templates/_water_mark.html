@@ -3,7 +3,7 @@
    its data says mostly water — a warning that the wet record may have been
    picked for the dry food (water.wet_dry_conflict()). `it` needs fdc_id,
    water_pct and wet_dry, set by web/backend.py's _mark_water(). Shown only
-   while water tracking is on (Settings → 14). #}
+   while water tracking is on (Settings → 9). #}
 {% macro mark(it) %}{% if track_water() %}{% if it.wet_dry %} <a href="/food/{{ it.fdc_id }}" class="badge text-bg-warning text-decoration-none fw-normal" title="&ldquo;{{ it.wet_dry.name }}&rdquo; says {{ it.wet_dry.word }}, but this food&rsquo;s data is {{ it.wet_dry.water | round | int }}% water: it may be the wet version of the food. Its protein, calories and every other value would then be several times too low.">{{ it.wet_dry.water | round | int }}% water &mdash; but named {{ it.wet_dry.word }}?&dagger;</a>{% elif it.water_pct is defined and it.water_pct is not none %} <small class="muted text-nowrap">({{ it.water_pct | round | int }}% water)</small>{% endif %}{% endif %}{% endmacro %}
 
 {% macro footnote(rows) %}{% if track_water() %}{% set marked = rows|selectattr("wet_dry")|list %}{% if marked %}

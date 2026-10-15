@@ -68,7 +68,8 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
     """Render a line plot to image bytes (PNG or SVG). Each series dict:
     {"x": [...], "y": [...], "label": str, "color": str (optional),
     "highlight": bool (optional), "goal": float (optional), "limit": float
-    (optional)}. All series share the same x (a date string list); a
+    (optional), "hollow": [bool, ...] (optional, one per x — those points
+    draw as open circles, e.g. a day whose value is only partly known)}. All series share the same x (a date string list); a
     missing value should be passed as float("nan") so the line breaks
     instead of interpolating across the gap.
 
@@ -139,6 +140,13 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
             linestyle = "-"
         ax.plot(s["x"], s["y"], color=color, linestyle=linestyle, linewidth=1,
                  marker="o", markersize=3, label=s.get("label") or f"Series {i + 1}")
+        hollow = s.get("hollow")
+        if hollow and any(hollow):
+            # Redraw just those points as open circles over the filled ones.
+            hx = [x for x, h in zip(s["x"], hollow) if h]
+            hy = [y for y, h in zip(s["y"], hollow) if h]
+            ax.plot(hx, hy, linestyle="none", marker="o", markersize=5,
+                    markerfacecolor="white", markeredgecolor=color, markeredgewidth=1)
         goal = s.get("goal")
         if goal is not None:
             ax.axhline(y=goal, color=color, linestyle="--", linewidth=1)

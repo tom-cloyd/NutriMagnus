@@ -215,6 +215,32 @@ class TestWeb:
         with _db.get_db() as conn:
             assert not _water.is_drink(_db.get_cached_food(conn, MILK))
 
+    def test_marking_a_drink_with_no_water_estimates_it(self, client, foods):
+        CIDER = 5
+        with _db.get_db() as conn:
+            _db.cache_food(conn, fdc_id=CIDER, name="APPLE CIDER", data_type="Branded", brand=None,
+                           serving_size=None, serving_unit=None,
+                           nutrients={"calories": 50.0, "protein_g": 0.0, "carbs_g": 12.5, "fat_g": 0.0})
+        assert "Water estimated as" not in client.get(f"/food/{CIDER}").text
+        client.post(f"/food/{CIDER}/drink", data={"is_drink": "1"})
+        with _db.get_db() as conn:
+            row = _db.get_cached_food(conn, CIDER)
+            assert json.loads(row["nutrients_json"])["water_g"] == 87.5
+            assert "water_g" in _db.estimated_keys(conn, CIDER)
+            assert not row["user_edited"]
+        assert "Water estimated as" in client.get(f"/food/{CIDER}").text
+
+    def test_marking_a_drink_keeps_a_measured_water_value(self, client, foods):
+        client.post(f"/food/{MILK}/drink", data={"is_drink": "1"})
+        with _db.get_db() as conn:
+            assert json.loads(_db.get_cached_food(conn, MILK)["nutrients_json"])["water_g"] == 88.0
+            assert "water_g" not in _db.estimated_keys(conn, MILK)
+
+    def test_estimate_water(self):
+        assert _water.estimate_water({"protein_g": 3.2, "carbs_g": 4.8, "fat_g": 3.3}) == 88.7
+        assert _water.estimate_water({"protein_g": 3.2, "carbs_g": 4.8}) is None
+        assert _water.estimate_water({"protein_g": 20, "carbs_g": 60, "fat_g": 30}) is None
+
     def test_recipe_toggle(self, client, foods):
         rid = _recipe([("food", APPLE, 100.0)])
         assert f'action="/recipe/{rid}/drink"' in client.get(f"/recipe/{rid}").text

@@ -153,3 +153,84 @@ def test_local_table_candidates_are_ordered_data_dir_first() -> None:
     assert paths
     assert all(p.endswith(gi_lookup._LOCAL_NAME) for p in paths)
     assert str(gi_lookup.Path(gi_lookup.__file__).parent) in paths[-1]
+
+
+def test_plain_ingredient_ranks_above_dishes_that_contain_it(monkeypatch) -> None:
+    """Every name containing the query ties on score, so a common ingredient
+    must not be buried under dish names that merely mention it."""
+    def row(name):
+        return {"name": name, "gi_glucose": 50.0, "population": "normal"}
+    rows = [row("Sponge cake, soft wheat flour, filled with chocolate cream"),
+            row("Muffin, plain, made from wheat flour"),
+            row("White wheat flour bread, hard, toasted"),
+            row("Wheat flour bread, wholemeal, stoneground"),
+            row("Wheat flour, raw, consumed suspended in 250 mL water")]
+    monkeypatch.setattr(gi_lookup, "_data_cache",
+                        {"normal": rows, "impaired": [], "unknown": []})
+    names = [r["name"] for r in gi_lookup.search("wheat flour", limit=5)]
+    assert names == ["Wheat flour, raw, consumed suspended in 250 mL water",
+                     "Wheat flour bread, wholemeal, stoneground",
+                     "White wheat flour bread, hard, toasted",
+                     "Muffin, plain, made from wheat flour",
+                     "Sponge cake, soft wheat flour, filled with chocolate cream"]
+
+
+def _fake_table(monkeypatch, names):
+    rows = [{"name": n, "gi_glucose": 50.0, "population": "normal"} for n in names]
+    monkeypatch.setattr(gi_lookup, "_data_cache",
+                        {"normal": rows, "impaired": [], "unknown": []})
+
+
+def test_branded_rows_rank_below_generic_ones_on_equal_score(monkeypatch) -> None:
+    _fake_table(monkeypatch, ["Peanut Butter Chocolate bar (Beachbody, LLC)",
+                              "Munch Peanut Butter bar (M&M/Mars, USA)",
+                              "Biscuits, wholegrain, filled with peanut butter"])
+    names = [r["name"] for r in gi_lookup.search("peanut butter")]
+    assert names[0] == "Biscuits, wholegrain, filled with peanut butter"
+
+
+def test_is_branded_tells_a_product_from_a_described_food() -> None:
+    assert gi_lookup.is_branded("Munch Peanut Butter bar (M&M/Mars, USA)")
+    assert gi_lookup.is_branded("Chocapic™, wheat-based flaked cereal")
+    assert gi_lookup.is_branded("Kingston cookies (Arnott’s Pty Ltd, Australia)")
+    assert not gi_lookup.is_branded("Peanuts (Canada)4")
+    assert not gi_lookup.is_branded("Lentil (Lens culinaris medic, S. massoor parippu) curry")
+    assert not gi_lookup.is_branded("Barley (six-rowed, hulled, normal barley), boiled")
+
+
+def test_direct_match_means_a_row_is_the_food_itself() -> None:
+    rows = [{"name": n} for n in ("Biscuits, filled with peanut butter", "Peanuts",
+                                  "Bread, white", "Cornflakes")]
+    def direct(q):
+        return gi_lookup.has_direct_match(q, rows)
+    assert not direct("peanut butter")
+    assert direct("peanut")          # plural on the row
+    assert direct("white bread")     # word order
+    assert direct("corn flakes")     # run together on the row
+
+
+def test_stand_ins_offer_plain_rows_for_each_word(monkeypatch) -> None:
+    _fake_table(monkeypatch, ["Biscuits, filled with peanut butter",
+                              "Peanuts, crushed", "Peanuts", "Peanut Butter bar (Mars, USA)"])
+    groups = gi_lookup.stand_ins("peanut butter")
+    assert [g["word"] for g in groups] == ["peanut"]
+    assert [r["name"] for r in groups[0]["rows"]] == ["Peanuts", "Peanuts, crushed"]
+    assert gi_lookup.stand_ins("peanut") == []      # a one-word search has no parts
+    assert gi_lookup.stand_ins("peanut butter", exclude=("Peanuts", "Peanuts, crushed")) == []
+
+
+def test_a_usda_style_name_is_matched_by_its_words(monkeypatch) -> None:
+    """A long comma-separated name resembles no row as a whole string; its
+    first part is the food, the rest describe it."""
+    _fake_table(monkeypatch, ["Cassava, boiled, with salt",
+                              "Peas, dried, boiled", "Chickpeas", "Pea, frozen",
+                              "Almond bar (Mars, USA)", "Apricot and Almond bar"])
+    names = [r["name"] for r in gi_lookup.search(
+        "Peas, split, mature seeds, cooked, boiled, without salt")]
+    assert names == ["Peas, dried, boiled", "Pea, frozen"]
+    # A category first ("Nuts,") gives way to the food named second; generic
+    # rows come before branded ones.
+    names = [r["name"] for r in gi_lookup.search("Nuts, almonds, dry roasted")]
+    assert names == ["Apricot and Almond bar", "Almond bar (Mars, USA)"]
+    # No row has every word of the first part: its first word alone is tried.
+    assert [r["name"] for r in gi_lookup.search("Chickpeas flour, raw")] == ["Chickpeas"]

@@ -289,3 +289,46 @@ def test_meal_refresh_replaces_estimated_amino_acids_with_measured(client, monke
     assert "aa_refreshed=1" in loc and "aa_differs" not in loc
     assert json.loads(_food(SAMPLE_FDC_ID)["nutrients_json"])["aa_lysine_g"] == SAMPLE_NUTRIENTS["aa_lysine_g"]
     assert _estimated(SAMPLE_FDC_ID) == set()
+
+
+# --- Renaming a food (POST /food/{id}/rename) ------------------------------
+
+def test_renaming_a_usda_food_reaches_every_copy_and_survives_refresh(client):
+    import db as _db
+    from numa_app.services import incoming_review as ir
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 997401, "Dates, deglet noor", "SR Legacy", None, 100.0, "g",
+                       {"calories": 282.0, "carbs_g": 75.0}, [])
+        rid = _db.recipe_create(conn, "Date bar", "", 1, "")
+        _db.recipe_add_ingredient(conn, rid, 997401, "Dates, deglet noor", 50, "g")
+        mid = _db.meal_create(conn, "Snack", "2026-10-14")
+        _db.meal_add_food(conn, mid, 997401, "Dates, deglet noor", 30, "g")
+    resp = client.post("/food/997401/rename", data={"name": "  Medjool-ish dates  "}, follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"] == "/food/997401?renamed=2"
+    page = client.get(resp.headers["location"]).text
+    assert "Medjool-ish dates</h2>" in page and "copied to the 2 recipe, meal and pantry lines" in page
+    with _db.get_db() as conn:
+        food = _db.get_cached_food(conn, 997401)
+        assert food["name"] == "Medjool-ish dates" and food["name_by_user"] == 1
+        assert not food["user_edited"]                         # a name isn't edited data
+        assert _db.recipe_get_ingredients(conn, rid)[0]["food_name"] == "Medjool-ish dates"
+        assert _db.meal_get_items(conn, mid)[0]["food_name"] == "Medjool-ish dates"
+        # Refresh offers USDA's name back unticked, as the user's own.
+        [row] = ir.meta_review(dict(food), {"name": "Dates, deglet noor"}, prefer_incoming=True,
+                               name_mine=bool(food["name_by_user"]))
+        assert row["checked"] is False and row["mine"] is True
+        # Taking it anyway makes it the source's name again, everywhere.
+        _db.update_food_fields(conn, 997401, name="Dates, deglet noor")
+        assert _db.get_cached_food(conn, 997401)["name_by_user"] == 0
+        assert _db.meal_get_items(conn, mid)[0]["food_name"] == "Dates, deglet noor"
+
+
+def test_a_blank_name_is_refused(client):
+    import db as _db
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 997402, "Plain name", "SR Legacy", None, 100.0, "g", {"calories": 1.0}, [])
+    resp = client.post("/food/997402/rename", data={"name": "   "}, follow_redirects=False)
+    assert "rename_error=1" in resp.headers["location"]
+    assert "A name can&rsquo;t be blank." in client.get(resp.headers["location"]).text
+    with _db.get_db() as conn:
+        assert _db.get_cached_food(conn, 997402)["name"] == "Plain name"

@@ -10,6 +10,7 @@ from collections.abc import Callable
 import db as _db
 import usda as _usda
 
+from . import supplements as _supps
 from . import water as _water
 
 Nutrients = dict[str, float]
@@ -38,8 +39,11 @@ def expand_recipe_ingredients(
     rewrite (see Rewrite) is applied to every ingredient row at every depth
     before it is expanded — what-if analysis's hook; it never writes.
 
-    Returns [{"food_name", "fdc_id", "nutrients_100g", "grams"}, ...] — one
-    entry per leaf food ingredient; sub-recipes themselves don't appear.
+    Returns [{"food_name", "fdc_id", "nutrients_100g", "grams",
+    "is_supplement"}, ...] — one entry per leaf food ingredient; sub-recipes
+    themselves don't appear. A supplement's nutrients_100g also carries the
+    from-supplements split (supplements.tag), and "grams" is its internal
+    100 g per unit — callers that total weight skip it.
     Each leaf's nutrients_100g carries its water split (water.tag): from
     drinks when the food is a drink, or when this recipe or any recipe it
     sits inside is marked as one.
@@ -74,12 +78,14 @@ def expand_recipe_ingredients(
                 continue
             nuts_100g = json.loads(cached["nutrients_json"])
             if nuts_100g:
-                nuts_100g = _water.tag(nuts_100g, _drink or _water.is_drink(cached))
+                supp = _supps.is_supplement(cached)
+                nuts_100g = _supps.tag(_water.tag(nuts_100g, _drink or _water.is_drink(cached)), supp)
                 result.append({
                     "food_name":      cached["name"] if rewritten and item_id != ing["fdc_id"] else ing["food_name"],
                     "fdc_id":         item_id,
                     "nutrients_100g": nuts_100g,
                     "grams":          qty * portion_factor,
+                    "is_supplement":  supp,
                 })
     return result
 

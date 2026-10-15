@@ -71,7 +71,8 @@
 {% endif %}
 {# Average daily glycemic load. A weekly average is the figure worth acting on;
    any single day swings with what happened to be eaten. #}
-{% if avg_gl is not none %}
+{% if not show_gl() %}
+{% elif avg_gl is not none %}
 <div class="protein-summary-card mb-3">
   <div class="ps-metric">
     <div class="ps-label">Average daily glycemic load <small class="muted">(over {{ avg_gl_days }} of {{ num_days }} day(s) &mdash; days without full GI coverage are skipped, not counted as zero)</small></div>
@@ -112,7 +113,7 @@
     {% for row in section.rows %}
     <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
       <td>{{ row.label }}</td>
-      <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
+      <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
       <td class="muted">{{ row.unit }}</td>
       {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}

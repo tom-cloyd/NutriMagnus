@@ -6,13 +6,13 @@ named profiles and switch the active one (illness, travel, weight change),
 so "today's active profile" is the wrong thing to compare an old day against.
 
 A day's profile is pinned the first time a meal is saved for that date (a
-full numeric snapshot, not just a name reference, so later edits to that
-profile don't retroactively change historical comparisons) and can be
-reassigned afterward via set_day_profile_override.
+full numeric snapshot, not just a name reference) and can be reassigned
+afterward via set_day_profile_override.
 
-A day can also be switched to follow the CURRENT profile (follow_current):
-its own pinned copy is kept, it is re-pinned whenever the profile is saved
-(refresh_after_profile_save), and restore_pinned puts the kept copy back.
+A new day starts out following the CURRENT profile (follow_current): its own
+pinned copy is kept, it is re-pinned whenever the profile is saved
+(refresh_after_profile_save), and restore_pinned puts the kept copy back —
+from then on, later edits to the profile don't change that day.
 Today is re-pinned on every profile save too, unless set by hand — it's
 still in progress, so its goals should follow your settings.
 Docs: README-numa-documentation.md, Architecture: "numa_app/services/day_profile.py — per-day profile pinning"
@@ -34,14 +34,18 @@ def _from_snapshot(row) -> _profile.UserProfile:
 
 def ensure_day_profile(conn, meal_date: str) -> None:
     """Pin meal_date to the currently-active profile if it has no pinned
-    profile yet. No-op once a day_profile row exists — pinning only ever
-    happens once per date unless explicitly overridden."""
+    profile yet, following the current profile from the start (the snapshot
+    taken now is kept as the day's own copy, for restore_pinned). No-op once
+    a day_profile row exists — pinning only ever happens once per date
+    unless explicitly overridden."""
     if _db.day_profile_get(conn, meal_date) is not None:
         return
     p = _profile.load_profile()
     if p is None:
         return
-    _db.day_profile_upsert(conn, meal_date, p.name, _snapshot(p), overridden=False)
+    snap = _snapshot(p)
+    _db.day_profile_upsert(conn, meal_date, p.name, snap, overridden=False)
+    _db.day_profile_set_following(conn, meal_date, p.name, snap)
 
 
 def get_profile_for_date(conn, meal_date: str) -> "_profile.UserProfile | None":

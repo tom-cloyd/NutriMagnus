@@ -34,10 +34,11 @@ _state: dict = {"running": False, "checked": 0, "total": 0, "filled": 0,
 
 def candidates(conn) -> list[int]:
     """USDA foods (positive fdc_id) with no water value and no "not needed"
-    mark for the Water group, in fdc_id order."""
+    mark for the Water group, in fdc_id order. Supplements are left out."""
     ignores = _db.food_data_ignores(conn)
     out = []
-    for r in conn.execute("SELECT fdc_id, nutrients_json FROM foods WHERE fdc_id > 0 ORDER BY fdc_id"):
+    for r in conn.execute("SELECT fdc_id, nutrients_json FROM foods WHERE fdc_id > 0 AND is_supplement = 0 "
+                          "ORDER BY fdc_id"):
         nutrients = json.loads(r["nutrients_json"]) if r["nutrients_json"] else {}
         if WATER_KEY not in nutrients and "water" not in ignores.get(r["fdc_id"], set()):
             out.append(r["fdc_id"])

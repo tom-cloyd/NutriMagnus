@@ -92,6 +92,19 @@ If that describes you, {{ "these are the right values" if plural else "it's the 
 {% endif %}
 {% endif %}{% endmacro %}
 
+{# One line under a meal or day page's title: the day's glycemic load so
+   far. gl: a combined result; label: what it covers; target:
+   gl_target_status() or None. #}
+{% macro gl_so_far_line(gl, label, target=None) %}
+<p class="mb-1">{{ label }}:
+  {% if gl.total is not none and gl.complete %}<strong>{{ gl.total }}</strong>
+  {% elif gl.total is not none %}<strong>&ge;&thinsp;{{ gl.total }}</strong> <small class="muted">({{ gl.coverage_pct }}% of the carbohydrate has a GI, so the true figure is higher)</small>
+  {% elif gl.gaps %}<span class="muted">not available &mdash; no food with carbohydrate has a GI yet</span>
+  {% else %}<strong>0</strong>{% endif %}
+  {% if target and gl.total is not none %}<small class="muted">&middot; {{ target.pct }}% of your daily target of {{ "%g"|format(target.target) }}</small>{% endif %}
+  {{ manual_link("glycemic") }}</p>
+{% endmacro %}
+
 {% macro gl_figure(gl, scope="serving", label="", links=True, target=None, recipe=None) %}
 {% if gl.complete %}
 <p>{% if label %}<strong>{{ label }}</strong> {% endif %}<strong>{{ gl.total }}</strong>

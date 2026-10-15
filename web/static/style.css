@@ -312,6 +312,11 @@ table {
   background-color: #fff;
   white-space: nowrap;
 }
+/* The sitewide 3.6rem first-column indent (td:first-child, below) left a
+   wide empty gap before the dates; "table" raises specificity past it. */
+table td.sticky-col, table th.sticky-col {
+  padding-left: 0.5rem;
+}
 
 /* Marks the first (value) column of each [value, % Goal] nutrient pair on
    Daily Summary's Recent Days table — a dashed separator before it makes
@@ -1184,4 +1189,25 @@ td.compare-val-col {
   display: block;
   -webkit-line-clamp: unset;
   line-clamp: unset;
+}
+
+/* A search/filter button whose text box has something in it (base.html's
+   search-button script): lit up so it's obvious what to click next. */
+.btn.btn-search-ready,
+.btn.btn-search-ready:hover,
+.btn.btn-search-ready:focus {
+  background-color: #0d6efd;
+  border: 2px solid #dc3545;
+  color: #fff;
+  font-weight: 700;
+}
+.btn.btn-search-ready:hover {
+  background-color: #0b5ed7;
+}
+
+/* "N from supplements" under a nutrient amount (services/supplements.py). */
+.supp-share {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color, #6c757d);
+  white-space: nowrap;
 }

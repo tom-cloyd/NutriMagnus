@@ -27,7 +27,7 @@
     {% if complements and not complements.no_data %}
     <li class="sb-item"><a class="sb-toggle" href="#sec-comp">Complement Suggestions</a></li>
     {% endif %}
-    {% if gl %}
+    {% if gl and show_gl() %}
     <li class="sb-item"><a class="sb-toggle" href="#sec-gl">Glycemic Load</a></li>
     {% endif %}
     {% if nutrient_sections %}
@@ -472,7 +472,7 @@
 {% endif %}
 
 {# Glycemic load #}
-{% if gl %}
+{% if gl and show_gl() %}
 <details id="sec-gl" data-remember="glycemic-load">
   <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
   <div class="protein-meta mt-2">
@@ -523,7 +523,7 @@
       {% for row in section.rows %}
       <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
         <td>{{ row.label }}</td>
-        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}</td>
+        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
         <td class="muted">{{ row.unit }}</td>
         {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
         {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
