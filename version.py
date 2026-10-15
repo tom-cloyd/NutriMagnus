@@ -1,4 +1,4 @@
-VERSION = "2026-10-14:2328"
+VERSION = "2026-10-15:1210"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users

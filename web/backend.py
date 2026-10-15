@@ -11449,6 +11449,14 @@ def _item_code(e: dict) -> str:
     return classified[0] if classified else ""
 
 
+def _weekday_abbr(date_str: str) -> str:
+    """"Mon", "Tue", ... for a YYYY-MM-DD date; "" if it isn't one."""
+    try:
+        return datetime.date.fromisoformat(str(date_str)[:10]).strftime("%a")
+    except ValueError:
+        return ""
+
+
 def _resolve_meals_for_food_use(
     conn, mode: str, ranges_raw: str, meal_ids: str
 ) -> tuple[dict[int, dict], list[tuple[str, str]], list[int]]:
@@ -11523,9 +11531,11 @@ async def analysis_food_use(
                 entry = agg.setdefault(key, {
                     "name": name, "fdc_id": fdc_id, "kind": kind, "has_protein": has_protein,
                     "deleted": deleted, "recipe_id": recipe_id, "meal_ids": set(), "days": set(),
+                    "date_meals": {},
                 })
                 entry["meal_ids"].add(meal_id)
                 entry["days"].add(meal["meal_date"])
+                entry["date_meals"].setdefault(meal["meal_date"], set()).add(meal_id)
             # Only items logged straight onto the meal can be substituted
             # here (see substitute_item_in_meals); mark those rows so the
             # Replace tick-box is offered on them alone.
@@ -11538,7 +11548,9 @@ async def analysis_food_use(
                     agg[direct_key].setdefault("direct_meal_ids", set()).add(meal_id)
 
     rows_all = list(agg.values())
+    hidden_no_protein = 0
     if protein_only:
+        hidden_no_protein = sum(1 for r in rows_all if not r["has_protein"])
         rows_all = [r for r in rows_all if r["has_protein"]]
 
     sort_keys = {
@@ -11570,6 +11582,10 @@ async def analysis_food_use(
         "meal_ids":  sorted(r["meal_ids"]),
         "direct_meals": len(r.get("direct_meal_ids", ())),
         "is_drink":  r["is_drink"],
+        # The row's days, each with its meals, for the "pick dates" list
+        # that narrows a replace/remove/add to chosen days.
+        "dates":     [{"date": d, "weekday": _weekday_abbr(d), "meal_ids": sorted(m)}
+                      for d, m in sorted(r["date_meals"].items())],
     } for r in rows_sorted]
 
     return templates.TemplateResponse(request, "analysis_food_use.html", {
@@ -11578,6 +11594,7 @@ async def analysis_food_use(
         "ranges_raw":    ranges_raw,
         "meal_ids_raw":  meal_ids,
         "protein_only":  protein_only,
+        "hidden_no_protein": hidden_no_protein,
         "sort":          sort,
         "missing_ids":   missing_ids,
         "bad_dates":     _bad_date_lines(ranges_raw) if mode == "range" else [],
@@ -11644,15 +11661,26 @@ async def analysis_food_use_substitute(
     old_code: str = Form(""),
     new_code: str = Form(""),
     amount: str = Form(""),
+    only_meals: str = Form(""),
 ):
     """Change one food or recipe across the meals currently selected on the
     Food Use in Meals page — the same date range(s)/meal-IDs selection already
     on screen, so a change always matches exactly what the user was just
     looking at. action: "replace" every direct occurrence of old_code with
     new_code; "remove" every direct occurrence of old_code; "add" new_code,
-    at `amount`, to every selected meal. Writes at once; no undo."""
+    at `amount`, to every selected meal. only_meals (from the table's "pick
+    dates" lists) narrows that to the meals on the dates ticked there — never
+    widens it past the on-screen selection. Writes at once; no undo."""
     def _back(error: str | None = None, **done: int) -> RedirectResponse:
         return _food_use_back(mode, ranges_raw, meal_ids, protein_only, sort, error, **done)
+
+    only_ids = set(_parse_id_list_tokens(only_meals)) if only_meals.strip() else None
+
+    def _meals(conn) -> dict[int, dict]:
+        meals_by_id, _, _ = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+        if only_ids is not None:
+            meals_by_id = {mid: m for mid, m in meals_by_id.items() if mid in only_ids}
+        return meals_by_id
 
     if action not in ("replace", "remove", "add"):
         action = "replace"
@@ -11688,7 +11716,7 @@ async def analysis_food_use_substitute(
                 except _entry_parse.EntryError as exc:
                     return _back(error=f"{row['name']}: {exc}")
                 srv = round(srv, 4)
-            meals_by_id, _, _ = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+            meals_by_id = _meals(conn)
             if not meals_by_id:
                 return _back(error="No meals are selected, so there's nothing to add it to.")
             for meal_id in meals_by_id:
@@ -11701,7 +11729,9 @@ async def analysis_food_use_substitute(
 
     try:
         with _db.get_db() as conn:
-            meals_by_id, _, _ = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+            meals_by_id = _meals(conn)
+            if only_ids is not None and not meals_by_id:
+                return _back(error="None of the dates you ticked are in the current selection.")
             if action == "remove":
                 return _back(removed=_db.remove_item_from_meals(conn, list(meals_by_id), *old))
             n = _db.substitute_item_in_meals(conn, list(meals_by_id), *old, *new)

@@ -3766,6 +3766,53 @@ def test_food_use_remove_from_selected_meals(client: TestClient, cached_food: di
     assert "Removed 1 meal item(s)." in client.get(resp.headers["location"]).text
 
 
+def test_food_use_change_limited_to_picked_dates(client: TestClient, cached_food: dict, db_conn) -> None:
+    """The table's "pick dates" list sends only_meals: a change then reaches
+    just those meals, never ones outside the on-screen selection."""
+    ids = []
+    for day in ("2026-07-20", "2026-07-21"):
+        mid = int(client.post("/meals/create", data={"name": "Lunch", "meal_date": day},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+        client.post(f"/meal/{mid}/add",
+                    data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                    follow_redirects=False)
+        ids.append(mid)
+    page = client.get("/analysis/food-use", params={"mode": "range", "ranges_raw": "2026-07-01:2026-07-31"}).text
+    assert "pick dates" in page
+    assert f'data-date="2026-07-21" data-meals="{ids[1]}"' in page
+
+    sel = {"mode": "range", "ranges_raw": "2026-07-01:2026-07-31", "action": "remove",
+           "old_code": f"U{cached_food['fdcId']}"}
+    resp = client.post("/analysis/food-use/substitute", data={**sel, "only_meals": str(ids[1])},
+                       follow_redirects=False)
+    assert "removed=1" in resp.headers["location"]
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (ids[0],)).fetchone()[0] == 1
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (ids[1],)).fetchone()[0] == 0
+
+    outside = client.post("/analysis/food-use/substitute",
+                          data={**sel, "ranges_raw": "2026-07-20", "only_meals": str(ids[1])},
+                          follow_redirects=False)
+    assert "error=" in outside.headers["location"]
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (ids[0],)).fetchone()[0] == 1
+
+
+def test_food_use_protein_filter_says_what_it_hides(client: TestClient, cached_food: dict, db_conn) -> None:
+    """With "Only protein-containing foods" ticked, the page counts the
+    no-protein items it left out and links to the unfiltered view."""
+    _db.cache_food(db_conn, fdc_id=999005, name="Tap Water", data_type="Foundation",
+                   brand=None, serving_size=100.0, serving_unit="g", nutrients={"water_g": 100})
+    db_conn.commit()
+    m1, _m2 = _food_use_two_meals(client, cached_food)
+    client.post(f"/meal/{m1}/add", data={"fdc_id": 999005, "food_name": "Tap Water", "portion_str": "250 g"},
+                follow_redirects=False)
+    sel = {"mode": "range", "ranges_raw": "2026-07-01:2026-07-31"}
+    page = client.get("/analysis/food-use", params={**sel, "protein_only": "true"}).text
+    assert "1 food(s) and recipe(s) with no protein are hidden" in page
+    assert "Tap Water" not in page
+    page = client.get("/analysis/food-use", params=sel).text
+    assert "Tap Water" in page and "hidden-no-protein" not in page
+
+
 def test_food_use_add_to_every_selected_meal(client: TestClient, cached_food: dict, db_conn) -> None:
     """Add puts a food (at a typed amount) or a recipe (in servings) into
     every selected meal; a bad amount or nothing selected is refused."""

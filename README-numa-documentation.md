@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-14:2232
+UPDATED: 2026-10-15:1140
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -1728,7 +1728,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,315 tests**, all passing (2,306 in the default run plus 9 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,317 tests**, all passing (2,308 in the default run plus 9 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 

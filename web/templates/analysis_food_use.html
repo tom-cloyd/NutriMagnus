@@ -3,6 +3,11 @@
 {% block title %}NutriMagnus — Food Use in Meals{% endblock %}
 
 {% block content %}
+<style>
+  /* Narrow tick-box column on the far left, so the table's right-hand
+     columns aren't cut off. */
+  .food-use-table > :not(caption) > tr > :first-child { padding-left: 0.125rem; padding-right: 0.125rem; }
+</style>
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
@@ -118,7 +123,10 @@
     the table below (once you've searched). To replace or add, start typing a name in the search box here and pick
     it from the list. It has to be in your Food Cache or Recipes already &mdash; to use a food you've never added,
     find it with <a href="/food/search" target="_blank" rel="noopener">Food Search</a> first (opens in a new tab).
-    If you already know the codes, you can type them straight into the code boxes instead.</small>
+    If you already know the codes, you can type them straight into the code boxes instead.
+    <strong>Only some days?</strong> Click <em>pick dates</em> beside a food's day count in the table and tick
+    the dates you want: the change then reaches only the meals on those dates that the food appears in
+    (for <em>add</em>, it's added alongside it in those meals).</small>
   </p>
   {% if error %}
   <p class="text-danger"><small>{{ error }}</small></p>
@@ -138,6 +146,11 @@
     <input type="hidden" name="meal_ids" value="{{ meal_ids_raw or '' }}">
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
+    <input type="hidden" name="only_meals" id="only_meals" value="">
+    <p class="mb-2" id="date-limit-summary" style="display:none"><small>
+      <span class="badge text-bg-info me-1">only chosen dates</span><span id="date-limit-text"></span>
+      <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" id="date-limit-clear">untick all dates (use the whole selection)</button>
+    </small></p>
     <div class="mb-2">
       {% for val, text in [("replace", "Replace one with another"), ("remove", "Remove from every meal"), ("add", "Add to every meal")] %}
       <div class="form-check form-check-inline">
@@ -198,7 +211,14 @@
   }
   radios.forEach(function (r) { r.addEventListener('change', sync); });
   form.addEventListener('submit', function (e) {
-    if (!confirm(text[action()].ask + ' This writes to the database immediately and has no automatic undo.')) e.preventDefault();
+    var ask = text[action()].ask;
+    var only = document.getElementById('only_meals').value;
+    if (only) {
+      var n = only.split(',').length;
+      ask = ask.replace(/(every meal|all \d+ meal\(s\)) in the current selection above/,
+                        'only the ' + n + ' meal(s) on the dates you ticked in the table');
+    }
+    if (!confirm(ask + ' This writes to the database immediately and has no automatic undo.')) e.preventDefault();
   });
   sync();
 })();
@@ -210,11 +230,15 @@
   <h3 class="mb-2">Foods used in selected meals
     <small class="muted fw-normal" style="font-size:0.875rem">({{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %})</small>
   </h3>
+  {% if hidden_no_protein %}{% set _all = {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or '', 'sort': sort or 'frequency'} %}
+  <p class="text-warning-emphasis mb-2" id="hidden-no-protein">{{ hidden_no_protein }} food(s) and recipe(s) with no protein are hidden, because <strong>Only protein-containing foods</strong> is ticked &mdash;
+    <a href="/analysis/food-use?{{ _all|urlencode }}">show them</a>.</p>
+  {% endif %}
   <div class="table-responsive">
-    <table class="table table-sm table-hover" style="max-width:76rem">
+    <table class="table table-sm table-hover food-use-table" style="max-width:76rem">
       <thead class="table-light">
         <tr>
-          <th class="text-center" title="Tick a food or recipe to replace it with another one, or remove it, in every meal selected above. The panel above then opens.">Replace or remove</th>
+          <th class="text-center" title="Tick a food or recipe to replace it with another one, or remove it, in every meal selected above. The panel above then opens.">Replace<br>or remove</th>
           <th>Food</th>
           {% if track_water() %}<th class="text-center" title="Tick if this food or recipe is a drink: its water then counts as water from drinks, not water from food, in every total. Saves at once.">Drink</th>{% endif %}
           <th>Code</th>
@@ -254,7 +278,11 @@
             {% else %}<span class="muted">&ndash;</span>{% endif %}
           </td>{% endif %}
           <td class="muted" style="white-space:nowrap">{{ food_id_short(r.fdc_id, r.recipe_id if r.kind == "recipe" else none) }}{% if r.kind == "recipe" and r.deleted %} <span class="text-danger">(recipe deleted)</span>{% endif %}</td>
-          <td class="num-col">{{ r.days }}</td>
+          <td class="num-col" style="white-space:nowrap">{{ r.days }}
+            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline js-dates-toggle"
+                    aria-expanded="false" aria-controls="dates-{{ loop.index }}"
+                    title="List the dates {{ r.name }} was eaten, to tick just some of them for a replace, remove or add">pick dates</button>
+          </td>
           <td class="num-col">{{ r.meals }}</td>
           <td>
             <div class="progress" role="progressbar" aria-label="Percent of days in range this food was used" aria-valuenow="{{ r.pct|int }}" aria-valuemin="0" aria-valuemax="100" style="height:1rem">
@@ -269,6 +297,26 @@
             <a href="/analysis/whatif?{{ {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or '', 'e_op': 'remove', 'e_item': r.code}|urlencode }}"
                title="See what removing (or replacing) {{ r.name }} would do to these days' nutrition">try removing</a>
             {% endif %}
+          </td>
+        </tr>
+        <tr id="dates-{{ loop.index }}" class="js-dates-row" hidden>
+          <td></td>
+          <td colspan="{{ 8 if track_water() else 7 }}">
+            <div class="small">
+              <span class="muted me-2">Dates eaten (row above) &mdash; tick the ones the change above should reach:</span>
+              <button type="button" class="btn btn-link btn-sm p-0 align-baseline js-dates-all">tick all</button> &middot;
+              <button type="button" class="btn btn-link btn-sm p-0 align-baseline js-dates-none">untick all</button>
+            </div>
+            <div class="d-flex flex-wrap gap-3 mt-1">
+              {% for d in r.dates %}
+              <div class="form-check small mb-0">
+                <input class="form-check-input js-date-pick" type="checkbox" id="date-{{ loop.index }}-{{ d.date }}"
+                       data-date="{{ d.date }}" data-meals="{{ d.meal_ids|join(',') }}">
+                <label class="form-check-label" for="date-{{ loop.index }}-{{ d.date }}">{{ d.weekday }} {{ d.date }}
+                  <span class="muted">(meal{{ 's' if d.meal_ids|length != 1 }} {{ d.meal_ids|join(', ') }})</span></label>
+              </div>
+              {% endfor %}
+            </div>
           </td>
         </tr>
         {% endfor %}
@@ -288,6 +336,51 @@
   <p class="muted mt-2">No meals matched the selected date range(s) / meal IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
   {% endif %}
 {% endif %}
+
+<script>
+(function () {
+  // "pick dates": narrow the change panel to the meals on the ticked dates.
+  var only = document.getElementById('only_meals');
+  if (!only) return;
+  var panel = document.getElementById('substitute-panel');
+  var box = document.getElementById('date-limit-summary');
+  var label = document.getElementById('date-limit-text');
+  var picks = Array.prototype.slice.call(document.querySelectorAll('.js-date-pick'));
+  function update() {
+    var meals = {}, dates = {};
+    picks.forEach(function (p) {
+      if (!p.checked) return;
+      dates[p.dataset.date] = true;
+      p.dataset.meals.split(',').forEach(function (m) { meals[m] = true; });
+    });
+    var ids = Object.keys(meals).sort(function (a, b) { return a - b; });
+    var ds = Object.keys(dates).sort();
+    only.value = ids.join(',');
+    box.style.display = ids.length ? '' : 'none';
+    label.textContent = ids.length ? 'The change reaches only meal(s) ' + ids.join(', ') + ', on ' + ds.length + ' date(s): ' + ds.join(', ') + '.' : '';
+    if (ids.length) panel.open = true;
+  }
+  picks.forEach(function (p) { p.addEventListener('change', update); });
+  document.querySelectorAll('.js-dates-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var row = document.getElementById(btn.getAttribute('aria-controls'));
+      row.hidden = !row.hidden;
+      btn.setAttribute('aria-expanded', String(!row.hidden));
+      btn.textContent = row.hidden ? 'pick dates' : 'hide dates';
+    });
+  });
+  function setRow(btn, on) {
+    btn.closest('tr').querySelectorAll('.js-date-pick').forEach(function (p) { p.checked = on; });
+    update();
+  }
+  document.querySelectorAll('.js-dates-all').forEach(function (b) { b.addEventListener('click', function () { setRow(b, true); }); });
+  document.querySelectorAll('.js-dates-none').forEach(function (b) { b.addEventListener('click', function () { setRow(b, false); }); });
+  document.getElementById('date-limit-clear').addEventListener('click', function () {
+    picks.forEach(function (p) { p.checked = false; });
+    update();
+  });
+})();
+</script>
 
 {{ _rp.script() }}
 {% endblock %}

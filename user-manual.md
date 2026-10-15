@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-14:2232* / Reading time: 9 hours, 32 minutes
+*Updated 2026-10-15:1140* / Reading time: 9 hours, 33 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -2016,7 +2016,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 17 minutes)*
+*(Reading time: 1 hour, 18 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2667,6 +2667,16 @@ would catch meals you don't mean), then, in the panel, choose:
   number for a recipe means grams. Click **Add to every meal in this
   selection**. Every selected meal gets one new line, even one that already
   has that food.
+
+**Only some of the days.**{: #fooduse-pick-dates} Each row's **Days used**
+count has a **pick dates** link beside it. Click it and the dates that food
+or recipe was eaten open below its row, each with the meals it was in; tick
+the dates you want (**tick all** and **untick all** help). A replace,
+remove or add then reaches only the meals on those dates that the food
+appears in — for an add, the new item goes in alongside it — and the panel
+says which meals and dates it will touch. Untick every date to go back to
+the whole selection. You can tick dates in more than one row; the change
+reaches all their meals together.
 
 Both write at once after the confirmation prompt, with no undo. To see first
 what the change would do to your nutrition, try it in [What-if](#whatif),
@@ -5319,6 +5329,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+- **90.** Food Use in Meals: a food's **pick dates** link lists the days it was eaten, so a replace, remove or add can reach just the dates you tick.
 - **89.** Correct vitamin K from USDA now finishes: foods USDA skips when asked 20 at a time are asked for one by one, and foods USDA has no record of are no longer retried on every click.
 - **88.** Food Use in Meals can now remove a food or recipe from every selected meal, or add one to every selected meal at an amount you give, alongside replacing one.
 - **87.** Compare's opening line now says which amounts it's comparing; it had promised per 100 g even when a recipe was being shown whole or per serving.
@@ -5408,6 +5419,23 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **3.** Top Contributors can rank a meal's or recipe's foods by glycemic load, and when that load is Medium or High, NuMa suggests lower-GI foods from your Food Cache to swap in, each opening What-if with the swap filled in.
 - **2.** What-if pages now show glycemic load before and after your changes, and say when a swap to a food with no GI makes the "after" look better than it is; every incomplete GL figure now says how much of the carbohydrate it covers.
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
+
+#### October 15 updates
+
+**PROGRAM: REPLACE, REMOVE OR ADD ON CHOSEN DATES ONLY**
+
+On Food Use in Meals, click **pick dates** beside a food's day count to list the dates it was eaten, and tick the ones you want: a replace, remove or add then reaches only the meals on those dates. [learn more...](#fooduse-pick-dates)
+
+<!--
+```
+Scope: Analysis -> Food Use in Meals; web/backend.py (analysis_food_use rows
+carry "dates": [{date, weekday, meal_ids}]; analysis_food_use_substitute takes
+only_meals and intersects it with the on-screen selection, never widening it;
+empty intersection is an error), web/templates/analysis_food_use.html (per-row
+hidden date sub-row with checkboxes, hidden only_meals field, limit summary,
+confirm text), tests/test_web.py test_food_use_change_limited_to_picked_dates.
+```
+-->
 
 #### October 14 updates
 
