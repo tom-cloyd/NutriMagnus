@@ -537,9 +537,9 @@ class TestGetAntinutrientFlags:
         assert "soak" in sol_text or "sprout" in sol_text
 
     def test_food_matching_both_phytate_rules_gets_one_consolidated_flag(self):
-        # USDA names like "Beans, snap, seeds, mature" match both the legume rule
-        # and the nut/seed rule — they must consolidate into a single phytate flag.
-        flags = _usda.get_antinutrient_flags("beans, snap, seeds, mature")
+        # A name matching both the grain rule and the nut/seed rule must
+        # consolidate into a single phytate flag.
+        flags = _usda.get_antinutrient_flags("Bread, whole-wheat, with sunflower seeds")
         phytate_flags = [f for f in flags if "phytate" in f["cause"]]
         assert len(phytate_flags) == 1, "two phytate rules on same food must merge"
         assert len(phytate_flags[0]["solutions"]) >= 2
@@ -2447,3 +2447,189 @@ class TestSearchAliases:
         results = usda_api.search_foods("okara")
         assert [r["fdcId"] for r in results] == [172452]
         assert results[0]["description"].startswith("Okara (wet pulp")
+
+
+class TestUsdaMutationGaps20261014:
+    """Gaps found by the 2026-10-14 mutation run on usda_nutrients.py."""
+
+    def test_meal_limit_small_user_limit_is_kept(self):
+        from usda_nutrients import complement_meal_limit
+        assert complement_meal_limit("Tofu", user_g=0.5) == (0.5, "your limit for this food")
+
+    def test_meal_limit_small_serving_is_used(self):
+        from usda_nutrients import complement_meal_limit
+        assert complement_meal_limit("Tofu", serving_g=0.5) == (1.5, "3 servings of 0.5 g")
+
+    def test_meal_limit_general_fallback_label(self):
+        from usda_nutrients import complement_meal_limit
+        assert complement_meal_limit("Zzqx unmatched") == (300.0, "the general limit")
+
+    def test_aa_gaps_deficit_exact_at_non_default_digestibility(self):
+        # Lysine at half the reference, digestibility 0.8: score 0.4; the raw
+        # lysine needed is ref * protein / 1000 / 0.8, minus what's there.
+        n = {"protein_g": 10.0, "aa_lysine_g": 0.24}
+        (key, score, deficit), = _usda.get_aa_gaps(n, 0.8)
+        assert key == "aa_lysine_g"
+        assert score == pytest.approx(0.4)
+        assert deficit == pytest.approx(48 * 10.0 / 1000 / 0.8 - 0.24)
+
+    def test_aa_gaps_trace_protein_still_scored(self):
+        n = {"protein_g": 0.5, "aa_lysine_g": 0.012}
+        gaps = _usda.get_aa_gaps(n)
+        assert [g[0] for g in gaps] == ["aa_lysine_g"]
+        assert gaps[0][1] == pytest.approx(0.5)
+
+    def test_aa_gaps_no_protein_key_is_empty(self):
+        # 0.01 g lysine would be a gap against any assumed protein figure.
+        assert _usda.get_aa_gaps({"aa_lysine_g": 0.01}) == []
+
+    def test_aa_gaps_methionine_without_cystine_counts_cystine_as_zero(self):
+        n = {"protein_g": 10.0, "aa_methionine_g": 0.115}
+        (key, score, _), = _usda.get_aa_gaps(n)
+        assert key == "aa_methionine_g" and score == pytest.approx(0.5)
+
+    def test_aa_gaps_score_exactly_at_threshold_is_not_a_gap(self):
+        # 48 mg/g lysine is exactly the reference; x 0.95 digestibility = 0.95.
+        assert _usda.get_aa_gaps({"protein_g": 10.0, "aa_lysine_g": 0.48}, 0.95) == []
+
+    def test_curated_estimate_needs_protein_on_the_food(self):
+        from usda_nutrients import _estimate_aa_from_curated
+        assert _estimate_aa_from_curated({"carbs_g": 20.0}, "Lentils, cooked") is None
+        assert _estimate_aa_from_curated({"protein_g": 0.0}, "Lentils, cooked") is None
+
+    def test_curated_estimate_scales_trace_protein(self):
+        from usda_nutrients import _estimate_aa_from_curated, _find_complement_by_name
+        ref = _find_complement_by_name("Lentils, cooked")["nutrients"]
+        out = _estimate_aa_from_curated({"protein_g": 0.5}, "Lentils, cooked")
+        assert out["aa_lysine_g"] == pytest.approx(ref["aa_lysine_g"] * 0.5 / ref["protein_g"])
+
+
+class TestProteinCompletenessMutationGaps20261014:
+    """protein_completeness() at non-default digestibility, at its exact
+    boundaries, and with every field of the no-data result pinned."""
+
+    _NO_DATA = {"has_data": False, "complete": False, "limiting_aa": None, "scores": {}}
+
+    @staticmethod
+    def _food(score: float, protein: float = 10.0, skip: tuple = ()) -> dict:
+        from usda_nutrients import AA_REFERENCE_MG_PER_G_PROTEIN, ESSENTIAL_AMINO_ACIDS
+        n = {"protein_g": protein}
+        for k in ESSENTIAL_AMINO_ACIDS:
+            if k not in skip:
+                n[k] = score * AA_REFERENCE_MG_PER_G_PROTEIN[k] * protein / 1000
+        return n
+
+    def test_no_protein_result_is_exactly_no_data(self):
+        assert _usda.protein_completeness({"protein_g": 0.0}) == self._NO_DATA
+        assert _usda.protein_completeness(self._food(1.5, protein=0.0)) == self._NO_DATA
+
+    def test_missing_protein_key_is_no_data(self):
+        n = self._food(1.5)
+        del n["protein_g"]
+        assert _usda.protein_completeness(n) == self._NO_DATA
+
+    def test_too_few_amino_acids_is_exactly_no_data(self):
+        n = self._food(1.5, skip=("aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g",
+                                  "aa_leucine_g", "aa_lysine_g"))
+        assert _usda.protein_completeness(n) == self._NO_DATA
+
+    def test_exactly_five_amino_acids_is_enough(self):
+        n = self._food(1.5, skip=("aa_tryptophan_g", "aa_threonine_g",
+                                  "aa_isoleucine_g", "aa_leucine_g"))
+        r = _usda.protein_completeness(n)
+        assert r["has_data"] is True and len(r["scores"]) == 5
+
+    def test_trace_protein_is_scored(self):
+        r = _usda.protein_completeness(self._food(1.5, protein=0.5))
+        assert r["has_data"] is True and r["complete"] is True
+
+    def test_a_missing_first_amino_acid_does_not_stop_scoring(self):
+        r = _usda.protein_completeness(self._food(1.5, skip=("aa_tryptophan_g",)))
+        assert len(r["scores"]) == 8 and "aa_tryptophan_g" not in r["scores"]
+
+    def test_digestibility_lowers_the_verdict_but_not_the_raw_scores(self):
+        r = _usda.protein_completeness(self._food(1.5), 0.5)
+        assert r["complete"] is False
+        assert all(v == pytest.approx(1.5) for v in r["scores"].values())
+
+    def test_default_digestibility_is_one(self):
+        assert _usda.protein_completeness(self._food(0.6))["complete"] is False
+
+    def test_exactly_meeting_every_reference_is_complete(self):
+        # protein 1000 g with each amino acid at its reference value in grams
+        # makes every score exactly 1.0 in floating point (tryptophan's 6.6
+        # doesn't round-trip, so it is left out; 8 amino acids is plenty).
+        n = self._food(1.0, protein=1000.0, skip=("aa_tryptophan_g",))
+        r = _usda.protein_completeness(n, 1.0)
+        assert set(r["scores"].values()) == {1.0} and r["complete"] is True
+
+    def test_paired_amino_acid_without_its_partner_counts_partner_as_zero(self):
+        r = _usda.protein_completeness(self._food(1.5))
+        assert r["scores"]["aa_methionine_g"] == pytest.approx(1.5)
+        assert r["scores"]["aa_phenylalanine_g"] == pytest.approx(1.5)
+
+
+class TestAntinutrientMatching:
+    """Whole-word matching, reviewed both ways (2026-10-14): plain substrings
+    used to flag peaches ("pea"), goat cheese ("oat"), nutmeg ("nut"), jelly
+    beans and coffee ("bean"), cornstarch and sweet corn ("corn")."""
+
+    @staticmethod
+    def _groups(name):
+        return sorted(f["group"] for f in _usda.get_antinutrient_flags(name))
+
+    @pytest.mark.parametrize("name", [
+        "Peaches, raw", "Cheese, goat, soft", "Coconut milk", "Spices, nutmeg, ground",
+        "Nutritional Yeast Flakes", "Doughnuts, cake", "Jelly beans", "Coffee, brewed from beans",
+        "Beans, snap, green, raw", "Cornstarch", "Popcorn, air-popped", "Corn, sweet, yellow, raw",
+        "Cereals ready-to-eat, KELLOGG, CORN FLAKES", "Oil, sesame, salad or cooking",
+        "Almond milk, unsweetened", "Squash, winter, butternut", "Corned beef", "Raisins, seeded",
+        "Grapes, red, seedless, raw", "Vital wheat gluten", "OREO COOKIES",
+        "Chicken, broiler or fryers, breast, skinless", "Tortillas, ready-to-bake, corn, masa",
+    ])
+    def test_no_note(self, name):
+        assert self._groups(name) == []
+
+    @pytest.mark.parametrize("name, groups", [
+        ("Beans, kidney, red, mature seeds, raw", ["lectin", "phytate"]),
+        ("DARK RED KIDNEY BEANS", ["lectin", "phytate"]),
+        ("Lentils, raw", ["lectin", "phytate"]),
+        ("Lentils, mature seeds, cooked, boiled", ["phytate"]),
+        ("Refried beans", ["phytate"]),
+        ("Pasta, chickpea flour (dry, uncooked)", ["phytate"]),
+        ("Soup: Garbanzo bean broccoli", ["phytate"]),
+        ("Hummus", ["phytate"]),
+        ("Peas, green, raw", ["phytate"]),
+        ("Peanut butter", ["phytate"]),
+        ("Seeds, sunflower seed kernels, oil roasted", ["phytate"]),
+        ("Hemp Protein Powder", ["phytate"]),
+        ("Nuts, almonds, whole, raw", ["oxalate_phytate"]),
+        ("Nuts, walnuts, english", ["phytate"]),
+        ("English muffins, whole grain with gluten", ["phytate"]),
+        ("Cornmeal, whole-grain, yellow", ["niacin", "phytate"]),
+        ("Rhubarb, raw", ["oxalate"]),
+    ])
+    def test_notes(self, name, groups):
+        assert self._groups(name) == groups
+
+    def test_bean_note_gives_the_fda_advice(self):
+        lectin = next(f for f in _usda.get_antinutrient_flags("Beans, kidney, red, raw") if f["group"] == "lectin")
+        text = " ".join(s for _, s in lectin["solutions"])
+        assert "5 hours" in text and "30 minutes" in text and "slow cooker" in text
+
+
+class TestSlowCookerBeanRisk:
+    def test_dried_beans_in_a_slow_cooker_recipe(self):
+        names = ["Beans, kidney, red, mature seeds, raw", "Onions, raw", "Lentils, raw"]
+        assert _usda.slow_cooker_bean_risk(names, "Put everything in the slow cooker on low for 8 hours.") == [
+            "Beans, kidney, red, mature seeds, raw", "Lentils, raw"]
+
+    @pytest.mark.parametrize("text", ["Cook in a Crock-Pot.", "crockpot overnight", "Slow-cook 6 h",
+                                      "use a slow cooker"])
+    def test_spellings(self, text):
+        assert _usda.slow_cooker_bean_risk(["Beans, black, raw"], text) == ["Beans, black, raw"]
+
+    def test_no_warning_without_a_slow_cooker_or_dried_beans(self):
+        assert _usda.slow_cooker_bean_risk(["Beans, black, raw"], "Boil 30 minutes.") == []
+        assert _usda.slow_cooker_bean_risk(["Beans, black, canned"], "Slow cooker, 8 hours.") == []
+        assert _usda.slow_cooker_bean_risk(["Beans, black, raw"], None) == []

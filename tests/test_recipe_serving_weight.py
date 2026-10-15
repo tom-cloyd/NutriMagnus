@@ -214,6 +214,26 @@ class TestCompareBasis:
         # Remembered: no basis given now means the last one chosen.
         assert "1 serving (150 g)" in client.get(f"/compare?items={items}").text
 
+    def test_intro_names_the_basis_in_use(self, client, db_conn, monkeypatch, tmp_path):
+        """The page's opening line promised per 100 g even with a remembered
+        whole-recipe basis in force."""
+        monkeypatch.setattr(backend, "_PREFS_FILE", tmp_path / "prefs.json")
+        rid, r2 = self._recipe(db_conn)
+        items = f"r{rid},r{r2}"
+        assert "to compare them per 100 g" in client.get(f"/compare?items={items}").text
+        whole = client.get(f"/compare?items={items}&basis=recipe").text
+        assert "to compare them per 100 g" not in whole
+        assert "Recipes are currently shown as whole recipes" in whole
+
+    def test_gram_measure_is_not_repeated(self, client, db_conn, monkeypatch, tmp_path):
+        monkeypatch.setattr(backend, "_PREFS_FILE", tmp_path / "prefs.json")
+        _food(db_conn)
+        rid = _db.recipe_create(db_conn, name="Butter", description="", servings=1, instructions="")
+        _db.recipe_add_ingredient(db_conn, rid, 1, "Lentil Mush", 1580.0, "1580 g")
+        db_conn.commit()
+        whole = client.get(f"/compare?items=r{rid},f1&basis=recipe").text
+        assert "1580 g" in whole and "1580 g (1580 g)" not in whole
+
     def test_whole_recipe_nutrients_are_unscaled(self, db_conn):
         rid, _ = self._recipe(db_conn)
         whole = backend._load_compare_entry(db_conn, "recipe", rid, basis="recipe")

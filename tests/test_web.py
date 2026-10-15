@@ -1499,8 +1499,12 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
     profile = _profile.load_profile()
     assert profile.optimal_targets == {"vitamin_d_mcg": 50.0}
 
+    # A row with a saved value says so, on any visit: its button reads
+    # "Saved", in red; rows with nothing saved still read "Save".
     resp = client.get("/settings")
     assert "value=\"50.0\"" in resp.text
+    assert resp.text.count(">Saved</button>") == 1
+    assert 'text-danger js-nt-saved">Saved</button>' in resp.text
 
     # Clearing: empty optimal field removes the entry
     client.post(
@@ -1510,6 +1514,7 @@ def test_settings_nutrient_target_set_and_clear(client: TestClient) -> None:
     )
     profile = _profile.load_profile()
     assert profile.optimal_targets == {}
+    assert ">Saved</button>" not in client.get("/settings").text
 
 
 def test_settings_nutrient_target_reads_units_and_reports_errors(client: TestClient) -> None:
@@ -1531,11 +1536,10 @@ def test_settings_nutrient_target_load_defaults(client: TestClient) -> None:
     assert resp.status_code == 303
     assert resp.headers["location"] == "/settings?saved=nutrient_target_defaults#nutrient-targets"
     profile = _profile.load_profile()
-    assert profile.optimal_targets == {
-        "vitamin_d_mcg": 50.0,
-        "omega3_epa_mg": 250.0,
-        "omega3_dha_mg": 250.0,
-    }
+    expected = {"omega3_epa_mg": 250.0, "omega3_dha_mg": 250.0}
+    if profile.age >= 75:
+        expected["vitamin_d_mcg"] = 23.0
+    assert profile.optimal_targets == expected
 
     resp = client.get("/settings?saved=nutrient_target_defaults")
     assert "Loaded recommended Revised Optimal targets" in resp.text
@@ -3734,6 +3738,64 @@ def test_substitute_food_in_meals(client: TestClient, cached_food: dict, db_conn
     assert item["fdc_id"] == 999001
     assert item["food_name"] == "Natural Peanut Butter"
     assert item["amount"] == 150  # amount/unit carry over unchanged
+
+
+def _food_use_two_meals(client, cached_food) -> tuple[int, int]:
+    """Two July meals, each with cached_food logged at 150 g."""
+    ids = []
+    for name in ("Breakfast", "Lunch"):
+        meal_id = int(client.post("/meals/create", data={"name": name, "meal_date": "2026-07-20"},
+                                  follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+        client.post(f"/meal/{meal_id}/add",
+                    data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                    follow_redirects=False)
+        ids.append(meal_id)
+    return ids[0], ids[1]
+
+
+def test_food_use_remove_from_selected_meals(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Remove deletes the food's direct lines from the selected meals only."""
+    m1, m2 = _food_use_two_meals(client, cached_food)
+    resp = client.post("/analysis/food-use/substitute",
+                       data={"mode": "ids", "meal_ids": str(m1), "action": "remove",
+                             "old_code": f"U{cached_food['fdcId']}"},
+                       follow_redirects=False)
+    assert "removed=1" in resp.headers["location"]
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (m1,)).fetchone()[0] == 0
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (m2,)).fetchone()[0] == 1
+    assert "Removed 1 meal item(s)." in client.get(resp.headers["location"]).text
+
+
+def test_food_use_add_to_every_selected_meal(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Add puts a food (at a typed amount) or a recipe (in servings) into
+    every selected meal; a bad amount or nothing selected is refused."""
+    _db.cache_food(db_conn, fdc_id=999004, name="Nutritional Yeast", data_type="Foundation",
+                   brand=None, serving_size=100.0, serving_unit="g", nutrients={"calories": 400, "protein_g": 50})
+    db_conn.commit()
+    m1, m2 = _food_use_two_meals(client, cached_food)
+    sel = {"mode": "range", "ranges_raw": "2026-07-01:2026-07-31", "action": "add"}
+    resp = client.post("/analysis/food-use/substitute",
+                       data={**sel, "new_code": "U999004", "amount": "10 g"}, follow_redirects=False)
+    assert "added=2" in resp.headers["location"]
+    rows = db_conn.execute("SELECT meal_id, amount FROM meal_items WHERE fdc_id=999004 ORDER BY meal_id").fetchall()
+    assert [(r["meal_id"], r["amount"]) for r in rows] == [(m1, 10), (m2, 10)]
+
+    rid = int(client.post("/recipe/new", data={"name": "Toast", "servings": "2"}, follow_redirects=False)
+              .headers["location"].split("/recipe/")[1].split("/")[0])
+    resp = client.post("/analysis/food-use/substitute",
+                       data={**sel, "new_code": f"R{rid}", "amount": "1 1/2 servings"}, follow_redirects=False)
+    assert "added=2" in resp.headers["location"]
+    rows = db_conn.execute("SELECT amount, unit FROM meal_items WHERE recipe_id=?", (rid,)).fetchall()
+    assert [(r["amount"], r["unit"]) for r in rows] == [(1.5, "1.5 servings")] * 2
+
+    bad = client.post("/analysis/food-use/substitute",
+                      data={**sel, "new_code": "U999004", "amount": "lots"}, follow_redirects=False)
+    assert "error=" in bad.headers["location"]
+    none = client.post("/analysis/food-use/substitute",
+                       data={**sel, "ranges_raw": "2020-01-01", "new_code": "U999004", "amount": "10 g"},
+                       follow_redirects=False)
+    assert "error=" in none.headers["location"]
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE fdc_id=999004").fetchone()[0] == 2
 
 
 def test_food_use_replace_column_and_replacement_search(client: TestClient, cached_food: dict, db_conn) -> None:

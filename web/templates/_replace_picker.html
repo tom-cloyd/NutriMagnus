@@ -50,11 +50,21 @@
   var oldName = '', newName = '';
   if (!oldCode || !search) return;
 
+  // Food Use in Meals also offers Remove and Add (an action radio group);
+  // the recipes page has no such choice, so it's always Replace there.
+  function action() {
+    var r = document.querySelector('input[name=action]:checked');
+    return r ? r.value : 'replace';
+  }
   function showSummary() {
-    if (oldName && newName) summary.textContent = 'Will replace “' + oldName + '” with “' + newName + '”.';
+    var a = action();
+    if (a === 'remove') summary.textContent = oldName ? 'Will remove “' + oldName + '”.' : '';
+    else if (a === 'add') summary.textContent = newName ? 'Will add “' + newName + '”.' : '';
+    else if (oldName && newName) summary.textContent = 'Will replace “' + oldName + '” with “' + newName + '”.';
     else if (oldName) summary.textContent = 'Replacing “' + oldName + '” — now choose its replacement.';
     else summary.textContent = '';
   }
+  newCode.addEventListener('summary', showSummary);
 
   picks.forEach(function (box) {
     if (box.checked) oldName = box.dataset.name;
@@ -66,7 +76,7 @@
       if (box.checked) {
         panel.open = true;
         panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        search.focus({ preventScroll: true });
+        if (action() === 'replace') search.focus({ preventScroll: true });
       }
     });
   });

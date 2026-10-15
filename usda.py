@@ -17,6 +17,7 @@ from usda_api import (       # noqa: F401
     set_search_boost_page_size,
     search_foods,
     get_food_detail,
+    get_nutrient_values,
     get_water_values,
     get_food_portions_raw,
     usda_portion_description,
@@ -41,6 +42,7 @@ from usda_nutrients import (  # noqa: F401
     suggest_complements,
     get_diaas,
     get_antinutrient_flags,
+    slow_cooker_bean_risk,
     get_density_g_per_ml,
     density_with_source,
 )

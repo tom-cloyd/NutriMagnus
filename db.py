@@ -628,6 +628,18 @@ def init_db() -> None:
                 if _supps.looks_like_supplement(_r["serving_size"], _r["serving_unit"]):
                     conn.execute("UPDATE foods SET is_supplement = 1 WHERE fdc_id = ?", (_r["fdc_id"],))
                     mark_meals_stale_for_food(conn, _r["fdc_id"])
+        # foods.vitamin_k_checked: 1 once a USDA food's vitamin K is known to
+        # be phylloquinone (USDA nutrient 1185). Before 2026-10-14 the detail
+        # fetch read 1183 (menaquinone-4) instead, so every USDA food cached
+        # until then waits for numa_app/services/vitamin_k_repair.py (Foods
+        # → 9), starter copies of USDA foods included. A food with no USDA
+        # id (fdc_id <= 0) has nothing to repair and starts at 1.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN vitamin_k_checked INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+        else:
+            conn.execute("UPDATE foods SET vitamin_k_checked = 1 WHERE fdc_id <= 0")
         # recipes.gi_as_eaten: the user has said this recipe's ingredients are
         # eaten in the form their GI describes (a smoothie of raw fruit), so
         # its GI stops flagging raw/dry/flour ingredients — see
@@ -906,7 +918,7 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
                nutrients: dict[str, float], portions: list[dict] | None = None,
                *, user_drafted: bool = False, notes: str | None = None,
                curator_notes: str | None = None, from_source: bool = True,
-               category: str | None = None) -> None:
+               category: str | None = None, vitamin_k_checked: bool = True) -> None:
     """Store a food, or overwrite the data columns of one already cached.
 
     category (USDA's food category, when known) and the name set foods.is_drink
@@ -918,6 +930,11 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
     also becomes the food's source copy (foods.source_json). Pass False for
     data the user brought in (imports), which is an edit of the food.
 
+    vitamin_k_checked (the default): the nutrients' vitamin K is phylloquinone,
+    as every fetch since 2026-10-14 reads it. Pass False for data saved by an
+    older NuMa (the starter data), so vitamin_k_repair.py still checks the
+    food against USDA. Foods with no USDA id (fdc_id <= 0) never need it.
+
     An upsert, not INSERT OR REPLACE. REPLACE deletes the existing row and
     inserts a new one, and that delete sets off food_annotations' ON DELETE
     CASCADE: re-caching a food silently erased its GI / DIAAS / prep-note
@@ -928,19 +945,22 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
     conn.execute("""
         INSERT INTO foods
             (fdc_id, name, data_type, brand, serving_size, serving_unit,
-             nutrients_json, portions_json, user_drafted, notes, curator_notes, is_drink)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             nutrients_json, portions_json, user_drafted, notes, curator_notes, is_drink,
+             vitamin_k_checked)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fdc_id) DO UPDATE SET
             name = excluded.name, data_type = excluded.data_type, brand = excluded.brand,
             serving_size = excluded.serving_size, serving_unit = excluded.serving_unit,
             nutrients_json = excluded.nutrients_json, portions_json = excluded.portions_json,
             user_drafted = excluded.user_drafted, notes = excluded.notes,
-            curator_notes = excluded.curator_notes, cached_at = datetime('now')
+            curator_notes = excluded.curator_notes, cached_at = datetime('now'),
+            vitamin_k_checked = excluded.vitamin_k_checked
     """, (
         fdc_id, name, data_type, brand, serving_size, serving_unit,
         json.dumps(nutrients), json.dumps(portions or []),
         1 if user_drafted else 0, notes or None, curator_notes or None,
         1 if _water.looks_like_drink(name, category) else 0,
+        1 if (vitamin_k_checked or fdc_id <= 0) else 0,
     ))
     _apply_calorie_mark(conn, fdc_id, calorie_mark)
     if from_source and not is_custom_food_id(fdc_id):
@@ -2474,6 +2494,22 @@ def substitute_item_in_meals(conn: sqlite3.Connection, meal_ids: list[int],
     return cur.rowcount
 
 
+def remove_item_from_meals(conn: sqlite3.Connection, meal_ids: list[int],
+                           kind: str, item_id: int) -> int:
+    """Delete every direct meal-item reference to (kind, item_id) from the
+    meals in meal_ids — the same reach as substitute_item_in_meals (a food
+    inside a logged recipe isn't touched). Returns the number of rows removed."""
+    if not meal_ids or kind not in ("food", "recipe"):
+        return 0
+    col = "fdc_id" if kind == "food" else "recipe_id"
+    placeholders = ",".join("?" * len(meal_ids))
+    cur = conn.execute(
+        f"DELETE FROM meal_items WHERE meal_id IN ({placeholders}) AND item_type=? AND {col}=?",
+        (*meal_ids, kind, item_id)
+    )
+    return cur.rowcount
+
+
 def meals_with_direct_item(conn: sqlite3.Connection, meal_ids: list[int],
                            kind: str, item_id: int) -> list[int]:
     """Which of meal_ids have (kind, item_id) logged straight on the meal —
@@ -3324,6 +3360,41 @@ def fill_source_nutrient(conn: sqlite3.Connection, fdc_id: int, key: str, value:
     conn.execute("UPDATE foods SET nutrients_json = ?, source_json = ? WHERE fdc_id = ?",
                  (json.dumps(nutrients), json.dumps(source) if source is not None else None, fdc_id))
     return True
+
+
+def replace_source_nutrient(conn: sqlite3.Connection, fdc_id: int, key: str,
+                            value: float | None) -> bool:
+    """Set (or, with None, remove) one value the food's own source now gives
+    differently — e.g. USDA's vitamin K, read from the wrong nutrient before
+    2026-10-14 — in its nutrients and its source copy alike. Leaves a value
+    the user edited (it differs from the source copy) alone. True if the
+    food's nutrients changed."""
+    row = conn.execute("SELECT nutrients_json, source_json FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if not row:
+        return False
+    nutrients = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+    source = json.loads(row["source_json"]) if row["source_json"] else None
+    src_nuts = source["nutrients"] if source is not None and "nutrients" in source else None
+    if src_nuts is not None and nutrients.get(key) != src_nuts.get(key):
+        return False                       # the user's own edit
+    if nutrients.get(key) == value and (key in nutrients) == (value is not None):
+        return False
+    for d in (nutrients, src_nuts):
+        if d is None:
+            continue
+        if value is None:
+            d.pop(key, None)
+        else:
+            d[key] = value
+    conn.execute("UPDATE foods SET nutrients_json = ?, source_json = ? WHERE fdc_id = ?",
+                 (json.dumps(nutrients), json.dumps(source) if source is not None else None, fdc_id))
+    return True
+
+
+def mark_vitamin_k_checked(conn: sqlite3.Connection, fdc_id: int) -> None:
+    """Record that this food's vitamin K has been checked against USDA's
+    phylloquinone value (see foods.vitamin_k_checked)."""
+    conn.execute("UPDATE foods SET vitamin_k_checked = 1 WHERE fdc_id = ?", (fdc_id,))
 
 
 def update_food_nutrients_partial(conn: sqlite3.Connection, fdc_id: int, new_nutrients: dict) -> None:

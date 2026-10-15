@@ -205,3 +205,37 @@ class TestLimitRoute:
         r = client.post("/complement-limit", data={"limit_fdc": "999999999", "limit_g_999999999": "20"},
                         follow_redirects=False)
         assert r.status_code == 404
+
+
+class TestLimitPlumbingMutationGaps20261014:
+    """The serving that sets a candidate's limit must reach every tier
+    (gaps found by the 2026-10-14 mutation run on usda_nutrients.py)."""
+
+    def test_recipe_limit_uses_its_serving_weight_not_serving_g(self):
+        cand = {"name": "Lysine Stew", "recipe_id": 5, "serving_weight_g": 40,
+                "serving_g": 10, "nutrients": _LYS, "diaas": 0.9}
+        s = _usda.suggest_complements(_BASE, [cand])["pantry"][0]
+        assert (s["grams"], s["limit_g"], s["limit_source"]) == (80, 80, "2 servings of 40 g")
+
+    def test_general_tier_cache_food_keeps_its_label_serving(self):
+        from usda_nutrients import _find_complement_by_name
+        whey = _find_complement_by_name("Whey protein powder")
+        real = {"name": "Whey protein powder", "fdc_id": 999, "nutrients": whey["nutrients"],
+                "diaas": whey["diaas"], "serving_g": 20}
+        general = _usda.suggest_complements(_BASE, [], cache_candidates=[real])["general"]
+        s = next(g for g in general if g["name"] == "Whey protein powder")
+        assert (s["limit_g"], s["limit_source"]) == (60, "3 servings of 20 g")
+
+    def test_pairs_tier_respects_a_pantry_food_label_serving(self):
+        from tests.test_usda import _PAIR_CASCADE_NUTRIENTS
+        from usda_nutrients import _find_complement_by_name
+        nuts = _find_complement_by_name("Brazil nuts")
+        cand = {"name": "My Brazil nuts", "fdc_id": 4242, "nutrients": nuts["nutrients"],
+                "diaas": nuts["diaas"]}
+
+        def pairs_with_it(c):
+            return [p for p in _usda.suggest_complements(_PAIR_CASCADE_NUTRIENTS, [c])["pairs"]
+                    if any(f["name"] == "My Brazil nuts" for f in p["foods"])]
+
+        assert pairs_with_it(cand)                          # 40 g nut default: pairs found
+        assert pairs_with_it({**cand, "serving_g": 3}) == []  # 9 g limit: too little to pair

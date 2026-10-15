@@ -840,3 +840,62 @@ class TestDayGl:
     def test_a_date_with_no_meals_is_none(self, db_conn):
         from numa_app.services.glycemic_load import day_gl
         assert day_gl(db_conn, "2026-10-01") is None
+
+
+class TestGlMutationGaps20261014:
+    """Gaps found by the 2026-10-14 mutation run: a supplement with
+    carbohydrate (a gummy vitamin) must be skipped without dropping the foods
+    after it; day totals add unrounded parts; the plot's coverage rule."""
+
+    @pytest.fixture()
+    def gummy(self, db_conn):
+        _add_food(db_conn, 9, "Gummy vitamin", json.dumps({"carbs_g": 80.0}))
+        _annotate(db_conn, 9, 90.0)
+        _db.set_food_is_supplement(db_conn, 9, True)
+        db_conn.commit()
+        return 9
+
+    def test_supplement_with_carbs_is_skipped_and_later_foods_still_count(self, db_conn, rice_with_gi, gummy):
+        r = gl_for_items([_food_item(gummy, "Gummy vitamin", 5.0),
+                          _food_item(rice_with_gi, "Rice", 100.0)], db_conn)
+        assert (r["total"], r["complete"], r["carbs_g"]) == (19.6, True, 28.0)
+
+    def test_supplement_leaf_is_skipped_and_later_leaves_still_count(self, db_conn, rice_with_gi, gummy):
+        from numa_app.services.glycemic_load import gl_for_leaves
+        leaves = [{"food_name": "Gummy vitamin", "fdc_id": gummy, "grams": 5.0,
+                   "nutrients_100g": {"carbs_g": 80.0}, "is_supplement": True},
+                  {"food_name": "Rice", "fdc_id": rice_with_gi, "grams": 100.0,
+                   "nutrients_100g": {"carbs_g": 28.0}}]
+        r = gl_for_leaves(leaves, db_conn)
+        assert (r["total"], r["carbs_g"]) == (19.6, 28.0)
+
+    def test_combine_gl_adds_unrounded_parts(self):
+        part = {"total": 0.1, "total_exact": 0.14, "complete": True, "gaps": [],
+                "carbs_with_gi_g": 1.0, "carbs_g": 1.0}
+        assert combine_gl([part, part, part])["total"] == 0.4   # rounded parts would give 0.3
+
+    def test_combine_gl_carbohydrate_sums_default_to_zero(self):
+        a = {"total": 5.0, "total_exact": 5.0, "complete": True, "gaps": [],
+             "carbs_with_gi_g": 10.0, "carbs_g": 10.0}
+        b = {"total": None, "total_exact": 0.0, "complete": True, "gaps": []}
+        r = combine_gl([a, b])
+        assert (r["carbs_with_gi_g"], r["carbs_g"]) == (10.0, 10.0)
+
+    def test_plot_threshold_is_inclusive(self, db_conn, rice_with_gi):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+            (2, "Bread", "SR Legacy", json.dumps({"carbs_g": 49.0}), "[]"))
+        mid = _db.meal_create(db_conn, "Lunch", "2026-09-21")
+        _db.meal_add_food(db_conn, mid, rice_with_gi, "Rice", 100.0, "g")
+        _db.meal_add_food(db_conn, mid, 2, "Bread", 5.0, "g")
+        db_conn.commit()
+        pct = combine_gl([meal_gl(db_conn, mid)])["coverage_pct"]
+        assert day_gl_plot_values(db_conn, ["2026-09-21"], min_coverage_pct=pct)["2026-09-21"][1] is True
+        assert day_gl_plot_values(db_conn, ["2026-09-21"], min_coverage_pct=pct + 1)["2026-09-21"] == (None, False)
+
+    def test_plot_empty_day_does_not_stop_later_days(self, db_conn, rice_with_gi):
+        mid = _db.meal_create(db_conn, "Dinner", "2026-09-24")
+        _db.meal_add_food(db_conn, mid, rice_with_gi, "Rice", 50.0, "g")
+        db_conn.commit()
+        values = day_gl_plot_values(db_conn, ["2026-09-23", "2026-09-24"])
+        assert values == {"2026-09-23": (None, False), "2026-09-24": (pytest.approx(9.8), False)}

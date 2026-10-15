@@ -101,8 +101,8 @@ COMPARE_GROUPS: list[tuple[str, list[str]]] = [
 # values in AA_REFERENCE_MG_PER_G_PROTEIN are for the combined pair, so we
 # must sum both members before scoring against the reference.
 _AA_PAIRS: dict[str, str] = {
-    "aa_methionine_g":    "aa_cystine_g",   # Met+Cys combined reference = 22 mg/g
-    "aa_phenylalanine_g": "aa_tyrosine_g",  # Phe+Tyr combined reference = 38 mg/g
+    "aa_methionine_g":    "aa_cystine_g",   # Met+Cys combined reference = 23 mg/g (FAO 2013)
+    "aa_phenylalanine_g": "aa_tyrosine_g",  # Phe+Tyr combined reference = 41 mg/g (FAO 2013)
 }
 
 # AAs scoring above this threshold are considered adequate; gaps below it are
@@ -1484,18 +1484,31 @@ def get_diaas(food_name: str) -> float | None:
 # ---------------------------------------------------------------------------
 # Anti-nutrient flags
 # ---------------------------------------------------------------------------
-# Each entry: (keywords_any_match, flag_text, suppressed_if_any_of).
-# suppressed_if contains keywords that, if present in the food name, cancel the flag
-# (e.g., "cooked" cancels trypsin inhibitor / lectin flags).
-
-# Each entry: keywords, suppress_if, problem, group, cause, solution_label, solution.
-# Entries sharing the same `group` are consolidated into one displayed note.
+# Each entry: patterns, suppress_if, problem, group, cause, solution_label,
+# solution. A food is flagged when any pattern matches its name and no
+# suppress_if pattern does. Patterns are regexes matched as WHOLE WORDS
+# (\b on both sides; a trailing s? allows a plural) — plain substrings used
+# to flag peaches ("pea"), goat cheese ("oat"), nutmeg and doughnuts ("nut"),
+# jelly beans and coffee ("bean") and cornstarch ("corn") until 2026-10-14.
+# tests/test_usda.py's TestAntinutrientMatching holds the reviewed examples
+# both ways. Entries sharing a `group` merge into one displayed note.
 # solution_label / solution may be None for issues with no actionable remedy.
+# Sources: manual Part 4 L (#antinutrients) and its footnotes.
+
+# Not legumes, or not eaten as one, though the name has a legume word in it.
+_NOT_LEGUME = (r"jelly", r"coffee", r"cocoa", r"cacao", r"vanilla", r"snap", r"green beans?",
+               r"string beans?", r"wax beans?")
+# An oil, as against an oil-roasted nut or seed (which keeps its phytate).
+_AN_OIL = r"oils?(?![- ]roasted)"
+
+_LEGUME_WORDS = (r"beans?", r"lentils?", r"chickpeas?", r"garbanzos?", r"peas", r"pea",
+                 r"split peas?", r"soybeans?", r"soy beans?", r"edamame", r"tofu", r"tempeh",
+                 r"hummus", r"falafel", r"dh?al", r"peanuts?", r"peanut butter")
+
 _ANTINUTRIENT_TABLE: list[dict] = [
     {
-        "keywords":       ("bean", "lentil", "chickpea", "garbanzo", "pea", "peanut",
-                           "soybeans", "edamame", "tofu", "tempeh"),
-        "suppress_if":    (),
+        "patterns":       _LEGUME_WORDS,
+        "suppress_if":    _NOT_LEGUME,
         "problem":        "Mineral absorption problem",
         "group":          "phytate",
         "cause":          "phytates are present",
@@ -1503,17 +1516,27 @@ _ANTINUTRIENT_TABLE: list[dict] = [
         "solution":       "soak or sprout before cooking",
     },
     {
-        "keywords":       ("bean", "lentil", "chickpea", "garbanzo", "soybeans"),
-        "suppress_if":    ("cooked", "boiled", "baked", "roasted", "tofu", "tempeh", "canned"),
-        "problem":        "Digestibility problem",
+        # Raw/dried legumes only: lectin (phytohaemagglutinin, most of all in
+        # red kidney beans) and trypsin inhibitors. FDA Bad Bug Book.
+        "patterns":       (r"beans?", r"lentils?", r"chickpeas?", r"garbanzos?", r"soybeans?",
+                           r"soy beans?"),
+        "suppress_if":    _NOT_LEGUME + (r"cooked", r"boiled", r"baked", r"roasted", r"canned",
+                                         r"tofu", r"tempeh", r"hummus", r"refried", r"sprouted",
+                                         r"soup", r"chili", r"sauce", r"paste", r"pasta",
+                                         r"noodles?"),
+        "problem":        "Food safety: cook dried beans fully",
         "group":          "lectin",
-        "cause":          "lectins & trypsin inhibitors",
+        "cause":          "raw or dried, they carry lectins and trypsin inhibitors",
         "solution_label": "Required",
-        "solution":       "fully cook (boil) to inactivate",
+        "solution":       ("soak at least 5 hours, pour the water away, and boil in fresh water for "
+                           "at least 30 minutes — red kidney beans most of all; a slow cooker "
+                           "doesn't get hot enough"),
     },
     {
-        "keywords":       ("oat", "wheat", "bran", "whole grain", "rye", "barley"),
-        "suppress_if":    (),
+        "patterns":       (r"oats?", r"oatmeal", r"wheat", r"bran", r"whole[- ]grain", r"rye",
+                           r"barley", r"bulgur", r"spelt", r"buckwheat"),
+        # Vital wheat gluten is the washed-out protein; the phytate stays in the bran.
+        "suppress_if":    (r"wheat starch", r"(vital )?wheat gluten"),
         "problem":        "Mineral absorption problem",
         "group":          "phytate",
         "cause":          "phytates are present",
@@ -1521,7 +1544,7 @@ _ANTINUTRIENT_TABLE: list[dict] = [
         "solution":       "fermentation (sourdough) or soaking",
     },
     {
-        "keywords":       ("spinach", "swiss chard", "beet green"),
+        "patterns":       (r"spinach", r"swiss chard", r"chard", r"beet greens?", r"rhubarb"),
         "suppress_if":    (),
         "problem":        "Mineral absorption problem",
         "group":          "oxalate",
@@ -1530,8 +1553,8 @@ _ANTINUTRIENT_TABLE: list[dict] = [
         "solution":       None,
     },
     {
-        "keywords":       ("almond",),
-        "suppress_if":    (),
+        "patterns":       (r"almonds?",),
+        "suppress_if":    (r"almond milk", r"almond extract", r"almond beverage"),
         "problem":        "Mineral absorption problem",
         "group":          "oxalate_phytate",
         "cause":          "oxalate & phytate present",
@@ -1539,8 +1562,11 @@ _ANTINUTRIENT_TABLE: list[dict] = [
         "solution":       "roasting or soaking",
     },
     {
-        "keywords":       ("nut", "seed", "sesame", "sunflower", "pumpkin"),
-        "suppress_if":    ("peanut",),
+        "patterns":       (r"nuts?", r"walnuts?", r"hazelnuts?", r"cashews?", r"pecans?",
+                           r"pistachios?", r"macadamias?", r"brazil ?nuts?", r"pine nuts?",
+                           r"seeds?", r"sesame", r"tahini", r"sunflower", r"pumpkin seeds?",
+                           r"pepitas?", r"chia", r"flax(seeds?)?", r"linseeds?", r"hemp"),
+        "suppress_if":    (r"peanuts?", r"chestnuts?", r"almonds?", _AN_OIL, r"dressing"),
         "problem":        "Mineral absorption problem",
         "group":          "phytate",
         "cause":          "phytates are present",
@@ -1548,8 +1574,12 @@ _ANTINUTRIENT_TABLE: list[dict] = [
         "solution":       "roasting",
     },
     {
-        "keywords":       ("corn", "maize"),
-        "suppress_if":    ("tortilla", "masa", "hominy"),
+        # Dried-corn staples, where pellagra came from; not sweet corn (a
+        # vegetable), starch, syrup or oil, nor niacin-fortified cereals.
+        "patterns":       (r"corn", r"cornmeal", r"corn flour", r"polenta", r"grits", r"maize"),
+        "suppress_if":    (r"tortillas?", r"masa", r"hominy", r"nixtamal\w*", r"sweet", r"cob",
+                           r"starch", r"syrup", _AN_OIL, r"flakes", r"cereals?", r"baby corn",
+                           r"corned", r"pop ?corn"),
         "problem":        "Vitamin bioavailability problem",
         "group":          "niacin",
         "cause":          "niacin is bound — not usable unless nixtamalized",
@@ -1558,41 +1588,58 @@ _ANTINUTRIENT_TABLE: list[dict] = [
     },
 ]
 
+_SLOW_COOKER_RE = re.compile(r"\b(slow[- ]?cook\w*|crock[- ]?pots?|crockpots?)\b", re.IGNORECASE)
+
+
+def _word_re(patterns: tuple) -> re.Pattern | None:
+    return re.compile(r"\b(?:" + "|".join(patterns) + r")\b", re.IGNORECASE) if patterns else None
+
+
+for _entry in _ANTINUTRIENT_TABLE:
+    _entry["_match"] = _word_re(_entry["patterns"])
+    _entry["_suppress"] = _word_re(_entry["suppress_if"])
+
 
 def get_antinutrient_flags(food_name: str) -> list[dict]:
     """
     Return consolidated anti-nutrient flags for a food.
 
-    Each flag dict: {"problem": str, "cause": str,
+    Each flag dict: {"problem": str, "cause": str, "group": str,
                      "solutions": [(label, description), ...]}
     Entries sharing the same group are merged into one flag.
     """
-    name = food_name.lower()
-
-    _KW_PATTERNS: dict[str, str] = {
-        "pea": r"pea(?!nut)",
-    }
-
-    def _matches(keywords: tuple) -> bool:
-        return any(re.search(_KW_PATTERNS.get(kw, re.escape(kw)), name) for kw in keywords)
-
+    name = food_name or ""
     groups: dict[str, dict] = {}
     for entry in _ANTINUTRIENT_TABLE:
-        if not _matches(entry["keywords"]):
+        if not entry["_match"].search(name):
             continue
-        if entry["suppress_if"] and _matches(entry["suppress_if"]):
+        if entry["_suppress"] and entry["_suppress"].search(name):
             continue
         g = entry["group"]
         if g not in groups:
             groups[g] = {
                 "problem":   entry["problem"],
                 "cause":     entry["cause"],
+                "group":     g,
                 "solutions": [],
             }
         if entry["solution"]:
             groups[g]["solutions"].append((entry["solution_label"], entry["solution"]))
 
     return list(groups.values())
+
+
+def slow_cooker_bean_risk(ingredient_names: list[str], instructions: str | None) -> list[str]:
+    """The ingredients flagged as raw or dried legumes (the lectin note), when
+    the instructions mention a slow cooker or Crock-Pot — which the FDA warns
+    doesn't get hot enough to destroy kidney-bean lectin. Empty otherwise."""
+    if not instructions or not _SLOW_COOKER_RE.search(instructions):
+        return []
+    out: list[str] = []
+    for n in ingredient_names:
+        if n not in out and any(f["group"] == "lectin" for f in get_antinutrient_flags(n)):
+            out.append(n)
+    return out
 
 
 # ---------------------------------------------------------------------------

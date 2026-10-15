@@ -102,21 +102,23 @@
 <p class="text-warning">Meal ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}
 
-<details class="mb-3" id="substitute-panel" {% if sub_id %}open{% endif %}>
-  <summary><strong>Substitute a food or recipe</strong> {{ manual_link("fooduse-substitute") }}</summary>
+<details class="mb-3" id="substitute-panel" {% if sub_id or error or substituted or removed or added %}open{% endif %}>
+  <summary><strong>Replace, remove or add a food or recipe in these meals</strong> {{ manual_link("fooduse-substitute") }}</summary>
   <p class="muted mt-2 mb-2">
-    <small>Replace every occurrence of one food or recipe with another, across the meals selected above —
-    handy when a name change (or a food re-added under a new entry) has left what looks like two different
-    foods, and you want to fold the older one into the newer. Only items added <em>directly</em> to a meal
-    are reachable here; a food used inside a recipe is part of that recipe's own ingredient list —
-    substitute it from <a href="/analysis/food-use-recipes">Food Use in Recipes</a> instead.</small>
+    <small>Changes the meals selected above, all at once: <strong>replace</strong> one food or recipe with another
+    (handy when a name change, or a food re-added under a new entry, has left what looks like two different
+    foods, and you want to fold the older one into the newer), <strong>remove</strong> one from every meal it's in,
+    or <strong>add</strong> one to every meal. Replace and remove reach only items added <em>directly</em> to a meal;
+    a food used inside a recipe is part of that recipe's own ingredient list &mdash; change it from
+    <a href="/analysis/food-use-recipes">Food Use in Recipes</a> instead. To see what a change would do to your
+    nutrition before making it, use <a href="/analysis/whatif?{{ {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or ''}|urlencode }}">What-if</a>.</small>
   </p>
   <p class="muted mb-2">
-    <small><strong>How:</strong> tick the <strong>Replace</strong> box beside the food or recipe in the table below
-    (once you've searched), then start typing the name of its replacement in the <strong>Replace it with</strong> box
-    here and pick it from the list. A replacement has to be in your Food Cache or Recipes already — to use a food
-    you've never added, find it with <a href="/food/search" target="_blank" rel="noopener">Food Search</a> first
-    (opens in a new tab). If you already know the codes, you can type them straight into the code boxes instead.</small>
+    <small><strong>How:</strong> choose what to do. To replace or remove, tick the box beside the food or recipe in
+    the table below (once you've searched). To replace or add, start typing a name in the search box here and pick
+    it from the list. It has to be in your Food Cache or Recipes already &mdash; to use a food you've never added,
+    find it with <a href="/food/search" target="_blank" rel="noopener">Food Search</a> first (opens in a new tab).
+    If you already know the codes, you can type them straight into the code boxes instead.</small>
   </p>
   {% if error %}
   <p class="text-danger"><small>{{ error }}</small></p>
@@ -124,18 +126,83 @@
   {% if substituted %}
   <p class="text-success"><small>Replaced {{ substituted }} meal item(s).</small></p>
   {% endif %}
-  <form method="post" action="/analysis/food-use/substitute" class="d-flex flex-wrap align-items-end gap-2"
-        onsubmit="return confirm('Replace every occurrence of the old item with the new one, across every meal in the current selection above? This writes to the database immediately and has no automatic undo.');">
+  {% if removed %}
+  <p class="text-success"><small>Removed {{ removed }} meal item(s).</small></p>
+  {% endif %}
+  {% if added %}
+  <p class="text-success"><small>Added it to {{ added }} meal(s).</small></p>
+  {% endif %}
+  <form method="post" action="/analysis/food-use/substitute" id="food-use-change-form">
     <input type="hidden" name="mode" value="{{ mode }}">
     <input type="hidden" name="ranges_raw" value="{{ ranges_raw or '' }}">
     <input type="hidden" name="meal_ids" value="{{ meal_ids_raw or '' }}">
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
-    {{ _rp.fields(sub_id, sub_kind) }}
-    <button type="submit" class="btn btn-sm btn-warning">Substitute everywhere in this selection</button>
+    <div class="mb-2">
+      {% for val, text in [("replace", "Replace one with another"), ("remove", "Remove from every meal"), ("add", "Add to every meal")] %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio" name="action" id="action-{{ val }}" value="{{ val }}" {% if loop.first %}checked{% endif %}>
+        <label class="form-check-label" for="action-{{ val }}">{{ text }}</label>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="d-flex flex-wrap align-items-end gap-2">
+      {{ _rp.fields(sub_id, sub_kind) }}
+      <div id="add-amount-block">
+        <label class="form-label mb-0" for="add-amount"><small>Amount in each meal</small></label>
+        <input type="text" class="form-control form-control-sm" name="amount" id="add-amount" style="max-width:10rem"
+               placeholder="e.g. 30 g, 1/3 c, 1 serving"
+               title="A food: grams or a measure, as on a meal page (30 g, 1/3 c, 2 oz). A recipe: servings, a weight or a volume (1 serving, 1 1/2 srv, 150 g, 3/4 c); a bare number means grams.">
+      </div>
+      <button type="submit" class="btn btn-sm btn-warning" id="food-use-change-btn">Replace everywhere in this selection</button>
+    </div>
   </form>
   <p class="mt-2 mb-0" id="replace-summary" aria-live="polite"><small></small></p>
 </details>
+<script>
+(function () {
+  var form = document.getElementById('food-use-change-form');
+  if (!form) return;
+  var nMeals = {{ total_meals|default(0) }};
+  var radios = form.querySelectorAll('input[name=action]');
+  var btn = document.getElementById('food-use-change-btn');
+  var oldBox = document.getElementById('old_code').parentNode;
+  var searchBox = document.getElementById('replacement-search').parentNode;
+  var newBox = document.getElementById('new_code').parentNode;
+  var amountBox = document.getElementById('add-amount-block');
+  var oldLabel = form.querySelector('label[for=old_code] small');
+  var searchLabel = form.querySelector('label[for=replacement-search] small');
+  var newLabel = form.querySelector('label[for=new_code] small');
+  var text = {
+    replace: {btn: 'Replace everywhere in this selection', old: 'Replace this (code)', search: 'Replace it with (type part of its name)', nw: 'Replacement (code)',
+              ask: 'Replace every occurrence of the old item with the new one, across every meal in the current selection above?'},
+    remove:  {btn: 'Remove from every meal in this selection', old: 'Remove this (code)',
+              ask: 'Remove this item from every meal in the current selection above that has it logged directly?'},
+    add:     {btn: 'Add to every meal in this selection', search: 'Add this (type part of its name)', nw: 'Food or recipe to add (code)',
+              ask: 'Add this item, at this amount, to all ' + nMeals + ' meal(s) in the current selection above?'}
+  };
+  function action() { return form.querySelector('input[name=action]:checked').value; }
+  function sync() {
+    var a = action(), t = text[a];
+    oldBox.style.display = a === 'add' ? 'none' : '';
+    searchBox.style.display = newBox.style.display = a === 'remove' ? 'none' : '';
+    amountBox.style.display = a === 'add' ? '' : 'none';
+    document.getElementById('old_code').required = a !== 'add';
+    document.getElementById('new_code').required = a !== 'remove';
+    document.getElementById('add-amount').required = a === 'add';
+    btn.textContent = t.btn;
+    if (t.old) oldLabel.textContent = t.old;
+    if (t.search) searchLabel.textContent = t.search;
+    if (t.nw) newLabel.textContent = t.nw;
+    document.getElementById('new_code').dispatchEvent(new Event('summary'));
+  }
+  radios.forEach(function (r) { r.addEventListener('change', sync); });
+  form.addEventListener('submit', function (e) {
+    if (!confirm(text[action()].ask + ' This writes to the database immediately and has no automatic undo.')) e.preventDefault();
+  });
+  sync();
+})();
+</script>
 
 {% if submitted %}
   {% if rows %}
@@ -147,7 +214,7 @@
     <table class="table table-sm table-hover" style="max-width:76rem">
       <thead class="table-light">
         <tr>
-          <th class="text-center" title="Tick a food or recipe to replace it with another one in every meal selected above. The Substitute panel then opens, where you search for the replacement by name.">Replace</th>
+          <th class="text-center" title="Tick a food or recipe to replace it with another one, or remove it, in every meal selected above. The panel above then opens.">Replace or remove</th>
           <th>Food</th>
           {% if track_water() %}<th class="text-center" title="Tick if this food or recipe is a drink: its water then counts as water from drinks, not water from food, in every total. Saves at once.">Drink</th>{% endif %}
           <th>Code</th>
@@ -213,7 +280,7 @@
     <strong>% of Days in Range</strong> = days used &divide; {{ total_days }} total day(s) covered by this search &middot;
     recipe rows show the recipe itself; its ingredients (and any sub-recipes inside it) are also listed individually &middot;
     "(recipe deleted)" means the recipe was removed after being used in that meal; its own ingredient breakdown is no longer available &middot;
-    <strong>Replace</strong> is offered only for items logged straight onto a meal; a dash means the item was only eaten inside a recipe here{% if track_water() %} &middot;
+    <strong>Replace or remove</strong> is offered only for items logged straight onto a meal; a dash means the item was only eaten inside a recipe here{% if track_water() %} &middot;
     <strong>Drink</strong>: tick a food or recipe that is a drink, and its water counts as water from drinks rather than from food in every meal and day total ({{ manual_link("water") }}).{% endif %}
   </small></p>
   {% include "_code_key.html" %}

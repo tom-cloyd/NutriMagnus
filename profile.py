@@ -626,11 +626,18 @@ def compute_optimal(profile: UserProfile) -> dict[str, tuple[float, str, str]]:
     return result
 
 
+# Endocrine Society 2024 (see compute_optimal_defaults): vitamin D above the
+# RDA only from 75; 23 mcg = its 75+ trials' weighted-average daily dose.
+VITAMIN_D_DEFAULT_MIN_AGE = 75
+VITAMIN_D_DEFAULT_75_PLUS_MCG = 23.0
+
+
 def compute_optimal_defaults(profile: UserProfile) -> dict[str, float]:
     """
     Return a small curated set of "optimal" starting values for nutrients
     where a widely-cited target above (or in place of) the standard RDA
     exists, but isn't itself an official DRI compute_rda() could compute.
+    Age-dependent for vitamin D.
 
     This is a starting point for Settings → Nutrient targets' "load
     recommended optimal targets" action, not personalized medical advice —
@@ -643,18 +650,26 @@ def compute_optimal_defaults(profile: UserProfile) -> dict[str, float]:
     daily gram target; a static "optimal" AA value here would duplicate and
     could contradict that more accurate per-meal analysis.
 
-    Sources (population-general, not age/condition-specific):
-      - Vitamin D: many clinicians recommend 1000-2000 IU/day (25-50 mcg) for
-        general adults, well above the 15-20 mcg RDA — the same example used
-        in the Profile Optimal Targets manual topic (?optimal).
+    Sources:
+      - Vitamin D, from age 75 only: the Endocrine Society's 2024 guideline
+        (Demay et al., JCEM 109(8):1907) suggests empiric supplementation
+        above the IOM intake for adults 75 and older, and suggests AGAINST it
+        for healthy adults under 75 — so under 75 there is no default and the
+        RDA stands. It names no optimal dose ("remains unclear"); 23 mcg is
+        the weighted-average daily dose (~900 IU) of the trials behind its
+        75+ recommendation. (Until 2026-10-14 this was 50 mcg for everyone,
+        from the 2011 guideline the 2024 one replaces.) Its other groups —
+        pregnancy, high-risk prediabetes, children — aren't profile fields.
       - EPA + DHA: no official DRI exists (see ?omega3), but ~250-500 mg/day
         combined is common guidance (e.g. ISSFAL); split evenly here.
     """
-    return {
-        "vitamin_d_mcg": 50.0,
+    defaults = {
         "omega3_epa_mg": 250.0,
         "omega3_dha_mg": 250.0,
     }
+    if profile.age >= VITAMIN_D_DEFAULT_MIN_AGE:
+        defaults["vitamin_d_mcg"] = VITAMIN_D_DEFAULT_75_PLUS_MCG
+    return defaults
 
 
 def compute_upper_limits(profile: UserProfile) -> dict[str, float]:

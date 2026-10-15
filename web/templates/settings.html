@@ -399,13 +399,29 @@
         <td>
           <form id="nt-form-{{ row.key }}" method="post" action="/settings/nutrient-target" style="margin:0">
             <input type="hidden" name="key" value="{{ row.key }}">
+            {% if row.optimal is not none or row.limit is not none %}
+            <button type="submit" class="btn btn-outline-primary btn-sm text-danger js-nt-saved">Saved</button>
+            {% else %}
             <button type="submit" class="btn btn-outline-primary btn-sm">Save</button>
+            {% endif %}
           </form>
         </td>
       </tr>
       {% endfor %}
     </tbody>
   </table>
+  <script>
+  // A row with a saved target or limit reads "Saved" in red, until one of
+  // its boxes is edited.
+  document.querySelectorAll('.js-nt-saved').forEach(function (btn) {
+    document.querySelectorAll('input[form="' + btn.form.id + '"]').forEach(function (box) {
+      box.addEventListener('input', function () {
+        btn.textContent = 'Save';
+        btn.classList.remove('text-danger');
+      });
+    });
+  });
+  </script>
   {% else %}
   <p class="muted mt-2"><small>Set up your profile above to configure nutrient targets.</small></p>
   {% endif %}

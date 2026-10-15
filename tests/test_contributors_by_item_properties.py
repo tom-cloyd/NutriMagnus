@@ -43,7 +43,10 @@ POOL = list(range(997301, 997307))                  # six foods
 KEYS = ["calories", "protein_g", "carbs_g", "fat_g", "fiber_g", "water_g", "iron_mg", "b12_mcg"]
 _counter = iter(range(10**6))
 
-_value = st.floats(min_value=0.0, max_value=80.0, allow_nan=False, allow_infinity=False)
+# No subnormals: a value like 5e-324 underflows to 0 once scaled, which no real
+# food has, and made the per-item check fail on a rounding artefact.
+_value = st.floats(min_value=0.0, max_value=80.0, allow_nan=False, allow_infinity=False,
+                   allow_subnormal=False)
 _grams = st.floats(min_value=1.0, max_value=600.0, allow_nan=False, allow_infinity=False)
 _servings = st.sampled_from([0.5, 1.0, 1.5, 2.0, 3.0])
 

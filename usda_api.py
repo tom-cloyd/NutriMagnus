@@ -56,7 +56,12 @@ NUTRIENT_MAP: dict[int, tuple[str, str, str]] = {
     1162: ("vitamin_c_mg",      "Vitamin C",          "mg"),
     1114: ("vitamin_d_mcg",     "Vitamin D",          "mcg"),
     1109: ("vitamin_e_mg",      "Vitamin E",          "mg"),
-    1183: ("vitamin_k_mcg",     "Vitamin K",          "mcg"),
+    # 1185 = phylloquinone (K1), the vitamin K the RDA/AI is based on and the
+    # form plant foods carry. Until 2026-10-14 this read 1183, menaquinone-4
+    # (a K2 form, mostly in animal foods) — so spinach came through with no
+    # vitamin K at all. NUTRIENT_NUMBER_MAP's "430" was always phylloquinone.
+    # Foods cached before then are corrected by numa_app/services/vitamin_k_repair.py.
+    1185: ("vitamin_k_mcg",     "Vitamin K",          "mcg"),
     1165: ("thiamin_mg",        "Thiamin (B1)",        "mg"),
     1166: ("riboflavin_mg",     "Riboflavin (B2)",     "mg"),
     1167: ("niacin_mg",         "Niacin (B3)",         "mg"),
@@ -423,23 +428,33 @@ def _food_category(data: dict) -> str | None:
 _BATCH_SIZE = 20
 
 
-def get_water_values(fdc_ids: list[int]) -> dict[int, float]:
-    """Water (g per 100 g) for many foods at once, 20 per request, asking for
-    nutrient "255" alone in the abridged format so each reply stays small.
-    Foods USDA has no water value for (or doesn't return) are left out.
-    Raises USDAError on a failed request — the caller decides whether to keep
-    what earlier batches returned. Used by the Foods → 9 water backfill
-    (numa_app/services/water.py)."""
-    values: dict[int, float] = {}
+def get_nutrient_values(fdc_ids: list[int], number: str) -> dict[int, float | None]:
+    """One nutrient (USDA nutrient number, e.g. "255" water, "430" vitamin K)
+    for many foods at once, 20 per request in the abridged format so each
+    reply stays small: {fdc_id: value per 100 g, or None when USDA returned
+    the food without that nutrient}. A food USDA didn't return at all is left
+    out. Only foods asked for are kept: an unknown id in a request makes USDA
+    answer with unrelated foods. Raises USDAError on a failed request — the
+    caller decides whether to keep what earlier batches returned."""
+    key = NUTRIENT_NUMBER_MAP[number]
+    wanted = set(fdc_ids)
+    values: dict[int, float | None] = {}
     for i in range(0, len(fdc_ids), _BATCH_SIZE):
         chunk = fdc_ids[i:i + _BATCH_SIZE]
         data = _get("foods", {"fdcIds": ",".join(str(f) for f in chunk),
-                              "format": "abridged", "nutrients": "255"})
+                              "format": "abridged", "nutrients": number})
         for food in data or []:
-            water = _parse_food(food)["nutrients"].get("water_g")
-            if food.get("fdcId") is not None and water is not None:
-                values[int(food["fdcId"])] = water
+            fid = food.get("fdcId")
+            if fid is not None and int(fid) in wanted:
+                values[int(fid)] = _parse_food(food)["nutrients"].get(key)
     return values
+
+
+def get_water_values(fdc_ids: list[int]) -> dict[int, float]:
+    """Water (g per 100 g) for many foods at once (get_nutrient_values);
+    foods USDA has no water value for, or doesn't return, are left out.
+    Used by the Foods → 9 water backfill (numa_app/services/water_backfill.py)."""
+    return {f: v for f, v in get_nutrient_values(fdc_ids, "255").items() if v is not None}
 
 
 def get_food_detail(fdc_id: int) -> dict:

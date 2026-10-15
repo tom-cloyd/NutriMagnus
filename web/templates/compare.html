@@ -44,7 +44,11 @@
 {% endif %}
 {% endif %}
 <h2>Compare {{ manual_link("comparison") }}</h2>
+{% if basis == "100g" or not any_recipe %}
 <p class="muted">Add up to {{ max_items }} foods and/or recipes to compare them per 100 g — the one basis that's fair to compare a food's grams against a recipe's servings on.</p>
+{% else %}
+<p class="muted">Add up to {{ max_items }} foods and/or recipes to compare them. Recipes are currently shown {{ "one serving each" if basis == "serving" else "as whole recipes" }}, as written; foods stay per 100 g. To compare everything per 100 g &mdash; the one basis that's fair to compare a food's grams against a recipe's servings on &mdash; choose &ldquo;Per 100 g of each item&rdquo; under <a href="#comparison">Compare amounts</a> below.</p>
+{% endif %}
 
 {% if error %}
 <p class="numa-error">{{ error }}</p>

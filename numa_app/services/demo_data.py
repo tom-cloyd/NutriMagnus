@@ -247,6 +247,8 @@ def _insert_food(conn, food: dict) -> int:
         conn, local_id, food["name"], food["data_type"],
         None, None, None, food["nutrients"], food["portions"],
         user_drafted=True, notes="Starter data",
+        # starter_data.json may predate the 2026-10-14 vitamin K fix.
+        vitamin_k_checked=False,
     )
     if _is_local_only(food["fdc_id"]):
         conn.execute("UPDATE foods SET starter_key = ? WHERE fdc_id = ?", (str(food["fdc_id"]), local_id))

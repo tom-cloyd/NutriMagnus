@@ -217,6 +217,36 @@ each of the group&rsquo;s missing values, so the food counts, as 0, everywhere. 
 <div class="alert alert-success" id="saved-note">Choices saved.{% if zeroed %} 0 recorded for {{ zeroed }} gap{{ "s" if zeroed != 1 }}; meals and recipes using {{ "those foods" if zeroed != 1 else "that food" }} are updated to match.{% endif %}</div>
 {% endif %}
 
+<div id="vitamin-k-repair" class="mb-3" style="max-width:48rem">
+  {% if vitamin_k_run.running %}
+  <p class="mb-1"><span class="spinner-border spinner-border-sm me-1" role="status"></span>
+  <strong>Correcting vitamin K from USDA&hellip;</strong> {{ vitamin_k_run.checked }} of {{ vitamin_k_run.total }} foods checked,
+  {{ vitamin_k_run.changed }} corrected so far. This page refreshes itself; you can also leave and come back.</p>
+  <script>setTimeout(function () { location.reload(); }, 3000);</script>
+  {% else %}
+  {% if vitamin_k_run.finished %}
+  <div class="alert {% if vitamin_k_run.error %}alert-warning{% else %}alert-success{% endif %} py-2">
+    Vitamin K corrected for <strong>{{ vitamin_k_run.changed }}</strong> USDA food{{ "s" if vitamin_k_run.changed != 1 }}{% if vitamin_k_run.not_found %};
+    USDA didn&rsquo;t return {{ vitamin_k_run.not_found | length }}, which will be tried again next time: {{ vitamin_k_run.not_found | join("; ") }}{% endif %}{% if vitamin_k_run.not_in_usda %};
+    USDA has no record of {{ vitamin_k_run.not_in_usda | length }}, so {{ "it was" if vitamin_k_run.not_in_usda | length == 1 else "they were" }} left as {{ "it is" if vitamin_k_run.not_in_usda | length == 1 else "they are" }} and won&rsquo;t be asked about again: {{ vitamin_k_run.not_in_usda | join("; ") }}{% endif %}.
+    {% if vitamin_k_run.error %}<br>It stopped before the end: {{ vitamin_k_run.error }}. Click the button again to carry on &mdash; foods already corrected are skipped.{% endif %}
+    Meals and recipes using these foods are updated to match.
+  </div>
+  {% endif %}
+  {% if vitamin_k_unchecked %}
+  <div class="alert alert-warning py-2">
+  <form method="post" action="/food/cache/vitamin-k-repair" class="d-flex flex-wrap align-items-center gap-2">
+    <span><strong>{{ vitamin_k_unchecked }}</strong> USDA food{{ "s were" if vitamin_k_unchecked != 1 else " was" }} saved with the wrong vitamin K value.</span>
+    <button type="submit" class="btn btn-sm btn-primary">Correct vitamin K for {{ vitamin_k_unchecked }} USDA food{{ "s" if vitamin_k_unchecked != 1 }} from USDA</button>
+    {{ manual_link("vitamin-k-fix") }}
+  </form>
+  <small>Until October 2026 NuMa read a USDA food&rsquo;s vitamin K from the wrong USDA figure, so most foods &mdash; leafy greens
+  included &mdash; show little or none. This fetches only each food&rsquo;s vitamin K, 20 foods per request to USDA, and replaces
+  the old value; nothing else about the food changes, and a vitamin K value you entered yourself is kept.</small>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
 {% if track_water() %}
 <div id="water-backfill" class="mb-3" style="max-width:48rem">
   {% if water_run.running %}

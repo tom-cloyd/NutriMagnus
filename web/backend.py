@@ -98,6 +98,7 @@ from numa_app.services import print_sections as _print_sections
 from numa_app.services import water as _water
 from numa_app.services import supplements as _supplements
 from numa_app.services import water_backfill as _water_backfill
+from numa_app.services import vitamin_k_repair as _vitamin_k_repair
 
 # In a PyInstaller onefile build, backend.py is bundled as a flattened
 # top-level module — there's no separate web/ subdirectory nested under a
@@ -2571,6 +2572,7 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
             "diet_label": diet_label, "profile_label": profile_label,
             "db_issue_count": db_issue_count,
             "data_check_reminder": _data_check_reminder(),
+            "vitamin_k_unchecked": _vitamin_k_unchecked_count(),
             "update_available": update_available,
             "self_update_available": _self_update.is_available(),
             "windows_exe_dir": _self_update.windows_exe_dir(),
@@ -3993,6 +3995,7 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         missing_gi = [] if _gi_opt_out() else _data_quality.missing_gi_in_use(conn)
         generic_density = _data_quality.generic_density_in_use(conn)
         water_missing = len(_water_backfill.candidates(conn))
+        vitamin_k_unchecked = len(_vitamin_k_repair.candidates(conn))
         wet_dry = _data_quality.wet_dry_in_use(conn) if _track_water() else []
         # "Foods: days eaten" — blank or unreadable fields fall back to the
         # defaults (30 days ending today) rather than erroring.
@@ -4010,6 +4013,9 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
     water_run = _water_backfill.status()
     if not water_run["running"]:
         _water_backfill.clear_status()
+    vitamin_k_run = _vitamin_k_repair.status()
+    if not vitamin_k_run["running"]:
+        _vitamin_k_repair.clear_status()
     # Opening this page counts as reviewing every current problem: the Home
     # page reminder only raises ones that appear after this (_data_check_reminder()).
     _save_prefs_file({"data_check_seen": sorted(quality["keys"]),
@@ -4048,6 +4054,8 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         "wet_dry": wet_dry,
         "wet_dry_threshold": _water.WET_DRY_THRESHOLD_G,
         "water_run": water_run,
+        "vitamin_k_unchecked": vitamin_k_unchecked,
+        "vitamin_k_run": vitamin_k_run,
         "days_eaten": days_eaten,
         "days_eaten_asked": bool(de_days or de_end),
         "days_eaten_n": days_eaten_n,
@@ -4063,6 +4071,15 @@ async def food_cache_water_backfill():
     (numa_app/services/water_backfill.py); progress shows on Foods → 9."""
     _water_backfill.start()
     return RedirectResponse("/food/cache/db-check#water-backfill", status_code=303)
+
+
+@app.post("/food/cache/vitamin-k-repair", response_class=RedirectResponse)
+async def food_cache_vitamin_k_repair():
+    """Start correcting the vitamin K of every USDA food cached before the
+    2026-10-14 fix (numa_app/services/vitamin_k_repair.py); progress shows on
+    Foods → 9."""
+    _vitamin_k_repair.start()
+    return RedirectResponse("/food/cache/db-check#vitamin-k-repair", status_code=303)
 
 
 @app.post("/food/cache/db-check/completeness", response_class=RedirectResponse)
@@ -8292,6 +8309,13 @@ def _mark_starter_problems_seen(conn) -> None:
         _save_prefs_file({"data_check_seen": sorted(seen | keys)})
 
 
+def _vitamin_k_unchecked_count() -> int:
+    """USDA foods still holding the pre-2026-10-14 vitamin K value, for the
+    Home page notice (until Foods → 9's repair has run)."""
+    with _db.get_db() as conn:
+        return len(_vitamin_k_repair.candidates(conn))
+
+
 def _data_check_reminder() -> dict | None:
     """The Home page's data-quality banner, or None. Issue-driven: shows
     only problems that weren't there when the user last opened Foods → 9
@@ -8924,7 +8948,9 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None,
             display = f"{scaled_amount:g} {unit_word}"
             # As written: the measure typed in the recipe too (1/3 c, 2 T).
             typed = (ing["unit"] or "").strip()
-            if basis == "recipe" and not ing["ref_recipe_id"] and typed and typed.lower() not in ("g", "gram", "grams"):
+            # A measure that's already grams ("g", "1580 g") would just repeat it.
+            if (basis == "recipe" and not ing["ref_recipe_id"] and typed
+                    and not re.fullmatch(r"[\d.,/\s]*(g|grams?)", typed, re.I)):
                 display += f" ({typed})"
             ingredients.append({
                 "food_name":     ing["food_name"],
@@ -9327,6 +9353,11 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
     max_limits = _load_max_limits()
     diaas_display = _build_diaas_display(diaas_result)
 
+    # Dried beans + a slow cooker in this recipe's own instructions: the FDA
+    # warns slow cookers don't destroy kidney-bean lectin (manual #antinutrients).
+    slow_cooker_beans = _usda.slow_cooker_bean_risk(
+        [lf["food_name"] for lf in calorie_leaves], recipe["instructions"])
+
     ingredient_antinutrients = []
     for ing in ingredients:
         flags = _usda.get_antinutrient_flags(ing["food_name"])
@@ -9383,6 +9414,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "has_optimal":        bool(optimal),
         "has_ul":             bool(max_limits),
         "ingredient_antinutrients": ingredient_antinutrients,
+        "slow_cooker_beans":        slow_cooker_beans,
         "oxalate":                  oxalate,
         "referencing_recipes":      referencing_recipes,
         "delete_warning":           delete_warning,
@@ -9448,7 +9480,7 @@ def _recipe_available_sections(ctx: dict) -> list[str]:
     gl = ctx.get("gl")
     if _track_gl() and gl and gl.get("total") is not None:
         available.append("glycemic_load")
-    if ctx.get("oxalate") or ctx.get("ingredient_antinutrients"):
+    if ctx.get("oxalate") or ctx.get("ingredient_antinutrients") or ctx.get("slow_cooker_beans"):
         available.append("antinutrients")
     complements = ctx.get("complements")
     if complements and not complements.get("no_data"):
@@ -11450,6 +11482,8 @@ async def analysis_food_use(
     protein_only: bool = Query(default=False),
     sort: str = Query(default="frequency"),
     substituted: int = Query(default=0),
+    removed: int = Query(default=0),
+    added: int = Query(default=0),
     error: str = Query(default=""),
     sub_kind: str = Query(default=""),
     sub_id: int | None = Query(default=None),
@@ -11552,6 +11586,8 @@ async def analysis_food_use(
         "total_days":    total_days,
         "submitted":     bool(ranges or requested_ids),
         "substituted":   substituted,
+        "removed":       removed,
+        "added":         added,
         "error":         error,
         "sub_kind":      sub_kind,
         "sub_id":        sub_id,
@@ -11581,6 +11617,22 @@ async def analysis_food_use_replacement_search(q: str = Query(default="")):
     return JSONResponse({"results": results[:20]})
 
 
+def _food_use_back(mode: str, ranges_raw: str, meal_ids: str, protein_only: bool, sort: str,
+                   error: str | None = None, **done: int) -> RedirectResponse:
+    """Back to Food Use in Meals with the same selection, plus an error or
+    a count of what was just changed (substituted= / removed= / added=)."""
+    params = {"mode": mode, "protein_only": protein_only, "sort": sort}
+    if mode == "range":
+        params["ranges_raw"] = ranges_raw
+    else:
+        params["meal_ids"] = meal_ids
+    if error:
+        params["error"] = error
+    else:
+        params.update({k: n for k, n in done.items() if n})
+    return RedirectResponse(f"/analysis/food-use?{urlencode(params)}", status_code=303)
+
+
 @app.post("/analysis/food-use/substitute", response_class=RedirectResponse)
 async def analysis_food_use_substitute(
     mode: str = Form(...),
@@ -11588,41 +11640,74 @@ async def analysis_food_use_substitute(
     meal_ids: str = Form(""),
     protein_only: bool = Form(False),
     sort: str = Form("frequency"),
-    old_code: str = Form(...),
-    new_code: str = Form(...),
+    action: str = Form("replace"),
+    old_code: str = Form(""),
+    new_code: str = Form(""),
+    amount: str = Form(""),
 ):
-    """Replace every direct occurrence of (old_kind, old_id) with (new_kind,
-    new_id) across the meals currently selected on the Food Use in Meals page
-    — the same date range(s)/meal-IDs selection already on screen, so a
-    substitution always matches exactly what the user was just looking at."""
-    from urllib.parse import urlencode
+    """Change one food or recipe across the meals currently selected on the
+    Food Use in Meals page — the same date range(s)/meal-IDs selection already
+    on screen, so a change always matches exactly what the user was just
+    looking at. action: "replace" every direct occurrence of old_code with
+    new_code; "remove" every direct occurrence of old_code; "add" new_code,
+    at `amount`, to every selected meal. Writes at once; no undo."""
+    def _back(error: str | None = None, **done: int) -> RedirectResponse:
+        return _food_use_back(mode, ranges_raw, meal_ids, protein_only, sort, error, **done)
 
-    def _back(error: str | None = None, n: int = 0) -> RedirectResponse:
-        params = {"mode": mode, "protein_only": protein_only, "sort": sort}
-        if mode == "range":
-            params["ranges_raw"] = ranges_raw
-        else:
-            params["meal_ids"] = meal_ids
-        if error:
-            params["error"] = error
-        elif n:
-            params["substituted"] = n
-        return RedirectResponse(f"/analysis/food-use?{urlencode(params)}", status_code=303)
-
+    if action not in ("replace", "remove", "add"):
+        action = "replace"
     try:
-        old_kind, old_id = _parse_code(old_code)
-        new_kind, new_id = _parse_code(new_code)
+        old = _parse_code(old_code) if action != "add" else None
+        new = _parse_code(new_code) if action != "remove" else None
     except ValueError as exc:
         return _back(error=str(exc))
-    if old_kind == new_kind and old_id == new_id:
+    if action == "replace" and old == new:
         return _back(error="Old and new selections are the same item.")
+
+    if action == "add":
+        # Read the amount the way the meal page's own add boxes do: a food
+        # takes a portion ("1/3 c", "2 oz", "30"); a recipe takes servings,
+        # a weight or a volume.
+        kind, item_id = new
+        with _db.get_db() as conn:
+            if kind == "food":
+                row = _db.get_cached_food(conn, item_id)
+                if not row:
+                    return _back(error=f"{new_code.strip()} isn't in your Food Cache.")
+                portions = json.loads(row["portions_json"] or "[]") or []
+                grams, label = _parse_portion_str(amount.strip() or "100 g", portions, row["name"])
+                if not grams:
+                    return _back(error=f"{row['name']}: {label}")
+            else:
+                row = _db.recipe_get(conn, item_id)
+                if not row:
+                    return _back(error=f"{new_code.strip()} isn't one of your recipes.")
+                try:
+                    srv, _typed = _parse_recipe_amount(amount.strip() or "1 serving", row,
+                                                       recipe_serving_grams(item_id, conn))
+                except _entry_parse.EntryError as exc:
+                    return _back(error=f"{row['name']}: {exc}")
+                srv = round(srv, 4)
+            meals_by_id, _, _ = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
+            if not meals_by_id:
+                return _back(error="No meals are selected, so there's nothing to add it to.")
+            for meal_id in meals_by_id:
+                if kind == "food":
+                    _db.meal_add_food(conn, meal_id, item_id, row["name"], grams, label)
+                else:
+                    _db.meal_add_recipe(conn, meal_id, item_id, row["name"], srv,
+                                        unit=f"{srv:g} serving" + ("s" if srv != 1 else ""))
+        return _back(added=len(meals_by_id))
+
     try:
         with _db.get_db() as conn:
             meals_by_id, _, _ = _resolve_meals_for_food_use(conn, mode, ranges_raw, meal_ids)
-            n = _db.substitute_item_in_meals(conn, list(meals_by_id), old_kind, old_id, new_kind, new_id)
+            if action == "remove":
+                return _back(removed=_db.remove_item_from_meals(conn, list(meals_by_id), *old))
+            n = _db.substitute_item_in_meals(conn, list(meals_by_id), *old, *new)
     except ValueError as exc:
         return _back(error=str(exc))
-    return _back(n=n)
+    return _back(substituted=n)
 
 
 # ---------------------------------------------------------------------------

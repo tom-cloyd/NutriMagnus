@@ -234,17 +234,23 @@ class TestComputeOptimal:
 
 class TestComputeOptimalDefaults:
     def test_expected_nutrients_and_values(self, male_35):
+        # Under 75: no vitamin D default (Endocrine Society 2024 suggests
+        # against going above the RDA), only EPA and DHA.
         assert compute_optimal_defaults(male_35) == {
-            "vitamin_d_mcg": 50.0,
             "omega3_epa_mg": 250.0,
             "omega3_dha_mg": 250.0,
         }
+
+    @pytest.mark.parametrize("age, vitamin_d", [(74, None), (75, 23.0), (90, 23.0)])
+    def test_vitamin_d_default_only_from_75(self, age, vitamin_d):
+        p = UserProfile(age=age, sex="female", weight_kg=60, height_cm=160, activity_level="light")
+        assert compute_optimal_defaults(p).get("vitamin_d_mcg") == vitamin_d
 
     def test_excludes_amino_acids(self, male_35):
         defaults = compute_optimal_defaults(male_35)
         assert not any(k.startswith("aa_") for k in defaults)
 
-    def test_fixed_regardless_of_age_or_sex(self, male_35, female_55):
+    def test_same_for_either_sex_under_75(self, male_35, female_55):
         assert compute_optimal_defaults(male_35) == compute_optimal_defaults(female_55)
 
 
@@ -744,3 +750,123 @@ class TestUnitFields:
         assert loaded is not None
         assert loaded.weight_unit == "kg"
         assert loaded.height_unit == "cm"
+
+
+class TestProfileMutationGaps20261014:
+    """Exact boundaries and every sex branch of the water, linoleic acid and
+    GL-target code added since profile.py's 2026-09-10 mutation run."""
+
+    @staticmethod
+    def _p(sex="male", age=40, ref="iom"):
+        return UserProfile(name="p", age=age, sex=sex, weight_kg=70, height_cm=170,
+                           activity_level="moderate", water_reference=ref)
+
+    @pytest.mark.parametrize("sex, age, grams", [
+        ("male", 50, 17000.0), ("male", 51, 14000.0),
+        ("female", 50, 12000.0), ("female", 51, 11000.0),
+        ("other", 50, 14500.0), ("other", 51, 12500.0),
+    ])
+    def test_omega6_la_at_the_age_51_boundary(self, sex, age, grams):
+        assert compute_rda(self._p(sex, age))["omega6_la_mg"] == (grams, "mg", "minimum")
+
+    @pytest.mark.parametrize("ref, sex, total, drinks", [
+        ("iom", "male", 3700.0, 3000.0), ("iom", "female", 2700.0, 2200.0),
+        ("iom", "other", 3200.0, 2600.0),
+        ("efsa", "male", 2500.0, 2000.0), ("efsa", "female", 2000.0, 1600.0),
+        ("efsa", "other", 2250.0, 1800.0),
+    ])
+    def test_water_goals_every_reference_and_sex(self, ref, sex, total, drinks):
+        rda = compute_rda(self._p(sex, ref=ref))
+        assert rda["water_g"] == (total, "g", "goal")
+        assert rda["water_drinks_g"][0] == drinks
+
+    @pytest.mark.parametrize("sex, age, floor", [
+        ("male", 64, None), ("male", 65, 2000.0),
+        ("female", 64, None), ("female", 65, 1600.0),
+        ("other", 64, None), ("other", 65, 1800.0),
+    ])
+    def test_drinks_floor_at_65_for_every_sex(self, sex, age, floor):
+        assert _profile.drinks_floor(self._p(sex, age)) == floor
+
+    @pytest.mark.parametrize("raw, expected", [
+        (30, 30.0), ("45.5", 45.5), (0.5, 0.5),
+        (0, None), (-5, None), ("abc", None), (None, None), ("", None),
+    ])
+    def test_positive_or_none(self, raw, expected):
+        assert _profile._positive_or_none(raw) == expected
+
+    def test_load_reads_gl_target_and_rejects_an_unknown_water_reference(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_profile, "_PROFILES_DIR", tmp_path)
+        base = {"age": 40, "sex": "male", "weight_kg": 70, "height_cm": 170, "activity_level": "moderate"}
+        (tmp_path / "a.json").write_text(json.dumps({**base, "gl_day_target": "60",
+                                                     "water_reference": "efsa"}))
+        (tmp_path / "b.json").write_text(json.dumps({**base, "gl_day_target": 0,
+                                                     "water_reference": "who"}))
+        a, b = _profile.load_profile("a"), _profile.load_profile("b")
+        assert (a.gl_day_target, a.water_reference) == (60.0, "efsa")
+        assert (b.gl_day_target, b.water_reference) == (None, "iom")
+
+    def test_water_references_name_both_sources(self):
+        assert set(_profile.WATER_REFERENCES) == {"iom", "efsa"}
+
+
+class TestWaterBandMutationGaps20261014:
+    """ideal_body_weight_kg() / nice_water_band() edges, and load_profile()
+    reading back every stored field (2026-10-14 mutation run)."""
+
+    @staticmethod
+    def _p(sex="male", weight=70.0, height=170.0):
+        return UserProfile(name="p", age=40, sex=sex, weight_kg=weight, height_cm=height,
+                           activity_level="moderate")
+
+    @pytest.mark.parametrize("sex, base", [("male", 50.0), ("female", 45.5), ("other", 47.75)])
+    def test_ideal_weight_base_at_exactly_five_feet(self, sex, base):
+        assert _profile.ideal_body_weight_kg(self._p(sex, height=152.4)) == pytest.approx(base)
+
+    def test_ideal_weight_adds_2_3_kg_per_inch(self):
+        assert _profile.ideal_body_weight_kg(self._p(height=180.0)) == pytest.approx(
+            50.0 + 2.3 * (180.0 / 2.54 - 60.0))
+
+    def test_ideal_weight_under_five_feet_is_just_the_base(self):
+        assert _profile.ideal_body_weight_kg(self._p("female", height=150.0)) == pytest.approx(45.5)
+
+    @pytest.mark.parametrize("height, expected", [(0.0, None), (-5.0, None), (0.5, 50.0)])
+    def test_ideal_weight_height_guard(self, height, expected):
+        assert _profile.ideal_body_weight_kg(self._p(height=height)) == expected
+
+    def test_nice_band_swaps_to_ideal_weight_at_exactly_bmi_30(self):
+        band = _profile.nice_water_band(self._p(weight=120.0, height=200.0))   # BMI 30.0
+        ibw = 50.0 + 2.3 * (200.0 / 2.54 - 60.0)
+        assert band["ideal_weight"] is True
+        assert band["weight_kg"] == pytest.approx(ibw)
+        assert (band["low"], band["high"]) == (pytest.approx(ibw * 25), pytest.approx(ibw * 30))
+
+    def test_nice_band_just_under_bmi_30_uses_actual_weight(self):
+        band = _profile.nice_water_band(self._p(weight=119.0, height=200.0))
+        assert (band["ideal_weight"], band["weight_kg"]) == (False, 119.0)
+
+    @pytest.mark.parametrize("weight", [0.0, -5.0])
+    def test_nice_band_needs_a_weight(self, weight):
+        assert _profile.nice_water_band(self._p(weight=weight)) is None
+
+    def test_nice_band_light_weight_still_banded(self):
+        band = _profile.nice_water_band(self._p(weight=0.5, height=0.0))
+        assert (band["low"], band["high"]) == (12.5, 15.0)
+
+    def test_load_reads_back_every_stored_field(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_profile, "_PROFILES_DIR", tmp_path)
+        p = UserProfile(name="Pat", age=70, sex="female", weight_kg=60, height_cm=160,
+                        activity_level="light", use_oxalate_data=True, glucose_tolerance="impaired",
+                        optimal_targets={"vitamin_d_mcg": 25.0}, max_limits={"sodium_mg": 1500.0})
+        _profile.save_profile(p)
+        q = _profile.load_profile("Pat")
+        assert (q.name, q.use_oxalate_data, q.glucose_tolerance, q.optimal_targets, q.max_limits) == (
+            "Pat", True, "impaired", {"vitamin_d_mcg": 25.0}, {"sodium_mg": 1500.0})
+
+    def test_load_defaults_for_a_minimal_file(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(_profile, "_PROFILES_DIR", tmp_path)
+        (tmp_path / "old.json").write_text(json.dumps(
+            {"age": 40, "sex": "male", "weight_kg": 70, "height_cm": 170, "activity_level": "moderate"}))
+        q = _profile.load_profile("old")
+        assert (q.name, q.use_oxalate_data, q.glucose_tolerance, q.optimal_targets, q.max_limits) == (
+            "old", False, "", {}, {})

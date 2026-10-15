@@ -13,6 +13,13 @@
   <br><small class="muted">This message goes away once your profile is saved in <a href="/settings">Settings</a>.</small>
 </div>
 {% endif %}
+{% if vitamin_k_unchecked %}
+<div class="alert alert-warning mt-4" id="vitamin-k-notice">
+  <strong>VITAMIN K:</strong> <strong>{{ vitamin_k_unchecked }}</strong> of your USDA food{{ "s were" if vitamin_k_unchecked != 1 else " was" }}
+  saved with the wrong vitamin K value, so your vitamin K figures read too low.
+  <a href="/food/cache/db-check#vitamin-k-repair">Correct them from USDA</a> (one click, about a minute). {{ manual_link("vitamin-k-fix", "Why") }}
+</div>
+{% endif %}
 {% if data_check_reminder %}
 <div class="alert alert-warning mt-4">
   <strong>DATA CHECK:</strong>

@@ -224,6 +224,14 @@
 
 {% if "procedure" in enabled and recipe and recipe.instructions %}
 <h2>Instructions</h2>
+{# Printed with the instructions, not only under Anti-nutrients: it's a
+   food-safety note for whoever cooks from the paper. #}
+{% if slow_cooker_beans %}
+<p id="slow-cooker-beans" style="border:2px solid #000;padding:0.4em 0.6em"><strong>FOOD SAFETY:</strong> dried beans
+({{ slow_cooker_beans | join("; ") }}) must be soaked at least 5 hours, drained, and boiled in fresh water for at least
+30 minutes before going into a slow cooker, which doesn&rsquo;t get hot enough to destroy their toxin (red kidney beans
+most of all). Canned beans are already safe.</p>
+{% endif %}
 <div style="white-space:pre-wrap;line-height:1.6">{{ recipe.instructions }}</div>
 {% endif %}
 

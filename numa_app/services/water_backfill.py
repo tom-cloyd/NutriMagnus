@@ -73,9 +73,10 @@ def _apply(values: dict[int, float], ids: list[int]) -> tuple[int, list[str]]:
     return filled, no_value
 
 
-def _cascade(conn, fdc_ids: list[int]) -> None:
+def _cascade(conn, fdc_ids: list[int], what: str = "Water values added from USDA") -> None:
     """Recompute each recipe using any of fdc_ids once (not once per food),
-    and flag every meal using them stale."""
+    and flag every meal using them stale. `what` names the change in the
+    meal recalculation log (vitamin_k_repair.py shares this)."""
     recipe_ids: set[int] = set()
     meal_ids: set[int] = set()
     for fdc_id in fdc_ids:
@@ -83,12 +84,12 @@ def _cascade(conn, fdc_ids: list[int]) -> None:
         meal_ids.update(_db.meals_using_food(conn, fdc_id))
         recipe_ids.update(r["id"] for r in _db.recipes_containing_food(conn, fdc_id))
     if meal_ids:
-        _db.log_meal_recalc(conn, sorted(meal_ids), "Water values added from USDA")
+        _db.log_meal_recalc(conn, sorted(meal_ids), what)
     for rid in sorted(recipe_ids):
         try:
             _recipe_dcp.recompute_recipe_dcp(rid, conn)
         except Exception as exc:
-            _db.log_recompute_error(conn, "recipe", rid, f"Recompute after adding water values failed: {exc}")
+            _db.log_recompute_error(conn, "recipe", rid, f"Recompute failed ({what}): {exc}")
 
 
 def run() -> None:

@@ -129,6 +129,10 @@ numa_app/
     water_backfill.py   — Foods → 9's "Fill in water from USDA": background-thread
                          fill of water_g for cached USDA foods lacking it
                          (blanks only, via db.fill_source_nutrient)
+    vitamin_k_repair.py — Foods → 9's "Correct vitamin K from USDA": replaces the
+                         menaquinone-4 value USDA foods were cached with before
+                         2026-10-14 by phylloquinone (foods.vitamin_k_checked;
+                         db.replace_source_nutrient keeps user edits)
     data_quality.py     — every data-quality check in one place: food_issues(),
                          stale_amounts() ("Amounts that no longer match"),
                          generic_density_in_use(), duplicate_groups(),

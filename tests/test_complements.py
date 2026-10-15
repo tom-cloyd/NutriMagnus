@@ -7,6 +7,7 @@ import sqlite3
 
 import pytest
 
+import db as _db
 import usda as _usda
 from numa_app.services import complements as _complements
 from numa_app.services.portions import amount_note as _amount_note
@@ -1101,3 +1102,56 @@ class TestPrivateAmountNote:
         fdc_id = self._cache_food_with_portion(db_conn, fdc_id=556)
         assert _complements._amount_note(0, fdc_id) is None
         assert _complements._amount_note(None, fdc_id) is None
+
+
+class TestComplementsMutationGaps20261014:
+    """Gaps found by the 2026-10-14 mutation run on complements.py: the "%
+    increase" starting figure, and the per-meal limit fields a cached food
+    carries into the general tier."""
+
+    _OATS = [{"food_name": "Oats", "nutrients_100g": _OATS_100G, "grams": 100.0}]
+
+    def _insert(self, db_conn, fdc_id, name, serving_size=None, serving_unit=None):
+        db_conn.execute(
+            "INSERT OR REPLACE INTO foods (fdc_id, name, data_type, serving_size, serving_unit,"
+            " nutrients_json, portions_json) VALUES (?, ?, 'Branded', ?, ?, ?, '[]')",
+            (fdc_id, name, serving_size, serving_unit, json.dumps({"protein_g": 30.0})))
+        db_conn.commit()
+
+    def test_base_dcp_none_without_ingredients(self):
+        assert _complements.base_dcp(None) is None
+        assert _complements.base_dcp([]) is None
+
+    def test_base_dcp_is_the_meal_level_figure_to_one_decimal(self, db_conn):
+        import diaas as _diaas
+        raw = _diaas.meal_level_diaas(list(self._OATS), db_conn)["digestible_complete_protein_g"]
+        assert round(raw, 1) != round(raw, 2)   # so the precision is really pinned
+        assert _complements.base_dcp(self._OATS) == round(raw, 1)
+
+    def test_exact_dcp_counts_a_sub_gram_addition(self):
+        with_half_gram = _complements.exact_dcp(self._OATS, [("Peanut butter", _PEANUT_BUTTER_100G, 0.5)])
+        assert with_half_gram is not None
+
+    @pytest.mark.parametrize("size, unit, expected", [
+        (30, "g", 30.0), (30, " GRAMS ", 30.0), (30, "gram", 30.0), (30, "grams", 30.0),
+        (30, "grm", 30.0), (0.5, "g", 0.5),
+        (0, "g", None), (30, None, None), (30, "ml", None), (None, "g", None),
+    ])
+    def test_label_serving_g(self, size, unit, expected):
+        assert _complements.label_serving_g({"serving_size": size, "serving_unit": unit}) == expected
+
+    def test_label_serving_g_without_the_columns(self):
+        assert _complements.label_serving_g(None) is None
+        assert _complements.label_serving_g({}) is None
+
+    def test_cache_candidate_carries_its_limit_and_label_serving(self, db_conn):
+        self._insert(db_conn, 500, "Nutritional Yeast Flakes", 25, "g")
+        _db.set_food_meal_limit(db_conn, 500, 12.0)
+        db_conn.commit()
+        c = next(c for c in _complements.load_cache_candidates() if c["fdc_id"] == 500)
+        assert (c["name"], c["max_meal_g"], c["serving_g"]) == ("Nutritional Yeast Flakes", 12.0, 25.0)
+
+    def test_a_food_matching_several_curated_names_is_listed_once(self, db_conn):
+        self._insert(db_conn, 600, "Seed mix pumpkin sunflower hemp seeds")
+        found = [c for c in _complements.load_cache_candidates() if c["fdc_id"] == 600]
+        assert len(found) == 1

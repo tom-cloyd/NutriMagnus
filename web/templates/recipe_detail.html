@@ -96,7 +96,7 @@
     <a class="sb-toggle" href="#sec-glycemic">Glycemic Load</a>
   </li>
   {% endif %}
-  {% if oxalate or ingredient_antinutrients %}
+  {% if oxalate or ingredient_antinutrients or slow_cooker_beans %}
   <li class="sb-item" data-target="sec-antinutrients">
     <a class="sb-toggle" href="#sec-antinutrients">Anti-nutrients</a>
   </li>
@@ -130,6 +130,14 @@
   <small class="text-muted">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %} defined{{ _sn.note(recipe.serving_size) }}</small>
 </div>
 {% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/recipe/%s/drink" % recipe.id, recipe.is_drink, "recipe") }}
+{% if slow_cooker_beans %}
+<div class="alert alert-danger py-2" id="slow-cooker-beans" role="alert">
+  <strong>FOOD SAFETY:</strong> this recipe uses dried beans ({{ slow_cooker_beans | join("; ") }}) and its instructions mention a slow cooker.
+  A slow cooker doesn&rsquo;t get hot enough to destroy the toxin in dried beans, red kidney beans most of all &mdash; as few as four or five
+  raw kidney beans can make you ill. Soak them at least 5 hours, pour the water away, and boil them in fresh water for at least 30 minutes
+  before they go into the slow cooker. <a href="#sec-antinutrients">More below</a> {{ manual_link("antinutrients", "Why") }}
+</div>
+{% endif %}
 
 {% if diaas and diaas.dcp_g is not none and diaas.total_protein_g %}
 <p class="mb-1">{{ servings }} serving{% if servings != 1 %}s{% endif %} analyzed{{ _sn.note(recipe.serving_size) }} &rArr;
@@ -875,9 +883,17 @@ document.getElementById('complements-form').addEventListener('change', function 
 {% endif %}
 
 {# ── Anti-nutrients (oxalate + other) ─────────────────────────────────── #}
-{% if oxalate or ingredient_antinutrients %}
+{% if oxalate or ingredient_antinutrients or slow_cooker_beans %}
 <section id="sec-antinutrients" class="analysis-section">
   <h3 class="section-heading">Anti-nutrients {{ manual_link("antinutrients") }}</h3>
+  {% if slow_cooker_beans %}
+  <div class="antinutrient-card mb-2" style="border-color:#dc3545">
+    <header><strong>Food safety: dried beans in a slow cooker</strong></header>
+    <p>The instructions mention a slow cooker, and these ingredients are dried beans: {{ slow_cooker_beans | join("; ") }}.
+    Boil them first &mdash; at least 30 minutes, after at least 5 hours&rsquo; soaking &mdash; or use canned beans.
+    (If the instructions already say to boil them first, this doesn&rsquo;t apply.)</p>
+  </div>
+  {% endif %}
   {% if oxalate %}
   <h4 class="mt-2 mb-1" style="font-size:1rem">Oxalate ({{ servings }} serving{{ 's' if servings != 1 else '' }}){{ _sn.note(recipe.serving_size) }}</h4>
   {% if oxalate.total_mg is not none %}
