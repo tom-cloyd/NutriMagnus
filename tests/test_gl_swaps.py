@@ -198,7 +198,7 @@ def test_compare_shows_gi_and_gl_per_100g_lowest_highlighted(foods, db_conn):
     db_conn.commit()
     html = TestClient(backend.app).get(f"/compare?items=f{WHITE},f{BARLEY},r{rid}").text
     import re
-    sec = html[html.index("Glycemic comparison"):html.index("Nutrient comparison")]
+    sec = html[html.index('id="cmp-gl"'):html.index('id="cmp-nutrients"')]
     cells = [re.sub(r"<[^>]+>|\s+", " ", c).strip() for c in re.findall(r'<td class="compare-val-col[^"]*">(.*?)</td>', sec, re.S)]
     assert cells[:3] == ["73", "28", "&mdash;"]
     # GL per 100 g: rice 73 x 28 / 100 = 20.4; barley 7.8 (lowest, highlighted);

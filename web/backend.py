@@ -14,7 +14,7 @@ import sys
 import zipfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import parse_qs, quote, urlencode
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -73,7 +73,7 @@ from numa_app.services import whatif as _whatif
 from numa_app.services.portions import generic_density_kind as _generic_density_kind
 from numa_app.services.portions import match_portion_label as _match_portion_label
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
-from version import VERSION, NEW_VERSION_NOTE, RELEASE_VERSION
+from version import VERSION, RELEASE_VERSION
 from numa_app.services import update_check as _update_check
 from numa_app.services import manual_update as _manual_update
 from numa_app.services import entry_parse as _entry_parse
@@ -111,25 +111,6 @@ _MANUAL_MD  = _PROJECT_ROOT / "user-manual.md"
 _DISCLAIMER_MD = _PROJECT_ROOT / "DISCLAIMER.md"
 _PREFS_FILE = _platform_utils.get_data_dir() / "prefs.json"
 
-_HOME_CACHE = _WEB_DIR / "home_body.cache"
-
-# The home page's about text used to live in its own home.md, hand-copied
-# from the manual's Preface and prone to drifting out of sync with it. It's
-# now excerpted live from user-manual.md instead — just the first 3 Preface
-# paragraphs (lines 7-11), not the whole thing.
-_HOME_CLOSING_PARAGRAPH = (
-    "(This introduction is continued at the beginning of the User Manual, "
-    "accessible from the main menu above.)"
-)
-
-
-def _extract_manual_preface() -> str:
-    if not _MANUAL_MD.exists():
-        return ""
-    lines = _MANUAL_MD.read_text(encoding="utf-8").splitlines()
-    # Lines 7-11 (1-indexed) — the first 3 Preface paragraphs.
-    return "\n".join(lines[6:11]).strip()
-
 # Strip these prep-state words from USDA API queries
 _SEARCH_PREP_WORDS = {
     "peeled", "unpeeled", "sliced", "diced", "chopped", "minced", "grated",
@@ -142,33 +123,6 @@ _SEARCH_PREP_WORDS = {
     "plain", "unseasoned", "seasoned", "marinated",
 }
 _SEARCH_META_WORDS = {"usda", "off", "openfoodfacts", "cnf"}
-
-def _render_home_md() -> str:
-    """Full-length home-page about text: the manual's Preface plus the
-    closing paragraph, cached to web/home_body.cache (invalidated when
-    user-manual.md is newer)."""
-    if _HOME_CACHE.exists() and _MANUAL_MD.exists() and _HOME_CACHE.stat().st_mtime >= _MANUAL_MD.stat().st_mtime:
-        return _HOME_CACHE.read_text(encoding="utf-8")
-    preface = _extract_manual_preface()
-    md_text = (preface + "\n\n" + _HOME_CLOSING_PARAGRAPH) if preface else _HOME_CLOSING_PARAGRAPH
-    html = _md.markdown(md_text, extensions=["footnotes"])
-    _HOME_CACHE.write_text(html, encoding="utf-8")
-    return html
-
-
-def _render_home_md_short() -> str:
-    """First paragraph of the manual's Preface only, plus a link back to
-    the manual — used in place of the full about text when a nutrient plot
-    is also showing on the home page, so the two fit together."""
-    preface = _extract_manual_preface()
-    first_para = preface.split("\n\n", 1)[0] if preface else ""
-    html = _md.markdown(first_para, extensions=["footnotes"]) if first_para else ""
-    continued = ' (...continued at beginning of <a href="/manual">User Manual</a>.)'
-    if html.endswith("</p>"):
-        html = html[: -len("</p>")] + continued + "</p>"
-    else:
-        html += continued
-    return html
 
 # ---------------------------------------------------------------------------
 # Portion-string parser (unit tables are numa_app.services.portions' — imported
@@ -189,6 +143,15 @@ def _supplement_count_unit(portions: list[dict]) -> str | None:
                 and abs(float(p.get("gram_weight") or 0) - 100.0) < 1e-6):
             return parts[1]
     return None
+
+
+def _added_amount(grams: float, label: str) -> str:
+    """The amount shown in an "Added ..." confirmation: what was typed, plus
+    its gram weight when the typed amount wasn't already in grams."""
+    label = (label or "").strip()
+    if not label or re.fullmatch(r"[\d.]+\s*g", label):
+        return f"{grams:.4g} g"
+    return f"{label} ({grams:.4g} g)"
 
 
 def _parse_portion_str(
@@ -1015,6 +978,11 @@ async def _lifespan(app: FastAPI):
             _mark_starter_problems_seen(conn)
         _data_quality.convert_keeps(conn)
         _day_profile.backfill_missing_day_profiles(conn)
+        # Pantry/recipe/meal lines still showing a name their food no longer
+        # has (db.sync_food_name_copies); self-limiting, since a repaired
+        # copy no longer differs on later starts.
+        for _fid in _db.sync_food_name_copies(conn):
+            _recipe_dcp.cascade_food_change(_fid, conn)
         missing_snapshot_meals = _db.meals_missing_nutrient_snapshot(conn)
     # One-time backfill: meals whose bcp_g/calories predate the per-meal
     # nutrient snapshot (added for the Meals & Log / Daily Summary extra
@@ -1703,6 +1671,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
             if supp_val > 0 and not missing:
                 supp = ("all" if supp_val >= val * 0.995 else _display_amount(supp_val))
             rows.append({
+                "key":          key,
                 "label":        label,
                 "value":        None if missing else _display_amount(val),
                 "supp":         supp,
@@ -1760,6 +1729,7 @@ def _nutrient_sections(nutrients: dict, rda: dict | None = None,
                         dcp_pct = round(dcp_g / p_val * 100, 0)
                         dcp_css = _rda_css(dcp_pct, dcp_type)
                 rows.append({
+                    "key":          "dcp",
                     "label":        "(Digestible Complete Protein)" + ("\u00a0*" if dcp_missing else ""),
                     "value":        dcp_g,
                     "unit":         unit,
@@ -2562,13 +2532,12 @@ async def index(request: Request, updated: int = 0, update_error: str = "",
             home_plot_smoothing = _smoothing_info(_window, _lead, _data, _axis, _skipped)
     return templates.TemplateResponse(
         request, "home.html", {
-            "home_body": _render_home_md_short() if home_plot_qs else _render_home_md(),
             "home_plot_qs": home_plot_qs,
+            "show_plot_notice": has_any_meals and not home_plot_qs,
             "plot_rolls_to_complete": plot_rolls_to_complete,
             "home_plot_smoothing": home_plot_smoothing,
-            "show_plot_notice": has_any_meals and not home_plot_qs,
-            "version": VERSION, "version_note": NEW_VERSION_NOTE,
-            "version_date": VERSION, "release_version": RELEASE_VERSION,
+            "version": VERSION, "version_date": VERSION, "release_version": RELEASE_VERSION,
+            "profile_notice_dismissed": bool(prefs.get("profile_notice_dismissed")),
             "diet_label": diet_label, "profile_label": profile_label,
             "db_issue_count": db_issue_count,
             "data_check_reminder": _data_check_reminder(),
@@ -2634,6 +2603,14 @@ async def gi_table_notice_ack_banner():
     automatically if a locally-built 2021 table is ever seen again, so a later
     disappearance of it is still reported."""
     _save_prefs_file({"gi_table_notice_dismissed": True})
+    return RedirectResponse("/", status_code=303)
+
+
+@app.post("/profile-notice/ack-banner", response_class=RedirectResponse)
+async def profile_notice_ack_banner():
+    """'Don't remind me about this again' on the home-page profile-not-set
+    banner."""
+    _save_prefs_file({"profile_notice_dismissed": True})
     return RedirectResponse("/", status_code=303)
 
 
@@ -2749,6 +2726,19 @@ def _cached_search_rows(cached: list, annotations: dict, pantry_id_by_fdc: dict)
             "has_notes": bool(row["notes"]),
         })
     return results
+
+
+def _typed_code(text: str) -> tuple[str, int] | None:
+    """("food", fdc_id) or ("recipe", recipe_id) when a list filter's whole
+    text is one display code (U171477, UD4, R21, OFF3 ...), else None — so
+    every name filter can also find an item by its code."""
+    text = (text or "").strip()
+    if not text or " " in text:
+        return None
+    try:
+        return _parse_code(text)
+    except ValueError:
+        return None
 
 
 def _code_search_results(query: str) -> list[dict] | None:
@@ -3624,11 +3614,13 @@ async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = 
         refs = _db.food_references(conn, fdc_id)
         if refs["pantry"] or refs["recipes"] or refs["meals"]:
             if ajax:
-                # Blocked deletes need the full explanation page (which
-                # pantry entry/recipe/meal is holding it) — not worth
-                # reproducing that markup client-side, so fall back to a
-                # normal navigation for this one case.
-                return JSONResponse({"ok": False})
+                # The explanation (which pantry entry/recipe/meal is holding
+                # it) goes back rendered, for base.html to show under the
+                # row — a full reload here would lose the list's place.
+                html = templates.env.get_template("_food_delete_blocked.html").render(
+                    blocked_fdc_id=fdc_id, blocked_pantry=refs["pantry"],
+                    blocked_recipes=refs["recipes"], blocked_meals=refs["meals"])
+                return JSONResponse({"ok": False, "blocked_html": html})
             params["delete_blocked"] = 1
             params["blocked_fdc_id"] = fdc_id
             if refs["pantry"]:
@@ -3653,14 +3645,17 @@ async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = 
 async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[]),
                                   group: list[str] = Form(default=[]),
                                   want: list[str] = Form(default=[]),
-                                  gi_diaas: int = Form(0)):
+                                  gi_diaas: int = Form(0),
+                                  gi_only: int = Form(0)):
     """Build a prompt asking only for each selected food's missing nutrient
     groups (data_completeness.py), less any the user marked not needed for
     that food. `group` limits it to those groups; `want` ("fdc_id:group",
     the Data Completeness page's per-gap checkboxes) picks exact food/group
     pairs instead. `gi_diaas` also asks for each food's GI and DIAAS where
-    its annotation has none and isn't set to stop asking. A food with
-    nothing missing is left out."""
+    its annotation has none and isn't set to stop asking. `gi_only` (the
+    Annotate page's GI research link) asks for the GI alone — no nutrients,
+    and even when a GI is already saved, since the user asked outright.
+    A food with nothing missing is left out."""
     checked = set(group) or None
     wanted: dict[int, set[str]] = {}
     for cell in want:
@@ -3680,6 +3675,11 @@ async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(def
             ignored = ignores.get(fid, set())
             if _supplements.is_supplement(cached):
                 ignored = ignored | _data_quality.SUPPLEMENT_SKIPS   # nothing to ask for
+            if gi_only:
+                selected.append((fid, cached["name"]))
+                requests[fid] = ([], [])
+                ann_wanted[fid] = ["gi"]
+                continue
             gaps = _data_completeness.active_gaps(nutrients, ignored, wanted.get(fid, checked))
             # Single nutrients marked not needed (Top Contributors) aren't asked for either.
             keys = [k for k in _data_completeness.requested_keys(nutrients, gaps) if k not in ignored]
@@ -3712,6 +3712,7 @@ async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(def
         "form_groups":     group,
         "form_wants":      want,
         "gi_diaas":        bool(gi_diaas),
+        "gi_only":         bool(gi_only),
     })
 
 
@@ -3860,6 +3861,10 @@ async def food_rename(fdc_id: int, name: str = Form("")):
         return RedirectResponse(f"/food/{fdc_id}?rename_error=1#rename", status_code=303)
     with _db.get_db() as conn:
         copied = _db.rename_food_by_user(conn, fdc_id, name)
+        if copied:
+            # Digestibility is looked up by the name a line shows, so the
+            # recipes and meals using the food are worked out again.
+            _recipe_dcp.cascade_food_change(fdc_id, conn)
     return RedirectResponse(f"/food/{fdc_id}?renamed={copied}", status_code=303)
 
 
@@ -4572,7 +4577,9 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
     all_items = items
     pantry_total = len(items)
     filter = filter.strip()
-    if filter:
+    if _typed_code(filter):
+        items = [i for i in items if _typed_code(filter) == ("food", i["fdc_id"])]
+    elif filter:
         words = filter.lower().split()
         items = [i for i in items
                  if all(w in f"{i['food_name']} {i['notes'] or ''}".lower() for w in words)]
@@ -4607,6 +4614,7 @@ async def pantry_add(
     off_code: str = Form(""),
     link_id: str = Form(""),
     next: str = Form(""),
+    search: str = Form(""),
 ):
     food_name = food_name.strip()
     # Where to land afterwards: Pantry by default, or back on the calling page
@@ -4654,6 +4662,10 @@ async def pantry_add(
                 result_flag = "linked=1"
             else:
                 _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
+    # A plain add keeps its search's results showing, so several can be
+    # added in turn (each then reads "Already in pantry").
+    if not back and result_flag == "added=1" and search.strip():
+        result_flag += "&" + urlencode({"search": search.strip()})
     dest = back or f"/pantry?{result_flag}"
     if fdc_id_int is not None and _annotation_prompt_needed(fdc_id_int):
         from urllib.parse import quote
@@ -5517,6 +5529,10 @@ def _food_detail_context(
                                                  optimal=optimal_scaled or optimal, max_limits=max_limits,
                                                  dcp_g=protein_section["dcp_g"] if protein_section else None),
         "dcp_missing_names":  [],
+        # Protein but no usable amino acid data: no DCP row (or DIAAS) can be
+        # worked out, so the Macronutrients table says why instead.
+        "dcp_unavailable":    (display_nutrients.get("protein_g") or 0) > 0
+                              and not (protein_section and protein_section["dcp_g"] is not None),
         "protein":            protein_section,
         "complements":        _food_complement_section(food["name"], display_nutrients, exclude_names=_effective_ignored(ignore_complements, unignore), comp_sort=comp_sort, diaas_sort=diaas_sort, anchor_overrides=_parse_anchor_overrides(anchor_name or [], anchor_grams or []), uncap_names=set(uncap or [])),
         "ignored_complements": sorted(_effective_ignored(ignore_complements, unignore)),
@@ -6217,11 +6233,14 @@ def _web_pantry_candidates() -> list[dict]:
                 if cached and cached["nutrients_json"]:
                     nutrients = json.loads(cached["nutrients_json"])
                 serving_g = _complements.label_serving_g(cached)
+            # Named as the food is named now (its "* " starter mark
+            # included), not by the pantry line's own copy of the name.
+            name = (cached["name"] if row["fdc_id"] is not None and cached else row["food_name"]) or ""
             candidates.append({
-                "name":       row["food_name"] or "",
+                "name":       name,
                 "fdc_id":     row["fdc_id"],
                 "nutrients":  nutrients,
-                "diaas":      _usda.get_diaas(row["food_name"] or ""),
+                "diaas":      _usda.get_diaas(name),
                 "max_meal_g": limits.get(row["fdc_id"]),
                 "serving_g":  serving_g,
             })
@@ -6655,17 +6674,27 @@ def _annotate_food_amounts(items: list[dict], conn, *, unit_key: str = "unit") -
     or just "g" for entries made before meals kept it) what the shared
     _food_amount.html macro needs: typed_note (the typed amount when it was
     more than grams, else None), amount_display (re-parseable text for the
-    Edit box) and generic_density (the "≈ generic" mark, see
-    _mark_generic_density())."""
+    Edit box), generic_density (the "≈ generic" mark, see
+    _mark_generic_density()) and supp_count ("2 capsules" for a supplement,
+    whose internal 100 g is one unit — shown instead of grams; else None)."""
     for it in items:
         if it.get("recipe_id") or not it.get("fdc_id"):
+            continue
+        cached = _db.get_cached_food(conn, it["fdc_id"])
+        it["supp_count"] = _supplement_count(cached, it.get("amount")) if cached else None
+        if it["supp_count"]:
+            # The Edit box offers the count when it reads back (the food has
+            # its "1 tablet" portion), else the internal grams.
+            portions = json.loads(cached["portions_json"] or "[]") or []
+            reparses = _parse_portion_str(it["supp_count"], portions, cached["name"])[0] is not None
+            it["typed_note"] = it["generic_density"] = None
+            it["amount_display"] = it["supp_count"] if reparses else f"{float(it.get('amount') or 0):.4g} g"
             continue
         typed = it.get(unit_key)
         label = _ingredient_amount_display(conn, {"unit": typed, "amount": it.get("amount"),
                                                   "food_name": it.get("food_name") or "",
                                                   "fdc_id": it["fdc_id"]})
         it["typed_note"] = _typed_amount_note(label)
-        cached = _db.get_cached_food(conn, it["fdc_id"])
         portions = (json.loads(cached["portions_json"] or "[]") or []) if cached else []
         # A portion label ("2 × 1 large egg") doesn't parse back, so the Edit
         # box falls back to grams rather than offer text it would reject.
@@ -6673,6 +6702,17 @@ def _annotate_food_amounts(items: list[dict], conn, *, unit_key: str = "unit") -
         it["amount_display"] = label if reparses else f"{float(it.get('amount') or 0):.4g} g"
         it["generic_density"] = (_generic_density_kind(typed, portions, cached["name"])
                                  if cached and typed else None)
+
+
+def _supplement_count(cached, amount) -> str | None:
+    """"2 capsules", "1 tablet", "0.5 tablet" for `amount` (internal grams)
+    of a supplement, whose one unit is stored as 100 g (supplements.py);
+    None for anything that isn't a supplement."""
+    if not _supplements.is_supplement(cached):
+        return None
+    n = round(float(amount or 0) / 100.0, 2)
+    unit = _supplements.display_unit(cached)
+    return f"{n:g} {unit}{'' if 0 < n <= 1 else 's'}"
 
 
 def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
@@ -7533,11 +7573,11 @@ async def meal_add_food(
             if q:
                 params["q"] = q
         else:
-            # Explicit empty q= (not simply omitted) tells the persist-search
-            # JS in base.html to forget the saved query instead of restoring
-            # it from sessionStorage — otherwise the search panel would
-            # reappear right after a successful add.
-            params = {"q": ""}
+            # The search stays (q kept, explicitly even when empty so the
+            # persist-search JS in base.html doesn't restore an older one),
+            # so several results can be added one after another; `added`
+            # names what was just added, above the results.
+            params = {"q": q, "added": name, "added_amount": amount_shown}
             if check:
                 params["added_check"] = check
         qs = f"?{urlencode(params)}"
@@ -7569,17 +7609,17 @@ async def meal_add_food(
     grams, label = _parse_portion_str(raw, portions, name)
     if not grams:
         return _redirect(error=label)
+    amount_shown = _added_amount(grams, label)
     # Store what was typed ("1/3 c", "2 × large egg") as the unit, the way a
     # recipe ingredient does, so a later portion correction can find it.
     with _db.get_db() as conn:
         _db.meal_add_food(conn, meal_id, fdc_id, name, grams, label)
         check = _added_food_check(conn, fdc_id)
     if _annotation_prompt_needed(fdc_id):
-        # next= carries an explicit empty q= (not simply omitted) so that,
-        # once the annotate flow redirects back to the meal page, the
-        # persist-search JS in base.html forgets the saved query instead of
-        # restoring the stale search-results panel.
-        back = f"/meal/{meal_id}?q=" + (f"&added_check={check}" if check else "")
+        # next= carries the search (explicitly, even when empty), so the
+        # annotate flow lands back on the same results.
+        back = f"/meal/{meal_id}?" + urlencode({"q": q, "added": name, "added_amount": amount_shown,
+                                                  **({"added_check": check} if check else {})})
         return RedirectResponse(f"/food/annotate/{fdc_id}?next={quote(back)}", status_code=303)
     return _redirect(check=check)
 
@@ -7592,6 +7632,7 @@ async def meal_add_recipe_item(
     amount: str = Form(""),
     servings: str = Form(""),
     mode: str = Form("recipe"),
+    q: str = Form(""),
 ):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
@@ -7610,7 +7651,7 @@ async def meal_add_recipe_item(
         servings_n, _typed = _parse_recipe_amount(amount or (f"{servings} servings" if servings.strip() else "1 serving"),
                                                   recipe, serving_g)
     except _entry_parse.EntryError as e:
-        return RedirectResponse(f"/meal/{meal_id}?{urlencode({'add_error': f'{name}: {e}'})}", status_code=303)
+        return RedirectResponse(f"/meal/{meal_id}?{urlencode({'add_error': f'{name}: {e}', 'q': q})}", status_code=303)
     servings = round(servings_n, 4)
 
     if mode == "ingredients":
@@ -7633,9 +7674,13 @@ async def meal_add_recipe_item(
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         with _db.get_db() as conn:
             _db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)
-    # Explicit empty q= tells the persist-search JS in base.html to forget
-    # the saved query instead of restoring it from sessionStorage.
-    return RedirectResponse(f"/meal/{meal_id}?q=", status_code=303)
+    # The search stays, so more results can be added (see meal_add_food).
+    amount_shown = f"{servings:g} serving" + ("s" if servings != 1 else "")
+    if serving_g:
+        amount_shown += f" ({servings * serving_g:.4g} g)"
+    if mode == "ingredients":
+        amount_shown += ", as individual ingredients"
+    return RedirectResponse(f"/meal/{meal_id}?{urlencode({'q': q, 'added': name, 'added_amount': amount_shown})}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/remove/{item_id}", response_class=RedirectResponse)
@@ -7700,10 +7745,8 @@ async def meal_update_item_post(
             if q:
                 params["q"] = q
         else:
-            # Explicit empty q= tells the persist-search JS in base.html to
-            # forget the saved query instead of restoring it — otherwise the
-            # search panel reappears right after a successful edit.
-            params = {"q": ""}
+            # The search, if any, stays as it was.
+            params = {"q": q}
         qs = f"?{urlencode(params)}"
         return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
 
@@ -7755,7 +7798,7 @@ async def meal_item_serving_weight_post(meal_id: int, item_id: int, choice: str 
         item = next((it for it in _db.meal_get_items(conn, meal_id) if it["id"] == item_id), None)
         meal = _db.meal_get(conn, meal_id)
         if item is None or meal is None or item["item_type"] != "recipe":
-            return RedirectResponse(f"/meal/{meal_id}?q=", status_code=303)
+            return RedirectResponse(f"/meal/{meal_id}", status_code=303)
         now = recipe_serving_grams(item["recipe_id"], conn)
         logged = item["serving_grams"]
         if choice == "keep" and _serving_weight_changed(logged, now):
@@ -7765,7 +7808,7 @@ async def meal_item_serving_weight_post(meal_id: int, item_id: int, choice: str 
         _db.meal_item_set_serving_grams(conn, item_id, now)
     _compute_and_store_meal_bcp(meal_id)
     _refresh_day_pct_goal(meal["meal_date"])
-    return RedirectResponse(f"/meal/{meal_id}?q=", status_code=303)
+    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/merge", response_class=RedirectResponse)
@@ -7811,7 +7854,10 @@ async def meals_search(request: Request, q: str = ""):
     n_items = n_meals = n_dates = 0
     if q.strip():
         with _db.get_db() as conn:
-            rows = [dict(r) for r in _db.search_meal_history(conn, q.strip())]
+            # A code (U171477, R21) finds that one food or recipe; else by name.
+            code = _typed_code(q)
+            rows = [dict(r) for r in (_db.search_meal_history_by_item(conn, *code) if code
+                                      else _db.search_meal_history(conn, q.strip()))]
             recipe_ids = {r["recipe_id"] for r in rows if r["item_type"] == "recipe" and r["recipe_id"]}
             deleted_recipe_ids = {rid for rid in recipe_ids if _db.recipe_get(conn, rid) is None}
         for r in rows:
@@ -8648,15 +8694,21 @@ async def recipes_list(request: Request, q: str = "", sort: str | None = None,
                         recipes_created: int = 0, recipes_reused: int = 0):
     sort = _resolve_sort(sort, "sort_recipes", "name", set(_RECIPE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_recipes")
+    code = _typed_code(q)
     with _db.get_db() as conn:
         total_count = _db.recipe_count(conn, include_archived=show_archived)
-        all_recipes = [dict(r) for r in _db.recipe_list_recent(conn, limit=200, include_archived=show_archived)]
+        # A recipe code (R21) finds that recipe, archived or not, however old.
+        all_recipes = [dict(r) for r in (
+            _db.recipe_list(conn, include_archived=True) if code
+            else _db.recipe_list_recent(conn, limit=200, include_archived=show_archived))]
         meal_use = _db.recipe_meal_use(conn)
         sub_users = _db.recipe_subrecipe_users(conn)
     for r in all_recipes:
         r["delete_warning"] = _recipe_delete_warning(
             r["name"], meal_use.get(r["id"]), sub_users.get(r["id"], []), archive_here=True)
-    if q:
+    if code:
+        all_recipes = [r for r in all_recipes if code == ("recipe", r["id"])]
+    elif q:
         ql = q.lower()
         words = ql.split()
         all_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in words)]
@@ -8770,23 +8822,70 @@ _MAX_COMPARE_ITEMS = 8
 
 
 def _parse_compare_items(items_str: str) -> list[tuple[str, int]]:
-    """Parse the `items` query/form string ("f174,r12,f998") into
-    [(kind, id), ...] pairs — "f" = food (fdc_id), "r" = recipe (recipe_id)."""
+    """Parse the `items` query/form string ("f174,r12@2,f998@150") into
+    [(kind, id), ...] pairs — "f" = food (fdc_id), "r" = recipe (recipe_id).
+    An "@n" suffix is the item's own amount (see _parse_compare_amounts)."""
     items = []
     for tok in items_str.split(","):
-        tok = tok.strip()
+        tok = tok.strip().split("@", 1)[0]
         if not tok:
             continue
         kind = "recipe" if tok[0] == "r" else "food"
         try:
-            items.append((kind, int(tok[1:])))
+            item = (kind, int(tok[1:]))
         except ValueError:
             continue
+        if item not in items:
+            items.append(item)
     return items
 
 
-def _compare_items_str(items: list[tuple[str, int]]) -> str:
-    return ",".join(f"{'r' if kind == 'recipe' else 'f'}{id_}" for kind, id_ in items)
+# One compared item's own amount: (value, unit) — unit "g" (grams), "srv"
+# (servings of a recipe; a recipe may also be given in grams), or "p<n>"
+# (a food's n-th portion, counted: 2 × "1 slice").
+CompareAmount = tuple[float, str]
+
+
+def _parse_compare_amounts(items_str: str) -> dict[tuple[str, int], CompareAmount]:
+    """The amounts set on Compare's "The amount I set" basis, from each
+    item token's "@n" suffix: grams for a food ("f174@150"); servings for a
+    recipe ("r12@2"), or grams with a trailing g ("r12@150g"); a count of a
+    food's n-th portion ("f174@2p1" = 2 × portion 1). Items without
+    a (positive) amount are left out — they use the default (100 g of a
+    food, 1 serving of a recipe)."""
+    amounts = {}
+    for tok in items_str.split(","):
+        head, sep, amount = tok.strip().partition("@")
+        if not sep or not head:
+            continue
+        kind = "recipe" if head[0] == "r" else "food"
+        unit = "g" if kind == "food" or amount.lower().endswith("g") else "srv"
+        portion = re.fullmatch(r"(.+?)p(\d+)", amount.strip(), re.IGNORECASE)
+        if kind == "food" and portion:
+            amount, unit = portion.group(1), f"p{int(portion.group(2))}"
+        try:
+            id_, value = int(head[1:]), float(amount.rstrip("gG"))
+        except ValueError:
+            continue
+        if value > 0:
+            amounts[(kind, id_)] = (value, unit)
+    return amounts
+
+
+def _compare_amount_token(kind: str, amount: CompareAmount) -> str:
+    value, unit = amount
+    if kind == "food" and unit.startswith("p"):
+        return f"@{value:g}{unit}"
+    return f"@{value:g}" + ("g" if kind == "recipe" and unit == "g" else "")
+
+
+def _compare_items_str(items: list[tuple[str, int]],
+                       amounts: dict[tuple[str, int], CompareAmount] | None = None) -> str:
+    amounts = amounts or {}
+    return ",".join(
+        f"{'r' if kind == 'recipe' else 'f'}{id_}"
+        + (_compare_amount_token(kind, amounts[(kind, id_)]) if (kind, id_) in amounts else "")
+        for kind, id_ in items)
 
 
 def _safe_return_to(return_to: str) -> str:
@@ -8836,13 +8935,18 @@ def _compare_fill_target(return_to: str) -> dict | None:
 
 
 # Compare's "Compare amounts" choice (remembered in prefs as compare_basis):
-# per 100 g of each item (the default), or each recipe per serving or whole,
-# as written. A plain food has no recipe amounts: it stays per 100 g.
+# per 100 g of each item (the default), each recipe per serving or whole,
+# as written (a plain food has no recipe amounts: it stays per 100 g), or
+# the amount set for each item on the page (grams of a food, servings of a
+# recipe; carried in the items string as "@n" — _parse_compare_amounts).
 _COMPARE_BASES = {
     "100g":    "Per 100 g of each item",
     "serving": "Per serving of each recipe, as written",
     "recipe":  "Each whole recipe, as written",
+    "amounts": "The amount I set for each item",
 }
+_COMPARE_DEFAULT_GRAMS = 100.0
+_COMPARE_DEFAULT_SERVINGS = 1.0
 
 
 def _compare_basis(basis: str | None = None) -> str:
@@ -8855,7 +8959,7 @@ def _compare_basis(basis: str | None = None) -> str:
 
 
 def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None,
-                        basis: str = "100g") -> dict | None:
+                        basis: str = "100g", amount: CompareAmount | None = None) -> dict | None:
     """Load one comparison entry (food or recipe), normalized to a common,
     always-per-100g shape: {kind, id, name, data_type, nutrients,
     ingredients, diaas, cached, has_aa, weight_complete}. Every comparison
@@ -8864,29 +8968,51 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None,
     (servings) aren't otherwise a comparable amount to sit side by side.
     `ingredients` is a single self-referencing 100g row for a food (so the
     shared-ingredient table can include it too), or the recipe's own
-    ingredients rescaled to add up to 100g of the finished dish.
-    `weight_complete` is False when a recipe's ingredient weight (and so
-    its 100g scaling) is only a lower-bound estimate — ingredients/nutrients
-    are then left empty rather than scaled against an unreliable weight.
+    ingredients rescaled to what goes into 100g of the finished dish — by
+    its stated total weight when it has one, else its ingredients' sum.
+    `weight_complete` is False when a recipe has no stated weight and its
+    ingredient sum (and so its 100g scaling) is only a lower-bound estimate.
     An uncached food's `detail` is fetched by the caller beforehand (see
-    _load_compare_entries), so no network call runs while `conn` is open."""
+    _load_compare_entries), so no network call runs while `conn` is open.
+    On the "amounts" basis everything is instead for `amount` — grams of a
+    food; servings of a recipe, or grams of it converted to servings by its
+    serving weight (recipe_serving_grams, as a meal logs it). Defaults:
+    100 g, 1 serving."""
     if kind == "food":
         cached = _db.get_cached_food(conn, id_)
         if cached:
             nutrients_100g = json.loads(cached["nutrients_json"]) if cached["nutrients_json"] else {}
             name = cached["name"]
             data_type = cached["data_type"] or ""
+            portions = json.loads(cached["portions_json"] or "[]") or []
         elif detail:
             nutrients_100g = detail.get("nutrients", {})
             name = detail["name"]
             data_type = detail.get("dataType", "")
+            portions = detail.get("portions") or []
         else:
-            nutrients_100g, name, data_type = {}, str(id_), ""
+            nutrients_100g, name, data_type, portions = {}, str(id_), "", []
+        portions = [p for p in portions if (p.get("gram_weight") or 0) > 0]
+        grams = (amount[0] if amount else _COMPARE_DEFAULT_GRAMS) if basis == "amounts" else 100.0
+        grams_label = f"{grams:g} g"
+        food_amount_note = ""
+        # A count of one of the food's portions ("2 × 1 slice"), in grams.
+        if basis == "amounts" and amount and amount[1].startswith("p"):
+            idx = int(amount[1][1:]) - 1
+            if 0 <= idx < len(portions):
+                p = portions[idx]
+                grams = amount[0] * p["gram_weight"]
+                grams_label = f"{amount[0]:g} × {p.get('description') or 'portion'} ({round(grams, 1):g} g)"
+            else:
+                grams = _COMPARE_DEFAULT_GRAMS
+                grams_label = f"{grams:g} g"
+                food_amount_note = (f"Portion {amount[1]} no longer exists for this food, "
+                                    f"so {grams:g} g is used instead.")
         diaas_display = None
         if nutrients_100g:
             try:
                 diaas_result = _diaas.meal_level_diaas(
-                    [{"food_name": name, "nutrients_100g": nutrients_100g, "grams": 100.0}], conn,
+                    [{"food_name": name, "nutrients_100g": nutrients_100g, "grams": grams}], conn,
                 )
             except Exception:
                 diaas_result = None
@@ -8895,29 +9021,58 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None,
         return {
             "gi":              ann["gi_estimate"] if ann else None,
             "gi_impaired":     _gi_measured_impaired(_ann_source(ann)) if ann else False,
-            "gl":              food_gl(name, id_, nutrients_100g, 100.0, ann, gi_opt_out=_gi_opt_out())
+            "gl":              food_gl(name, id_, nutrients_100g, grams, ann, gi_opt_out=_gi_opt_out())
                                if nutrients_100g else None,
             "kind":            "food",
             "id":              id_,
             "name":            name,
             "data_type":       data_type,
-            "nutrients":       nutrients_100g,
-            "ingredients":     [{"food_name": name, "fdc_id": id_, "ref_recipe_id": None, "display": "100 g"}],
+            "nutrients":       {k: v * grams / 100.0 for k, v in nutrients_100g.items()},
+            "ingredients":     [{"food_name": name, "fdc_id": id_, "ref_recipe_id": None, "display": grams_label}],
             "diaas":           diaas_display,
             "cached":          cached is not None,
             "has_aa":          _usda.has_confirmed_aa_data(nutrients_100g),
             "weight_complete": True,
-            "basis_label":     "100 g",
+            "basis_label":     grams_label,
+            "amount":          grams,
+            "portions":        portions,
+            "amount_note":     food_amount_note,
         }
 
     recipe = _db.recipe_get(conn, id_)
     if not recipe:
         return None
-    weight = _db.recipe_compute_weight(conn, id_)
-    batch_grams, weight_complete = weight if weight else (0.0, False)
     servings = float(recipe["servings"] or 0)
+    # The recipe's weight: its stated total weight when it has one (which
+    # can allow for cooking loss), else its ingredients added up — the same
+    # figure a meal logs it by (recipe_serving_grams). Only an incomplete
+    # ingredient sum, with no stated weight, is a lower-bound estimate.
+    serving_grams = recipe_serving_grams(id_, conn)
+    if serving_grams:
+        batch_grams, weight_complete = serving_grams * servings, True
+    else:
+        weight = _db.recipe_compute_weight(conn, id_)
+        batch_grams, weight_complete = weight if weight else (0.0, False)
     grams_text = (f"{batch_grams:.0f} g" if weight_complete else f"at least {batch_grams:.0f} g") if batch_grams else ""
-    if basis == "serving":
+    recipe_servings = None
+    amount_note = ""
+    if basis == "amounts":
+        value, unit = amount or (_COMPARE_DEFAULT_SERVINGS, "srv")
+        if unit == "g" and serving_grams:
+            recipe_servings = value / serving_grams
+            basis_label = f"{value:g} g ({round(recipe_servings, 2):g} servings)"
+        else:
+            if unit == "g":   # grams asked for, but no serving weight to convert by
+                amount_note = (f"{value:g} g can't be used: this recipe has no weight per serving, "
+                               f"so 1 serving is shown")
+                value = _COMPARE_DEFAULT_SERVINGS
+            recipe_servings = value
+            shown_g = serving_grams * value if serving_grams else None
+            basis_label = (f"{value:g} serving{'s' if value != 1 else ''}"
+                           + (f" ({_display_amount(shown_g)} g)" if shown_g else ""))
+        scale = recipe_servings / servings if servings > 0 else None
+        weight_complete = True   # nothing here is scaled by the weight
+    elif basis == "serving":
         scale = 1.0 / servings if servings > 0 else None
         basis_label = "1 serving" + (f" ({_display_amount(batch_grams / servings)} g)"
                                      if batch_grams and servings > 0 and weight_complete else "")
@@ -8981,10 +9136,18 @@ def _load_compare_entry(conn, kind: str, id_: int, detail: dict | None = None,
         "has_aa":          diaas_display is not None,
         "weight_complete": weight_complete,
         "basis_label":     basis_label,
+        "amount":          recipe_servings,
+        "amount_note":     amount_note,
+        "serving_grams":   serving_grams,
+        "serving_size":    (recipe["serving_size"] or "").strip(),
+        # A description that is itself a weight ("35 g") needs no "(35 g)" after it.
+        "serving_size_is_weight": bool(re.fullmatch(r"[\d.,\s]+(g|gr|grams?)\.?",
+                                                    (recipe["serving_size"] or "").strip(), re.I)),
     }
 
 
-def _load_compare_entries(items: list[tuple[str, int]], basis: str = "100g") -> list[dict]:
+def _load_compare_entries(items: list[tuple[str, int]], basis: str = "100g",
+                          amounts: dict[tuple[str, int], CompareAmount] | None = None) -> list[dict]:
     entries = []
     for kind, id_ in items:
         # An uncached food's data comes from its source over the network —
@@ -8999,7 +9162,8 @@ def _load_compare_entries(items: list[tuple[str, int]], basis: str = "100g") -> 
                 except Exception:
                     detail = None
         with _db.get_db() as conn:
-            entry = _load_compare_entry(conn, kind, id_, detail, basis)
+            entry = _load_compare_entry(conn, kind, id_, detail, basis,
+                                        (amounts or {}).get((kind, id_)))
         if entry:
             entries.append(entry)
     return entries
@@ -9107,12 +9271,13 @@ async def compare_get(
     return_to = _safe_return_to(return_to)
     basis = _compare_basis(basis or None)
     item_list = _parse_compare_items(items)
-    entries = _load_compare_entries(item_list, basis) if item_list else []
+    amounts = _parse_compare_amounts(items)
+    entries = _load_compare_entries(item_list, basis, amounts) if item_list else []
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
     ingredient_rows = _build_recipe_ingredient_rows(entries) if len(entries) >= 2 else []
     protein_quality_rows = _build_protein_quality_rows(entries) if len(entries) >= 2 else []
     gl_rows = _build_gl_compare_rows(entries) if len(entries) >= 2 and _track_gl() else []
-    items_str = _compare_items_str(item_list)
+    items_str = _compare_items_str(item_list, amounts)
 
     # Local matches render now; online ones fill in via /search-rows/compare
     _rows_template, search_ctx = _screen_compare(request.query_params, False)
@@ -9141,13 +9306,17 @@ async def compare_get(
         "basis":                basis,
         "compare_bases":        _COMPARE_BASES,
         "any_recipe":           any(e["kind"] == "recipe" for e in entries),
+        "amounts":              {f"{kind}:{id_}": {"value": v, "unit": u} for (kind, id_), (v, u) in amounts.items()},
+        "default_grams":        _COMPARE_DEFAULT_GRAMS,
+        "default_servings":     _COMPARE_DEFAULT_SERVINGS,
     })
 
 
 @app.get("/compare/export.csv")
 async def compare_export_csv(items: str = ""):
     item_list = _parse_compare_items(items)
-    entries = _load_compare_entries(item_list, _compare_basis()) if item_list else []
+    entries = (_load_compare_entries(item_list, _compare_basis(), _parse_compare_amounts(items))
+               if item_list else [])
     compare_groups = _build_compare_groups(entries) if len(entries) >= 2 else []
     csv_text = _csv_export.compare_to_csv(entries, compare_groups)
     filename = f"numa_compare_{datetime.date.today().isoformat()}.csv"
@@ -9166,24 +9335,29 @@ async def compare_add(
 ):
     kind = "recipe" if kind == "recipe" else "food"
     item_list = _parse_compare_items(items)
+    amounts = _parse_compare_amounts(items)
     if len(item_list) >= _MAX_COMPARE_ITEMS:
         return RedirectResponse(
-            _with_return(f"/compare?items={_compare_items_str(item_list)}"
+            _with_return(f"/compare?items={_compare_items_str(item_list, amounts)}"
                          f"&error=Maximum+{_MAX_COMPARE_ITEMS}+items+allowed", return_to),
             status_code=303,
         )
     if (kind, item_id) not in item_list:
         item_list.append((kind, item_id))
-    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list)}", return_to), status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list, amounts)}", return_to), status_code=303)
 
 
 @app.post("/compare/add-multiple", response_class=RedirectResponse)
-async def compare_add_multiple(request: Request, items: str = Form(""), return_to: str = Form("")):
+async def compare_add_multiple(request: Request, items: str = Form(""), return_to: str = Form(""),
+                               then_search: str = Form("")):
     """Bulk-add checked foods/recipes to the comparison — used both by
     Compare's own "add via search" panel and by the compare checkboxes on
     Foods search, Food Cache, My Pantry, and the Recipes list (which post
     straight here to jump into a comparison without first landing on this
-    page)."""
+    page). `then_search` is the query string of Compare's search form when
+    a new search was started with results still ticked: those are added
+    first, then that search runs — so a comparison can be gathered across
+    several searches without losing a tick."""
     form = await request.form()
     fdc_ids = form.getlist("fdc_id")
     recipe_ids = form.getlist("recipe_id")
@@ -9198,6 +9372,7 @@ async def compare_add_multiple(request: Request, items: str = Form(""), return_t
             except Exception:
                 pass
     item_list = _parse_compare_items(items)
+    amounts = _parse_compare_amounts(items)
     added = skipped = 0
     for kind, id_strs in (("food", fdc_ids), ("recipe", recipe_ids)):
         for id_str in id_strs:
@@ -9212,9 +9387,15 @@ async def compare_add_multiple(request: Request, items: str = Form(""), return_t
                 continue
             item_list.append((kind, id_))
             added += 1
-    url = f"/compare?items={_compare_items_str(item_list)}"
+    url = f"/compare?items={_compare_items_str(item_list, amounts)}"
+    search_params = [(k, v) for k, v in parse_qsl(then_search)
+                     if k in ("search", "source", "limit")]
+    if search_params:
+        url += "&" + urlencode(search_params)
     if skipped:
         url += f"&error=Added+{added}%2C+skipped+{skipped}+%E2%80%94+maximum+{_MAX_COMPARE_ITEMS}+items"
+    elif not fdc_ids and not recipe_ids and not search_params:
+        url += "&error=Nothing+was+ticked+for+comparison+%E2%80%94+tick+the+boxes+in+the+Compare+column+first"
     return RedirectResponse(_with_return(url, return_to), status_code=303)
 
 
@@ -9226,7 +9407,36 @@ async def compare_remove(
 ):
     remove_kind = "recipe" if remove_kind == "recipe" else "food"
     item_list = [it for it in _parse_compare_items(items) if it != (remove_kind, remove_id)]
-    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list)}", return_to), status_code=303)
+    amounts = _parse_compare_amounts(items)
+    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list, amounts)}", return_to), status_code=303)
+
+
+@app.post("/compare/amounts", response_class=RedirectResponse)
+async def compare_set_amounts(request: Request, items: str = Form(""), return_to: str = Form("")):
+    """Set the amount of each compared item — grams or portions of a food
+    (its unit_food_<id> choice: "g" or "p<n>"); servings or
+    grams of a recipe (its unit_recipe_<id> choice) — from its
+    amount_<kind>_<id> field, and switch the comparison to the "The amount
+    I set for each item" basis. A blank or unreadable amount falls back to
+    the default (100 g / 1 serving)."""
+    form = await request.form()
+    item_list = _parse_compare_items(items)
+    amounts = {}
+    for kind, id_ in item_list:
+        raw = (form.get(f"amount_{kind}_{id_}") or "").strip()
+        try:
+            value = float(raw.replace(",", ".")) if raw else 0.0
+        except ValueError:
+            value = 0.0
+        if value > 0:
+            chosen = form.get(f"unit_{kind}_{id_}") or ""
+            if kind == "food":
+                unit = chosen if re.fullmatch(r"p\d+", chosen) else "g"
+            else:
+                unit = "g" if chosen == "g" else "srv"
+            amounts[(kind, id_)] = (value, unit)
+    url = f"/compare?items={_compare_items_str(item_list, amounts)}&basis=amounts"
+    return RedirectResponse(_with_return(url, return_to) + "#comparison", status_code=303)
 
 
 @app.post("/compare/cache-food", response_class=RedirectResponse)
@@ -9247,13 +9457,17 @@ async def compare_save(
     items: str = Form(""),    return_to: str = Form(""),
 ):
     item_list = _parse_compare_items(items)
+    amounts = _parse_compare_amounts(items)
     if len(item_list) >= 2:
         with _db.get_db() as conn:
             _db.saved_mixed_comparison_save(
                 conn, name.strip() or "Untitled",
-                [{"kind": kind, "id": id_} for kind, id_ in item_list],
+                [{"kind": kind, "id": id_,
+                  **({"amount": amounts[(kind, id_)][0], "unit": amounts[(kind, id_)][1]}
+                     if (kind, id_) in amounts else {})}
+                 for kind, id_ in item_list],
             )
-    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list)}", return_to), status_code=303)
+    return RedirectResponse(_with_return(f"/compare?items={_compare_items_str(item_list, amounts)}", return_to), status_code=303)
 
 
 @app.get("/compare/load/{cmp_id}", response_class=RedirectResponse)
@@ -9263,7 +9477,10 @@ async def compare_load(cmp_id: int, return_to: str = ""):
     if not row:
         return RedirectResponse(_with_return("/compare", return_to), status_code=303)
     stored_items = json.loads(row["items"])
-    items_str = ",".join(f"{'r' if it['kind'] == 'recipe' else 'f'}{it['id']}" for it in stored_items)
+    items_str = ",".join(f"{'r' if it['kind'] == 'recipe' else 'f'}{it['id']}"
+                         + (_compare_amount_token(it["kind"], (it["amount"], it.get("unit", "srv")))
+                            if it.get("amount") else "")
+                         for it in stored_items)
     return RedirectResponse(_with_return(f"/compare?items={items_str}", return_to), status_code=303)
 
 
@@ -10160,12 +10377,12 @@ async def recipe_ingredient_add(
                                    notes.strip() or None)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
         check = _added_food_check(conn, fdc_id)
-    # Successful add: explicit empty q= (not simply omitted) tells the
-    # persist-search JS in base.html to forget the saved query instead of
-    # restoring it from sessionStorage — otherwise the search panel would
-    # reappear right after the add.
-    return RedirectResponse(f"/recipe/{recipe_id}/edit?q=" + (f"&added_check={check}" if check else ""),
-                            status_code=303)
+    # The search stays (q kept, explicitly even when empty so the
+    # persist-search JS in base.html doesn't restore an older one), so
+    # several results can be added one after another.
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?" + urlencode({"q": q, "added": name,
+                            "added_amount": _added_amount(grams, msg),
+                            **({"added_check": check} if check else {})}), status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add-recipe", response_class=RedirectResponse)
@@ -10214,9 +10431,11 @@ async def recipe_ingredient_add_recipe(
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
                                    notes.strip() or None, ref_recipe_id=ref_recipe_id)
+        sub_serving_g = recipe_serving_grams(ref_recipe_id, conn)
+        amount_shown = unit + (f" ({servings * sub_serving_g:.4g} g)" if sub_serving_g else "")
         _db.recipe_auto_weight(conn, recipe_id)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
-    return RedirectResponse(f"/recipe/{recipe_id}/edit?q=", status_code=303)
+    return RedirectResponse(f"/recipe/{recipe_id}/edit?" + urlencode({"q": q, "added": name, "added_amount": amount_shown}), status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/remove", response_class=RedirectResponse)
@@ -10334,6 +10553,68 @@ async def summary_trend(request: Request, days: int = Query(7)):
 
     with _db.get_db() as conn:
         meals = _db.meal_list_by_date_range(conn, start.isoformat(), end.isoformat())
+    ctx = _multi_day_context(meals, start.isoformat(), end.isoformat())
+    ctx.update({"days": days, "mode": "trend"})
+    return templates.TemplateResponse(request, "trend.html", ctx)
+
+
+@app.get("/summary/range", response_class=HTMLResponse)
+async def summary_range(request: Request, start: str = Query(""), end: str = Query(""),
+                        meal_ids: str = Query("")):
+    """Full nutrient summation — totals plus the per-day average — for any
+    date range, or for a hand-picked set of meals by ID ("N-M" ranges
+    allowed). Meal IDs win when both are given."""
+    ids = _parse_id_list_tokens(meal_ids) if meal_ids.strip() else []
+    error = None
+    meals: list = []
+    s_iso = e_iso = None
+    if ids:
+        with _db.get_db() as conn:
+            meals = _db.meal_list_by_ids(conn, list(dict.fromkeys(ids)))
+        found = {m["id"] for m in meals}
+        missing_ids = [i for i in dict.fromkeys(ids) if i not in found]
+        if missing_ids:
+            error = "No meal with ID " + ", ".join(str(i) for i in missing_ids) + " — left out."
+        if meals:
+            s_iso, e_iso = meals[0]["meal_date"], meals[-1]["meal_date"]
+    elif start.strip() or end.strip():
+        s_iso, e_iso = _iso_date(start), _iso_date(end or start)
+        if not s_iso or not e_iso:
+            error = "Dates must be real dates, written YYYY-MM-DD."
+            s_iso = e_iso = None
+        else:
+            if s_iso > e_iso:
+                s_iso, e_iso = e_iso, s_iso
+            with _db.get_db() as conn:
+                meals = _db.meal_list_by_date_range(conn, s_iso, e_iso)
+
+    ctx = _multi_day_context(meals, s_iso or "", e_iso or "", by_meals=bool(ids)) if s_iso else {
+        "num_days": 0, "start": "", "end": ""}
+    span_days = ((datetime.date.fromisoformat(e_iso) - datetime.date.fromisoformat(s_iso)).days + 1
+                 if s_iso else 0)
+    ctx.update({
+        "mode":       "range",
+        "by_meals":   bool(ids),
+        "chosen":     bool(s_iso),
+        "form_start": s_iso if not ids and s_iso else start,
+        "form_end":   e_iso if not ids and e_iso else end,
+        "form_meal_ids": meal_ids,
+        "span_days":  span_days,
+        "error":      error,
+        "meal_rows":  [{"id": m["id"], "name": m["name"], "meal_date": m["meal_date"]} for m in meals]
+                      if ids else [],
+    })
+    return templates.TemplateResponse(request, "trend.html", ctx)
+
+
+def _multi_day_context(meals, start: str, end: str, by_meals: bool = False) -> dict:
+    """Template context shared by the nutrient-averages (trend) and range-
+    summation pages: per-nutrient totals and per-logged-day averages for
+    `meals`, scored against the profile pinned to `end`, with DCP and GL.
+
+    by_meals: the meals are a hand-picked subset, so a date's GL is the GL
+    of the chosen meals on it, not of everything logged that day."""
+    with _db.get_db() as conn:
         daily_totals: dict[str, dict[str, float]] = {}
         day_dcp: dict[str, float] = {}
         for meal in meals:
@@ -10346,14 +10627,29 @@ async def summary_trend(request: Request, days: int = Query(7)):
                 day_dcp[meal["meal_date"]] = day_dcp.get(meal["meal_date"], 0.0) + meal["bcp_g"]
 
     avg_nutrients, num_days = average_from_daily_totals(daily_totals)
+    total_nutrients: dict[str, float] = {}
+    for day in daily_totals.values():
+        for key, val in day.items():
+            total_nutrients[key] = total_nutrients.get(key, 0.0) + val
 
     # Average daily GL across the window. Weekly averages are the figure worth
     # acting on -- any single day's GL swings with what happened to be eaten --
     # but a day with incomplete GI coverage has no GL at all, so the count of
     # days that actually contributed is disclosed rather than hidden inside
     # the average.
+    if by_meals:
+        per_date: dict[str, list] = {}
+        for m in meals:
+            if m["meal_date"] in daily_totals:
+                per_date.setdefault(m["meal_date"], []).append(_compute_gl(m["id"]))
+        gl_by_date = {}
+        for d, results in per_date.items():
+            g = combine_gl(results)
+            gl_by_date[d] = g["total"] if g["complete"] and g["total"] is not None else None
+    else:
+        with _db.get_db() as conn:
+            gl_by_date = day_gl_totals(conn, sorted(daily_totals))
     with _db.get_db() as conn:
-        gl_by_date = day_gl_totals(conn, sorted(daily_totals))
         # Days over the daily GL target pinned to each day (a target can
         # change, and is pinned per day like the rest of the profile).
         gl_targets = {}
@@ -10370,8 +10666,8 @@ async def summary_trend(request: Request, days: int = Query(7)):
     # different profile at the time, disclose it rather than silently
     # blending profiles into one average.
     with _db.get_db() as conn:
-        end_profile_obj = _day_profile.get_profile_for_date(conn, end.isoformat())
-        end_profile_row = _db.day_profile_get(conn, end.isoformat())
+        end_profile_obj = _day_profile.get_profile_for_date(conn, end) if end else None
+        end_profile_row = _db.day_profile_get(conn, end) if end else None
         differing_dates = sorted(
             d for d in daily_totals
             if (_db.day_profile_get(conn, d) or {"profile_name": None})["profile_name"]
@@ -10387,15 +10683,21 @@ async def summary_trend(request: Request, days: int = Query(7)):
     protein_target = rda["protein_g"][0] if rda and rda.get("protein_g") and rda["protein_g"][0] > 0 else None
     avg_dcp = round(sum(day_dcp.values()) / len(day_dcp), 1) if day_dcp else None
     avg_dcp_pct = round(avg_dcp / protein_target * 100, 0) if avg_dcp is not None and protein_target else None
+    total_dcp = round(sum(day_dcp.values()), 1) if day_dcp else None
 
-    return templates.TemplateResponse(request, "trend.html", {
-        "days":              days,
-        "start":             start.isoformat(),
-        "end":               end.isoformat(),
+    totals_display = {k: _display_amount(v) for k, v in total_nutrients.items()}
+    if total_dcp is not None:
+        totals_display["dcp"] = total_dcp
+
+    return {
+        "start":             start,
+        "end":               end,
         "num_days":          num_days,
+        "num_meals":         len(meals),
         "nutrient_sections": _nutrient_sections(avg_nutrients, rda, avg_nutrients,
                                                 optimal=optimal, max_limits=max_limits,
                                                 dcp_g=avg_dcp) if num_days else [],
+        "totals_display":    totals_display,
         "dcp_missing_names": [],
         "has_profile":       rda is not None,
         "has_optimal":       bool(optimal),
@@ -10406,6 +10708,7 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "avg_dcp":           avg_dcp,
         "avg_dcp_pct":       avg_dcp_pct,
         "avg_dcp_days":      len(day_dcp),
+        "total_dcp":         total_dcp,
         "protein_target":    protein_target,
         "avg_gl":            avg_gl,
         "avg_gl_days":       avg_gl_days,
@@ -10413,6 +10716,86 @@ async def summary_trend(request: Request, days: int = Query(7)):
         "gl_unknown_dates":  gl_unknown_dates,
         "gl_days_over":      gl_days_over,
         "gl_target_days":    len(gl_targets),
+    }
+
+
+BLOCK_SIZE_MAX = 366
+BLOCK_COUNT_MAX = 104
+
+
+@app.get("/summary/blocks", response_class=HTMLResponse)
+async def summary_blocks(request: Request, size: int = Query(7), count: int = Query(8),
+                         end: str = Query("")):
+    """Daily Summary in blocks of N days: one row per block, most recent
+    first, each nutrient averaged over the block's logged days (days with no
+    meals are left out, not counted as zero — same rule as the trend view).
+    Built from each meal's stored nutrient snapshot, like Recent Days, so a
+    long run of blocks stays fast; each block links to its full summation."""
+    from numa_app.services.meal_list_columns import (
+        saved_or_default as _saved_or_default_meal_nutrients, label_for as _meal_label_for,
+        day_nutrient_raw_totals, format_value, MANDATORY_DAY_COLUMNS, MANDATORY_DAY_KEYS,
+    )
+    size = min(max(size, 1), BLOCK_SIZE_MAX)
+    count = min(max(count, 1), BLOCK_COUNT_MAX)
+    end_iso = _iso_date(end) if end.strip() else None
+    end_d = datetime.date.fromisoformat(end_iso) if end_iso else datetime.date.today()
+
+    nutrient_keys = [k for k in _saved_or_default_meal_nutrients(_load_prefs_file())
+                     if k not in MANDATORY_DAY_KEYS]
+    all_keys = MANDATORY_DAY_KEYS + nutrient_keys
+    show_gl = _track_gl() and not _gi_opt_out()
+    diet_pref = _current_diet_pref()
+
+    blocks = []
+    with _db.get_db() as conn:
+        bcp_by_date = {r["meal_date"]: r["day_bcp"]
+                       for r in _db.meal_dates_with_bcp(conn, limit=1_000_000)}
+        for i in range(count):
+            b_end = end_d - datetime.timedelta(days=i * size)
+            b_start = b_end - datetime.timedelta(days=size - 1)
+            s_iso, e_iso = b_start.isoformat(), b_end.isoformat()
+            dates = sorted(d for d in bcp_by_date if s_iso <= d <= e_iso)
+            n = len(dates)
+            sums: dict[str, float] = {}
+            for d in dates:
+                for k, v in day_nutrient_raw_totals(conn, d, all_keys).items():
+                    sums[k] = sums.get(k, 0.0) + v
+            dcp_vals = [bcp_by_date[d] for d in dates if bcp_by_date[d] is not None]
+            avg_dcp = round(sum(dcp_vals) / len(dcp_vals), 1) if dcp_vals else None
+            # % of goal against the profile pinned to the block's last
+            # logged day (or its end date when nothing was logged).
+            p = _day_profile.get_profile_for_date(conn, dates[-1] if dates else e_iso)
+            rda = _profile.compute_rda(p, diet_pref=diet_pref) if p else None
+            pct_goal = {}
+            for k in all_keys:
+                if rda and k in rda and k in sums and n:
+                    r_val = rda[k][0]
+                    if r_val and r_val > 0:
+                        pct_goal[k] = round(sums[k] / n / r_val * 100)
+            goal = rda.get("protein_g", (None,))[0] if rda else None
+            avg_gl = gl_days = None
+            if show_gl and dates:
+                avg_gl, gl_days = average_day_gl(day_gl_totals(conn, dates))
+            blocks.append({
+                "start":    s_iso,
+                "end":      e_iso,
+                "days":     n,
+                "values":   {k: (format_value(k, sums[k] / n) if k in sums and n else None) for k in all_keys},
+                "pct_goal": pct_goal,
+                "avg_dcp":  avg_dcp,
+                "dcp_pct":  round(avg_dcp / goal * 100) if avg_dcp is not None and goal else None,
+                "avg_gl":   avg_gl,
+                "gl_days":  gl_days,
+            })
+
+    return templates.TemplateResponse(request, "summary_blocks.html", {
+        "size":   size,
+        "count":  count,
+        "end":    end_d.isoformat(),
+        "blocks": blocks,
+        "cols":   [{"key": k, "label": lbl, "title": tip} for k, lbl, tip in MANDATORY_DAY_COLUMNS]
+                  + [{"key": k, "label": _meal_label_for(k), "title": None} for k in nutrient_keys],
+        "show_gl": show_gl,
     })
 
 
@@ -11624,8 +12007,9 @@ async def analysis_food_use_replacement_search(q: str = Query(default="")):
     words = q.lower().split()
     with _db.get_db() as conn:
         foods = _db.search_cached_foods(conn, q)
+        code = _typed_code(q)
         recipes = [r for r in _db.recipe_list(conn)
-                   if all(w in r["name"].lower() for w in words)]
+                   if (code == ("recipe", r["id"]) if code else all(w in r["name"].lower() for w in words))]
     results = [{"code": _food_code(f["fdc_id"]), "name": f["name"], "kind": "food",
                 "detail": f["brand"] or ""} for f in foods]
     results += [{"code": _food_code(None, r["id"]), "name": r["name"], "kind": "recipe",
@@ -11725,6 +12109,9 @@ async def analysis_food_use_substitute(
                 else:
                     _db.meal_add_recipe(conn, meal_id, item_id, row["name"], srv,
                                         unit=f"{srv:g} serving" + ("s" if srv != 1 else ""))
+                # Its stored DCP/nutrient snapshot (Recent Days, trends) is
+                # recomputed before the next page loads.
+                _db.mark_meal_stale(conn, meal_id)
         return _back(added=len(meals_by_id))
 
     try:
@@ -12255,7 +12642,11 @@ async def analysis_food_use_recipes(
         rows_all = [r for r in rows_all if r["has_protein"]]
     name_filter = name_filter.strip()
     rows_before_name = len(rows_all)
-    if name_filter:
+    name_code = _typed_code(name_filter)
+    if name_code:
+        rows_all = [r for r in rows_all
+                    if name_code == (("recipe", r["recipe_id"]) if r["recipe_id"] else ("food", r["fdc_id"]))]
+    elif name_filter:
         words = name_filter.lower().split()
         rows_all = [r for r in rows_all if all(w in (r["name"] or "").lower() for w in words)]
 

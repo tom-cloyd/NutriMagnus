@@ -397,7 +397,7 @@
                  value="{{ row.limit if row.limit is not none else '' }}">
         </td>
         <td>
-          <form id="nt-form-{{ row.key }}" method="post" action="/settings/nutrient-target" style="margin:0">
+          <form id="nt-form-{{ row.key }}" data-dirty-outside method="post" action="/settings/nutrient-target" style="margin:0">
             <input type="hidden" name="key" value="{{ row.key }}">
             {% if row.optimal is not none or row.limit is not none %}
             <button type="submit" class="btn btn-outline-primary btn-sm text-danger js-nt-saved">Saved</button>

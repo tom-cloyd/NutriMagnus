@@ -141,3 +141,38 @@ def test_supplement_mode_save_marks_it_a_supplement(client):
                 data={"name": "D3 test", "serving_size": "1", "serving_unit": "softgel", "vitamin_d_mcg": "25"})
     with _db.get_db() as conn:
         assert -998003 in _db.supplement_ids(conn)
+
+
+def test_meal_pages_show_a_supplement_as_tablets_not_grams(client):
+    """A supplement's internal 100 g per tablet is not a weight: meal, day
+    and summary pages read "2 tablets" / "0.5 tablet", even for an old line
+    whose saved label is "200 g", and the Edit box offers the count."""
+    with _db.get_db() as conn:
+        _b12(conn)
+        mid = _db.meal_create(conn, "Lunch", DAY)
+        _db.meal_add_food(conn, mid, B12_ID, "B12 tablet test", 200.0, "200 g")
+    page = client.get(f"/meal/{mid}").text
+    assert "2 tablets" in page and "200.0&thinsp;g" not in page
+    assert 'name="amount" value="2 tablets"' in page
+    for url in (f"/meal/{mid}/day", f"/summary/{DAY}"):
+        assert "2 tablets" in client.get(url).text, url
+    with _db.get_db() as conn:
+        item = _db.meal_get_items(conn, mid)[0]
+    client.post(f"/meal/{mid}/update/{item['id']}", data={"amount": "1/2"}, follow_redirects=False)
+    with _db.get_db() as conn:
+        assert _db.meal_get_items(conn, mid)[0]["amount"] == 50.0
+    page = client.get(f"/meal/{mid}").text
+    assert "0.5 tablet" in page and "0.5 tablets" not in page
+
+
+def test_recipe_pages_link_custom_foods_and_supplements(client):
+    """An ingredient with a negative ID (custom food, supplement) links to
+    its own page on the recipe page and Edit Recipe, like a USDA food."""
+    with _db.get_db() as conn:
+        _b12(conn)
+        rid = _db.recipe_create(conn, "Supplements daily test", "", 1, "")
+        _db.recipe_add_ingredient(conn, rid, B12_ID, "B12 tablet test", 100.0, "1 tablet")
+    for url in (f"/recipe/{rid}", f"/recipe/{rid}/edit"):
+        page = client.get(url).text
+        assert f'<a href="/food/{B12_ID}' in page, url
+    assert client.get(f"/food/{B12_ID}").status_code == 200

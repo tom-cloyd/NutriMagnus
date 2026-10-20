@@ -4,34 +4,80 @@
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
-{% block title %}NutriMagnus — Nutrient averages across {{ days }} days{% endblock %}
+{% if mode == "range" %}{% set page_title = "Nutrient totals for chosen meals" if by_meals else "Nutrient totals for a date range" %}{% else %}{% set page_title = "Nutrient averages across " ~ days ~ " days" %}{% endif %}
+{% block title %}NutriMagnus — {{ page_title }}{% endblock %}
 {% block layout_class %}container{% endblock %}
 
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Nutrient averages across {{ days }} days</li>
+    <li class="breadcrumb-item active" aria-current="page">{{ page_title }}</li>
   </ol>
 </nav>
 
-<h2>Nutrient averages across {{ days }} days {{ manual_link("goals") }}</h2>
+<h2>{{ page_title }} {{ manual_link("goals") }}</h2>
+{% if mode == "range" %}
+<p class="muted">
+  Everything eaten across a date range, or across meals you pick by ID, added up &mdash; with the
+  average per logged day beside it, compared with your daily targets.
+</p>
+{% else %}
 <p class="muted">
   Average daily nutrient intake across the days you actually logged meals in the window below —
   a single day's summary can't show a chronic shortfall (e.g. low B12 or iron) the way an average across
   several days can.
 </p>
+{% endif %}
 
 <div class="d-flex flex-wrap gap-2 mb-3">
-  <a href="/summary/trend?days=7"  class="btn btn-sm {{ 'btn-primary' if days == 7  else 'btn-outline-primary' }}">Last 7 days</a>
-  <a href="/summary/trend?days=14" class="btn btn-sm {{ 'btn-primary' if days == 14 else 'btn-outline-primary' }}">Last 14 days</a>
-  <a href="/summary/trend?days=30" class="btn btn-sm {{ 'btn-primary' if days == 30 else 'btn-outline-primary' }}">Last 30 days</a>
+  <a href="/summary/trend?days=7"  class="btn btn-sm {{ 'btn-primary' if mode != 'range' and days == 7  else 'btn-outline-primary' }}">Last 7 days</a>
+  <a href="/summary/trend?days=14" class="btn btn-sm {{ 'btn-primary' if mode != 'range' and days == 14 else 'btn-outline-primary' }}">Last 14 days</a>
+  <a href="/summary/trend?days=30" class="btn btn-sm {{ 'btn-primary' if mode != 'range' and days == 30 else 'btn-outline-primary' }}">Last 30 days</a>
+  <a href="/summary/blocks" class="btn btn-sm btn-outline-secondary">Blocks of days</a>
 </div>
 
-{% if num_days == 0 %}
+<div class="d-flex flex-wrap gap-4 align-items-end mb-3">
+  <form method="get" action="/summary/range" class="d-flex flex-wrap gap-2 align-items-end">
+    <div>
+      <label class="form-label mb-0" for="range-start"><small>From</small></label>
+      <input type="date" class="form-control form-control-sm" id="range-start" name="start"
+             value="{{ form_start if mode == 'range' and not by_meals else start }}" required>
+    </div>
+    <div>
+      <label class="form-label mb-0" for="range-end"><small>To</small></label>
+      <input type="date" class="form-control form-control-sm" id="range-end" name="end"
+             value="{{ form_end if mode == 'range' and not by_meals else end }}" required>
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary">Add up this date range</button>
+  </form>
+  <form method="get" action="/summary/range" class="d-flex flex-wrap gap-2 align-items-end">
+    <div>
+      <label class="form-label mb-0" for="range-meal-ids"><small>Meal IDs (e.g. 12, 15, 20-24)</small></label>
+      <input type="text" class="form-control form-control-sm" id="range-meal-ids" name="meal_ids"
+             value="{{ form_meal_ids if mode == 'range' else '' }}" required>
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary">Add up these meals</button>
+  </form>
+</div>
+
+{% if mode == "range" and error %}<p class="rda-over">{{ error }}</p>{% endif %}
+
+{% if mode == "range" and not chosen %}
+<p class="muted">Choose a date range or a list of meal IDs above.</p>
+{% elif num_days == 0 %}
 <p class="muted">No meals logged between {{ start }} and {{ end }}.</p>
 {% else %}
+{% if mode == "range" and by_meals %}
+<p class="muted"><small>{{ num_meals }} meal(s) on {{ num_days }} day(s), {{ start }} to {{ end }}. The per-day average covers only these meals, not everything else eaten on those days.</small></p>
+<details class="mb-2"><summary><small>Meals included</small></summary>
+<ul class="mb-0">{% for m in meal_rows %}<li><small>{{ m.meal_date }} &mdash; <a href="/meal/{{ m.id }}">{{ m.name }}</a> <span class="muted">(ID {{ m.id }})</span></small></li>{% endfor %}</ul>
+</details>
+{% elif mode == "range" %}
+<p class="muted"><small>{{ num_meals }} meal(s) on {{ num_days }} logged day(s) out of {{ span_days }} calendar day(s) ({{ start }} to {{ end }}). The per-day average is over the logged days only.</small></p>
+{% else %}
 <p class="muted"><small>Averaging over {{ num_days }} logged day(s) out of the last {{ days }} calendar day(s) ({{ start }} to {{ end }}).</small></p>
+{% endif %}
 
 {% if differing_profile_dates %}
 <p class="rda-no-profile">
@@ -64,6 +110,7 @@
     <div class="ps-value">{{ avg_dcp }}&thinsp;g
       {% if avg_dcp_pct is not none %}<small class="muted">— {{ avg_dcp_pct|int }}% of daily target ({{ protein_target }}&thinsp;g)</small>{% endif %}
     </div>
+    {% if mode == "range" and total_dcp is not none %}<div class="ps-label mt-1">Total DCP: {{ total_dcp }}&thinsp;g</div>{% endif %}
   </div>
 </div>
 {% elif has_profile %}
@@ -86,7 +133,7 @@
 {% if gl_unknown_dates %}
 <p class="muted"><small>No GL for {{ gl_unknown_dates | length }} day(s) in this window ({{ gl_unknown_dates | join(", ") }}) &mdash; something logged on each lacks a GI annotation, or is a recipe with no computed GL yet. <a href="/food/annotate">Annotate a food</a> to close the gap.</small></p>
 {% endif %}
-<p class="muted"><small><a href="/summary/nutrient-plot?nutrients=gl&amp;days_back={{ days }}">Plot daily GL across this window &rarr;</a></small></p>
+{% if mode != "range" %}<p class="muted"><small><a href="/summary/nutrient-plot?nutrients=gl&amp;days_back={{ days }}">Plot daily GL across this window &rarr;</a></small></p>{% endif %}
 {% elif gl_unknown_dates %}
 <p class="muted"><small>No day in this window has a computable glycemic load &mdash; every logged day has at least one food with no GI annotation, or a recipe with no computed GL. <a href="/food/annotate">Annotate a food</a> to start building the trend.</small></p>
 {% endif %}
@@ -99,7 +146,8 @@
   <thead>
     <tr>
       <th>Nutrient</th>
-      <th class="num-col">{{ num_days }}-Day Avg</th>
+      {% if mode == "range" %}<th class="num-col">Total</th>{% endif %}
+      <th class="num-col">{% if mode == "range" %}Per-day avg ({{ num_days }} day{{ 's' if num_days != 1 }}){% else %}{{ num_days }}-Day Avg{% endif %}</th>
       <th>Unit</th>
       {% if has_profile %}{{ _rdagoal.header('Minimum') }}{% endif %}
         {% if has_profile %}{{ _rdagoal.header('Target') }}{% endif %}
@@ -113,6 +161,7 @@
     {% for row in section.rows %}
     <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
       <td>{{ row.label }}</td>
+      {% if mode == "range" %}<td class="num-col">{% if totals_display[row.key] is defined %}{{ totals_display[row.key] }}{% else %}<span class="muted">no data</span>{% endif %}</td>{% endif %}
       <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
       <td class="muted">{{ row.unit }}</td>
       {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}

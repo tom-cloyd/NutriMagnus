@@ -252,6 +252,48 @@ class TestFoodRenamePropagates:
         assert n == 0
         assert "PURE OKARA FLOUR" in ings
 
+    def test_recache_with_a_new_name_updates_every_copy(self):
+        """A Refresh, import or starter update goes through cache_food(); a
+        new name there reaches the copies too (it once didn't, leaving
+        pantry lines on the old name)."""
+        with _db.get_db() as conn:
+            rid, mid = self._setup(conn)
+            _db.cache_food(conn, SAMPLE_FDC_ID, "* Okara Flour, pure", "SR Legacy",
+                           None, 100.0, "g", SAMPLE_NUTRIENTS)
+            ings = {r["fdc_id"]: r["food_name"] for r in _db.recipe_get_ingredients(conn, rid)}
+            meal = [r["food_name"] for r in _db.meal_get_items(conn, mid)]
+            pantry = [r["food_name"] for r in conn.execute("SELECT food_name FROM pantry")]
+        assert ings == {SAMPLE_FDC_ID: "Okara Flour, pure", 42: "Other Food"}
+        assert meal == ["Okara Flour, pure"]  # no mark of its own, none added
+        assert pantry == ["* Okara Flour, pure"]
+
+    def test_sync_repairs_stale_copies_keeping_each_mark(self):
+        import diaas as _diaas
+        with _db.get_db() as conn:
+            rid, mid = self._setup(conn)  # ingredient + pantry copies already stale
+            conn.execute("UPDATE meal_items SET food_name = 'OKARA' WHERE meal_id = ?", (mid,))
+            _diaas.diaas_override_set(conn, "OKARA", 0.8)
+            changed = _db.sync_food_name_copies(conn)
+            ings = {r["fdc_id"]: r["food_name"] for r in _db.recipe_get_ingredients(conn, rid)}
+            pantry = [r["food_name"] for r in conn.execute("SELECT food_name FROM pantry")]
+            meal = [r["food_name"] for r in _db.meal_get_items(conn, mid)]
+            assert _diaas.get_digestibility("Pure Okara Flour (dried)", conn) == (0.8, "user override")
+            assert _db.sync_food_name_copies(conn) == []  # nothing left to repair
+        assert changed == [SAMPLE_FDC_ID]
+        # A recipe line's name may be hand-edited, so the repair leaves it.
+        assert ings == {SAMPLE_FDC_ID: "PURE OKARA FLOUR", 42: "Other Food"}
+        assert pantry == ["* Pure Okara Flour (dried)"]
+        assert meal == ["Pure Okara Flour (dried)"]
+
+    def test_sync_leaves_a_mark_only_difference_alone(self):
+        """The "* " marker is each copy's own (starter export reads it per
+        table), so a pantry line without it under a marked food is fine."""
+        with _db.get_db() as conn:
+            _db.cache_food(conn, SAMPLE_FDC_ID, "* Yeast Flakes", "Branded", None, 100.0, "g", SAMPLE_NUTRIENTS)
+            _db.pantry_add(conn, "Yeast Flakes", SAMPLE_FDC_ID)
+            assert _db.sync_food_name_copies(conn) == []
+            assert [r["food_name"] for r in conn.execute("SELECT food_name FROM pantry")] == ["Yeast Flakes"]
+
 
 class TestRecipes:
     def test_create_recipe(self):

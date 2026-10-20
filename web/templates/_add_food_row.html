@@ -51,6 +51,7 @@
           <form method="post" action="/meal/{{ meal_id }}/add-recipe" class="add-food-form">
             <input type="hidden" name="recipe_id" value="{{ rid }}">
             <input type="hidden" name="recipe_name" value="{{ food.name }}">
+            <input type="hidden" name="q" value="{{ q }}">
 
             {# ── What to add ── #}
             <div class="d-flex flex-wrap gap-3 align-items-center mb-2">

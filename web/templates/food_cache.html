@@ -19,7 +19,7 @@
     <p class="muted mb-1"><small><strong>Filter this list</strong> narrows the foods already in your cache. <strong>Search online</strong> looks for these words in USDA, Open Food Facts and the other sources, on Foods&nbsp;→&nbsp;Search.</small></p>
     <div class="input-group" style="max-width:40rem">
       <input type="text" class="form-control" name="q" value="{{ q or '' }}"
-             placeholder="Food name…" autofocus>
+             placeholder="Food name or code (U171477)…" title="Type part of a name, or an exact code such as U171477, UD4 to find just that one" autofocus>
       <button type="submit" class="btn btn-outline-secondary">Filter this list</button>
       <button type="button" class="btn btn-outline-primary"
               title="Opens Foods → Search with these words, to look in USDA, Open Food Facts and the other sources"
@@ -68,41 +68,7 @@
 <div class="alert alert-danger">{{ refresh_error }}</div>
 {% endif %}
 {% if delete_blocked %}
-<div class="alert alert-danger">
-  Deletion not possible. Food used in these places:
-  <strong>
-    {% if blocked_pantry %}
-    pantry: {% for pid in blocked_pantry %}<a href="/pantry">{{ pid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
-    {% if blocked_recipes or blocked_meals %} | {% endif %}
-    {% endif %}
-    {% if blocked_recipes %}
-    recipe: {% for rid in blocked_recipes %}<a href="/recipe/{{ rid }}/edit">{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
-    {% if blocked_meals %} | {% endif %}
-    {% endif %}
-    {% if blocked_meals %}
-    meal: {% for mid in blocked_meals %}<a href="/meal/{{ mid }}">{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
-    {% endif %}
-  </strong>
-  <br>
-  <small class="muted">
-    Use Archive instead (button above), or clear each place first, then come back and delete — either
-    remove this food from each place, or replace it there with a different food:
-    <ul class="mb-0">
-      {% if blocked_pantry %}
-      <li>Pantry — <strong>remove:</strong> open <a href="/pantry">Pantry</a> and click that entry's "Remove" button.
-      <strong>Replace:</strong> remove it, then use Pantry's "Add" to add a different food instead.</li>
-      {% endif %}
-      {% if blocked_recipes %}
-      <li>Recipe — <strong>remove:</strong> open the recipe's edit page (link above) and click the &#x2715; next to the ingredient line using this food.
-      <strong>Replace:</strong> <a href="/analysis/food-use-recipes?mode=ids&amp;recipe_ids={{ blocked_recipes|join(',') }}&amp;sub_kind=food&amp;sub_id={{ blocked_fdc_id }}">swap it for a different food in all {{ blocked_recipes|length }} recipe{{ 's' if blocked_recipes|length != 1 }} at once</a>.</li>
-      {% endif %}
-      {% if blocked_meals %}
-      <li>Meal — <strong>remove:</strong> open the meal (link above) and click the &#x2715; next to the food item line using this food.
-      <strong>Replace:</strong> <a href="/analysis/food-use?mode=ids&amp;meal_ids={{ blocked_meals|join(',') }}&amp;sub_kind=food&amp;sub_id={{ blocked_fdc_id }}">swap it for a different food in all {{ blocked_meals|length }} meal{{ 's' if blocked_meals|length != 1 }} at once</a>.</li>
-      {% endif %}
-    </ul>
-  </small>
-</div>
+{% include "_food_delete_blocked.html" %}
 {% endif %}
 
 {% if q %}

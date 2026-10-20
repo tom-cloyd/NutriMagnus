@@ -28,7 +28,7 @@
 <form method="get" action="/food/annotate" class="mb-3">
   <div class="input-group" style="max-width:36rem">
     <input type="text" class="form-control" name="q" value="{{ q or '' }}"
-           placeholder="Filter by food name…" autofocus>
+           placeholder="Filter by food name or code (U171477)…" title="Type part of a name, or an exact code such as U171477 or UD4 to find just that one" autofocus>
     <button type="submit" class="btn btn-outline-secondary">Filter</button>
     {% if q %}
     <a href="/food/annotate" class="btn btn-outline-secondary">Clear</a>
@@ -75,6 +75,11 @@
 
 {% else %}
 {# ── Edit view ── #}
+{# Always opens at the top, so a food with nothing on file reads from the
+   start: no remembered scroll offset (base.html honours this marker), and
+   no [autofocus] down at the Skip / Back button, which the browser scrolled
+   to. The script at the foot of the page sets focus without scrolling. #}
+<span hidden data-no-scroll-restore></span>
 <h2>Annotate: {{ food_name }}</h2>
 {{ _failsafe.note("the GI / DIAAS estimates", "annotate-failsafe-note") }}
 
@@ -95,9 +100,20 @@
 {% if settled %}
 <p class="muted mb-1"><strong>{{ settled | join(' and ') }} {{ 'is' if settled | length == 1 else 'are' }} already settled for this food</strong> — NuMa is not asking about {{ 'that one' if settled | length == 1 else 'those' }} again. Only {{ missing | join(' and ') }} below {{ 'is' if missing | length == 1 else 'are' }} still open.</p>
 {% endif %}
+{% set diaas_jump = annotation and annotation.gi_estimate is not none and 'DIAAS' in missing %}
+{% if diaas_jump %}
+<p class="mb-2"><a href="#diaas_estimate" id="diaas-jump" class="btn btn-sm btn-warning">DIAAS needed, click to go there</a></p>
+{% endif %}
 <p class="muted">No {{ missing | join(' or ') }} estimate on file for this food yet. Add {{ 'one' if missing | length == 1 else 'them' }} now, skip for this time only (you'll be asked again next time), or skip forever (add {{ 'it' if missing | length == 1 else 'them' }} later via Annotate a Food if you change your mind). Once a value is saved you won't be asked for it again — edit it from the GI/DIAAS columns on the add-food list, or from Annotate a Food.</p>
 {% endif %}
 
+{# Outside the annotate form (forms can't nest); the "give me a prompt"
+   link under the GI lookup submits it via form="gi-claude-form". Opens the
+   Fetch-from-Claude page in GI-only mode, in a new tab so this page stays. #}
+<form method="post" action="/food/cache/claude-fetch" id="gi-claude-form" target="_blank">
+  <input type="hidden" name="fdc_id" value="{{ fdc_id }}">
+  <input type="hidden" name="gi_only" value="1">
+</form>
 <div class="d-flex flex-wrap align-items-start gap-4">
 <div class="card" style="max-width:36rem">
   <div class="card-body">
@@ -215,11 +231,16 @@
                 {% if not gi_table or gi_table.edition != 2021 %}<li><strong>Build the 2021 table</strong> &mdash; it has over 4,000 foods, against about 2,500 in the 2008 one. <a href="/settings#gi-table">How, in Settings</a></li>{% endif %}
                 <li><strong>Use a similar food&rsquo;s value</strong> &mdash; the same kind of food, prepared the same way (boiled potato for boiled potato, not for chips).</li>
                 <li><strong>Look it up on glycemicindex.com</strong> (the University of Sydney&rsquo;s online GI database), then type the number into the GI box above.</li>
-                <li><strong>Still nothing?</strong> Leave the GI blank. Meals with this food will then show their glycemic load as incomplete. For a food with little carbohydrate (meat, eggs, oil, most leafy vegetables) a GI hardly matters: tick <em>Don&rsquo;t prompt me for a GI estimate for this food again</em> below.</li>
+                <li><strong>Still nothing?</strong> For a food with real carbohydrate, leave the GI blank: meals with this food will then show their glycemic load as incomplete, which is honest. For a food with very little carbohydrate (seeds, nuts), save a low estimate taken from similar tested foods, and say under <em>Where this GI value came from</em> that it is an estimate &mdash; the glycemic load stays near zero whatever the value, and is then complete. {{ manual_link("gi-low-carb", "How") }} (Meat, eggs and oil need no GI at all: under 1&nbsp;g of carbohydrate counts as zero.)</li>
               </ul>
             </template>
           </div>
         </details>
+        <p class="muted mt-1 mb-0" style="font-size:0.85rem">If nothing suitable appears here,
+          <button type="submit" form="gi-claude-form" class="btn btn-link p-0 align-baseline"
+                  style="font-size:inherit"
+                  title="Opens, in a new tab, a ready-made prompt asking Claude AI to research this food's glycemic index, to copy into claude.ai">give me a prompt asking Claude AI</button>
+          to research the matter for me.</p>
       </div>
 
       {% if gi_opt_out %}
@@ -228,8 +249,8 @@
       {% endif %}
 
       <div class="mb-3">
-        <label for="diaas_estimate" class="form-label">DIAAS estimate <span class="muted">(0–2.0, optional)</span>
-          {% if next and missing %}{% if 'DIAAS' in missing %}<span class="badge text-bg-warning ms-1">Asking for this one</span>{% else %}<span class="badge text-bg-secondary ms-1">Settled — not being asked about</span>{% endif %}{% endif %}
+        <label for="diaas_estimate" class="form-label" id="diaas-label">DIAAS estimate <span class="muted">(0–2.0, optional)</span>
+          {% if next and missing %}{% if diaas_jump %}{% elif 'DIAAS' in missing %}<span class="badge text-bg-warning ms-1">Asking for this one</span>{% else %}<span class="badge text-bg-secondary ms-1">Settled — not being asked about</span>{% endif %}{% endif %}
         </label>
         <input type="number" class="form-control" id="diaas_estimate" name="diaas_estimate"
                value="{{ annotation.diaas_estimate if annotation and annotation.diaas_estimate is not none else '' }}"
@@ -284,9 +305,9 @@
       {% if next %}
       {# Arriving from a food's own page is a deliberate visit, not a prompt —
          there is nothing to "skip", so the same link just goes back. #}
-      <a href="{{ next }}" class="btn btn-primary ms-2" autofocus>{% if missing %}Skip for now{% else %}Back without saving{% endif %}</a>
+      <a href="{{ next }}" class="btn btn-primary ms-2" id="annotate-back-btn">{% if missing %}Skip for now{% else %}Back without saving{% endif %}</a>
       {% else %}
-      <a href="/food/annotate" class="btn btn-primary ms-2" autofocus>Back to list</a>
+      <a href="/food/annotate" class="btn btn-primary ms-2" id="annotate-back-btn">Back to list</a>
       {% endif %}
     </form>
     {% if next and missing %}
@@ -379,6 +400,26 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
 </aside>
 </div>
 
+<script>
+(function () {
+  // Where the cursor starts, without moving the page off its top: the GI box
+  // when the food has no GI yet; the "DIAAS needed" button when GI is on file
+  // but DIAAS is still asked for; otherwise the Skip / Back button.
+  var giBox = document.getElementById('gi_estimate');
+  var jump = document.getElementById('diaas-jump');
+  var start = jump || (giBox && !giBox.value && giBox.offsetParent ? giBox : null)
+              || document.getElementById('annotate-back-btn');
+  if (start) start.focus({preventScroll: true});
+  window.scrollTo(0, 0);
+  if (jump) {
+    jump.addEventListener('click', function (e) {
+      e.preventDefault();
+      document.getElementById('diaas-label').scrollIntoView({block: 'start'});
+      document.getElementById('diaas_estimate').focus({preventScroll: true});
+    });
+  }
+})();
+</script>
 <script>
 (function () {
   var searchBtn = document.getElementById('gi-lookup-search');

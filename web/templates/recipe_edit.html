@@ -253,6 +253,7 @@
         {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </form>
 
+      {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
       {% if search_results or search_pending %}
       <div{{ _srb.attrs("recipe", search_pending, request.url.query, "recipe-search-no-results", recipe.id) }}>
       <p class="result-count mb-1">{{ _srb.count(search_results|length) }} for <strong>{{ q }}</strong>
@@ -377,7 +378,7 @@
             {{ ing.amount_display }}{{ _gd.mark(ing) }}
           {% endif %}
         </td>
-        <td>{% if ing.ref_recipe_deleted %}{{ ing.food_name }}{% elif ing.fdc_id and ing.fdc_id > 0 and not ing.ref_recipe_id %}<a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}&from_context=recipe">{{ ing.food_name }}</a>{% elif ing.ref_recipe_id %}<a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>{% else %}{{ ing.food_name }}{% endif %}{{ food_id_tag(None if ing.ref_recipe_id else ing.fdc_id, ing.ref_recipe_id) }}
+        <td>{% if ing.ref_recipe_deleted %}{{ ing.food_name }}{% elif ing.fdc_id and not ing.ref_recipe_id %}<a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}&from_context=recipe">{{ ing.food_name }}</a>{% elif ing.ref_recipe_id %}<a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>{% else %}{{ ing.food_name }}{% endif %}{{ food_id_tag(None if ing.ref_recipe_id else ing.fdc_id, ing.ref_recipe_id) }}
           {% if ing.ref_recipe_deleted %}<small class="text-danger"> (sub-recipe deleted)</small>
           {% elif ing.ref_recipe_id %}<small class="muted"> (recipe)</small>{% endif %}{{ _wm.mark(ing) }}
         </td>
@@ -470,21 +471,21 @@
 (function () {
   // Once results are showing, the natural next action is to type an amount
   // into the first one — put the cursor straight there. The selector covers
-  // both row types (portion_str for a food ingredient, servings for a
+  // both row types (portion_str for a food ingredient, amount for a
   // nested-recipe ingredient) and picks whichever comes first in document
   // order, so this lands on the true first row regardless of its type — see
-  // the equivalent script in meal.html. A plain synchronous call here would
-  // be undone by base.html's later autofocus-to-Search-button script (this
-  // block runs first, but that script runs right after it in document order
-  // and unconditionally steals focus back whenever the search box already
-  // holds a value); deferring one tick with setTimeout(0) runs this after
-  // every synchronous script on the page — including that one — has
-  // finished, so this focus wins instead.
+  // the equivalent script in meal.html, which explains why it waits for
+  // DOMContentLoaded (base.html's later autofocus-to-Search-button script
+  // would otherwise take focus back).
   function focusFirstResultField() {
     var inp = document.querySelector('.add-food-form input[name="portion_str"], .add-food-form input[name="amount"]');
     if (inp) inp.focus();
   }
-  setTimeout(focusFirstResultField, 0);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', focusFirstResultField);
+  } else {
+    focusFirstResultField();
+  }
 })();
 </script>
 {% endif %}
@@ -495,8 +496,7 @@
 // the ingredient list you were working. Remember where the Ingredients
 // section sat ON SCREEN right before those submits, and put it back there
 // after the reload. Not the raw scroll offset: what sits above that section
-// changes height across the reload (a successful add clears the search
-// results, an alert comes or goes), so the same scrollY would land
+// changes height across the reload (an alert comes or goes), so the same scrollY would land
 // somewhere else entirely.
 //
 // Restored on 'load' plus one tick, so it runs after the native [autofocus]
@@ -512,7 +512,10 @@
     try {
       sessionStorage.setItem(key, JSON.stringify({
         y: window.scrollY,
-        secTop: sec ? sec.getBoundingClientRect().top : null,
+        // An add from the search results keeps those results (they stay
+        // for another pick), so it returns to the same scroll position
+        // rather than to the Ingredients section.
+        secTop: sec && !/\/ingredient\/add/.test(action) ? sec.getBoundingClientRect().top : null,
         // A submit the leave guard cancels (Cancel on its confirm) leaves
         // this behind; a stale one must not hijack some later visit.
         t: Date.now(),
@@ -530,9 +533,8 @@
   function restore() {
     var sec = document.getElementById('sec-ingredients');
     if (sec && saved.secTop !== null) {
-      // Adding from the search results: the section was below the screen,
-      // and those results are gone now — so bring it up into view (where the
-      // new ingredient is) instead of pinning it off-screen again.
+      // The section was below the screen (some taller content above it
+      // went away) — bring it up into view instead of pinning it off-screen.
       var target = saved.secTop > window.innerHeight ? window.innerHeight * 0.4 : saved.secTop;
       window.scrollTo(0, window.scrollY + sec.getBoundingClientRect().top - target);
     } else {

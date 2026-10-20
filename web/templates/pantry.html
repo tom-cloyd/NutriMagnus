@@ -125,7 +125,7 @@
   {% if link_id %}<input type="hidden" name="link_id" value="{{ link_id }}">{% endif %}
   <div class="input-group" style="max-width:36rem">
     <input type="text" class="form-control" name="filter" value="{{ filter }}"
-           placeholder="Filter the pantry list by name or notes…">
+           placeholder="Filter the pantry list by name, notes or code…" title="Type part of a name, or an exact code such as U171477, UD4 to find just that one">
     <button type="submit" class="btn btn-outline-secondary">Filter</button>
     {% if filter %}<a href="/pantry" class="btn btn-outline-secondary">Clear filter</a>{% endif %}
   </div>

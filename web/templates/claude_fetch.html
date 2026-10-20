@@ -10,7 +10,7 @@
   </ol>
 </nav>
 
-<h2>Fetch nutrient data from Claude AI {{ manual_link("fetch") }}</h2>
+<h2>{% if gi_only %}Ask Claude AI for a glycemic index{% else %}Fetch nutrient data from Claude AI{% endif %} {{ manual_link("fetch") }}</h2>
 
 {% if nothing_missing %}
 <div class="alert alert-info" style="max-width:44rem">
@@ -19,7 +19,7 @@
   groups you marked &ldquo;not needed&rdquo; (undo that on the <a href="/food/cache/db-check#completeness">data completeness check</a>).</small>
 </div>
 {% endif %}
-{% if form_fdc_ids %}
+{% if form_fdc_ids and not gi_only %}
 <form method="post" action="/food/cache/claude-fetch" class="mb-3">
   {% for fid in form_fdc_ids %}<input type="hidden" name="fdc_id" value="{{ fid }}">{% endfor %}
   {% for g in form_groups %}<input type="hidden" name="group" value="{{ g }}">{% endfor %}
@@ -40,11 +40,18 @@
 <a href="/food/cache">Food Cache</a> and try again.</p>
 {% endif %}
 {% else %}
+{% if gi_only %}
+<p class="muted">A prompt asking Claude AI to research the glycemic index of {{ selected[0][1] }} is ready below.
+If all you want is the number, read it (and where it came from) in Claude&rsquo;s reply and type it into the
+food&rsquo;s Annotate page yourself. Or import the reply as below, which saves it there for you
+(an import only fills a blank GI unless you tell it to replace the one saved).</p>
+{% else %}
 <p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below. It asks only
 for the values each food is missing, so importing the reply fills gaps without touching values you already have:</p>
 <ul class="muted" style="font-size:0.9rem">
   {% for fid, name in selected %}<li>{{ name }} &mdash; {{ group_labels[fid]|join(", ") }}</li>{% endfor %}
 </ul>
+{% endif %}
 
 <ol>
   <li class="mb-1">Copy the prompt below (button provided).</li>

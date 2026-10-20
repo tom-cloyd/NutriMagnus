@@ -942,6 +942,7 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
     here (user_edited, starter_key). Updating in place keeps all of them."""
     from numa_app.services import water as _water
     nutrients, calorie_mark = _calorie_check(conn, fdc_id, nutrients)
+    old = conn.execute("SELECT name FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
     conn.execute("""
         INSERT INTO foods
             (fdc_id, name, data_type, brand, serving_size, serving_unit,
@@ -965,6 +966,11 @@ def cache_food(conn: sqlite3.Connection, fdc_id: int, name: str, data_type: str,
     _apply_calorie_mark(conn, fdc_id, calorie_mark)
     if from_source and not is_custom_food_id(fdc_id):
         snapshot_food_source(conn, fdc_id)
+    # A re-cache that renames the food (a Refresh, an import, a starter
+    # update) passes the name on, as a rename does -- without this, pantry,
+    # recipe and meal lines kept the name the food had when they were added.
+    if old is not None and old["name"] != name:
+        propagate_food_name(conn, fdc_id, name, old_name=old["name"])
 
 
 def get_cached_food(conn: sqlite3.Connection, fdc_id: int) -> sqlite3.Row | None:
@@ -1259,6 +1265,22 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     words = query.split()
     if not words:
         return []
+    # A query that is one food's display code (U171477, UD4, OFF3 ...) or a
+    # cached food's bare FDC ID finds just that food, archived or not —
+    # typing the exact code is the request. Anything else is a name search.
+    if len(words) == 1:
+        from numa_app.services.food_ids import parse_code
+        try:
+            kind, code_id = parse_code(words[0])
+        except ValueError:
+            kind, code_id = ("food", int(words[0])) if words[0].isdigit() else (None, None)
+        if kind == "food":
+            row = conn.execute(
+                "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
+                "portions_json, notes, nutrients_json, archived FROM foods WHERE fdc_id = ?",
+                (code_id,)).fetchone()
+            if row is not None:
+                return [row]
     # Bare-digit words (e.g. the "1" in "coffee 1") match almost any dosage or
     # serving-size substring — excluding them from the OR match keeps unrelated
     # user-drafted foods like "B12 5000mcg" from surfacing for "coffee 1".
@@ -2474,12 +2496,17 @@ def substitute_item_in_meals(conn: sqlite3.Connection, meal_ids: list[int],
     an ingredient inside a recipe that a meal references isn't touched (that
     recipe's ingredient list is a shared, recipe-level thing; substitute
     inside it via substitute_item_in_recipes instead, scoped to that recipe).
+
+    Every meal changed is flagged in stale_meals, so its stored DCP/nutrient
+    snapshot (Recent Days, trends, plots) is recomputed before the next page.
     """
     if not meal_ids or old_kind not in ("food", "recipe") or new_kind not in ("food", "recipe"):
         return 0
     new_name = item_current_name(conn, new_kind, new_id)
     if new_name is None:
         raise ValueError("Replacement food/recipe not found.")
+    for meal_id in meals_with_direct_item(conn, meal_ids, old_kind, old_id):
+        mark_meal_stale(conn, meal_id)
     placeholders = ",".join("?" * len(meal_ids))
     old_col = "fdc_id" if old_kind == "food" else "recipe_id"
     if new_kind == "food":
@@ -2498,9 +2525,12 @@ def remove_item_from_meals(conn: sqlite3.Connection, meal_ids: list[int],
                            kind: str, item_id: int) -> int:
     """Delete every direct meal-item reference to (kind, item_id) from the
     meals in meal_ids — the same reach as substitute_item_in_meals (a food
-    inside a logged recipe isn't touched). Returns the number of rows removed."""
+    inside a logged recipe isn't touched). Returns the number of rows removed.
+    Every meal changed is flagged in stale_meals, as above."""
     if not meal_ids or kind not in ("food", "recipe"):
         return 0
+    for meal_id in meals_with_direct_item(conn, meal_ids, kind, item_id):
+        mark_meal_stale(conn, meal_id)
     col = "fdc_id" if kind == "food" else "recipe_id"
     placeholders = ",".join("?" * len(meal_ids))
     cur = conn.execute(
@@ -2641,6 +2671,25 @@ def search_meal_history(
         ORDER BY m.meal_date DESC, m.id, mi.id
         """,
         (like, like),
+    ).fetchall()
+
+
+def search_meal_history_by_item(conn: sqlite3.Connection, kind: str, item_id: int) -> list[sqlite3.Row]:
+    """Every meal item that is this one food (kind "food", by fdc_id) or
+    recipe (kind "recipe", by recipe_id) — search_meal_history()'s shape, for
+    a search typed as a code (U171477, R21)."""
+    item_type, column = ("recipe", "recipe_id") if kind == "recipe" else ("food", "fdc_id")
+    return conn.execute(
+        f"""
+        SELECT m.meal_date, m.name AS meal_name, m.id AS meal_id,
+               mi.id AS item_id, mi.item_type, mi.food_name, mi.fdc_id,
+               mi.recipe_id, mi.amount, mi.unit, mi.notes, mi.serving_grams
+        FROM meal_items mi
+        JOIN meals m ON mi.meal_id = m.id
+        WHERE mi.item_type = ? AND mi.{column} = ?
+        ORDER BY m.meal_date DESC, m.id, mi.id
+        """,
+        (item_type, item_id),
     ).fetchall()
 
 
@@ -3541,8 +3590,16 @@ def update_cached_food_profile(
     return 0
 
 
+_NAME_COPY_TABLES = (
+    ("recipe_ingredients", "fdc_id = ? AND ref_recipe_id IS NULL"),
+    ("meal_items", "item_type = 'food' AND fdc_id = ?"),
+    ("pantry", "fdc_id = ?"),
+)
+
+
 def propagate_food_name(conn: sqlite3.Connection, fdc_id: int, name: str,
-                        *, old_name: str | None = None) -> int:
+                        *, old_name: str | None = None,
+                        tables: tuple[str, ...] | None = None) -> int:
     """Copy a renamed food's name into the rows that keep their own copy of it
     -- recipe ingredients, food meal items, pantry entries -- the way
     recipe_update() does for a renamed recipe; returns how many changed.
@@ -3561,11 +3618,9 @@ def propagate_food_name(conn: sqlite3.Connection, fdc_id: int, name: str,
     bare = name[1:].lstrip() if name.startswith("*") else name
     marked = "* " + bare
     total = 0
-    for table, where in (
-        ("recipe_ingredients", "fdc_id = ? AND ref_recipe_id IS NULL"),
-        ("meal_items", "item_type = 'food' AND fdc_id = ?"),
-        ("pantry", "fdc_id = ?"),
-    ):
+    for table, where in _NAME_COPY_TABLES:
+        if tables is not None and table not in tables:
+            continue
         cur = conn.execute(
             f"UPDATE {table} SET food_name = CASE WHEN food_name LIKE '*%' THEN ? ELSE ? END "
             f"WHERE {where} AND food_name != CASE WHEN food_name LIKE '*%' THEN ? ELSE ? END",
@@ -3577,6 +3632,46 @@ def propagate_food_name(conn: sqlite3.Connection, fdc_id: int, name: str,
         conn.execute("UPDATE diaas_overrides SET food_name = ? WHERE lower(food_name) = lower(?)",
                      (name, old_name))
     return total
+
+
+def _bare_food_name(name: str) -> str:
+    """A name without its "* " starter marker (see propagate_food_name)."""
+    return name[1:].lstrip() if name.startswith("*") else name
+
+
+def sync_food_name_copies(conn: sqlite3.Connection) -> list[int]:
+    """Repair: bring every pantry and meal-item copy of a food's name up to
+    date with the food's own name, each copy keeping its own "* " marker;
+    returns the fdc_ids of foods whose copies changed (the caller
+    recalculates their recipes and meals, since protein digestibility is
+    looked up by the name a line shows).
+
+    Copies went stale wherever a food's name changed without
+    propagate_food_name() -- re-caches did until 2026-10-16 -- so the
+    complement suggestions and pantry list showed names the food no longer
+    had. Recipe ingredient lines are left alone: their name can be hand-
+    edited (Edit Recipe's ingredient popup), and a repair can't tell a name
+    chosen on purpose from a stale one. A digestibility override saved under
+    a stale copy's name moves to the food's name, unless that name already
+    has one."""
+    tables = ("meal_items", "pantry")
+    stale: dict[int, set[str]] = {}
+    for table, where in (("meal_items", "x.item_type = 'food'"), ("pantry", "1")):
+        for r in conn.execute(
+                f"SELECT x.fdc_id, x.food_name AS copy, f.name FROM {table} x "
+                f"JOIN foods f ON f.fdc_id = x.fdc_id WHERE {where}"):
+            if _bare_food_name(r["copy"]) != _bare_food_name(r["name"]):
+                stale.setdefault(r["fdc_id"], set()).add(r["copy"])
+    for fdc_id, copies in stale.items():
+        name = conn.execute("SELECT name FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()["name"]
+        for old_name in sorted(copies):
+            if old_name.lower() == name.lower() or conn.execute(
+                    "SELECT 1 FROM diaas_overrides WHERE lower(food_name) = lower(?)", (name,)).fetchone():
+                continue
+            conn.execute("UPDATE diaas_overrides SET food_name = ? WHERE lower(food_name) = lower(?)",
+                         (name, old_name))
+        propagate_food_name(conn, fdc_id, name, tables=tables)
+    return sorted(stale)
 
 
 def rename_food_by_user(conn: sqlite3.Connection, fdc_id: int, new_name: str) -> int:

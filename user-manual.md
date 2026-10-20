@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-15:1140* / Reading time: 9 hours, 33 minutes
+*Updated 2026-10-20:0303* / Reading time: 9 hours, 52 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -411,7 +411,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 47 minutes)*
+*(Reading time: 48 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -421,13 +421,13 @@ Launch NuMa the way it was set up on your computer — a desktop icon, an Applic
 
 #### What you see on the home page {: #home-page-tour}
 
-Right below the **Welcome to NutriMagnus** heading is a small block of status lines:
+The home page opens with a short reminder that NuMa is not medical advice, then the **Welcome to NutriMagnus** heading, a one-line description of NuMa, and these status lines:
 
 - **Dietary preferences** — your current setting (e.g. "All animal foods"), with a link straight to Settings to change it.
 - **Active profile** — a one-line summary of your profile (age, sex, weight, height, activity level), or "not set" with a link to configure one if you haven't yet.
-- **Current version date** — the exact build you're running, as `yyyy-mm-dd:hhmm`, alongside a human-facing release version (e.g. `0.1.0-rc.1`). Whenever `version.py`'s build note is set, it follows in parentheses as "(Version note: ...)" — a short plain-language description of what changed in that build. Right after it, a **Check for updates now** link re-checks GitHub immediately instead of waiting for the periodic check — useful right after dismissing an UPDATE AVAILABLE banner if you change your mind, since it also undoes that dismissal. It only appears when no update is currently showing.
+- **Current manual version / Current program version date** — the date of the manual you're reading and of the exact build you're running, both as `yyyy-mm-dd:hhmm`, followed by a **see what changed** link into the [Recent program updates log](#updates-log), whose newest release summary opens with a short *Version overview*. Right after it, a **Check for updates now** link re-checks GitHub immediately instead of waiting for the periodic check — useful right after dismissing an UPDATE AVAILABLE banner if you change your mind, since it also undoes that dismissal. It only appears when no update is currently showing.
 
-Above all of that, a few one-time or conditional banners can appear when relevant: a **NEW TO NUMA?** message linking to the [setup checklist](#first-setup) until your profile is saved, a **NEW STARTER ITEMS** message the first time a new version runs, if it added or improved starter foods or recipes (see [Starter Data](#starter-data)), a [database](#gloss-database)-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner repeats the build note as its own line, says what the update would add to or improve in the [starter foods and recipes](#starter-data) you have, and has a **Don't show this again for this version** checkbox — same idea as the System Issues banner's "Got it" checkbox below.
+Above the heading, a few one-time or conditional banners can appear when relevant: a **Your profile isn't set yet** message until your profile is saved (it links to Settings and to the [setup steps](#first-setup), and has a **Don't remind me about this again** checkbox), a **NEW STARTER ITEMS** message the first time a new version runs, if it added or improved starter foods or recipes (see [Starter Data](#starter-data)), a [database](#gloss-database)-integrity warning, an "update installed" confirmation right after using Update Now, an update-failed message, and an **UPDATE AVAILABLE** banner when a newer release exists on GitHub. If you're running the packaged Linux install, this shows an **Update Now** button that installs the update in place; otherwise (Windows, or a non-packaged Linux checkout) it shows a **Download NutriMagnus** button that goes straight to the new installer file. That banner says what the update would add to or improve in the [starter foods and recipes](#starter-data) you have, and has a **Don't show this again for this version** checkbox — same idea as the System Issues banner's "Got it" checkbox below. While it is showing, the separate **New user manual available** banner is left out, since the program update brings its own manual with it. The very bottom of the page gives the release and build numbers, e.g. *NutriMagnus 0.1.0-rc.26 (build 2026-10-17:0722)*.
 
 **When does NuMa actually check for a new release?** Every time the home page loads — at launch, on a manual reload, or by navigating back to it from anywhere else in the program — it asks whether a newer version exists. That check itself is cached for a few hours, so bouncing back to the home page repeatedly doesn't re-contact GitHub every time; it just reuses the last answer until the cache expires. Once a newer version is available, the **UPDATE AVAILABLE** banner shows on every single page load — it never disappears on its own — until you either install the update or check the "Don't show this again for this version" box; a later, different release always shows regardless of what you've dismissed.
 
@@ -441,6 +441,8 @@ Most detail pages (a food, a recipe, a meal) show a collapsible outline down the
 
 #### Search boxes remember your last search {: #search-memory}
 On a meal's "Add Food or Recipe" search, a recipe's "Add Ingredient" search, and the Foods: Search page, if you follow a link away to look something up elsewhere and then come straight back to that exact page, your last search and its results are restored automatically — you don't have to retype it. This only applies to a plain link back to the page (the browser's own Back button already preserves it); it's scoped per page, so it never leaks a search from one meal into another.
+
+**Adding from the results keeps them.**{: #search-keeps-results} When you add a result to a meal, a recipe or your pantry, the same search results stay on screen, with a green **Added …** line naming what you just added, so you can go straight on and add another from the same list. They change only when you run a new search, or click **Clear search**.
 
 There's no time limit on this — it holds for as long as your browser tab stays open, not just for a moment after you step away. Clicking **Clear search** (shown next to the search box whenever a search is active) or closing the browser tab clears it back to the page's clean, empty-search state.
 
@@ -741,7 +743,7 @@ If you'd rather fix the underlying recipe yourself instead of using Retry, re-ed
 
 A one-time banner also appears on the home page whenever there's a System Issues entry you haven't seen yet, with a **Got it. Don't remind me again.** checkbox — checking it hides the banner (the entry still stays listed under Settings until it's actually resolved), and any *new* failure after that brings the banner back.
 
-**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists, and its own **Don't show this again for this version** checkbox — same idea as the System Issues checkbox just above. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. See [What you see on the home page](#home-page-tour) for exactly where the current build's version stamp and build note appear and how often the check itself runs.
+**The home page also checks GitHub for a newer NuMa release**, showing an **UPDATE AVAILABLE** banner with a link to what's new if one exists, and its own **Don't show this again for this version** checkbox — same idea as the System Issues checkbox just above. This check is quick (a couple of seconds at most) and fails silently if you're offline or GitHub is unreachable — it never blocks the home page from loading. See [What you see on the home page](#home-page-tour) for exactly where the current build's version stamp appears and how often the check itself runs.
 
 **If you installed NuMa via the Linux installer, the banner also has an Update Now button** that downloads and installs the new version for you — no terminal, no manual download. Click it, confirm, and NuMa fetches the latest release and swaps itself in place; your data is completely untouched (it lives in a separate location the update never touches). You'll see a message telling you to close the browser tab and relaunch NuMa once it's done — the version you're currently running keeps working right up until you do. If you're running NuMa from source instead (a developer checkout), the button doesn't appear — you'll see the plain "what's new on GitHub" link instead, since there's no packaged install for it to replace.
 
@@ -757,7 +759,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 1 hour, 56 minutes)*
+*(Reading time: 2 hours)*
 
 ### A. Essential Amino Acids {: #aa}
 Amino acids are the building blocks of protein. Nine of them are "essential", for our bodies cannot make them, so they must come from food every day[^60]:
@@ -1280,9 +1282,29 @@ Setting **Your glucose tolerance** under [Settings](#settings) → 1. Your Profi
 **When the table doesn't have your food.** Many everyday foods have no row of their own: search "peanut butter" and every row is a bar or biscuit that contains it. The lookup then says **No row in the table is "peanut butter" itself** above the results, so you know not to take one of them for the food. Below the results it lists **Possible stand-ins**: plain rows for each word of your search, such as "Peanuts". Use a stand-in only if your food is mostly that ingredient (whole peanuts for peanut butter, but not butter). A stand-in's saved source says it was used as a stand-in. When rows score equally, plain foods are listed before a named company's product. The search box starts with the food's full name, such as "Peanut butter, smooth style, with salt"; the lookup reads the part before the first comma as the food and the rest as its description, so you rarely need to shorten it yourself.
 <span id="gi-stand-in"></span>
 
-**If nothing is a genuine match, leave the value blank.** No value is better than a wrong one: a blank shows up honestly as a gap ("at least…", "covers N% of the carbohydrate"), while a wrong number looks exactly like a right one.
+**If nothing is a genuine match, leave the value blank.** No value is better than a wrong one: a blank shows up honestly as a gap ("at least…", "covers N% of the carbohydrate"), while a wrong number looks exactly like a right one. The one exception is a food with very little carbohydrate, where any sensible value gives nearly the same result — see [Foods with no GI anywhere and little carbohydrate](#gi-low-carb).
 
 See also the [GI](#gloss-gi) caveats in [Appendix C](#appendix-gl-comparison).
+
+#### Foods with no GI anywhere and little carbohydrate {: #gi-low-carb}
+<span id="gi-no-value"></span><span id="gi-estimate-by-analogy"></span>
+*Search terms: no GI found, GI not available, low-carb food GI, seeds and nuts GI, hemp seed GI, estimating a GI, GI by analogy.*
+
+Some foods have no [GI](#gloss-gi) in any table, and probably never will: hulled hemp seed, many seeds and nuts, and other foods made up mostly of fat and protein. That's because of how [GI](#gloss-gi) is measured. Under the international standard ([ISO](#gloss-iso) 26642), the people being tested eat a portion containing 50 g of available carbohydrate (sometimes 25 g), and their blood-glucose rise is compared with their rise after the same amount of pure glucose. Hulled hemp seed has about 4.7 g of available carbohydrate per 100 g (8.7 g carbohydrate less 4 g fiber), so a 50 g test portion would mean eating more than a kilogram of it at one sitting. Nobody tests foods like that, so the tables leave them out.
+
+**For these foods the GI hardly matters.** [GL](#gloss-gl) is [GI](#gloss-gi) × grams of available carbohydrate ÷ 100, and the carbohydrate is so small that the [GL](#gloss-gl) stays near zero whatever [GI](#gloss-gi) you use. Three tablespoons of hemp seed (30 g) has about 1.4 g of available carbohydrate: a [GL](#gloss-gl) of about 0.2 at a [GI](#gloss-gi) of 15, and still only 0.7 at a [GI](#gloss-gi) of 50. By comparison, a slice of white bread is around 10.
+
+**But NuMa still needs a value.** A food counts as carbohydrate-free only below 1 g of available carbohydrate in the amount eaten (see [Glycemic Load Output](#glycemic)). A typical serving of a seed or nut is usually just over that, so without a [GI](#gloss-gi), every meal and recipe that uses it shows its [GL](#gloss-gl) as incomplete, even though the missing share is tiny. Ticking **Don't prompt me for a GI estimate for this food again** stops NuMa asking, but doesn't change this: the figure stays incomplete, with the food listed as "marked don't prompt me".
+
+**What to do: save an estimate, and say it's one.** On the food's Annotate page:
+
+1. **Choose a value by analogy.** Take the [GI](#gloss-gi) of tested foods that are made up the same way: mostly fat and protein, with some fiber and little sugar or starch. Search the lookup for such foods (other seeds, nuts) and use a typical value from among them. A food with essentially no starch, such as hemp seed, belongs at or below their usual range rather than above it. A low value in the teens is a reasonable working figure for hemp seed. Because of how little carbohydrate there is, being somewhat wrong costs almost nothing.
+2. **Type it into the GI box.**
+3. **Say where it came from** in **Where this GI value came from**, so it can't later be mistaken for a measured value, for example: *"Estimate by analogy with tested seeds and nuts; no measured GI exists for this food."*
+
+The ready-made prompt asking Claude AI (under the lookup) can help with step 1, but check that its answer says plainly whether its figure was measured or inferred. For a food like this it will almost always be inferred.
+
+**This is the exception to "no value is better than a wrong one".** For a food with real carbohydrate content, a guessed [GI](#gloss-gi) can move a meal's [GL](#gloss-gl) a long way, so leave it blank (see [Choosing a GI value](#choosing-gi-values)). For a food with very little carbohydrate, a labelled estimate gives a complete and practically correct [GL](#gloss-gl), while a blank gives an "incomplete" warning about almost nothing.
 
 #### Daily glycemic load target {: #gl-target}
 
@@ -1669,6 +1691,15 @@ Every other [RDA](#gloss-rda) comparison in NuMa -- food, recipe, meal, daily su
 
 This is the same B12/iron/zinc-aware analysis described in [Diet-Aware Bioavailability and Deficiency Notes](#diet-bioavailability) -- this averaged view is often where a B12 or iron pattern actually becomes visible, since a single low day rarely triggers concern on its own.
 
+**Nutrient totals for a date range or a set of meals.**{: #range-totals} Below the 7/14/30-day buttons (and from the Daily Summary page's **Nutrient totals for a date range or meals** button) are two more ways to choose what to look at:
+
+- **From / To** and **Add up this date range** — any range of dates, not just the last 7, 14 or 30.
+- **Meal IDs** and **Add up these meals** — just the meals you list, by their [ID](#gloss-id) numbers (the number on each meal in Meals & Log), separated by commas or spaces. A range like `20-24` means meals 20 through 24. An ID with no meal behind it is named at the top and left out.
+
+Either way the table gains a **Total** column — every nutrient added up across everything chosen — beside the per-day average, which is still the figure compared with your daily goals. Total [DCP](#gloss-dcp) appears under the average. When you pick meals by ID, the per-day average covers only those meals, not everything else eaten on the same days, so read its percentages accordingly; the meals included are listed under **Meals included**.
+
+**Blocks of days.**{: #summary-blocks} The **Blocks of days** button (on the Daily Summary page and here) shows Recent Days' table a block at a time: each row is a run of days — 7 by default — with every column averaged per logged day in that block, most recent block first. Choose the **Days in each block**, the **Number of blocks**, and the **Last day of the most recent block** (today by default), then **Show these blocks**. The columns are the ones you chose for Recent Days, each with its share of the daily goal, plus Day [DCP](#gloss-dcp) and, if you track glycemic load, Day [GL](#gloss-gl). Each block's **Full nutrient totals** link opens the date-range totals above for just that block. Comparing one week with the next this way shows whether a change you made is holding.
+
 This view does not offer protein complement suggestions -- complementation only matters within the roughly 24-hour window your body actually digests and pools amino acids together, so a suggestion pooled across a week or more of eating isn't something you could act on. For an actionable complement suggestion, use [Protein Complement Suggestions](#comp) on a specific day's summary, a meal, or a recipe.
 
 
@@ -2016,7 +2047,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 18 minutes)*
+*(Reading time: 1 hour, 20 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2228,7 +2259,7 @@ Columns:
 
 A **Show** control next to the picker limits the list to the top 5/10/15/20/30 foods, or all of them (defaults to 10); it only offers choices that would actually shorten the list, so a meal with 6 contributors just offers "5" or "All." A "Total, all contributors" row at the bottom of the table always reflects every contributor, even when the list above it is trimmed.
 
-**Recipes kept whole.**{: #contrib-by-item} On a meal page with a recipe in it, a second table, **By meal item, recipes kept whole**, sits under the first and ranks the meal's items as you logged them: each recipe is one row, linked to the recipe, and each food eaten on its own is another. It answers "was it the dal or the tofu?" where the first table answers "was it the lentils or the spinach?". It follows the same **Rank by** and **Show** choices. For **Protein**, a recipe's figure is its own standalone [DCP](#gloss-dcp): its foods pooled as if the recipe were the whole meal, so the recipe gets the benefit of its own protein complementarity and can score more than its foods' figures added up. For **Glycemic load**, a recipe's figure is the sum of its foods' (only foods with a [GI](#gloss-gi) count). A meal with no recipe in it shows only the first table, since the two would be the same.
+**Recipes kept whole.**{: #contrib-by-item} On a meal page with a recipe in it, a second table, **By meal item, recipes kept whole**, sits under the first (which is then headed **By food, recipes split into their foods**; both headings are listed under Top Contributors in the page's contents sidebar) and ranks the meal's items as you logged them: each recipe is one row, linked to the recipe, and each food eaten on its own is another. It answers "was it the dal or the tofu?" where the first table answers "was it the lentils or the spinach?". It follows the same **Rank by** and **Show** choices. For **Protein**, a recipe's figure is its own standalone [DCP](#gloss-dcp): its foods pooled as if the recipe were the whole meal, so the recipe gets the benefit of its own protein complementarity and can score more than its foods' figures added up. For **Glycemic load**, a recipe's figure is the sum of its foods' (only foods with a [GI](#gloss-gi) count). A meal with no recipe in it shows only the first table, since the two would be the same.
 
 A food logged more than once in the same meal — eaten twice on its own, or appearing both directly and inside a recipe in that meal — is grouped into a single row with its amounts summed, rather than listed as separate duplicate rows. This applies on both the per-meal page and the day-level Analysis rollup.
 
@@ -3132,20 +3163,29 @@ See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. 
 
 
 #### Comparison Tables {: #comparison}
-Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to four tables: an ingredient table, a protein-quality table, a glycemic table, and a nutrient table. Every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so rather than ask you to pick amounts that don't match across items, the page fixes every item at the same 100 g footing.
+Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to four tables: an ingredient table, a protein-quality table, a glycemic table, and a nutrient table. By default every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so the page starts every item on the same 100 g footing. You can also set your own amount for each item (see below). To start a new list, click **Clear the list and start over**, beside the Search button (your saved lists are not affected). Once there is something to compare, a **Contents** list down the side of the page jumps to each part: the search, the items being compared, Compare amounts, each comparison table, and Save this list.
 
-**Comparing recipes as written.**{: #comparison-basis} Per 100 g is the default because it puts a food's grams and a recipe's servings on the same footing, and shows how concentrated each item is. But it isn't always what you want: two versions of a recipe, one with a little salsa added, look as if the other ingredients shrank, because each is now a smaller share of 100 g. When a comparison includes a recipe, a **Compare amounts** choice above the tables offers two more ways to see it:
+**Gathering items from several searches.**{: #comparison-gather} Search for one food, tick it, then simply search for the next one: whatever you ticked is added to the comparison before the new search runs, so nothing you picked is lost. (**Add selected to comparison** does the same without searching again.) Everything added so far is listed under the search, each with a **Remove** button.
+
+**Setting an amount for each item.**{: #comparison-amounts} Each item in that list has an **Amount** box: grams for a food, servings for a recipe. A recipe that has a weight per serving (its own total weight, or one NuMa can add up from its ingredients) also has a **servings / g** choice beside the box, and shows "1 serving = … g" underneath (with the recipe's serving description, such as "1 serving = 1 muffin (85 g)", when it has one — that description also appears under the recipe's name in the nutrient table whenever servings are being compared), so you can give it in grams instead; its column then reads, for example, "100 g (0.97 servings)". A recipe with no weight per serving takes servings only. A food that has portions ("1 slice (28 g)") has a **g / portion** choice beside its box too, so you can set it as a number of one of its portions — 2 × 1 slice — and its column reads "2 × 1 slice (56 g)". Fill in the amounts you want, then click **Show comparison at the amounts set above** (or press Enter in an Amount box). Of the two Show comparison buttons, the blue one is the one that matches what you've asked for: **Show comparison for 100 g of each item** until you type an amount, then the amounts one. Every table then shows each item at its own amount — 30 g of almonds beside 150 g of yogurt and 2 servings of your granola, say — and the **Compare amounts** choice switches to **The amount I set for each item**. A box left blank means 100 g of a food or 1 serving of a recipe. Your amounts stay with the comparison as you add or remove items, and are kept when you save it as a list. Switch **Compare amounts** back to per 100 g at any time to see how concentrated each item is instead; your amounts are kept for when you switch back.
+
+**Comparing recipes as written.**{: #comparison-basis} Per 100 g is the default because it puts a food's grams and a recipe's servings on the same footing, and shows how concentrated each item is. But it isn't always what you want: two versions of a recipe, one with a little salsa added, look as if the other ingredients shrank, because each is now a smaller share of 100 g. When a comparison includes a recipe, a **Compare amounts** choice above the tables offers two more ways to see it (as well as [the amount you set for each item](#comparison-amounts)):
 
 - **Per serving of each recipe, as written** — one serving of each recipe: its own ingredient amounts divided by its servings, and the nutrients of that serving.
 - **Each whole recipe, as written** — every ingredient exactly as entered in the recipe, with the measure you typed (⅓ c, 2 T) beside its grams, and the whole recipe's nutrients.
 
 Each recipe's column heading says which amount it shows ("1 serving (140 g)", "whole recipe, 1 serving, 177 g"). A plain food has no recipe amounts, so it stays per 100 g in every view. NuMa remembers your choice. Neither view is scaled by the recipe's weight, so the "(estimate)" mark below doesn't apply to them.
 
-**How a recipe's 100 g figure is worked out.**{: #comparison-estimate} A food's per-100g nutrients come straight from its cached data — no estimation involved. A recipe has no single "100 g" anything, so NuMa derives one: it adds up the raw weight of every ingredient in the recipe (each direct food ingredient contributes its own entered gram amount; a sub-recipe ingredient contributes its weight per serving × how many of those servings this recipe uses — its weight per serving being its *own* recorded total weight ÷ its own servings, or, if it has no recorded total weight, the sum of its own ingredients worked out the same way, however deep the sub-recipes go), then scales the recipe's total nutrients — and, for the ingredient table, each ingredient's own amount — by 100 divided by that summed weight. This is always a fresh sum of the ingredients as entered; it does **not** read the recipe's own "total weight" field on its detail page (a figure you may have set by hand to account for cooking loss, water evaporating, etc.) — only a *sub*-recipe's own total weight feeds in, when it's used as an ingredient.
+**How a recipe's 100 g figure is worked out.**{: #comparison-estimate} A food's per-100g nutrients come straight from its cached data — no estimation involved. A recipe has no single "100 g" anything, so NuMa derives one from the recipe's weight, then scales the recipe's total nutrients — and, for the ingredient table, each ingredient's own amount — by 100 divided by that weight. The weight is the same one a meal uses when you log the recipe by weight:
 
-If any ingredient's weight can't be determined — a direct ingredient with a blank or zero amount, a sub-recipe that has since been deleted, or a sub-recipe whose servings aren't set or whose own ingredients can't be weighed — that one ingredient is left out of the sum entirely rather than guessed at. The summed weight is then a lower bound, not the true dish weight, so the recipe's 100 g figures run *higher* than they should (the same nutrient total divided by a too-small weight). NuMa marks this by appending "(estimate)" next to that recipe's name everywhere it appears in these tables, so a higher-than-expected number has a visible reason rather than looking like a data error.
+- **The recipe's own total weight**, when you've entered one on its edit page. This is the weight of the finished dish, so it can allow for cooking loss, water evaporating, and so on. A stew that cooks down from 1,300 g of raw ingredients to 1,000 g is compared per 100 g of the 1,000 g, and its raw ingredients then add up to more than 100 g in the ingredient table.
+- **Otherwise, its ingredients added up**: each direct food ingredient contributes its own entered gram amount; a sub-recipe ingredient contributes its weight per serving × how many of those servings this recipe uses — its weight per serving being its *own* recorded total weight ÷ its own servings, or, if it has no recorded total weight, the sum of its own ingredients worked out the same way, however deep the sub-recipes go.
 
-The **ingredient table** has one row per distinct ingredient (food or recipe, each with its code) across the items you're comparing, one column per item, showing how much of that ingredient goes into 100 g of the finished item (or "--" if it isn't used, or if a recipe's ingredient weights are incomplete). A food entry shows itself as its own single "ingredient" — always "100 g," by definition. Ingredients shared by two or more items are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much, per 100 g of the finished dish. A sub-recipe used as an ingredient shows its (rescaled) serving count rather than being expanded into its own raw ingredients.
+(Until October 18, 2026, Compare always added up the ingredients and ignored a recipe's own total weight, so a recipe with a stated weight could show slightly different figures here than on a meal.)
+
+If a recipe has no total weight and any ingredient's weight can't be determined — a direct ingredient with a blank or zero amount, a sub-recipe that has since been deleted, or a sub-recipe whose servings aren't set or whose own ingredients can't be weighed — that one ingredient is left out of the sum entirely rather than guessed at. The summed weight is then a lower bound, not the true dish weight, so the recipe's 100 g figures run *higher* than they should (the same nutrient total divided by a too-small weight). NuMa marks this by appending "(estimate)" next to that recipe's name everywhere it appears in these tables, so a higher-than-expected number has a visible reason rather than looking like a data error.
+
+The **ingredient table** has one row per distinct ingredient (food or recipe, each with its code) across the items you're comparing, one column per item, showing how much of that ingredient goes into 100 g of the finished item (or "--" if it isn't used, or if a recipe has no total weight and its ingredient weights are incomplete). A food entry shows itself as its own single "ingredient" — always "100 g," by definition. Ingredients shared by two or more items are listed first (highlighted) — that's usually the interesting question when comparing recipes: which ingredients differ, and by how much, per 100 g of the finished dish. A sub-recipe used as an ingredient shows its (rescaled) serving count rather than being expanded into its own raw ingredients.
 
 The **protein-quality table** ([DIAAS](#diaas)-based) appears when at least one item has enough amino acid data to score: composite [DIAAS](#gloss-diaas) score, raw protein, digestible complete protein (DCP), DCP as % of raw protein, and the limiting amino acid — all per 100 g of the item, highest value per row highlighted, "--" for an item without enough data.
 
@@ -3306,7 +3346,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 45 minutes)*
+*(Reading time: 46 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -3337,6 +3377,8 @@ The setting is saved between sessions and applies to both the interactive comple
 ### C. Ordering food search results {: #search-ranking}
 
 **Searching by code.**{: #search-by-code} Every food and recipe search box — Foods → Search, a meal's add-food panel, Edit Recipe's ingredient search, Compare, Convert, My Pantry, and the "search for a food to copy from" boxes — also takes a [code](#gloss-code) on its own: **[R21](#gloss-code)** for a recipe, **U171477**, **[UD4](#gloss-code)** or **[OFF3](#gloss-code)** for a food, **U171477.1** for an older version of one. Upper or lower case both work. The search then shows just that one food or recipe, straight away and without going online, whatever the Source boxes are set to, and even if it's archived. A plain number works too when it is the [FDC ID](#gloss-fdc-id) of a food already in your Food Cache (171477 for U171477). A code NuMa has nothing for, or a number that isn't a cached food's FDC ID, is searched as ordinary text instead, so a USDA FDC ID you haven't used yet still finds the food online. A box that can't offer the item (a recipe in a search for foods only, a recipe inside itself) ignores the code. Hover over a search box for a reminder.
+
+The boxes that *filter a list* take a code too: the Recipes list (**R21**), the Food Cache and Annotate lists, My Pantry's **Filter my pantry list** (**U171477**, **UD4** …), Food Use in Recipes' name filter, the Food Use in Meals "Replace it with" box, and [Search meal history](#meal-history), where **U171477** or **R21** lists every meal that food or recipe was logged in. A code there narrows the list to just that one item, archived or not; anything else filters by name as before.
 When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
 
 **The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Within your own matches, **recipes come first**, then Pantry and Food Cache foods, each group in best-match order. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
@@ -3474,7 +3516,7 @@ To convert an existing custom food to supplement mode, edit it and change the se
 - **No food checks.** NuMa doesn't ask a supplement for calories, protein, amino acids, a [GI](#gloss-gi), [DIAAS](#gloss-diaas), portions or water. It never appears in Food data problems, the missing-data lists, a meal's calorie note or Top Contributors' no-data list, so there's nothing to mark "not needed".
 - **Its nutrients count in full.** Every nutrient on its label counts toward your meal and day totals and your daily targets, and toward upper limits. High-dose vitamin D, zinc or iron tablets can take a day over its upper limit, and NuMa says so as for any food.
 - **It weighs nothing.** A tablet adds nothing to a recipe's weight or its per-100 g figures, and stays out of glycemic load.
-- **It reads per tablet.** The food's page shows its values for **1 tablet**, and adding it to a meal starts at `1 tablet`. A number on its own counts tablets: `2` means 2 tablets, not 2 grams.
+- **It reads per tablet.** The food's page shows its values for **1 tablet**, and adding it to a meal starts at `1 tablet`. A number on its own counts tablets: `2` means 2 tablets, not 2 grams. Meal, day and summary pages list it the same way — **2 capsules**, **0.5 tablet** — never in grams: inside NuMa one tablet is stored as "100 g" so the label's per-tablet figures can be used as they are, but that number isn't a weight, and a supplement counts as 0 g in every weight total.
 
 **From supplements.** In every nutrient table for a meal, a day, the Daily Summary, a recipe and the nutrient averages, a nutrient that came partly or wholly from supplements shows how much, under its amount: *12 mcg from supplements*, or *all from supplements*. On a plant-based diet that matters most for B12: 250% of the target, all from a tablet, is a different picture from 250% from food.
 
@@ -5313,7 +5355,7 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 32 minutes)*
+*(Reading time: 1 hour, 43 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5329,6 +5371,33 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
+Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
+
+- **114.** Save buttons that never lit up when you typed in their boxes now do: a complement suggestion's **Save limit for this food**, Settings' nutrient-target rows, and a food's portion rows; on the Annotate page the right button (**Save annotation**) now lights up.
+- **113.** The "Added ..." line after adding a food or recipe to a meal or recipe now says how much was added, with its weight in grams.
+- **112.** A food's Annotate page now always opens at its top, with the cursor in the GI box when the food has no GI yet; when it has a GI but no DIAAS, a **DIAAS needed, click to go there** button takes you straight to the DIAAS box.
+- **111.** A food with no GI anywhere and very little carbohydrate, such as hemp seed: the manual now explains how to save a labelled estimate, and the Annotate page's "No matches found" advice now recommends one instead of "Don't prompt me", which left glycemic load incomplete.
+- **110.** Opening **Add Food or Recipe** or **Add Ingredient** puts the cursor in its search box; after a search the cursor goes to the first result's amount, and stays put — page and all — when the online results arrive.
+- **109.** On Compare, a food that has portions can now be given its amount as a number of one of them (2 × 1 slice) as well as in grams.
+- **108.** Compare has a **Clear the list and start over** button beside Search, to start a new comparison.
+- **107.** Search meal history now takes a code too: U171477 or R21 lists every meal that food or recipe is in.
+- **106.** List filters now take a code as well as a name: R21 on the Recipes list, U171477 on Food Cache, Annotate and My Pantry, and either on the Food Use pages.
+- **105.** Compare now shows a recipe's serving description ("1 muffin") beside its serving weight, and under its name in the nutrient table when servings are compared.
+- **104.** Compare's per-100 g figures for a recipe now use the recipe's own total weight when it has one, the weight of the finished dish, instead of always adding up the raw ingredients.
+- **103.** On Compare, a recipe that has a weight per serving can now be given its amount in grams as well as servings.
+- **102.** Compare now has a Contents list down the side, and its two Show comparison buttons say which amounts they show, with the one matching your amounts in blue.
+- **101.** Adding a search result to a meal, a recipe or your pantry now leaves the search results showing, so you can add several from one search; a new search replaces them.
+- **100.** Compare keeps every food you tick when you search again, so a comparison can be gathered from several searches, and each item can now be compared at an amount you set: grams of a food, servings of a recipe.
+
+- **99.** A food's Annotate page now offers, under the GI lookup, a ready-made prompt asking Claude AI to research that food's glycemic index, for when the lookup finds nothing suitable.
+- **98.** The Home page reminder that your profile isn't set yet now says just that, and has a checkbox to stop it reminding you; the New User Manual banner no longer shows alongside a program-update banner.
+- **97.** Protein complement suggestions from your pantry now show the food's current name, with its `* ` mark, and pantry and meal lines left on a food's old name are brought up to date.
+- **96.** Daily Summary can now add up every nutrient for any date range, or for meals you pick by ID, and can show Recent Days in blocks of N days (a week at a time by default), each averaged per day.
+- **95.** Clicking "Compare nutrition of selected" with nothing ticked in the Compare column now says so, instead of opening an empty Compare page.
+- **94.** A food with no amino acid data now says, under its Macronutrients table, why there is no Digestible Complete Protein row or DIAAS.
+- **93.** Deleting a Food Cache food that is still in use no longer reloads the list: the reason it can't be deleted now appears right under that food, and your filter and place stay put.
+- **92.** Meal, day and summary pages now list a supplement as tablets or capsules ("2 capsules"), not as the "100 g" per tablet NuMa uses inside; the Edit box offers the count too.
+- **91.** Daily Summary's Recent Days list, trends and plots now include what you add, replace or remove across many meals at once from Food Use in Meals or What-if; until now those days kept their old totals there.
 - **90.** Food Use in Meals: a food's **pick dates** link lists the days it was eaten, so a replace, remove or add can reach just the dates you tick.
 - **89.** Correct vitamin K from USDA now finishes: foods USDA skips when asked 20 at a time are asked for one by one, and foods USDA has no record of are no longer retried on every click.
 - **88.** Food Use in Meals can now remove a food or recipe from every selected meal, or add one to every selected meal at an amount you give, alongside replacing one.
@@ -5420,7 +5489,380 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 - **2.** What-if pages now show glycemic load before and after your changes, and say when a swap to a food with no GI makes the "after" look better than it is; every incomplete GL figure now says how much of the carbohydrate it covers.
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
+#### October 20 updates
+
+**PROGRAM: SAVE BUTTONS LIGHT UP WHEREVER YOU TYPE**
+
+A Save button now lights up, with "Unsaved changes" beside it, as soon as you type in its box, in four places that had been missing it: a complement suggestion's **Most I'd add to a meal** limit, Settings' nutrient-target rows, a food's portion rows in Food Cache, and the Annotate page, where the "give me a prompt" link used to light up instead of **Save annotation**.
+
+<!--
+
+```
+Scope: web/templates/base.html (unsaved-changes script), _complement_limit.html,
+settings.html, food_cache_portions.html. The tracker only looked at fields inside
+the <form> element and took its first submit button. Now: the submit button must
+belong to the form (button.form === form), so one naming another form via form=""
+is skipped; data-dirty-outside opts a form into tracking boxes tied to it by form=""
+(opt-in, so Compare/Fetch tick-box selection forms stay untracked); data-dirty-group
+tracks a few boxes with their own formaction Save button inside a larger GET form.
+```
+
+-->
+
+**PROGRAM: "ADDED" LINE SHOWS THE AMOUNT**
+
+After you add a food or recipe from the search results on a meal or recipe page, the confirmation now says how much you added, e.g. **Added Hummus — 1.8 servings (180 g).**, with the note about the search results on the next line.
+
+<!--
+
+```
+Scope: web/backend.py meal_add_food, meal_add_recipe_item, recipe_ingredient_add,
+recipe_ingredient_add_recipe pass added_amount; _added_amount() gives the typed amount
+plus grams when not typed in grams; recipes show servings plus grams when the serving
+weight is known. meal.html / recipe_edit.html render it.
+```
+
+-->
+
+#### October 18 updates
+
+**PROGRAM: ANNOTATE PAGE OPENS AT THE TOP, WITH A JUMP TO DIAAS**
+
+Clicking **Add or edit GI / DIAAS estimates** on a food's page now opens the Annotate page at its top, so you read it from the start; when the food has no GI yet, the cursor is already in the GI estimate box. When a GI is on file and only DIAAS is still wanted, an orange **DIAAS needed, click to go there** button at the top takes you down to the DIAAS box with the cursor in it. [learn more...](#annotate)
+
+<!--
+
+```
+Scope: Foods -> a food's page -> Add or edit GI / DIAAS estimates (also Annotate a Food); web/templates/food_annotate.html, web/templates/base.html, tests/test_web.py.
+Cause: the Skip for now / Back without saving / Back to list link carried [autofocus], so the browser scrolled down to it on load, leaving the DIAAS field at the top of the window and focus on a link whose ring was easy to miss. base.html's remembered-scroll restore (keyed on path + query) then brought that offset back on later visits. Fix: autofocus removed; a [data-no-scroll-restore] marker on the edit view makes base.html skip the restore; a page script focuses (preventScroll) the GI box if empty, else the new #diaas-jump button, else the back button, then scrollTo(0,0). #diaas-jump (shown when gi_estimate is on file and DIAAS is in missing) replaces the orange "Asking for this one" badge on the DIAAS label; its click scrolls #diaas-label to the top and focuses #diaas_estimate. Verified in Chromium and Firefox via Playwright.
+```
+
+-->
+
+**PROGRAM: GI FOR FOODS WITH LITTLE CARBOHYDRATE AND NO GI ANYWHERE**
+
+For a food like hemp seed, which has no measured GI and very little carbohydrate, the manual now explains why no value exists and how to save a clearly labelled estimate, so meals using it get a complete glycemic load. The Annotate page's advice when the GI lookup finds nothing now says the same. [learn more...](#gi-low-carb)
+
+<!--
+```
+Scope: user-manual.md new section #gi-low-carb (after #choosing-gi-values,
+which now links to it); web/templates/food_annotate.html gi-no-match-help
+"Still nothing?" item. The old advice (tick "Don't prompt me" for a
+low-carb food) left the food a not_wanted gap, so GL stayed incomplete;
+only foods under NEGLIGIBLE_CARBS_G (1 g in the amount eaten) count as zero,
+and a typical serving of a seed or nut is just over it.
+```
+-->
+
+**PROGRAM: SEARCH FOCUS STAYS WHERE YOU ARE TYPING**
+
+Clicking **Add Food or Recipe** (meal page) or **Add Ingredient** (recipe edit) puts the cursor straight in the search box. After a search, the cursor lands in the first result's amount box, recipe or food, and when the online results arrive moments later neither the cursor nor the page moves.
+
+<!--
+
+```
+Scope: web/templates/base.html (details-toggle autofocus; shared [data-search-results] swap), web/templates/meal.html (add-food search script), web/templates/recipe_edit.html.
+The toggle autofocus required the clicked <summary> to be document.activeElement, which Firefox/Safari don't do on a mouse click, so it silently did nothing there; a capture-phase click tracker now counts a just-clicked summary too. meal.html's first-result selector looked for portion_str/servings, but recipe rows use "amount", so a recipe listed first was skipped. After the online merge meal.html called focusFirstResultField() again, which stole focus back and scrolled; now both it and the shared swap record the focused row field (row key + name + radio value), caret and scroll position before replacing the tbody and restore them afterwards with preventScroll. Two more culprits, found in a real browser (Chromium + Firefox via Playwright): an older add-food-details toggle script near the bottom of meal.html focused the first food portion box on open (and on load), overriding both the search-box and first-result rules -- removed; and the first-result focus used setTimeout(0), which on this long page fired before base.html's later autofocus-to-Search-button script ran (the parser yields), so the button won -- it now waits for DOMContentLoaded (meal.html and recipe_edit.html).
+```
+
+-->
+
+**PROGRAM: COMPARE: A FOOD'S AMOUNT AS A NUMBER OF ITS PORTIONS**
+
+On Compare, a food with portions now has a g / portion choice beside its Amount box, so you can compare, say, 2 slices of bread against 1 cup of rice instead of working out the grams. [learn more...](#comparison-amounts)
+
+<!--
+```
+Scope: Compare (web/backend.py _parse_compare_amounts, _compare_amount_token,
+compare_set_amounts, _load_compare_entry; web/templates/compare.html).
+A food's item token takes "@<count>p<n>" (f748967@2p1 = 2 x portion 1); the
+unit_food_<id> select posts "g" or "p<n>". Grams = count x the portion's
+gram_weight from the cached portions_json (or the fetched detail for an
+uncached food). A portion index that no longer exists falls back to 100 g
+with a note under the Amount box. Saved lists keep the unit as-is.
+```
+-->
+
+**PROGRAM: COMPARE: CLEAR THE LIST AND START OVER**
+
+Compare now has a **Clear the list and start over** button beside the Search button, in place of the Clear comparison button that sat further down the page. [learn more...](#comparison)
+
+**PROGRAM: SEARCH MEAL HISTORY BY CODE**
+
+Search meal history now takes a food or recipe code as well as a name: **U171477** or **R54** lists every meal that one food or recipe was logged in, and nothing that just shares a word with it. [learn more...](#search-by-code)
+
+<!--
+```
+Scope: Meals & Log -> Search meal history; db.py
+(search_meal_history_by_item), web/backend.py (meals_search),
+meals_search.html. A code is matched on meal_items.fdc_id (item_type food)
+or recipe_id (item_type recipe), not on the stored name copy.
+```
+-->
+
+**PROGRAM: FILTER ANY LIST BY CODE**
+
+The Recipes list, Food Cache, Annotate, My Pantry and the Food Use pages now find an item by its code as well as its name: type **R54** in the Recipes filter, or **U171477** in Food Cache's, and just that recipe or food is listed, even if it's archived. [learn more...](#search-by-code)
+
+<!--
+```
+Scope: Recipes list, Food Cache, Annotate, My Pantry filter, Food Use in
+Recipes name filter, Food Use in Meals replacement type-ahead; db.py
+(search_cached_foods), web/backend.py (_typed_code), five templates.
+db.search_cached_foods() now returns just the one food when the whole query
+is a food code (food_ids.parse_code) or a cached bare FDC ID — so every
+caller (Food Cache, Annotate, copy-from search, replacement type-ahead)
+gets it. Recipe codes are matched in recipes_list (searching all recipes,
+archived included, not just the 200 most recent) and the type-ahead.
+```
+-->
+
+**PROGRAM: COMPARE SHOWS EACH RECIPE'S SERVING DESCRIPTION**
+
+On Compare, a recipe's serving description, such as "1 muffin", now appears beside its serving weight in the list of items, and under its name in the nutrient table whenever servings are being compared. [learn more...](#comparison-amounts)
+
+**PROGRAM: COMPARE USES A RECIPE'S OWN TOTAL WEIGHT FOR PER 100 G**
+
+On Compare, a recipe's per-100 g figures are now per 100 g of the finished dish, using the total weight you entered for the recipe, so cooking loss is allowed for, and 100 g matches what a meal logs as 100 g. A recipe with no total weight still adds up its ingredients, as before. [learn more...](#comparison-estimate)
+
+<!--
+```
+Scope: Compare; web/backend.py (_load_compare_entry), compare.html text.
+Batch weight = recipe_serving_grams() × servings when that is known (stated
+total weight, else a complete ingredient sum), else the possibly incomplete
+db.recipe_compute_weight() sum, still marked "(estimate)". Before, the
+100 g basis always used recipe_compute_weight() while a meal (and Compare's
+grams amounts) used recipe_serving_grams(), so R50 showed 187.4 kcal/100 g
+on the 100 g basis and 184.9 at "100 g" set as an amount.
+```
+-->
+
+**PROGRAM: COMPARE A RECIPE BY GRAMS**
+
+On Compare, a recipe with a weight per serving now has a servings-or-grams choice beside its Amount box, so you can compare, say, 100 g of your hummus with 30 g of peanut butter. [learn more...](#comparison-amounts)
+
+<!--
+```
+Scope: Compare; web/backend.py, web/templates/compare.html.
+Amounts are now (value, unit) — CompareAmount; a recipe token "r12@150g" is
+grams, "r12@2" servings; foods are always grams. Grams convert to servings
+by recipe_serving_grams() (stated total weight, else complete ingredient
+sum), the same figure a meal uses. Grams with no serving weight fall back to
+1 serving with a red note. Saved lists store "unit". Also removed the lone
+"Compare" breadcrumb above the page heading.
+```
+-->
+
+**PROGRAM: COMPARE CONTENTS LIST, CLEARER SHOW COMPARISON BUTTONS**
+
+Compare now has a Contents list down the side, for jumping between its tables. Its two buttons now read **Show comparison for 100 g of each item** and **Show comparison at the amounts set above**, and the blue one follows what you've asked for: the amounts one as soon as you type an amount. The Compare amounts choice is now there for foods-only comparisons too. [learn more...](#comparison-amounts)
+
+<!--
+```
+Scope: Compare; web/templates/compare.html, tests/test_gl_swaps.py.
+analysis-page layout + sidebar_nav (only when items exist); section ids
+cmp-ingredients / cmp-protein / cmp-gl / cmp-nutrients / cmp-save /
+compare-items. The 100 g button is now a link that sets basis=100g (it used
+to be a bare #comparison anchor that showed whatever basis was remembered).
+Primary class: server-side from basis/amounts, swapped live by a small
+script on the Amount inputs. Basis selector no longer gated on any_recipe.
+The GL test now slices by section id, since the sidebar repeats the titles.
+```
+-->
+
+**PROGRAM: ADD SEVERAL FOODS FROM ONE SEARCH**
+
+On a meal's Add Food or Recipe search, a recipe's Add Ingredient search and My Pantry's search, adding a result now leaves the results showing, with a line naming what you just added, so you can pick another from the same list. Running a new search replaces them as before. [learn more...](#search-keeps-results)
+
+<!--
+```
+Scope: Meal page, Edit Recipe, My Pantry; web/backend.py (meal_add_food,
+meal_add_recipe_item, meal_update_item_post, serving-weight, recipe
+ingredient add / add-recipe, pantry_add), _add_food_row.html,
+_pantry_search_rows.html, meal.html, recipe_edit.html.
+A successful add used to redirect with an explicit empty q=, which made the
+persist-search JS in base.html forget the search. Now each add posts the
+current q (meal add-recipe form gained it; pantry rows post search=) and the
+redirect carries it back plus added=<name>, shown as #just-added. Pantry's
+"link" mode still returns to the plain list. Edit Recipe's scroll restore
+no longer jumps to the Ingredients section after an add from the results.
+```
+-->
+
+**PROGRAM: COMPARE FOODS FROM SEVERAL SEARCHES, AT AMOUNTS YOU SET**
+
+On Compare, tick a food, then just search for the next one: what you ticked is added first, so a comparison of quite different foods can be built up search by search. Each item in the list now has an Amount box (grams for a food, servings for a recipe); **Compare at the amounts set above** shows every table at those amounts. [learn more...](#comparison-amounts)
+
+<!--
+```
+Scope: Compare (/compare); web/backend.py, web/templates/compare.html.
+Ticks were lost because a new search was a plain GET that never posted the
+results form. Now the search form, when results are ticked, submits the
+results form to /compare/add-multiple with then_search = the search's query
+string (search/source/limit only); add-multiple appends it to its redirect.
+Amounts ride in the items string as "@n" suffixes (f174@150, r12@2), parsed
+by _parse_compare_amounts() and re-emitted by _compare_items_str(); every
+add/remove/save/load keeps them (saved lists store an "amount" key). New
+basis "amounts" (_COMPARE_BASES): food grams / recipe servings scale
+nutrients, DIAAS, GL and ingredient rows. New POST /compare/amounts.
+```
+-->
+
+#### October 17 updates
+
+**PROGRAM: ASK CLAUDE AI FOR A FOOD'S GI FROM ITS ANNOTATE PAGE**
+
+When the GI lookup on a food's Annotate page has nothing suitable, the line under it, **give me a prompt asking Claude AI**, opens a ready-made prompt in a new tab asking Claude AI to research that food's glycemic index and say where the value comes from. Copy it into claude.ai, then type the number Claude gives into the GI box, or import the reply to save it for you. [learn more...](#fetch)
+
+<!--
+```
+Foods -> Annotate a food (/food/annotate/<id>); web/templates/food_annotate.html,
+claude_fetch.html, web/backend.py food_cache_claude_fetch(), claude_fetch.py.
+New gi_only form field on POST /food/cache/claude-fetch: asks for "gi" alone (no
+nutrient keys, no DIAAS), even when a GI is already saved, since the user asked
+outright; the import still only fills a blank GI unless overwrite is ticked.
+Annotate page submits it via an external form (forms can't nest), target=_blank.
+Targeted-prompt line for a food with no keys wanted now reads "none are wanted for
+this food" instead of claiming every nutrient value is present.
+```
+-->
+
+**PROGRAM: HOME PAGE PROFILE REMINDER CAN BE TURNED OFF**
+
+Until your profile is saved, the Home page says so: NuMa needs it to work out your daily targets. Tick **Don't remind me about this again** to stop the reminder. When a program update is available, the separate New User Manual banner is no longer shown too, since the update brings its own manual. [learn more...](#home-page-tour)
+
+<!--
+```
+Scope: Home page (web/templates/home.html, web/backend.py). The "NEW TO NUMA?" banner is renamed
+"YOUR PROFILE ISN'T SET YET" and reworded to the one thing it checks (no saved profile); new
+POST /profile-notice/ack-banner sets prefs.json profile_notice_dismissed. Manual-update banner
+condition is now manual_update_available and not update_available. Same session: the manual's
+Preface excerpt was removed from the Home page, and
+NEW_VERSION_NOTE is no longer printed there (it goes into this log as the Version overview).
+```
+-->
+
+#### October 16 updates
+
+**PROGRAM: PANTRY AND MEAL LINES FOLLOW A FOOD'S NAME**
+
+A protein complement suggestion from your pantry now names the food exactly as its own page does, `* ` mark included. Pantry and meal lines that still showed a name the food no longer had are brought up to date the next time NuMa starts, and a food's new name from Refresh from USDA or an import now reaches them too, as a rename already did. Recipe ingredient lines are left as they are, since you may have chosen their names yourself.
+
+<!--
+
+```
+Scope: db.py (cache_food() now calls propagate_food_name() when the name changes;
+new sync_food_name_copies(), run at startup in web/backend.py _lifespan with
+cascade_food_change() per food touched; propagate_food_name() gains a tables=
+filter), web/backend.py (_web_pantry_candidates() names a candidate by
+foods.name; POST /food/{id}/rename cascades when copies changed); tests in
+tests/test_db.py and tests/test_web.py.
+Root cause: cache_food()'s upsert changed foods.name without propagating, so
+re-caches (Refresh, imports, starter updates) left pantry/meal/recipe copies on
+the old name; complement candidates read the pantry copy, which keeps its own
+"* " marker (per-table by design), so a starter food showed without it. The
+repair skips recipe_ingredients because a line name there can be hand-edited.
+Digestibility is looked up by line name, hence the cascade after each repair
+and after a rename.
+```
+
+-->
+
+**PROGRAM: NUTRIENT TOTALS FOR A DATE RANGE OR CHOSEN MEALS, AND BLOCKS OF DAYS**
+
+Daily Summary has two new buttons. **Nutrient totals for a date range or meals** adds up every nutrient across any dates you choose, or across meals you list by ID (ranges like 20-24 work), with the per-day average beside the total. **Blocks of days** shows Recent Days a block at a time — 7 days per row by default, any size you like — so you can compare one week with the next. [learn more...](#range-totals)
+
+<!--
+
+```
+Scope: Analysis -> Daily Summary; web/backend.py (summary_trend body moved into
+_multi_day_context(), shared with new /summary/range; new /summary/blocks;
+_nutrient_sections rows now carry "key"), web/templates/trend.html (range mode:
+Total column, date-range and meal-ID forms), new web/templates/summary_blocks.html,
+summary.html buttons; tests in tests/test_web.py.
+Range totals expand meals live (_meal_expand_for_diaas), like the trend view. In
+meal-ID mode a date's GL is the combined GL of the chosen meals on it, not
+day_gl_total() of the whole day. Blocks read meal nutrient snapshots
+(day_nutrient_raw_totals) like Recent Days, so many blocks stay fast; % of goal
+is against the profile pinned to each block's last logged day.
+```
+
+-->
+
+**PROGRAM: COMPARE BUTTON WITH NOTHING TICKED NOW SAYS SO**
+
+If you click "Compare nutrition of selected" before ticking anything in the Compare column, NuMa now tells you to tick boxes there first, instead of opening an empty Compare page. On Food Cache this is easy to hit: the first column there is Fetch (for Claude AI), and Compare is the second. [learn more...](#comparison)
+
+<!--
+```
+Scope: Food Cache, Foods search, My Pantry, Recipes, Compare (every form posting to
+/compare/add-multiple). web/templates/base.html: one document-level submit listener
+stops an add-multiple submit with no fdc_id/recipe_id and alerts. web/backend.py
+compare_add_multiple(): if nothing was posted at all, the redirect carries an error
+message as a fallback (JS off, etc.). Reported as "compare gives a bare page";
+reproduced with Playwright against a copy of the live DB: the Compare-column flow
+worked, so the empty items= came from ticks in the Fetch column.
+```
+-->
+
 #### October 15 updates
+
+**PROGRAM: FOOD PAGE EXPLAINS A MISSING DCP ROW**
+
+A food that has protein but no amino acid data now has a note under its Macronutrients table: it has no Digestible Complete Protein (DCP) row and no DIAAS because both are worked out from the amino acid profile. Fill in that data to see them. [learn more...](#fetch)
+
+**PROGRAM: FOOD CACHE KEEPS YOUR PLACE WHEN A DELETE IS REFUSED**
+
+When you try to delete a [Food Cache](#food-cache-web) food that a pantry entry, recipe or meal still uses, the explanation of where it's used, and how to clear it, now opens right under that food. The list stays as it was: same filter, same place on the page.
+
+<!--
+
+```
+Scope: Foods -> Food Cache; web/backend.py (food_cache_delete), web/templates/base.html
+(js-row-remove handler), new web/templates/_food_delete_blocked.html (moved out of
+food_cache.html, which now includes it), tests/test_web.py.
+The fetch-based delete replied {"ok": false} for a referenced food, and base.html then fell
+back to a real form submit -- a full reload to the top of the page. Now the AJAX reply
+carries blocked_html (the same explanation partial, rendered server-side) and base.html
+inserts it as a full-width row under the food's row (replacing any earlier one there);
+anything without blocked_html still falls back to a real submit as before.
+```
+
+-->
+
+**PROGRAM: SUPPLEMENTS LISTED AS TABLETS, NOT GRAMS, IN MEALS**
+
+Meal, day and summary pages now list a supplement by the tablet or capsule — **1 capsule**, **2 capsules**, **0.5 tablet** — instead of as 100 g per tablet, and its Edit box offers the same count. Nothing about your totals changes. [learn more...](#supplements)
+
+<!--
+```
+Scope: meal page, meal day page, Daily Summary day page, meal search, print.
+backend._supplement_count() turns a supplement's internal grams (one unit =
+100 g, supplements.py) into "N <unit>s"; _annotate_food_amounts() sets
+supp_count and amount_display (the count when it reparses against the food's
+"1 tablet" portion, else grams); _food_amount.html shows supp_count in place
+of grams. Old meal lines whose saved label is "100 g" read correctly too —
+only display changed, stored amounts untouched. Test:
+test_supplements.py test_meal_pages_show_a_supplement_as_tablets_not_grams.
+```
+-->
+
+**PROGRAM: BULK MEAL CHANGES NOW REACH DAY TOTALS**
+
+After you add, replace or remove a food or recipe across many meals at once (Food Use in Meals, or What-if's Apply for real), the Recent Days list on Daily Summary, the nutrient trends and the Nutrient Plot now show the new totals. Until now they kept each day's old totals, while the day's own page showed the new ones.
+
+<!--
+```
+Scope: Analysis -> Food Use in Meals (replace / remove / add), What-if: meals
+Apply for real. db.substitute_item_in_meals() and db.remove_item_from_meals()
+now flag every meal they change in stale_meals (via meals_with_direct_item);
+the Food Use bulk add flags each meal it adds to. The stale-meals middleware
+then recomputes each meal's stored DCP / calories / nutrients_snapshot_json
+on the next page load. Found 2026-10-15: "Water, overnight - 2 c" added to 12
+meals in bulk; Recent Days showed 821 g water for 2026-10-02 against 1294 g
+on the day page. Test: test_food_use_changes_refresh_stored_meal_totals.
+```
+-->
 
 **PROGRAM: REPLACE, REMOVE OR ADD ON CHOSEN DATES ONLY**
 

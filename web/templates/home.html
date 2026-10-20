@@ -6,11 +6,20 @@
   <small>NuMa is not medical advice and makes no claims about health or illness — see the
   <a href="/disclaimer">Disclaimer</a> before relying on anything it reports.</small>
 </p>
-{% if not profile_label %}
-<div class="alert alert-info mt-4">
-  <strong>NEW TO NUMA?</strong> A few settings need doing before NuMa's results mean much — your profile first of all.
-  {{ manual_link("first-setup", "Open the setup checklist in the User Manual") }}
-  <br><small class="muted">This message goes away once your profile is saved in <a href="/settings">Settings</a>.</small>
+{% if not profile_label and not profile_notice_dismissed %}
+<div class="alert alert-info mt-4" id="profile-notice">
+  <strong>YOUR PROFILE ISN&rsquo;T SET YET:</strong> NuMa works out your daily nutrient targets from
+  your profile (age, sex, weight, height and activity level), so until you save one there is
+  nothing personal to compare your meals with. <a href="/settings">Set up your profile in Settings</a>.
+  {{ manual_link("first-setup", "Setup steps in the User Manual") }}
+  <br><small class="muted">This message goes away once your profile is saved.</small>
+  <form method="post" action="/profile-notice/ack-banner" class="mt-2 mb-0">
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="profile-notice-dismiss-checkbox"
+             onchange="if(this.checked) this.form.requestSubmit();">
+      <label class="form-check-label" for="profile-notice-dismiss-checkbox">Don&rsquo;t remind me about this again.</label>
+    </div>
+  </form>
 </div>
 {% endif %}
 {% if vitamin_k_unchecked %}
@@ -104,9 +113,6 @@
 <div class="alert alert-info mt-4">
   <strong>UPDATE AVAILABLE:</strong> NutriMagnus {{ update_available.tag }} has been released
   (you're running {{ version }}).
-  {% if version_note %}
-  <br><small>NEW VERSION NOTE: {{ version_note }} — {{ manual_link(changelog_anchor, "see what changed") }}</small>
-  {% endif %}
   {% if starter_preview_text %}
   <br><small><strong>Starter foods and recipes:</strong> this update {{ starter_preview_text }}. After updating, NuMa will list them for you to choose from — nothing is added or changed on its own.</small>
   {% elif not update_available.starter_manifest %}
@@ -181,7 +187,9 @@
   <a href="/manual#quickhelp" target="_blank" rel="noopener" class="ms-2">Getting more help</a>
 </div>
 {% endif %}
-{% if manual_update_available %}
+{# A program update brings its own manual, so a separate manual-update
+   banner beside it would only repeat the news. #}
+{% if manual_update_available and not update_available %}
 <div class="alert alert-info mt-4">
   <strong>NEW USER MANUAL AVAILABLE:</strong> version {{ manual_update_available.stamp }}
   (you have {{ manual_stamp or 'unknown' }}). This is separate from program updates — it doesn't change the program itself.
@@ -208,7 +216,7 @@
     <li class="muted"><strong>Dietary preferences:</strong> {{ diet_label }} /
       <strong>Active profile:</strong> {% if profile_label %}{{ profile_label }} — <a href="/settings">change both via Settings</a>{% else %}not set — <a href="/settings">configure both via Settings</a>{% endif %}</li>
     <li class="muted"><strong>Current manual version:</strong> {{ manual_stamp or 'unknown' }} /
-      <strong>Current program version date:</strong> {{ version_date }}{% if version_note %} (Version note: {{ version_note }} — <a href="/manual#{{ changelog_anchor }}" target="_blank" rel="noopener">see what changed</a>){% endif %}
+      <strong>Current program version date:</strong> {{ version_date }} — <a href="/manual#{{ changelog_anchor }}" target="_blank" rel="noopener">see what changed</a>
       {% if not update_available and not manual_update_available %}
       — <form method="post" action="/check-for-updates" class="d-inline">
         <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Check for updates now</button>
@@ -219,10 +227,6 @@
   <p class="mt-2 mb-0"><small>You can plot nutrients from your logged meals and show that plot right here — see <a href="/summary/nutrient-plot">Nutrient Plot</a> {{ manual_link("nutrient-plot") }}.</small></p>
   {% endif %}
 </div>
-
-<article class="mt-4" style="width:88%;max-width:88%;">
-  {{ home_body | safe }}
-</article>
 
 {% if home_plot_qs %}
 <div class="mt-3">

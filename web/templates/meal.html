@@ -40,6 +40,12 @@
   {% if contributor_options %}
   <li class="sb-item" data-target="sec-contributors">
     <a class="sb-toggle" href="#sec-contributors">Top Contributors</a>
+    {% if contributor_by_item %}
+    <ul class="sb-sub">
+      <li><a class="sb-link" href="#contrib-by-food">By food, recipes split into their foods</a></li>
+      <li><a class="sb-link" href="#contrib-by-item">By meal item, recipes kept whole</a></li>
+    </ul>
+    {% endif %}
   </li>
   {% endif %}
   {% if nutrient_sections %}
@@ -196,6 +202,7 @@
 <details open class="mb-3" id="add-food-details" data-remember="add-food">
   <summary><strong>Add Food or Recipe</strong></summary>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
+  {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
   {% include "_food_quality_note.html" %}
 
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search data-online-search>
@@ -322,19 +329,25 @@
     refreshConfirmUI();
 
     // Once results are showing, the natural next action is to type an
-    // amount into the first one — put the cursor straight there. A plain
-    // synchronous call here would be undone by base.html's later
-    // autofocus-to-Search-button script (this block runs first, but that
-    // script runs right after it in document order and unconditionally
-    // steals focus back whenever the search box already holds a value);
-    // deferring one tick with setTimeout(0) runs this after every
-    // synchronous script on the page — including that one — has finished,
-    // so this focus wins instead.
+    // amount into the first one — put the cursor straight there. It has to
+    // run after base.html's autofocus-to-Search-button script, which comes
+    // later in the page and moves focus whenever the search box holds a
+    // value. setTimeout(0) isn't enough for that: on a long page the parser
+    // can yield before reaching it, so the timer fired first and lost.
+    // DOMContentLoaded comes only after every inline script has run.
+    // (Opening the panel by its heading goes to the search box instead —
+    // base.html's details-toggle handler.)
+    // Food rows take portion_str, recipe rows amount; whichever row comes
+    // first in document order wins.
     function focusFirstResultField() {
-      var inp = tbody.querySelector('input[name="portion_str"], input[name="servings"]');
+      var inp = tbody.querySelector('.add-food-form input[name="portion_str"], .add-food-form input[name="amount"]');
       if (inp) inp.focus();
     }
-    setTimeout(focusFirstResultField, 0);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', focusFirstResultField);
+    } else {
+      focusFirstResultField();
+    }
 
     if (!loadingRow) return;  // neither USDA nor Open Food Facts selected — nothing more to fetch
 
@@ -396,6 +409,18 @@
         // to carry across what the user typed WHILE the external search was
         // running, and at fetch time they have not typed anything yet.
         var beforeMerge = snapshotRows();
+        // The online rows must not move the cursor or the page: note which
+        // row field has focus (and where its caret is) and the scroll
+        // position, and put all three back after the swap.
+        var scrollX = window.scrollX, scrollY = window.scrollY;
+        var active = document.activeElement, focusKey = null, focusName = null, focusSel = '', caret = null;
+        if (active && tbody.contains(active) && active.form && active.name) {
+          focusKey = rowKey(active.form);
+          focusName = active.name;
+          // Radios share one name per row; the value tells them apart.
+          if (active.type === 'radio') focusSel = '[value="' + active.value + '"]';
+          try { caret = [active.selectionStart, active.selectionEnd]; } catch (e) { caret = null; }
+        }
         // Server response is the FULL merged+re-sorted result set (local +
         // external), not just new rows — replace, don't append, so a weak
         // local match can't stay pinned above a better external one.
@@ -414,14 +439,25 @@
         // restoreRows writes values programmatically, which fires no
         // input/change event, so the guard has to be asked to re-compare.
         if (window.numaDirtyGuard) window.numaDirtyGuard.recheck(tbody);
+        if (focusKey) {
+          tbody.querySelectorAll('form.add-food-form').forEach(function (form) {
+            if (rowKey(form) !== focusKey) return;
+            var el = form.querySelector('[name="' + focusName + '"]' + focusSel + ':not([type=hidden])');
+            if (!el) return;
+            el.focus({preventScroll: true});
+            if (caret && caret[0] !== null) {
+              try { el.setSelectionRange(caret[0], caret[1]); } catch (e) {}
+            }
+          });
+        }
         if (html.trim()) {
           table.style.display = '';
-          focusFirstResultField();
         } else {
           table.style.display = 'none';
           noResults.style.display = '';
           window.numaInitSearchSuggestions(noResults);
         }
+        window.scrollTo(scrollX, scrollY);
         refreshConfirmUI();
       })
       .catch(function () {
@@ -671,7 +707,8 @@
   {{ _contrib.render("/meal/" ~ meal.id, contributor_options, contributor_rank, contributors,
                       contributor_total, contributor_count, contributor_unit,
                       contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl, missing=contributor_missing,
-                      always_food_level=True) }}
+                      always_food_level=True,
+                      table_heading="By food, recipes split into their foods" if contributor_by_item else "") }}
   {% if contributor_by_item %}{{ _contrib.by_item(contributor_by_item, contributor_unit, is_dcp=contributor_is_dcp, is_gl=contributor_gl is not none) }}{% endif %}
 </section>
 {% endif %}
@@ -1284,25 +1321,6 @@ document.getElementById('complements-form').addEventListener('change', function 
 
   window.addEventListener('scroll', updateActive, { passive: true });
   updateActive();
-})();
-</script>
-<script>
-(function () {
-  var details = document.getElementById('add-food-details');
-  if (!details) return;
-
-  function focusFirst() {
-    if (!details.open) return;
-    // If search results are showing, focus the first amount field
-    var inp = details.querySelector('input[name="portion_str"], input[name="servings"]');
-    // Otherwise focus the search box
-    if (!inp) inp = details.querySelector('input[name="q"]');
-    if (inp) inp.focus();
-  }
-
-  details.addEventListener('toggle', focusFirst);
-  // Also run immediately if already open on page load (e.g. after a search)
-  focusFirst();
 })();
 </script>
 <script>

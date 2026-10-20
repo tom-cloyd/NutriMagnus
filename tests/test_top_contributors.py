@@ -154,10 +154,14 @@ def test_meal_page_shows_the_by_item_table_only_with_a_recipe(client) -> None:
         _db.meal_add_food(conn, mid, 998103, "Tofu tc", 100, "g")
     page = client.get(f"/meal/{mid}?rank=iron_mg").text
     assert 'id="contrib-by-item"' not in page                       # no recipe: nothing to keep whole
+    assert 'id="contrib-by-food"' not in page and 'href="#contrib-by-food"' not in page
     with _db.get_db() as conn:
         _db.meal_add_recipe(conn, mid, rid, "Dal tc", 1)
     page = client.get(f"/meal/{mid}?rank=iron_mg").text
     assert 'id="contrib-by-item"' in page
+    # Both tables get a heading, each listed under Top Contributors in the sidebar.
+    assert page.index('id="contrib-by-food"') < page.index('id="contrib-by-item"')
+    assert 'href="#contrib-by-food"' in page and 'href="#contrib-by-item"' in page
     by_item = page[page.index('id="contrib-by-item"'):]
     assert by_item.index("Dal tc") < by_item.index("Tofu tc")       # 8.5 mg beats 5 mg
     assert "Lentil tc" not in by_item.split("</table>")[0]

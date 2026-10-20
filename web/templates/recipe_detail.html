@@ -311,7 +311,7 @@
         <td>
           {% if ing.ref_recipe_deleted %}
             {{ ing.food_name }}{{ food_id_tag(None, recipe_id=ing.ref_recipe_id) }} <span class="text-danger">(sub-recipe deleted)</span>
-          {% elif ing.fdc_id and ing.fdc_id > 0 %}
+          {% elif ing.fdc_id and not ing.ref_recipe_id %}
             <a href="/food/{{ ing.fdc_id }}?amount={{ ing.amount | round(1) }}&from_context=recipe">{{ ing.food_name }}</a>{{ food_id_tag(ing.fdc_id) }}
           {% elif ing.ref_recipe_id %}
             <a href="/recipe/{{ ing.ref_recipe_id }}">{{ ing.food_name }}</a>{{ food_id_tag(None, recipe_id=ing.ref_recipe_id) }}
@@ -493,6 +493,7 @@
       <tr>
         <td>
           {% if ing.recipe_id %}<a href="/recipe/{{ ing.recipe_id }}">{{ ing.food_name }}</a>{{ food_id_tag(None, recipe_id=ing.recipe_id) }}
+          {% elif ing.fdc_id %}<a href="/food/{{ ing.fdc_id }}">{{ ing.food_name }}</a>{{ food_id_tag(ing.fdc_id) }}
           {% else %}{{ ing.food_name }}{{ food_id_tag(ing.fdc_id) }}{% endif %}
         </td>
         <td class="num-col">{{ ing.protein_g }}</td>

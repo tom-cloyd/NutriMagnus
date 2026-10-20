@@ -1175,7 +1175,7 @@ def test_recipe_edit_search_focus_script_covers_recipe_rows_and_defers(client: T
     assert resp.status_code == 200
     text = resp.text
     assert 'input[name="portion_str"], .add-food-form input[name="amount"]' in text
-    assert "setTimeout(focusFirstResultField, 0)" in text
+    assert "addEventListener('DOMContentLoaded', focusFirstResultField)" in text
 
 
 def test_recipe_ingredient_add_error_preserves_search_results(client: TestClient, cached_food) -> None:
@@ -2054,6 +2054,26 @@ def test_food_cache_delete_refuses_when_still_referenced(client: TestClient, cac
     follow = client.get(resp.headers["location"])
     assert follow.status_code == 200
     assert 'href="/pantry"' in follow.text
+
+
+def test_food_cache_delete_blocked_ajax_returns_explanation(client: TestClient, cached_food, db_conn) -> None:
+    """A refused delete sent by base.html's row fetch used to reply just
+    {"ok": false}, making the page fall back to a full reload that lost the
+    list's place. It must now carry the rendered explanation to show in place."""
+    db_conn.execute(
+        "INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)",
+        (cached_food["name"], cached_food["fdcId"]),
+    )
+    db_conn.commit()
+    resp = client.post("/food/cache/delete", data={"fdc_id": cached_food["fdcId"]},
+                       headers={"X-Numa-Ajax": "1"})
+    data = resp.json()
+    assert data["ok"] is False
+    assert "Deletion not possible" in data["blocked_html"]
+    assert 'href="/pantry"' in data["blocked_html"]
+    assert db_conn.execute(
+        "SELECT 1 FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
+    ).fetchone() is not None
 
 
 def test_food_cache_delete_blocked_offers_bulk_replace_link(client: TestClient, cached_food, db_conn) -> None:
@@ -2971,23 +2991,18 @@ def test_home_page_shows_db_integrity_banner(client: TestClient, cached_food, db
     assert "/food/cache/db-check" in resp.text
 
 
-def test_home_page_shows_version_note_prominently(client: TestClient) -> None:
-    """version_note (version.py's NEW_VERSION_NOTE) describes what changed
-    in the build you're actually running — with no update pending, it shows
-    in parentheses next to the "Current version date" line below Welcome,
-    not just in the fine print at the very bottom, and not in a standalone
-    box of its own."""
+def test_home_page_never_shows_version_note(client: TestClient) -> None:
+    """NEW_VERSION_NOTE is not printed on the home page (it goes into the
+    manual's updates log as the "Version overview" at commit time instead).
+    The "see what changed" link next to the version date stays, pointing at
+    the newest release summary in the manual's updates log."""
     from version import NEW_VERSION_NOTE
 
     resp = client.get("/")
-    assert NEW_VERSION_NOTE in resp.text
-    assert f"(Version note: {NEW_VERSION_NOTE} —" in resp.text
-    # "see what changed" points at the newest release summary in the manual's
-    # updates log, not the top of the log (which leads with the unreleased
-    # "Next release summary to this point").
-    assert f'/manual#{backend._latest_release_anchor()}"' in resp.text
-    assert "alert-secondary" not in resp.text
+    assert NEW_VERSION_NOTE not in resp.text
+    assert "Version note:" not in resp.text
     assert "NEW VERSION NOTE:" not in resp.text
+    assert f'/manual#{backend._latest_release_anchor()}"' in resp.text
 
 
 def test_see_what_changed_links_to_newest_release_summary(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3012,11 +3027,9 @@ def test_see_what_changed_links_to_newest_release_summary(tmp_path: pathlib.Path
     assert backend._latest_release_anchor() == "updates-log"
 
 
-def test_version_note_sits_inside_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When there's an update available, NEW_VERSION_NOTE appears inside
-    that same alert box, directly below the first line — not as a separate
-    box. It also appears a second time, in parentheses on the always-visible
-    "Current version date" line below the Welcome heading."""
+def test_update_available_banner_has_no_version_note(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The update-available banner doesn't print NEW_VERSION_NOTE either.
+    Like every other notice it sits above the page title."""
     from numa_app.services import update_check as _update_check
     from version import NEW_VERSION_NOTE
 
@@ -3025,15 +3038,9 @@ def test_version_note_sits_inside_update_available_banner(client: TestClient, mo
         lambda *a, **kw: {"tag": "v2099-01-01-0000", "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"},
     )
     resp = client.get("/")
-    assert resp.text.count(NEW_VERSION_NOTE) == 2
-    assert f"NEW VERSION NOTE: {NEW_VERSION_NOTE} —" in resp.text
-    assert f"(Version note: {NEW_VERSION_NOTE} —" in resp.text
-    assert resp.text.count(f"#{backend._latest_release_anchor()}") == 2
-    update_banner_pos = resp.text.index("UPDATE AVAILABLE:")
-    note_pos = resp.text.index(NEW_VERSION_NOTE)
-    welcome_pos = resp.text.index("Welcome to NutriMagnus")
-    assert update_banner_pos < note_pos < welcome_pos
-    assert "alert-secondary" not in resp.text
+    assert NEW_VERSION_NOTE not in resp.text
+    assert "NEW VERSION NOTE:" not in resp.text
+    assert resp.text.index("UPDATE AVAILABLE:") < resp.text.index("Welcome to NutriMagnus")
 
 
 def test_home_page_shows_update_available_banner(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -3176,18 +3183,24 @@ def test_windows_update_banner_links_to_manual_steps(client: TestClient, monkeyp
 
 
 def test_setup_checklist_links(client: TestClient) -> None:
-    """Settings always links to the manual's setup checklist; the home page
-    does too, but only until a profile exists. use_test_profile (conftest)
+    """Settings always links to the manual's setup checklist. The home page
+    says the profile isn't set, with the same link, until a profile exists
+    or the user ticks "Don't remind me". use_test_profile (conftest)
     pre-populates one; deleting it gives the fresh-install view."""
+    notice = "YOUR PROFILE ISN&rsquo;T SET YET:"
     assert "/manual#first-setup" in client.get("/settings").text
-    assert "NEW TO NUMA?" not in client.get("/").text
+    assert notice not in client.get("/").text
 
     for f in _profile._PROFILES_DIR.glob("*.json"):
         f.unlink()
     assert _profile.load_profile() is None
     resp = client.get("/")
-    assert "NEW TO NUMA?" in resp.text
+    assert notice in resp.text
     assert "/manual#first-setup" in resp.text
+    assert 'action="/profile-notice/ack-banner"' in resp.text
+
+    client.post("/profile-notice/ack-banner", follow_redirects=False)
+    assert notice not in client.get("/").text
 
 
 def _starter_v1_then_v2(monkeypatch: pytest.MonkeyPatch, db_conn) -> None:
@@ -3813,6 +3826,35 @@ def test_food_use_protein_filter_says_what_it_hides(client: TestClient, cached_f
     assert "Tap Water" in page and "hidden-no-protein" not in page
 
 
+def test_food_use_changes_refresh_stored_meal_totals(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Bulk add, replace and remove on Food Use in Meals flag each changed
+    meal stale, so its stored nutrient snapshot (Recent Days, trends) is
+    recomputed: an added item once stayed out of the stored day total."""
+    import json as _json
+    _db.cache_food(db_conn, fdc_id=999006, name="Tap Water fu", data_type="Foundation",
+                   brand=None, serving_size=100.0, serving_unit="g", nutrients={"water_g": 100})
+    db_conn.commit()
+    m1, m2 = _food_use_two_meals(client, cached_food)
+    client.get(f"/meal/{m1}")          # stores m1's snapshot
+
+    def stored_water() -> float:
+        client.get("/summary")         # any page load recomputes stale meals
+        snap = db_conn.execute("SELECT nutrients_snapshot_json FROM meals WHERE id=?", (m1,)).fetchone()[0]
+        return _json.loads(snap or "{}").get("water_g", 0.0)
+
+    before = stored_water()
+    sel = {"mode": "ids", "meal_ids": str(m1)}
+    client.post("/analysis/food-use/substitute",
+                data={**sel, "action": "add", "new_code": "U999006", "amount": "250 g"}, follow_redirects=False)
+    assert stored_water() == pytest.approx(before + 250)
+    client.post("/analysis/food-use/substitute",
+                data={**sel, "action": "remove", "old_code": "U999006"}, follow_redirects=False)
+    assert stored_water() == pytest.approx(before)
+    client.post("/analysis/food-use/substitute",
+                data={**sel, "old_code": f"U{cached_food['fdcId']}", "new_code": "U999006"}, follow_redirects=False)
+    assert stored_water() == pytest.approx(150)   # the 150 g line is now all water
+
+
 def test_food_use_add_to_every_selected_meal(client: TestClient, cached_food: dict, db_conn) -> None:
     """Add puts a food (at a typed amount) or a recipe (in servings) into
     every selected meal; a bad amount or nothing selected is refused."""
@@ -4152,8 +4194,25 @@ def test_annotation_page_names_which_estimate_it_wants(client: TestClient, cache
     page = client.get(f"/food/annotate/{fdc_id}?next=/pantry")
     assert "GI is already settled for this food" in page.text
     assert "Only DIAAS below is still open." in page.text
-    assert "Asking for this one" in page.text
+    # With a GI on file, the DIAAS prompt is a button at the top that takes
+    # you down to the DIAAS box, in place of the orange badge beside it.
+    assert "DIAAS needed, click to go there" in page.text
+    assert "Asking for this one" not in page.text
     assert "Settled — not being asked about" in page.text
+
+
+def test_annotation_page_opens_at_top(client: TestClient, cached_food) -> None:
+    """The Annotate page always opens at its top: no [autofocus] down at the
+    Skip / Back button (the browser scrolled to it, putting the DIAAS field at
+    the top of the window), and an opt-out from base.html's remembered-scroll
+    restore. A food with no GI yet starts with the cursor in the GI box."""
+    fdc_id = cached_food["fdcId"]
+    page = client.get(f"/food/annotate/{fdc_id}?next=/food/{fdc_id}")
+    assert "data-no-scroll-restore" in page.text
+    assert 'id="annotate-back-btn">' in page.text
+    assert "autofocus>Skip for now" not in page.text
+    assert "DIAAS needed, click to go there" not in page.text
+    assert "Asking for this one" in page.text
 
 
 def test_skip_forever_suppresses_both_prompts(client: TestClient, cached_food) -> None:
@@ -4407,6 +4466,17 @@ def test_compare_add_multiple_caps_at_8_with_message(client: TestClient) -> None
     assert len(items_param.split(",")) == 8
     assert "error=" in location
     assert "skipped+2" in location
+
+
+def test_compare_add_multiple_nothing_ticked_says_so(client: TestClient) -> None:
+    """Clicking "Compare nutrition of selected" with nothing ticked in the
+    Compare column (e.g. ticks in Food Cache's Fetch column instead) must say
+    so, not open a bare Compare page with no explanation."""
+    resp = client.post("/compare/add-multiple", data={}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert "Nothing+was+ticked" in resp.headers["location"]
+    page = client.get(resp.headers["location"])
+    assert "Nothing was ticked for comparison" in page.text
 
 
 def test_food_cache_has_compare_checkbox_and_form(client: TestClient, cached_food) -> None:
@@ -5055,6 +5125,24 @@ def test_food_detail_dcp_summary_line_percent_matches_grams(client: TestClient, 
     assert pct == round(100 * dcp_g / raw_g)
 
 
+def test_food_detail_explains_missing_dcp_without_aa_data(client: TestClient, db_conn):
+    """A food with protein but no amino acid data has no DCP row; the
+    Macronutrients table must say why rather than just leave it out — and
+    a food with amino acid data must not get that note."""
+    import json as _json
+    no_aa = {k: v for k, v in SAMPLE_NUTRIENTS.items() if not k.startswith("aa_")}
+    for fdc_id, nutrients in ((999004, no_aa), (999005, dict(SAMPLE_NUTRIENTS))):
+        db_conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (fdc_id, f"Test food {fdc_id}", "SR Legacy", None, 100.0, "g", _json.dumps(nutrients), "[]"),
+        )
+    db_conn.commit()
+    note = "No Digestible Complete Protein (DCP) row, and no DIAAS"
+    assert note in client.get("/food/999004").text
+    assert note not in client.get("/food/999005").text
+
+
 def test_nutrient_table_shows_dcp_row_and_color_legend(client: TestClient, db_conn):
     """Weekly-sweep gap: the (Digestible Complete Protein) row added to
     every nutrient table, and the %-of-target color legend added alongside
@@ -5112,14 +5200,40 @@ def test_nutrient_table_indents_carb_and_fat_subtypes(client: TestClient, db_con
     assert order == sorted(order)
 
 
-def test_home_page_shows_release_version(client: TestClient) -> None:
-    """Weekly-sweep gap: RELEASE_VERSION (a hand-maintained SemVer label
-    shown alongside the build-stamp VERSION on the home page) had no
-    regression test."""
+def test_home_page_layout(client: TestClient) -> None:
+    """Disclaimer box, then (conditional notices), then the title, the
+    one-line description and the two status lines, then the build line at
+    the bottom. No manual Preface excerpt."""
     from version import RELEASE_VERSION
 
     resp = client.get("/")
-    assert RELEASE_VERSION in resp.text
+    t = resp.text
+    assert "NuMa is not medical advice" in t
+    assert "<article" not in t
+    assert "continued at" not in t
+    build = f"NutriMagnus {RELEASE_VERSION} (build"
+    assert (t.index("NuMa is not medical advice") < t.index("Welcome to NutriMagnus")
+            < t.index("A nutritional analysis tool powered by six nutritional databases")
+            < t.index(build))
+
+
+def test_manual_update_banner_hidden_while_program_update_available(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A program update brings its own manual, so the separate manual-update
+    banner is left out while the program-update banner is showing."""
+    from numa_app.services import manual_update as _mu
+    from numa_app.services import update_check as _update_check
+
+    monkeypatch.setattr(_mu, "check_for_manual_update", lambda *a, **kw: {
+        "stamp": "2099-01-01:0000", "requires_program": "2099-01-01:0000",
+        "program_too_old": True, "url": _mu.RELEASE_PAGE_URL})
+    monkeypatch.setattr(_update_check, "check_for_update", lambda *a, **kw: {
+        "tag": "v2099-01-01-0000",
+        "url": "https://github.com/tom-cloyd/NutriMagnus/releases/tag/v2099-01-01-0000"})
+    resp = client.get("/")
+    assert "UPDATE AVAILABLE:" in resp.text
+    assert "NEW USER MANUAL AVAILABLE:" not in resp.text
 
 
 def test_unusable_protein_line_absent_for_complete_food(client: TestClient, db_conn):
@@ -5629,12 +5743,7 @@ NUTRIENT_PLOT_NOTICE = "You can plot nutrients"
 def test_home_page_nutrient_plot_notice(client: TestClient, cached_food) -> None:
     """A brief notice pointing to Nutrient Plot only shows once there's
     actually something to plot (a logged meal) and only until the user has
-    already put a plot on the home page — no point nudging them again.
-
-    Asserts on the notice's own sentence rather than the bare words
-    "Nutrient Plot": the home page also prints version.NEW_VERSION_NOTE,
-    which names whatever shipped last and so can legitimately mention the
-    Nutrient Plot with no notice on screen at all."""
+    already put a plot on the home page — no point nudging them again."""
     # No meals logged yet -> no notice
     r = client.get("/")
     assert NUTRIENT_PLOT_NOTICE not in r.text
@@ -6459,7 +6568,7 @@ def test_annotate_page_says_what_to_do_when_the_gi_lookup_finds_nothing(client: 
     help_start = r.text.index('<template id="gi-no-match-help">')
     help_html = r.text[help_start:r.text.index("</template>", help_start)]
     for advice in ("Search with fewer, plainer words", "Use a similar food", "glycemicindex.com",
-                   "Leave the GI blank"):
+                   "leave the GI blank", "save a low estimate", "#gi-low-carb"):
         assert advice in help_html
     assert "document.getElementById('gi-no-match-help').innerHTML" in r.text
 
@@ -8078,3 +8187,385 @@ def test_recipe_edit_ingredient_names_link_to_their_analysis(client: TestClient,
     page = client.get(f"/recipe/{rid}/edit").text
     assert f'<a href="/food/{cached_food["fdcId"]}?amount=200.0&from_context=recipe">{cached_food["name"]}</a>' in page
     assert f'<a href="/recipe/{sub}">Sub Sauce</a>' in page
+
+
+# ── Daily Summary: date-range / meal-ID totals and blocks of days ─────────
+
+def _log_food_meal(client, cached_food, meal_date: str, grams: int = 150) -> int:
+    resp = client.post("/meals/create", data={"name": f"Meal {meal_date}", "meal_date": meal_date},
+                       follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": f"{grams} g"},
+                follow_redirects=False)
+    return meal_id
+
+
+def test_summary_range_totals_a_date_range(client: TestClient, cached_food) -> None:
+    today = datetime.date.today()
+    d0, d1 = today.isoformat(), (today - datetime.timedelta(days=1)).isoformat()
+    _log_food_meal(client, cached_food, d0)
+    _log_food_meal(client, cached_food, d1)
+
+    r = client.get(f"/summary/range?start={d0}&end={d1}")  # reversed: swapped, not refused
+    assert r.status_code == 200
+    assert "Nutrient totals for a date range" in r.text
+    assert "2 meal(s) on 2 logged day(s) out of 2 calendar day(s)" in r.text
+    assert '<th class="num-col">Total</th>' in r.text
+    assert "Per-day avg (2 days)" in r.text
+
+
+def test_summary_range_by_meal_ids(client: TestClient, cached_food) -> None:
+    today = datetime.date.today().isoformat()
+    m1 = _log_food_meal(client, cached_food, today)
+    _log_food_meal(client, cached_food, today)
+
+    r = client.get(f"/summary/range?meal_ids={m1},99999")
+    assert r.status_code == 200
+    assert "Nutrient totals for chosen meals" in r.text
+    assert "1 meal(s) on 1 day(s)" in r.text
+    assert "No meal with ID 99999" in r.text
+    assert f"(ID {m1})" in r.text
+
+
+def test_summary_range_empty_and_bad_input(client: TestClient) -> None:
+    r = client.get("/summary/range")
+    assert r.status_code == 200
+    assert "Choose a date range or a list of meal IDs" in r.text
+    r = client.get("/summary/range?start=2026-02-30&end=2026-03-01")
+    assert r.status_code == 200
+    assert "Dates must be real dates" in r.text
+
+
+def test_summary_blocks_groups_days(client: TestClient, cached_food) -> None:
+    today = datetime.date.today()
+    for back in (0, 1, 8):
+        _log_food_meal(client, cached_food, (today - datetime.timedelta(days=back)).isoformat())
+
+    r = client.get("/summary/blocks?size=7&count=3")
+    assert r.status_code == 200
+    assert "blocks of 7 days" in r.text
+    first_start = (today - datetime.timedelta(days=6)).isoformat()
+    second_end = (today - datetime.timedelta(days=7)).isoformat()
+    assert f"{first_start} &ndash; {today.isoformat()}" in r.text
+    assert f"/summary/range?start={first_start}&amp;end={today.isoformat()}" in r.text
+    # Block counts: 2 logged days, then 1, then 0 (no totals link)
+    rows = r.text.split("<tbody>")[1].split("</tr>")
+    assert '<td class="num-col">2</td>' in rows[0]
+    assert second_end in rows[1] and '<td class="num-col">1</td>' in rows[1]
+    assert "Full nutrient totals" not in rows[2]
+
+    # Out-of-range sizes are clamped, not a 500
+    assert client.get("/summary/blocks?size=0&count=999").status_code == 200
+
+
+def test_pantry_complement_named_as_the_food_is_now(client: TestClient, db_conn) -> None:
+    """A pantry line keeps its own copy of the food's name (without the food's
+    "* " starter mark, say); a complement suggestion names the food itself."""
+    import web.backend as _backend
+    _db.cache_food(db_conn, 777001, "* Nutritional Yeast Flakes", "Branded", None, None, None,
+                   dict(SAMPLE_NUTRIENTS))
+    _db.pantry_add(db_conn, "Nutritional Yeast Flakes", 777001)
+    db_conn.commit()
+    names = [c["name"] for c in _backend._web_pantry_candidates() if c["fdc_id"] == 777001]
+    assert names == ["* Nutritional Yeast Flakes"]
+
+
+def test_claude_fetch_gi_only(client: TestClient, cached_food, db_conn) -> None:
+    """The Annotate page's GI research link asks for the GI alone — no
+    nutrients, no DIAAS — even when a GI is already saved."""
+    fid = cached_food["fdcId"]
+    _db.upsert_food_annotation(db_conn, fid, gi_estimate=50.0, gi_source="x")
+    db_conn.commit()
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [fid], "gi_only": "1"})
+    assert "also wanted: gi (rule 10)" in resp.text
+    assert "provide only: no nutrient keys" in resp.text
+    assert 'name="gi_diaas"' not in resp.text
+    page = client.get(f"/food/annotate/{fid}")
+    assert 'id="gi-claude-form"' in page.text and 'name="gi_only"' in page.text
+
+
+def test_compare_add_multiple_then_search_keeps_ticks_and_runs_search(
+    client: TestClient, cached_food, second_cached_food
+) -> None:
+    """Searching again on Compare with results still ticked posts them to
+    add-multiple with the new search as then_search: the ticked items join
+    the comparison (none already there are lost) and the new search runs."""
+    resp = client.post(
+        "/compare/add-multiple",
+        data={"items": f"f{cached_food['fdcId']}@150",
+              "fdc_id": [second_cached_food["fdcId"]],
+              "then_search": "search=lentils&source=cache&limit=20&items=f1&return_to=//evil"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(resp.headers["location"]).query)
+    assert qs["items"] == [f"f{cached_food['fdcId']}@150,f{second_cached_food['fdcId']}"]
+    assert qs["search"] == ["lentils"] and qs["source"] == ["cache"] and qs["limit"] == ["20"]
+    assert "error" not in qs and "return_to" not in qs
+
+
+def test_compare_search_form_carries_ticks(client: TestClient, cached_food) -> None:
+    resp = client.get(f"/compare?items=f{cached_food['fdcId']}&search=chicken&source=cache")
+    assert 'id="compare-search-form"' in resp.text
+    assert 'id="compare-add-form"' in resp.text
+    assert 'name="then_search"' in resp.text
+
+
+def test_compare_set_amounts_scales_foods_and_recipes(
+    client: TestClient, cached_food, second_cached_food
+) -> None:
+    """The "amount I set" basis: a food at its grams, a recipe at its
+    servings — 50 g of chicken (31.0 g protein/100 g) shows 15.5 g; 2 of a
+    4-serving 100 g-chicken recipe shows 15.5 g too."""
+    rid = _make_recipe(client, "Chicken Batch", 4, cached_food["fdcId"], cached_food["name"], "100 g")
+    items = f"f{cached_food['fdcId']},r{rid},f{second_cached_food['fdcId']}"
+    resp = client.post(
+        "/compare/amounts",
+        data={"items": items,
+              f"amount_food_{cached_food['fdcId']}": "50",
+              f"amount_recipe_{rid}": "2",
+              f"amount_food_{second_cached_food['fdcId']}": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)
+    assert qs["items"] == [f"f{cached_food['fdcId']}@50,r{rid}@2,f{second_cached_food['fdcId']}"]
+    assert qs["basis"] == ["amounts"]
+
+    page = client.get(location.split("#")[0])
+    assert page.status_code == 200
+    assert "50 g" in page.text
+    assert "2 servings" in page.text
+    assert "100 g" in page.text            # blank amount -> default 100 g
+    assert "15.5" in page.text
+    assert "31.0" not in page.text.split('id="compare-table"')[1]
+
+    # Amounts survive add/remove and a save/load round trip.
+    resp = client.post("/compare/remove",
+                       data={"remove_kind": "food", "remove_id": second_cached_food["fdcId"],
+                             "items": qs["items"][0]}, follow_redirects=False)
+    kept = urllib.parse.parse_qs(urllib.parse.urlsplit(resp.headers["location"]).query)["items"][0]
+    assert kept == f"f{cached_food['fdcId']}@50,r{rid}@2"
+    client.post("/compare/save", data={"name": "Amounts", "items": kept}, follow_redirects=False)
+    with _db.get_db() as conn:
+        cmp_id = conn.execute("SELECT id FROM saved_mixed_comparisons WHERE name='Amounts'").fetchone()["id"]
+    resp = client.get(f"/compare/load/{cmp_id}", follow_redirects=False)
+    assert f"items={kept}" in resp.headers["location"]
+    client.get("/compare?basis=100g")   # leave the remembered basis as it was
+
+
+def _search_kept(location: str) -> dict:
+    """The query of an add redirect — or of the meal/recipe page it returns
+    to via next=, when the add went to the Annotate prompt first."""
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query, keep_blank_values=True)
+    if "next" in qs:
+        return _search_kept(qs["next"][0])
+    return qs
+
+
+def test_meal_add_keeps_the_search_for_another_pick(client: TestClient, cached_food, db_conn) -> None:
+    """Adding a search result to a meal keeps that search's results showing
+    (q carried back), naming what was added, so several can be added in turn."""
+    meal_id = int(client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-11"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    resp = client.post(f"/meal/{meal_id}/add",
+                       data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                             "portion_str": "150 g", "q": "chicken"}, follow_redirects=False)
+    qs = _search_kept(resp.headers["location"])
+    assert qs["q"] == ["chicken"] and qs["added"] == [cached_food["name"]]
+    assert qs["added_amount"] == ["150 g"]
+    page = client.get(f"/meal/{meal_id}?q=chicken&added={urllib.parse.quote(cached_food['name'])}"
+                      "&added_amount=150+g")
+    assert 'id="just-added"' in page.text and "search results stay below" in page.text
+    assert "&mdash; 150 g.</strong><br>" in page.text
+    resp = client.post(f"/meal/{meal_id}/add",
+                       data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                             "portion_str": "2 oz", "q": "chicken"}, follow_redirects=False)
+    assert _search_kept(resp.headers["location"])["added_amount"] == ["2 oz (56.7 g)"]
+
+    rid = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Soup', 2)").lastrowid
+    db_conn.commit()
+    resp = client.post(f"/meal/{meal_id}/add-recipe",
+                       data={"recipe_id": rid, "amount": "1 serving", "q": "soup"}, follow_redirects=False)
+    qs = _search_kept(resp.headers["location"])
+    assert qs["q"] == ["soup"] and qs["added"] == ["Soup"]
+    assert qs["added_amount"] == ["1 serving"]   # no weight known, so no grams
+
+    rid2 = db_conn.execute("INSERT INTO recipes (name, servings, total_weight, total_weight_unit)"
+                           " VALUES ('Hummus', 4, 400, 'g')").lastrowid
+    db_conn.commit()
+    resp = client.post(f"/meal/{meal_id}/add-recipe",
+                       data={"recipe_id": rid2, "amount": "1.5 servings", "q": "hummus"}, follow_redirects=False)
+    assert _search_kept(resp.headers["location"])["added_amount"] == ["1.5 servings (150 g)"]
+
+
+def test_recipe_ingredient_add_keeps_the_search(client: TestClient, cached_food, db_conn) -> None:
+    recipe_id = int(client.post("/recipe/new", data={"name": "Stew", "servings": 2}, follow_redirects=False)
+                    .headers["location"].split("/recipe/")[1].split("/")[0])
+    resp = client.post(f"/recipe/{recipe_id}/ingredient/add",
+                       data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                             "portion_str": "100 g", "q": "chicken"}, follow_redirects=False)
+    qs = _search_kept(resp.headers["location"])
+    assert qs["q"] == ["chicken"] and qs["added"] == [cached_food["name"]]
+
+    sub = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Broth', 4)").lastrowid
+    db_conn.commit()
+    resp = client.post(f"/recipe/{recipe_id}/ingredient/add-recipe",
+                       data={"ref_recipe_id": sub, "amount": "1 serving", "q": "broth"}, follow_redirects=False)
+    qs = _search_kept(resp.headers["location"])
+    assert qs["q"] == ["broth"] and qs["added"] == ["Broth"]
+
+
+def test_pantry_add_keeps_the_search(client: TestClient, cached_food) -> None:
+    resp = client.post("/pantry/add", data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                                            "search": "chicken"}, follow_redirects=False)
+    qs = _search_kept(resp.headers["location"])
+    assert qs["search"] == ["chicken"] and qs["added"] == ["1"]
+    page = client.get("/pantry?added=1&search=chicken")
+    assert 'name="search" value="chicken"' in page.text
+
+
+def test_compare_has_contents_and_highlights_the_requested_basis(
+    client: TestClient, cached_food, second_cached_food
+) -> None:
+    """Compare has a Contents sidebar; the blue (primary) "Show comparison"
+    button is the per-100 g one until amounts are set, then the amounts one."""
+    items = f"f{cached_food['fdcId']},f{second_cached_food['fdcId']}"
+    page = client.get(f"/compare?items={items}&basis=100g").text
+    assert 'class="analysis-sidebar' in page and 'href="#cmp-nutrients"' in page
+    # With nothing to compare there is no sidebar, and the page keeps the
+    # ordinary centred, margined layout.
+    empty = client.get("/compare").text
+    assert '<div class="container">' in empty and "analysis-sidebar" not in empty
+    assert re.search(r'id="compare-show-100g"\s+class="btn btn-sm btn-primary"', page)
+    assert "Show comparison for 100 g of each item" in page
+    page = client.get(f"/compare?items=f{cached_food['fdcId']}@50,f{second_cached_food['fdcId']}").text
+    assert re.search(r'id="compare-show-amounts"\s+class="btn btn-sm btn-primary"', page)
+    client.get("/compare?basis=100g")
+
+
+def test_compare_recipe_amount_in_grams(client: TestClient, cached_food, db_conn) -> None:
+    """A recipe with a weight per serving can be set in grams: a 4-serving,
+    400 g batch of chicken (31.0 g protein/100 g) at 50 g shows 15.5 g
+    protein and "50 g (0.5 servings)"; the unit survives the items string."""
+    rid = _make_recipe(client, "Chicken Batch", 4, cached_food["fdcId"], cached_food["name"], "400 g")
+    resp = client.post("/compare/amounts",
+                       data={"items": f"r{rid},f{cached_food['fdcId']}",
+                             f"amount_recipe_{rid}": "50", f"unit_recipe_{rid}": "g"},
+                       follow_redirects=False)
+    location = resp.headers["location"]
+    qs = urllib.parse.parse_qs(urllib.parse.urlsplit(location).query)
+    assert qs["items"] == [f"r{rid}@50g,f{cached_food['fdcId']}"]
+    page = client.get(location.split("#")[0]).text
+    assert "50 g (0.5 servings)" in page
+    assert 'name="unit_recipe_%d"' % rid in page and "1 serving = 100 g" in page
+    table = page.split('id="compare-table"')[1]
+    assert "15.5" in table
+    client.get("/compare?basis=100g")
+
+
+def test_compare_recipe_grams_without_serving_weight_says_so(client: TestClient, db_conn, cached_food) -> None:
+    rid = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Empty', 2)").lastrowid
+    db_conn.commit()
+    page = client.get(f"/compare?items=r{rid}@50g,f{cached_food['fdcId']}&basis=amounts").text
+    assert "this recipe has no weight per serving" in page
+    assert "No weight per serving, so servings only" in page
+    client.get("/compare?basis=100g")
+
+
+def test_compare_per_100g_uses_a_recipes_stated_total_weight(client: TestClient, cached_food, db_conn) -> None:
+    """Per 100 g divides by the recipe's stated total weight when it has one
+    (cooking loss): 100 g of raw chicken (31.0 g protein) cooked down to a
+    stated 50 g gives 62.0 g protein per 100 g, not 31.0."""
+    rid = _make_recipe(client, "Roast", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    db_conn.execute("UPDATE recipes SET total_weight = 50, total_weight_unit = 'g' WHERE id = ?", (rid,))
+    db_conn.commit()
+    page = client.get(f"/compare?items=r{rid},f{cached_food['fdcId']}&basis=100g").text
+    table = page.split('id="compare-table"')[1]
+    assert "62.0" in table
+    assert "200 g" in page.split('id="cmp-ingredients"')[1].split("</table>")[0]
+
+
+def test_compare_shows_a_recipes_serving_description(client: TestClient, cached_food, db_conn) -> None:
+    rid = _make_recipe(client, "Muffins", 4, cached_food["fdcId"], cached_food["name"], "400 g")
+    db_conn.execute("UPDATE recipes SET serving_size = '1 muffin' WHERE id = ?", (rid,))
+    db_conn.commit()
+    page = client.get(f"/compare?items=r{rid}@2,f{cached_food['fdcId']}&basis=amounts").text
+    assert "1 serving = 1 muffin (100 g)" in page                       # items list
+    assert "(1 serving = 1 muffin)" in page.split('id="compare-table"')[1]  # column heading
+    client.get("/compare?basis=100g")
+
+
+def test_list_filters_find_an_item_by_its_code(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
+    """Every list filter takes a display code as well as a name: Recipes (R21),
+    Food Cache and Annotate (U171477), My Pantry, Food Use in Recipes."""
+    r1 = _make_recipe(client, "Alpha Stew", 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    r2 = _make_recipe(client, "Beta Stew", 1, second_cached_food["fdcId"], second_cached_food["name"], "100 g")
+    page = client.get(f"/recipes?q=R{r2}").text
+    assert "Beta Stew" in page and "Alpha Stew" not in page
+    page = client.get(f"/recipes?q=r{r1}").text      # any case
+    assert "Alpha Stew" in page and "Beta Stew" not in page
+
+    code = f"U{cached_food['fdcId']}"
+    for url in (f"/food/cache?q={code}", f"/food/annotate?q={code}"):
+        page = client.get(url).text
+        assert cached_food["name"] in page and second_cached_food["name"] not in page, url
+    with _db.get_db() as conn:
+        assert [r["fdc_id"] for r in _db.search_cached_foods(conn, code)] == [cached_food["fdcId"]]
+
+    for food in (cached_food, second_cached_food):
+        db_conn.execute("INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)", (food["name"], food["fdcId"]))
+    db_conn.commit()
+    page = client.get(f"/pantry?filter=U{second_cached_food['fdcId']}").text
+    listed = page.split("Filter my pantry list")[-1]
+    assert second_cached_food["name"] in listed and cached_food["name"] not in listed
+
+    page = client.get(f"/analysis/food-use-recipes?mode=ids&recipe_ids={r1},{r2}&name={code}").text
+    table = page.split("<tbody")[1] if "<tbody" in page else page
+    assert cached_food["name"] in table and second_cached_food["name"] not in table
+
+
+def test_meal_history_search_by_code(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
+    """Search meal history takes a code: U<fdc> finds that food's meal items,
+    R<id> that recipe's — nothing else that merely shares a word."""
+    meal_id = int(client.post("/meals/create", data={"name": "Supper", "meal_date": "2026-07-11"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    rid = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Test Food Soup', 2)").lastrowid
+    db_conn.commit()
+    with _db.get_db() as conn:
+        _db.meal_add_food(conn, meal_id, cached_food["fdcId"], cached_food["name"], 100.0, "100 g")
+        _db.meal_add_food(conn, meal_id, second_cached_food["fdcId"], second_cached_food["name"], 50.0, "50 g")
+        _db.meal_add_recipe(conn, meal_id, rid, "Test Food Soup", 1.0, unit="1 serving")
+    page = client.get(f"/meals/search?q=U{second_cached_food['fdcId']}").text
+    rows = page.split("<tbody")[1] if "<tbody" in page else ""
+    assert second_cached_food["name"] in rows and "Test Food Soup" not in rows
+    page = client.get(f"/meals/search?q=r{rid}").text
+    rows = page.split("<tbody")[1] if "<tbody" in page else ""
+    assert "Test Food Soup" in rows and second_cached_food["name"] not in rows
+
+
+def test_compare_food_portion_amount(client):
+    """A food on Compare can be set as a count of one of its portions:
+    the unit select posts p<n>, the URL keeps "@2p1", and the comparison
+    uses count × the portion's grams."""
+    import json as _json
+    with _db.get_db() as conn:
+        conn.execute(
+            "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (990001, "Portion Test Food", "Foundation", _json.dumps({"protein_g": 10.0}),
+             _json.dumps([{"description": "1 slice", "gram_weight": 28.0}])))
+        conn.execute("INSERT INTO foods (fdc_id, name, data_type, nutrients_json) VALUES (?, ?, ?, ?)",
+                     (990002, "Second Test Food", "Foundation", _json.dumps({"protein_g": 5.0})))
+    r = client.post("/compare/amounts", data={"items": "f990001", "amount_food_990001": "2",
+                                              "unit_food_990001": "p1"}, follow_redirects=False)
+    assert "f990001@2p1" in r.headers["location"]
+    r = client.get("/compare?items=f990001@2p1,f990002&basis=amounts")
+    assert '<option value="p1" selected' in r.text
+    assert "2 × 1 slice (56 g)" in r.text
+    # A portion that no longer exists falls back to the default grams, with a note.
+    r = client.get("/compare?items=f990001@2p5,f990002&basis=amounts")
+    assert "no longer exists" in r.text

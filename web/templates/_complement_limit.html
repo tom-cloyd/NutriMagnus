@@ -15,7 +15,7 @@
 </label>
 {% endif %}
 {% if s.fdc_id and s.limit_g %}
-<div id="limit-{{ s.fdc_id }}" class="d-flex align-items-center gap-1 mb-1 flex-wrap" style="font-size:.8rem">
+<div id="limit-{{ s.fdc_id }}" data-dirty-group class="d-flex align-items-center gap-1 mb-1 flex-wrap" style="font-size:.8rem">
   <label class="muted" for="limit-g-{{ s.fdc_id }}">Most I&rsquo;d add to a meal:</label>
   <input type="number" min="1" step="1" id="limit-g-{{ s.fdc_id }}" name="limit_g_{{ s.fdc_id }}"
          value="{{ s.limit_g if s.user_limit else '' }}" placeholder="{{ s.limit_g }}"

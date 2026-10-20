@@ -119,7 +119,7 @@ def build_prompt(selected: list[tuple[int | None, str]],
         if requests is not None and fdc_id in requests:
             keys, skipped = requests[fdc_id]
             lines.append(f"        provide only: {', '.join(keys)}" if keys
-                         else "        provide only: no nutrient keys — every nutrient value is already present")
+                         else "        provide only: no nutrient keys — none are wanted for this food")
             if skipped:
                 lines.append(f"        not needed (user's choice, do not supply): {', '.join(skipped)}")
         if annotations.get(fdc_id):

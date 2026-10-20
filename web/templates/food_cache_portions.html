@@ -44,7 +44,7 @@
                  form="edit-{{ loop.index0 }}" value="{{ p.gram_weight }}" step="0.01" min="0.01" required
                  style="width:6rem;margin-left:auto"></td>
       <td class="text-nowrap">
-        <form id="edit-{{ loop.index0 }}" method="post" action="/food/cache/{{ food.fdc_id }}/portions/edit" style="display:inline">
+        <form id="edit-{{ loop.index0 }}" data-dirty-outside method="post" action="/food/cache/{{ food.fdc_id }}/portions/edit" style="display:inline">
           <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
           <button type="submit" class="btn btn-sm btn-outline-primary" title="Save changes to this portion's description and grams">Save</button>
         </form>

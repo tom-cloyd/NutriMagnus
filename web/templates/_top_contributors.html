@@ -45,7 +45,7 @@
 {% if not inline %}<p class="muted mb-1"><small>{% endif %}Suggestions come only from the {{ pool }} food{{ "s" if pool != 1 }} you&rsquo;ve given a GI{% if todo %}; {{ todo }} food{{ "s" if todo != 1 }} you use {{ "have" if todo != 1 else "has" }} carbohydrate but no GI &mdash; <a href="/food/cache/db-check#missing-gi">add GIs to them</a> for more and better suggestions{% else %}; give more foods a GI for more suggestions{% endif %}.{% if not inline %}</small></p>{% endif %}
 {% endmacro %}
 
-{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False, gl=None, missing=[]) %}
+{% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False, gl=None, missing=[], table_heading='') %}
 <div class="d-flex flex-wrap align-items-center gap-3">
   <h3 class="section-heading mb-0">Top Contributors</h3>
   <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2">
@@ -79,6 +79,9 @@
      "Rank by" it read as though it belonged to the control that followed. #}
   {{ manual_link("top-contributors") }}
 </div>
+{# table_heading: set on a meal page that also shows by_item(), so the two
+   tables each get a heading (and a contents-sidebar entry). #}
+{% if table_heading %}<h4 class="mt-3 mb-1" id="contrib-by-food">{{ table_heading }}</h4>{% endif %}
 {% if contributors %}
 <table class="nutrient-table mt-2">
   <thead>
@@ -134,7 +137,7 @@
    (top_contributors.rank_by_meal_item()). Shown under the food-level table
    on a meal page that has a recipe in it. #}
 {% macro by_item(result, contributor_unit, is_dcp=False, is_gl=False) %}
-<h4 class="h6 mt-4 mb-1" id="contrib-by-item">By meal item, recipes kept whole</h4>
+<h4 class="mt-4 mb-1" id="contrib-by-item">By meal item, recipes kept whole</h4>
 <p class="muted mb-1"><small>The same ranking, with each recipe counted as one item instead of being split into its foods.{% if is_dcp %} A recipe&rsquo;s figure is its own standalone digestible complete protein, its foods pooled together as if it were the whole meal, so it can be more than its foods&rsquo; standalone figures added up.{% elif is_gl %} Only foods with a GI count, as above.{% endif %}</small></p>
 {% if result["items"] %}
 <table class="nutrient-table">

@@ -333,6 +333,12 @@ dated entries below it are the detail. Prefix a bullet with `MANUAL: ` only for
 manual-only changes; program changes take no prefix. Append ` (dated details below)` to
 the heading only while dated entry sections actually follow it.
 
+**Version overview at every commit** (adopted 2026-10-17): when making a commit, copy
+`version.py`'s `NEW_VERSION_NOTE` into Part 11 as the first line under
+`#### Next release summary to this point`, above the numbered bullets, as
+`Version overview: <note text>` — replacing the previous overview line if there is one,
+so there's only ever one. `NEW_VERSION_NOTE` is never printed on the home page.
+
 **Each summary bullet is numbered** (adopted 2026-10-07, so the reader can see how
 many updates are pending): oldest is 1, newest highest, newest on top — e.g.
 `- **13.** New item.` above `- **12.** ...`. A new bullet takes the next number up;

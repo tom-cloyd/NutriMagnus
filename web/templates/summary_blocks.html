@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Daily Summary in blocks of {{ size }} days{% endblock %}
+{% block layout_class %}container{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Blocks of {{ size }} days</li>
+  </ol>
+</nav>
+
+<h2>Daily Summary in blocks of {{ size }} days {{ manual_link("goals") }}</h2>
+<p class="muted">
+  Like Recent Days, but each row is a block of days instead of one day, so you can see how
+  one week (or fortnight, or month) compares with the next. Each figure is the average per logged
+  day in that block.
+</p>
+
+<form method="get" action="/summary/blocks" class="d-flex flex-wrap gap-2 align-items-end mb-3">
+  <div>
+    <label class="form-label mb-0" for="blocks-size"><small>Days in each block</small></label>
+    <input type="number" class="form-control form-control-sm" id="blocks-size" name="size"
+           min="1" max="366" value="{{ size }}" style="width:7em">
+  </div>
+  <div>
+    <label class="form-label mb-0" for="blocks-count"><small>Number of blocks</small></label>
+    <input type="number" class="form-control form-control-sm" id="blocks-count" name="count"
+           min="1" max="104" value="{{ count }}" style="width:7em">
+  </div>
+  <div>
+    <label class="form-label mb-0" for="blocks-end"><small>Last day of the most recent block</small></label>
+    <input type="date" class="form-control form-control-sm" id="blocks-end" name="end" value="{{ end }}">
+  </div>
+  <button type="submit" class="btn btn-sm btn-primary">Show these blocks</button>
+</form>
+
+<div class="table-responsive">
+<table class="table table-sm nutrient-table">
+  <thead>
+    <tr>
+      <th>Block</th>
+      <th class="num-col" title="Days in the block with at least one meal logged">Logged days</th>
+      {% for c in cols %}<th class="num-col"{% if c.title %} title="{{ c.title }}"{% endif %}>{{ c.label }}</th>{% endfor %}
+      <th class="num-col" title="Digestible complete protein, averaged over the block's days that have it computed">Day DCP (g)</th>
+      {% if show_gl %}<th class="num-col" title="Average daily glycemic load over the block's days with full GI coverage">Day GL</th>{% endif %}
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for b in blocks %}
+    <tr{% if not b.days %} class="muted"{% endif %}>
+      <td>{{ b.start }} &ndash; {{ b.end }}</td>
+      <td class="num-col">{{ b.days }}</td>
+      {% for c in cols %}
+      <td class="num-col">{% if b["values"][c.key] is not none %}{{ b["values"][c.key] }}{% if b.pct_goal[c.key] is defined %} <small class="muted" title="Share of the daily goal for this nutrient">({{ b.pct_goal[c.key] }}%)</small>{% endif %}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      {% endfor %}
+      <td class="num-col">{% if b.avg_dcp is not none %}{{ b.avg_dcp }}{% if b.dcp_pct is not none %} <small class="muted" title="Share of the daily protein goal">({{ b.dcp_pct }}%)</small>{% endif %}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>
+      {% if show_gl %}<td class="num-col">{% if b.avg_gl is not none %}{{ b.avg_gl }}{% if b.gl_days != b.days %} <small class="muted" title="Only these days had full GI coverage">({{ b.gl_days }} of {{ b.days }} days)</small>{% endif %}{% else %}<span class="muted">&mdash;</span>{% endif %}</td>{% endif %}
+      <td>{% if b.days %}<a href="/summary/range?start={{ b.start }}&amp;end={{ b.end }}">Full nutrient totals</a>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted"><small>
+  Days with no meals logged are left out of each average, not counted as zero. Percentages are against the
+  daily goals of the profile pinned to the block's last logged day. The nutrient columns are the ones you chose
+  for Recent Days (and Meals &amp; Log); figures come from each meal's saved nutrient totals, as on Recent Days.
+  &ldquo;Full nutrient totals&rdquo; adds up every nutrient for that block.
+</small></p>
+{% endblock %}
