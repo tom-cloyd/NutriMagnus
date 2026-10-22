@@ -2829,6 +2829,8 @@ def merge_food_into(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dic
     for table in ("food_annotations", "oxalate_links"):
         if not conn.execute(f"SELECT 1 FROM {table} WHERE fdc_id = ?", (keep_id,)).fetchone():
             conn.execute(f"UPDATE {table} SET fdc_id = ? WHERE fdc_id = ?", (keep_id, drop_id))
+    # Both foods in the pantry would now mean two entries for one food.
+    pantry_merge_duplicates(conn, keep_id)
     delete_cached_food(conn, drop_id)
     return counts
 
@@ -2900,6 +2902,18 @@ def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int
 
 def pantry_add(conn: sqlite3.Connection, food_name: str,
                fdc_id: int | None = None, notes: str | None = None) -> int:
+    """Add a pantry entry, or — when that food is already in the pantry —
+    return the existing entry's id instead of adding a second one. The
+    existing entry is restored if archived, and new notes are appended."""
+    if fdc_id is not None:
+        row = conn.execute("SELECT id, notes FROM pantry WHERE fdc_id = ? ORDER BY id LIMIT 1",
+                           (fdc_id,)).fetchone()
+        if row is not None:
+            old = row["notes"] or ""
+            if notes and notes not in old:
+                old = f"{old}  |  {notes}" if old else notes
+            conn.execute("UPDATE pantry SET archived = 0, notes = ? WHERE id = ?", (old or None, row["id"]))
+            return row["id"]
     cur = conn.execute(
         "INSERT INTO pantry (food_name, fdc_id, notes) VALUES (?, ?, ?)",
         (food_name, fdc_id, notes or None)
@@ -2938,6 +2952,48 @@ def pantry_get(conn: sqlite3.Connection, pantry_id: int) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM pantry WHERE id = ?", (pantry_id,)
     ).fetchone()
+
+
+def pantry_duplicate_groups(conn: sqlite3.Connection) -> list[dict]:
+    """[{"fdc_id", "rows": [pantry rows, oldest first]}] — foods with more
+    than one pantry entry (pantry_add no longer makes these, but merging
+    duplicate foods and older versions of NuMa did)."""
+    by_food: dict[int, list] = {}
+    for r in conn.execute("SELECT id, food_name, fdc_id, notes, added_at, archived FROM pantry "
+                          "WHERE fdc_id IN (SELECT fdc_id FROM pantry WHERE fdc_id IS NOT NULL "
+                          "GROUP BY fdc_id HAVING COUNT(*) > 1) ORDER BY id"):
+        by_food.setdefault(r["fdc_id"], []).append(r)
+    groups = [{"fdc_id": fid, "rows": rows} for fid, rows in by_food.items()]
+    groups.sort(key=lambda g: (g["rows"][0]["food_name"] or "").lower())
+    return groups
+
+
+def pantry_merge_duplicates(conn: sqlite3.Connection, fdc_id: int | None = None) -> int:
+    """Fold each food's pantry entries into one (just `fdc_id`'s, or every
+    food's). Kept: the oldest entry the user added — a starter entry only if
+    there's no other, since clearing starter data deletes those. Notes are
+    combined; the entry stays archived only if every one was. Returns how
+    many entries were removed."""
+    removed = 0
+    for g in pantry_duplicate_groups(conn):
+        if fdc_id is not None and g["fdc_id"] != fdc_id:
+            continue
+        rows = g["rows"]
+        keep = next((r for r in rows if (r["notes"] or "") != "Starter data"), rows[0])
+        notes: list[str] = []
+        for r in [keep] + [r for r in rows if r is not keep]:
+            for part in (r["notes"] or "").split("  |  "):
+                part = part.strip()
+                if part and part not in notes and not (part == "Starter data" and keep["notes"] != "Starter data"):
+                    notes.append(part)
+        archived = all(r["archived"] for r in rows)
+        conn.execute("UPDATE pantry SET notes = ?, archived = ? WHERE id = ?",
+                     ("  |  ".join(notes) or None, 1 if archived else 0, keep["id"]))
+        for r in rows:
+            if r is not keep:
+                conn.execute("DELETE FROM pantry WHERE id = ?", (r["id"],))
+                removed += 1
+    return removed
 
 
 # ---------------------------------------------------------------------------

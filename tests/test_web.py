@@ -1208,7 +1208,7 @@ def test_recipe_ingredient_add_error_preserves_search_results(client: TestClient
     resp = client.get(location)
     assert resp.status_code == 200
     assert str(cached_food["fdcId"]) in resp.text
-    assert "not recognised" in resp.text
+    assert "not recognized" in resp.text
 
 
 def test_custom_profile_create(client: TestClient, db_conn) -> None:
@@ -8569,3 +8569,41 @@ def test_compare_food_portion_amount(client):
     # A portion that no longer exists falls back to the default grams, with a note.
     r = client.get("/compare?items=f990001@2p5,f990002&basis=amounts")
     assert "no longer exists" in r.text
+
+
+def test_summary_today_button_explains_empty_day(client: TestClient, cached_food) -> None:
+    """"Today's summary" with nothing logged today stays put and shows a
+    message beside the button; once a meal is logged it links to the day."""
+    today = datetime.date.today().isoformat()
+    empty = client.get("/summary").text
+    assert 'id="today-empty-note"' in empty
+    assert f'href="/summary/{today}" class="btn' not in empty
+    client.post("/meals/create", data={"meal_date": today, "name": "Lunch"}, follow_redirects=False)
+    logged = client.get("/summary").text
+    assert 'id="today-empty-note"' not in logged
+    assert f'href="/summary/{today}" class="btn' in logged
+
+
+def test_day_page_same_from_summary_and_meal(client: TestClient, cached_food) -> None:
+    """/summary/<date> and /meal/<id>/day are one page (backend._day_context):
+    same analysis sections, breadcrumb naming the way in."""
+    today = datetime.date.today().isoformat()
+    meal_id = int(
+        client.post("/meals/create", data={"meal_date": today, "name": "Lunch"},
+                    follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": "150 g"},
+                follow_redirects=False)
+    via_summary = client.get(f"/summary/{today}").text
+    via_meal = client.get(f"/meal/{meal_id}/day").text
+    for page in (via_summary, via_meal):
+        assert 'id="sec-meals"' in page and 'id="sec-contributors"' in page
+        assert 'id="sec-nutrients"' in page
+    assert '<a href="/summary">Daily Summary</a>' in via_summary
+    assert f'<a href="/meal/{meal_id}">Lunch</a>' in via_meal
+    assert client.get(f"/summary/{today}/print").status_code == 200
+    # A date with nothing logged says so rather than bouncing back.
+    r = client.get("/summary/2001-01-01", follow_redirects=False)
+    assert r.status_code == 200 and "No meals are logged for 2001-01-01" in r.text

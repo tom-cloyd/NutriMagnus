@@ -45,6 +45,9 @@ read from here, so they can't drift apart. The checks themselves:
   i.e. the wet record picked for the dry food (water.wet_dry_conflict()).
 - duplicate_groups(): foods with the same name once case, a "* " starter
   prefix, "Copy of " and "(FDC n)" are ignored; run on request only.
+  merge_review(): what keeping one of them would lose — values and
+  portions the others have that it lacks or has differently — so the user
+  can copy them over (their own edits first) before the merge.
 - scan(): the whole database — the checks above plus the existing
   integrity check (db.check_db_integrity) and nutrient-group completeness
   (data_completeness.py) — as stable issue keys, so the reminder can tell
@@ -59,6 +62,7 @@ import re
 from datetime import datetime, timedelta, timezone
 
 import db as _db
+import usda as _usda
 from numa_app.services import data_completeness as _completeness
 from numa_app.services import energy_check as _energy
 from numa_app.services.portions import _parse_portion_input, generic_density_kind
@@ -708,16 +712,37 @@ def _dup_name(name: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", n).split())
 
 
+def _edited_labels(conn, fdc_id: int, user_edited) -> "list[str] | None":
+    """What the user has changed on this food, as labels ("Iron", "serving
+    size", "portion “1 cup”"): [] when nothing, None when it was edited but
+    which values can't be known (an edit from before source copies existed).
+    A custom food's values are all the user's, so it isn't marked at all."""
+    keys = _db.food_edited_keys(conn, fdc_id)
+    if keys is None:
+        return None if user_edited and not _db.is_custom_food_id(fdc_id) else []
+    labels = []
+    for k in keys:
+        if k.startswith(_db.PORTION_KEY_PREFIX):
+            labels.append(f"portion “{k[len(_db.PORTION_KEY_PREFIX):]}”")
+        elif k in ("serving_size", "serving_unit"):
+            if "serving size" not in labels:
+                labels.append("serving size")
+        else:
+            labels.append(_usda.nutrient_label(k)[0])
+    return labels
+
+
 def duplicate_groups(conn, *, include_dismissed: bool = False) -> list[dict]:
     """[{"key", "name", "dismissed", "foods": [{"fdc_id", "name", "data_type",
-    "use", "nutrient_count", "archived"}]}] — two or more foods whose names
-    match once case, punctuation, a "* " prefix, "Copy of " and "(FDC n)" are
-    ignored. key = the group's sorted fdc_ids, which is what a "not
-    duplicates" dismissal remembers."""
+    "use", "nutrient_count", "archived", "edited"}]}] — two or more foods whose
+    names match once case, punctuation, a "* " prefix, "Copy of " and "(FDC n)"
+    are ignored. key = the group's sorted fdc_ids, which is what a "not
+    duplicates" dismissal remembers. edited: _edited_labels()."""
     usage = usage_counts(conn)
     dismissed = _db.duplicate_dismissals(conn)
     by_name: dict[str, list] = {}
-    for row in conn.execute("SELECT fdc_id, name, data_type, nutrients_json, archived FROM foods ORDER BY fdc_id"):
+    for row in conn.execute("SELECT fdc_id, name, data_type, nutrients_json, archived, user_edited "
+                            "FROM foods ORDER BY fdc_id"):
         # A kept older version shares its food's name on purpose.
         if _db.is_version_id(row["fdc_id"]):
             continue
@@ -737,8 +762,83 @@ def duplicate_groups(conn, *, include_dismissed: bool = False) -> list[dict]:
                 count = 0
             foods.append({"fdc_id": r["fdc_id"], "name": r["name"], "data_type": r["data_type"] or "",
                           "use": usage.get(r["fdc_id"], {"recipes": 0, "meals": 0, "pantry": 0, "total": 0}),
-                          "nutrient_count": count, "archived": bool(r["archived"])})
+                          "nutrient_count": count, "archived": bool(r["archived"]),
+                          "edited": _edited_labels(conn, r["fdc_id"], r["user_edited"])})
         out.append({"key": key, "name": rows[0]["name"], "dismissed": key in dismissed, "foods": foods})
     out.sort(key=lambda g: g["name"].lower())
     return out
+
+
+def merge_review(conn, keep_id: int, drop_ids: list[int], groups) -> dict:
+    """What merging `drop_ids` into `keep_id` would lose unless copied over:
+    the values the dropped copies have that the kept one lacks or has
+    differently, and their portions it doesn't have. For the review step
+    before Keep this one (backend /food/cache/duplicates/review).
+
+    Returns {"groups": [{"name", "fields": [{key, label, unit, current,
+    current_mine, options: [{fdc_id, name, value, mine}], pick}]}],
+    "portions": [{id, fdc_id, name, portion, mine}]}. `groups` is
+    [(group_name, [(key, label, unit)])], as on the edit screens. One option
+    per distinct value (two copies agreeing are offered once).
+
+    pick = the default choice, an option's fdc_id or None to keep the kept
+    food's value: a blank is filled (preferring a value the user edited); a
+    value the user edited on a dropped copy wins over the kept food's,
+    unless that one is the user's too. "mine" is known only for foods with a
+    source copy (db.food_edited_keys) — otherwise nothing is presumed."""
+    from numa_app.services.incoming_review import _same, new_portions
+
+    def load(fid):
+        row = _db.get_cached_food(conn, fid)
+        if row is None:
+            return None
+        mine = _db.food_edited_keys(conn, fid)
+        return {"fdc_id": fid, "name": row["name"],
+                "nutrients": json.loads(row["nutrients_json"] or "{}"),
+                "portions": json.loads(row["portions_json"] or "[]") or [],
+                "mine": set(mine) if mine is not None else set()}
+    keep = load(keep_id)
+    others = [o for o in (load(d) for d in drop_ids if d != keep_id) if o]
+    if keep is None:
+        return {"groups": [], "portions": []}
+    kn = keep["nutrients"]
+    out_groups = []
+    for group_name, fields in groups:
+        rows = []
+        for key, label, unit in fields:
+            cur_blank = _completeness.is_blank(key, kn)
+            opts: list[dict] = []
+            for o in others:
+                if _completeness.is_blank(key, o["nutrients"]):
+                    continue
+                v = o["nutrients"][key]
+                if not cur_blank and _same(v, kn[key]):
+                    continue
+                same = next((x for x in opts if _same(x["value"], v)), None)
+                if same:
+                    same["mine"] = same["mine"] or key in o["mine"]
+                    continue
+                opts.append({"fdc_id": o["fdc_id"], "name": o["name"], "value": v, "mine": key in o["mine"]})
+            if not opts:
+                continue
+            cur_mine = not cur_blank and key in keep["mine"]
+            mine_opt = next((x["fdc_id"] for x in opts if x["mine"]), None)
+            if cur_blank:
+                pick = mine_opt or opts[0]["fdc_id"]
+            else:
+                pick = None if cur_mine else mine_opt
+            rows.append({"key": key, "label": label, "unit": unit,
+                         "current": None if cur_blank else kn[key], "current_mine": cur_mine,
+                         "options": opts, "pick": pick})
+        if rows:
+            out_groups.append({"name": group_name, "fields": rows})
+    portions = []
+    have = list(keep["portions"])
+    for o in others:
+        for p in new_portions(have, o["portions"]):
+            have.append(p)
+            desc = str(p.get("description", "")).strip()
+            portions.append({"id": f"{o['fdc_id']}|{desc}", "fdc_id": o["fdc_id"], "name": o["name"],
+                             "portion": p, "mine": _db.PORTION_KEY_PREFIX + desc in o["mine"]})
+    return {"groups": out_groups, "portions": portions}
 

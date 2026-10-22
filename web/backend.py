@@ -291,7 +291,7 @@ def _parse_portion_str_raw(
         density = _usda.get_density_g_per_ml(food_name, portions)
         if density is None:
             return None, (
-                f'Volume unit "{unit}" recognised, but no density data is available '
+                f'Volume unit "{unit}" recognized, but no density data is available '
                 f"for this food. Enter weight in g or oz instead."
             )
         grams = round(number * ml_per * density, 2)
@@ -306,7 +306,7 @@ def _parse_portion_str_raw(
     hit = _match_count_portion(number, " ".join(rest), portions)
     if hit is not None:
         return hit
-    return None, (f'Unit "{" ".join(rest)}" not recognised. Try: g, oz, lb, cup, T, tsp, ml, '
+    return None, (f'Unit "{" ".join(rest)}" not recognized. Try: g, oz, lb, cup, T, tsp, ml, '
                   f'p1, 6 p1{_portion_hint(portions)}.')
 
 
@@ -361,7 +361,7 @@ def _match_count_portion(number: float, unit_text: str, portions: list[dict]) ->
     portion matches. Matches the whole description ("2 large eggs" ->
     "1 large egg") or, failing that, its main word ("2 eggs" -> "1 large
     egg"). Raises nothing: an ambiguous match is left to the caller's
-    "not recognised" message, which lists the portions."""
+    "not recognized" message, which lists the portions."""
     typed = _portion_words(unit_text)
     if not typed or number <= 0:
         return None
@@ -978,6 +978,10 @@ async def _lifespan(app: FastAPI):
             _mark_starter_problems_seen(conn)
         _data_quality.convert_keeps(conn)
         _day_profile.backfill_missing_day_profiles(conn)
+        # Foods with two pantry entries (made by merging duplicate foods, or
+        # by adding a food again, before either stopped doing so); self-
+        # limiting, since nothing makes them any more.
+        _db.pantry_merge_duplicates(conn)
         # Pantry/recipe/meal lines still showing a name their food no longer
         # has (db.sync_food_name_copies); self-limiting, since a repaired
         # copy no longer differs on later starts.
@@ -4195,42 +4199,124 @@ async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
 
 @app.get("/food/cache/duplicates", response_class=HTMLResponse)
 async def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int = 0,
-                                dismissed: int = 0, impact: str = ""):
+                                dismissed: int = 0, impact: str = "", copied: int = 0,
+                                pantry_merged: int = 0):
     """Duplicate foods (data_quality.duplicate_groups), run on request from
     Foods → 9: for each group keep one (the others are replaced by it
-    everywhere and deleted) or mark the group "not duplicates"."""
+    everywhere and deleted, after a review of anything they'd take with
+    them) or mark the group "not duplicates". Also foods with more than one
+    pantry entry (db.pantry_duplicate_groups), each merged into one."""
     with _db.get_db() as conn:
         groups = _data_quality.duplicate_groups(conn, include_dismissed=bool(show_dismissed))
+        # Which Keep buttons go to the review step rather than straight to
+        # the merge (so only those skip the "cannot be undone" confirm).
+        for g in groups:
+            ids = [f["fdc_id"] for f in g["foods"]]
+            for f in g["foods"]:
+                r = _data_quality.merge_review(conn, f["fdc_id"], ids, _EDIT_NUTRIENT_GROUPS)
+                f["needs_review"] = bool(r["groups"] or r["portions"])
+        pantry_groups = _db.pantry_duplicate_groups(conn)
     return templates.TemplateResponse(request, "food_duplicates.html", {
         "groups": groups, "show_dismissed": bool(show_dismissed),
         "merged": merged, "dismissed": dismissed, "impact": _impact_pop(impact),
+        "copied": copied, "pantry_groups": pantry_groups, "pantry_merged": pantry_merged,
+    })
+
+
+def _duplicate_group(conn, group_key: str) -> dict | None:
+    return next((g for g in _data_quality.duplicate_groups(conn, include_dismissed=True)
+                 if g["key"] == group_key), None)
+
+
+@app.get("/food/cache/duplicates/review", response_class=HTMLResponse)
+async def food_cache_duplicates_review(request: Request, group_key: str = "", keep: int = 0):
+    """Before keeping one of a group: the values and portions the others
+    have that it lacks or has differently (data_quality.merge_review), each
+    with a choice of which to keep. Nothing is written here."""
+    with _db.get_db() as conn:
+        group = _duplicate_group(conn, group_key)
+        ids = [f["fdc_id"] for f in group["foods"]] if group else []
+        if keep not in ids:
+            return RedirectResponse("/food/cache/duplicates", status_code=303)
+        review = _data_quality.merge_review(conn, keep, ids, _EDIT_NUTRIENT_GROUPS)
+    kept = next(f for f in group["foods"] if f["fdc_id"] == keep)
+    others = [f for f in group["foods"] if f["fdc_id"] != keep]
+    return templates.TemplateResponse(request, "food_duplicates_review.html", {
+        "group": group, "kept": kept, "others": others, **review,
     })
 
 
 @app.post("/food/cache/duplicates/keep", response_class=RedirectResponse)
-async def food_cache_duplicates_keep(group_key: str = Form(...), keep: int = Form(...)):
+async def food_cache_duplicates_keep(request: Request):
     """Keep `keep`; every other food in the group is replaced by it in recipes,
     meals and pantry (db.merge_food_into) and deleted. The group must still
-    match what the page showed, so a stale page can't merge the wrong foods."""
+    match what the page showed, so a stale page can't merge the wrong foods.
+
+    If the others have values or portions the kept food lacks or has
+    differently, the merge waits for the review screen (reviewed=1): the
+    values picked there ("pick_<key>" = the food to take it from) are copied
+    into the kept food as the user's own, so a later USDA refresh won't
+    quietly replace them, and ticked portions are added after its own."""
+    form = await request.form()
+    group_key = str(form.get("group_key") or "")
+    try:
+        keep = int(form.get("keep") or 0)
+    except ValueError:
+        keep = 0
     with _db.get_db() as conn:
-        group = next((g for g in _data_quality.duplicate_groups(conn, include_dismissed=True)
-                      if g["key"] == group_key), None)
-    ids = [f["fdc_id"] for f in group["foods"]] if group else []
-    if keep not in ids:
+        group = _duplicate_group(conn, group_key)
+        ids = [f["fdc_id"] for f in group["foods"]] if group else []
+        review = _data_quality.merge_review(conn, keep, ids, _EDIT_NUTRIENT_GROUPS) if keep in ids else None
+    if keep not in ids or review is None:
         return RedirectResponse("/food/cache/duplicates", status_code=303)
+    if (review["groups"] or review["portions"]) and form.get("reviewed") != "1":
+        return RedirectResponse("/food/cache/duplicates/review?" + urlencode({"group_key": group_key, "keep": keep}),
+                                status_code=303)
+    chosen: dict[int, dict[str, float]] = {}
+    for grp in review["groups"]:
+        for f in grp["fields"]:
+            pick = str(form.get(f"pick_{f['key']}") or "")
+            opt = next((o for o in f["options"] if str(o["fdc_id"]) == pick), None)
+            if opt is not None:
+                chosen.setdefault(opt["fdc_id"], {})[f["key"]] = float(opt["value"])
+    picked = set(form.getlist("portion"))
+    additions = [p["portion"] for p in review["portions"] if p["id"] in picked]
     drop = [i for i in ids if i != keep]
+    names = {f["fdc_id"]: f["name"] for f in group["foods"]}
     targets = _impact_targets(ids)
     before = _impact_snapshot(*targets)
     with _db.get_db() as conn:
         kept_name = _db.get_cached_food(conn, keep)["name"]
+        for src, values in chosen.items():
+            labels = [_usda.nutrient_label(k)[0] for k in values]
+            _db.merge_user_supplied_nutrients(
+                conn, keep, values, overwrite=True,
+                notes=f"Merged from duplicate {names[src]} ({_food_id_short(src)}): {', '.join(labels)}")
+            # An estimate on the copy stays an estimate here.
+            est = _db.estimated_keys(conn, src)
+            _db.update_estimated_keys(conn, keep, add=[k for k in values if k in est],
+                                      remove=[k for k in values if k not in est])
+        if additions:
+            current = json.loads(_db.get_cached_food(conn, keep)["portions_json"] or "[]") or []
+            _db.update_food_fields(conn, keep, portions=current + additions)
+            _db.mark_user_edited(conn, keep)
         for d in drop:
             _db.merge_food_into(conn, keep, d)
         _recipe_dcp.cascade_food_change(keep, conn)
         _db.log_meal_recalc(conn, _db.meals_using_food(conn, keep),
                             f"duplicates of {kept_name} merged into it")
     token = _impact_store(f"Merging duplicates into {kept_name}", before, _impact_snapshot(*targets))
-    return RedirectResponse(f"/food/cache/duplicates?merged={len(drop)}" + (f"&impact={token}" if token else ""),
-                            status_code=303)
+    copied = sum(len(v) for v in chosen.values()) + len(additions)
+    return RedirectResponse(f"/food/cache/duplicates?merged={len(drop)}" + (f"&copied={copied}" if copied else "")
+                            + (f"&impact={token}" if token else ""), status_code=303)
+
+
+@app.post("/food/cache/duplicates/pantry", response_class=RedirectResponse)
+async def food_cache_duplicates_pantry(fdc_id: int = Form(...)):
+    """Fold one food's pantry entries into one (db.pantry_merge_duplicates)."""
+    with _db.get_db() as conn:
+        removed = _db.pantry_merge_duplicates(conn, fdc_id)
+    return RedirectResponse(f"/food/cache/duplicates?pantry_merged={removed}", status_code=303)
 
 
 @app.post("/food/cache/duplicates/dismiss", response_class=RedirectResponse)
@@ -4659,6 +4745,9 @@ async def pantry_add(
                 existing = _db.pantry_get(conn, link_id_int)
                 existing_notes = existing["notes"] if existing else None
                 _db.pantry_update(conn, link_id_int, food_name, fdc_id_int, existing_notes)
+                if fdc_id_int is not None:
+                    # Linked to a food already in the pantry: one entry, not two.
+                    _db.pantry_merge_duplicates(conn, fdc_id_int)
                 result_flag = "linked=1"
             else:
                 _db.pantry_add(conn, food_name, fdc_id=fdc_id_int, notes=notes)
@@ -7907,13 +7996,30 @@ def _day_analysis(meal_date: str) -> tuple[list, dict, dict | None, list]:
     return meals, combined_nutrients, diaas_result, all_ingredients
 
 
-def _meal_day_context(meal_id: int) -> dict | None:
-    with _db.get_db() as conn:
-        meal = _db.meal_get(conn, meal_id)
-    if not meal:
-        return None
-    meal_date = meal["meal_date"]
+def _day_context(meal_date: str, from_meal_id: int | None = None,
+                 rank: str | None = None, top_n: str | None = None) -> dict:
+    """Everything the Full Day page shows for one date — the single builder
+    behind both of its URLs, /summary/<date> (reached from Daily Summary) and
+    /meal/<id>/day (reached from a meal; from_meal_id sets the breadcrumb).
+    It carries the same analysis sections as a meal page, pooled over every
+    meal on the date. A date with no meals gets an empty day (meals == [])
+    rather than a redirect, so "Today's summary" on a day not yet logged
+    says so instead of seeming to do nothing."""
+    from_meal_name = None
+    if from_meal_id is not None:
+        with _db.get_db() as conn:
+            fm = _db.meal_get(conn, from_meal_id)
+        from_meal_name = fm["name"] if fm else None
+    base = {
+        "meal_date":      meal_date,
+        "from_meal_id":   from_meal_id,
+        "from_meal_name": from_meal_name,
+        "day_url":        f"/meal/{from_meal_id}/day" if from_meal_id is not None else f"/summary/{meal_date}",
+        "today":          datetime.date.today().isoformat(),
+    }
     meals, combined_nutrients, diaas_result, day_ingredients = _day_analysis(meal_date)
+    if not meals:
+        return {**base, "meals": []}
 
     # Attach items list to each meal dict
     with _db.get_db() as conn:
@@ -7927,6 +8033,9 @@ def _meal_day_context(meal_id: int) -> dict | None:
             m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
+    if diaas_display and diaas_display.get("dcp_g") is not None:
+        with _db.get_db() as conn:
+            _db.day_bcp_cache_set(conn, meal_date, diaas_display["dcp_g"])
 
     # Pool AA nutrients across all meals on this date (for complement suggestions)
     aa_nutrients: dict = {}
@@ -7936,6 +8045,40 @@ def _meal_day_context(meal_id: int) -> dict | None:
 
     # Pool GL across all meals on this date
     gl = combine_gl([_compute_gl(m["id"]) for m in meals])
+    meal_ids = [m["id"] for m in meals]
+
+    # Top Contributors over the whole day — the meal page's section, with
+    # GL swap What-if links scoped to every meal on the date.
+    top_n = _resolve_contributor_top_n(top_n)
+    contributor_options = _contributor_rank_options(combined_nutrients)
+    if not rank or rank not in {k for _, opts in contributor_options for k, _ in opts}:
+        rank = _default_rank_key(contributor_options)
+    with _db.get_db() as conn:
+        contributor_result = _build_contributors(day_ingredients, rank, top_n, conn,
+                                                 gl_scope={"meal_id": ",".join(str(i) for i in meal_ids)})
+        contributor_by_item = None
+        if rank and not (rank == _GL_RANK_KEY and not _track_gl()):
+            by_item = _rank_by_meal_item(day_ingredients, rank, conn, is_dcp=rank == "protein_g",
+                                         is_gl=rank == _GL_RANK_KEY, gi_opt_out=_gi_opt_out())
+            shown = by_item["items"]
+            if contributor_result["top_n"] != "all":
+                shown = shown[:int(contributor_result["top_n"])]
+            contributor_by_item = {"items": shown, "total": by_item["total"], "count": len(by_item["items"])}
+
+    # Anti-nutrients, over the day's leaf foods (recipes already expanded)
+    item_antinutrients = []
+    seen_names: set[str] = set()
+    for ing in day_ingredients:
+        n = ing.get("food_name") or ""
+        if n and n not in seen_names:
+            seen_names.add(n)
+            flags = _usda.get_antinutrient_flags(n)
+            if flags:
+                item_antinutrients.append({"food_name": n, "flags": flags,
+                                           "fdc_id": ing.get("fdc_id"), "recipe_id": ing.get("recipe_id")})
+    oxalate = _oxalate_for_items([
+        {"fdc_id": ing["fdc_id"], "food_name": ing["food_name"], "amount_g": ing["grams"]}
+        for ing in day_ingredients if ing.get("fdc_id") and ing["fdc_id"] > 0])
 
     with _db.get_db() as conn:
         day_profile_obj = _day_profile.get_profile_for_date(conn, meal_date)
@@ -7944,9 +8087,10 @@ def _meal_day_context(meal_id: int) -> dict | None:
     optimal = _load_optimal(day_profile_obj)
     max_limits = _load_max_limits(day_profile_obj)
     return {
-        "meal_date":         meal_date,
+        **base,
         "meals":             meals,
-        "from_meal_id":      meal_id,
+        "calorie_warnings":  _calorie_warnings(day_ingredients),
+        "recalc_notes":      _recalc_notes(meal_ids),
         "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
                                                 optimal=optimal, max_limits=max_limits,
                                                 dcp_g=diaas_display["dcp_g"] if diaas_display else None,
@@ -7960,6 +8104,12 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "gl":                gl,
         "gl_target":         _gl_target_status(gl["total"], gl["complete"],
                                                day_profile_obj.gl_day_target if day_profile_obj else None),
+        "item_antinutrients": item_antinutrients,
+        "oxalate":           oxalate,
+        # print.html's names for the same two
+        "ingredient_antinutrients": item_antinutrients,
+        "oxalate_agg":       oxalate,
+        "diet_notes":        _diet_aware_daily_notes(combined_nutrients, rda) if combined_nutrients else {},
         "water_notes":       _water_day_notes(combined_nutrients, rda, day_profile_obj, max_limits) if combined_nutrients else {},
         "has_profile":       rda is not None,
         "has_optimal":        bool(optimal),
@@ -7968,14 +8118,28 @@ def _meal_day_context(meal_id: int) -> dict | None:
         "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
         "day_follows_current":    _day_profile.follows_current(day_profile_row),
         "all_profile_names": _profile.list_profiles(),
+        "contributor_options": contributor_options,
+        "contributor_rank":    rank,
+        "contributor_unit":    _contributor_unit(rank),
+        "contributor_gl":      contributor_result if contributor_result.get("is_gl") else None,
+        "contributor_missing": contributor_result["missing"],
+        "contributor_by_item": contributor_by_item,
+        "contributors":        contributor_result["items"],
+        "contributor_total":   contributor_result["total"],
+        "contributor_count":   contributor_result["count"],
+        "contributor_top_n":         contributor_result["top_n"],
+        "contributor_top_n_options": contributor_result["top_n_options"],
+        "contributor_is_dcp":        contributor_result["is_dcp"],
     }
 
 
 @app.get("/meal/{meal_id}/day", response_class=HTMLResponse)
-async def meal_day_view(request: Request, meal_id: int):
-    ctx = _meal_day_context(meal_id)
-    if ctx is None:
+async def meal_day_view(request: Request, meal_id: int, rank: str | None = None, top_n: str | None = None):
+    with _db.get_db() as conn:
+        meal = _db.meal_get(conn, meal_id)
+    if not meal:
         return RedirectResponse("/meals", status_code=303)
+    ctx = _day_context(meal["meal_date"], from_meal_id=meal_id, rank=rank, top_n=top_n)
     return templates.TemplateResponse(request, "meal_day.html", ctx)
 
 
@@ -7994,7 +8158,38 @@ def _day_available_sections(ctx: dict) -> list[str]:
     complements = ctx.get("complements")
     if complements and not complements.get("no_data"):
         available.append("complements")
+    if ctx.get("oxalate_agg") or ctx.get("ingredient_antinutrients"):
+        available.append("antinutrients")
     return available
+
+
+def _day_print_response(request: Request, ctx: dict, sections: list[str], sections_submitted: bool,
+                        layout: str, paper: str, layout_submitted: bool):
+    available = _day_available_sections(ctx)
+    prefs = _load_prefs_file()
+    enabled = _print_sections.resolve_sections("day", available, sections, sections_submitted, prefs)
+    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
+    save_update = layout_ctx.pop("_save_update")
+    if sections_submitted or save_update:
+        _save_prefs_file({**_print_sections.save_sections("day", enabled, prefs), **save_update})
+
+    return templates.TemplateResponse(request, "print.html", {
+        "title":              f"Daily Summary — {ctx['meal_date']}",
+        "subtitle":           f"{ctx['meal_date']}" + (f" · profile: {ctx['day_profile_name']}" if ctx.get("day_profile_name") else ""),
+        "back_url":           ctx["day_url"],
+        "back_label":         "Back to day",
+        "fixed_params":       {},
+        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
+        "available_sections": available,
+        "enabled":            enabled,
+        "portion_label":      "full day",
+        "gl_scope":           "day",
+        "day_meals":          ctx["meals"],
+        **layout_ctx,
+        # print.html's own "oxalate" is a single food's (food print); the
+        # day's goes in as oxalate_agg, like a meal's.
+        **{k: v for k, v in ctx.items() if k != "oxalate"},
+    })
 
 
 @app.get("/meal/{meal_id}/day/print", response_class=HTMLResponse)
@@ -8007,33 +8202,12 @@ async def meal_day_print(
     paper: str = Query(default=""),
     layout_submitted: bool = Query(default=False),
 ):
-    ctx = _meal_day_context(meal_id)
-    if ctx is None:
+    with _db.get_db() as conn:
+        meal = _db.meal_get(conn, meal_id)
+    if not meal:
         return RedirectResponse("/meals", status_code=303)
-
-    available = _day_available_sections(ctx)
-    prefs = _load_prefs_file()
-    enabled = _print_sections.resolve_sections("day", available, sections, sections_submitted, prefs)
-    layout_ctx = _print_sections.resolve_layout_context(layout, paper, layout_submitted, prefs)
-    save_update = layout_ctx.pop("_save_update")
-    if sections_submitted or save_update:
-        _save_prefs_file({**_print_sections.save_sections("day", enabled, prefs), **save_update})
-
-    return templates.TemplateResponse(request, "print.html", {
-        "title":              f"Daily Summary — {ctx['meal_date']}",
-        "subtitle":           f"{ctx['meal_date']}" + (f" · profile: {ctx['day_profile_name']}" if ctx.get("day_profile_name") else ""),
-        "back_url":           f"/meal/{meal_id}/day",
-        "back_label":         "Back to day",
-        "fixed_params":       {},
-        "section_labels":     _print_sections.PRINT_SECTION_LABELS,
-        "available_sections": available,
-        "enabled":            enabled,
-        "portion_label":      "full day",
-        "gl_scope":           "day",
-        "day_meals":          ctx["meals"],
-        **layout_ctx,
-        **ctx,
-    })
+    ctx = _day_context(meal["meal_date"], from_meal_id=meal_id)
+    return _day_print_response(request, ctx, sections, sections_submitted, layout, paper, layout_submitted)
 
 
 @app.post("/meal/{meal_id}/day/profile", response_class=RedirectResponse)
@@ -11664,94 +11838,45 @@ async def summary_index(request: Request):
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=30)
         day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
+        today_has_meals = bool(_db.meal_list_by_date(conn, datetime.date.today().isoformat()))
 
     return templates.TemplateResponse(request, "summary.html", {
+        "today_has_meals": today_has_meals,
         "day_rows":       day_rows,
         "day_nutrient_cols": day_nutrient_cols,
         "mandatory_day_cols": mandatory_day_cols,
         "show_profile_col": len(_profile.list_profiles()) > 1,
         "show_gl_col":    _track_gl() and not _gi_opt_out(),
         "today":          datetime.date.today().isoformat(),
-        "date_detail":    None,
     })
 
 
 @app.get("/summary/{meal_date}", response_class=HTMLResponse)
-async def summary_date(request: Request, meal_date: str):
-    """Full-day nutrient + DIAAS analysis for a specific date."""
-    meals, combined_nutrients, diaas_result, day_ingredients = _day_analysis(meal_date)
-    if not meals:
+async def summary_date(request: Request, meal_date: str, rank: str | None = None, top_n: str | None = None):
+    """The Full Day page for a date, reached from Daily Summary — the same
+    page as /meal/<id>/day (see _day_context)."""
+    try:
+        datetime.date.fromisoformat(meal_date)
+    except ValueError:
         return RedirectResponse("/summary", status_code=303)
+    ctx = _day_context(meal_date, rank=rank, top_n=top_n)
+    return templates.TemplateResponse(request, "meal_day.html", ctx)
 
-    with _db.get_db() as conn:
-        for m in meals:
-            m_items = [dict(it) for it in _db.meal_get_items(conn, m["id"])]
-            for it in m_items:
-                if it["item_type"] == "recipe":
-                    it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
-            _annotate_recipe_amounts(m_items, conn)
-            _annotate_food_amounts(m_items, conn)
-            m["meal_items"] = _sort_meal_items_display(m_items)
 
-    diaas_display = _build_diaas_display(diaas_result)
-
-    if diaas_display and diaas_display.get("dcp_g") is not None:
-        with _db.get_db() as conn:
-            _db.day_bcp_cache_set(conn, meal_date, diaas_display["dcp_g"])
-
-    aa_nutrients: dict = {}
-    for m in meals:
-        for k, v in _meal_aa_nutrients(m["id"]).items():
-            aa_nutrients[k] = aa_nutrients.get(k, 0.0) + v
-
-    gl = combine_gl([_compute_gl(m["id"]) for m in meals])
-
-    with _db.get_db() as conn:
-        day_profile_obj = _day_profile.get_profile_for_date(conn, meal_date)
-        day_profile_row = _db.day_profile_get(conn, meal_date)
-    rda = _load_rda(day_profile_obj)
-    optimal = _load_optimal(day_profile_obj)
-    max_limits = _load_max_limits(day_profile_obj)
-
-    # Recent days for sidebar
-    with _db.get_db() as conn:
-        rows = _db.meal_dates_with_bcp(conn, limit=14)
-        day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
-
-    return templates.TemplateResponse(request, "summary.html", {
-        "calorie_warnings":  _calorie_warnings(day_ingredients),
-        "recalc_notes":      _recalc_notes([m["id"] for m in meals]),
-        "day_rows":          day_rows,
-        "mandatory_day_cols": mandatory_day_cols,
-        "day_nutrient_cols": day_nutrient_cols,
-        "show_profile_col":  len(_profile.list_profiles()) > 1,
-        "show_gl_col":       _track_gl() and not _gi_opt_out(),
-        "today":             datetime.date.today().isoformat(),
-        "date_detail":       meal_date,
-        "meals":             meals,
-        "nutrient_sections": _nutrient_sections(combined_nutrients, rda, combined_nutrients,
-                                                optimal=optimal, max_limits=max_limits,
-                                                dcp_g=diaas_display["dcp_g"] if diaas_display else None,
-                                                dcp_missing=diaas_display["missing"] if diaas_display else None,
-                                                drinks_floor=_profile.drinks_floor(day_profile_obj or _profile.load_profile()) if _track_water() else None) if combined_nutrients else [],
-        "diaas":             diaas_display,
-        "dcp_missing_names": diaas_display["missing"] if diaas_display else [],
-        "protein_adequacy":  _protein_adequacy(combined_nutrients, diaas_display["dcp_g"] if diaas_display else None, rda),
-        "protein_per_meal_day": _protein_per_meal_day(meals, day_profile_obj),
-        "complements":       _complement_suggestions(aa_nutrients, _diaas.pooled_tid(diaas_result) if diaas_result else None, context="daily", ingredients=day_ingredients),
-        "gl":                gl,
-        "gl_target":         _gl_target_status(gl["total"], gl["complete"],
-                                               day_profile_obj.gl_day_target if day_profile_obj else None),
-        "has_profile":       rda is not None,
-        "has_optimal":        bool(optimal),
-        "has_ul":             bool(max_limits),
-        "day_profile_name":       day_profile_row["profile_name"] if day_profile_row else None,
-        "day_profile_overridden": bool(day_profile_row["overridden"]) if day_profile_row else False,
-        "day_follows_current":    _day_profile.follows_current(day_profile_row),
-        "all_profile_names":      _profile.list_profiles(),
-        "diet_notes":        _diet_aware_daily_notes(combined_nutrients, rda) if combined_nutrients else {},
-        "water_notes":       _water_day_notes(combined_nutrients, rda, day_profile_obj, max_limits) if combined_nutrients else {},
-    })
+@app.get("/summary/{meal_date}/print", response_class=HTMLResponse)
+async def summary_date_print(
+    request: Request,
+    meal_date: str,
+    sections: list[str] = Query(default=[]),
+    sections_submitted: bool = Query(default=False),
+    layout: str = Query(default=""),
+    paper: str = Query(default=""),
+    layout_submitted: bool = Query(default=False),
+):
+    ctx = _day_context(meal_date)
+    if not ctx["meals"]:
+        return RedirectResponse(f"/summary/{meal_date}", status_code=303)
+    return _day_print_response(request, ctx, sections, sections_submitted, layout, paper, layout_submitted)
 
 
 @app.post("/summary/{meal_date}/profile", response_class=RedirectResponse)

@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-18:2241
+UPDATED: 2026-10-21:1522
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -26,7 +26,7 @@ Last annual static-dataset check: 2026-09-20 (first run — see Maintenance sect
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
 - [Maintenance](#maintenance)
-  - [Weekly sweep](#weekly-sweep-wednesday-evening--thursday-morning) — **the nine numbered items** live here:
+  - [Weekly sweep](#weekly-sweep-wednesday-evening--thursday-morning) — **the ten numbered items** live here:
     [1. CLAUDE.md drift](#1-claudemd-drift) ·
     [2. "NuMa" capitalization](#2-numa-capitalization-in-prose) ·
     [3. Vendored dependency check](#3-vendored-dependency-check) ·
@@ -35,7 +35,8 @@ Last annual static-dataset check: 2026-09-20 (first run — see Maintenance sect
     [6. README.md accuracy](#6-readmemd-accuracy) ·
     [7. Test coverage gaps](#7-test-coverage-gaps) ·
     [8. Stale internal links](#8-stale-internal-links) ·
-    [9. Glossary coverage](#9-glossary-coverage)
+    [9. Glossary coverage](#9-glossary-coverage) ·
+    [10. Search terms coverage](#10-search-terms-coverage)
   - [Monthly deep check](#monthly-deep-check-first-weekly-sweep-of-each-month)
   - [Quarterly source-fixture refresh](#quarterly-source-fixture-refresh-every-3-months)
   - [Quarterly glossary audit](#quarterly-glossary-audit-every-3-months)
@@ -101,6 +102,8 @@ numa/
     upload_ai_manual.py            — Builds it, then updates its Google Doc in Drive (owner-only)
     publish_manual.py              — Publish the manual on its own (signed) to the "manual-latest" release
     audit_glossary.py              — List manual terms that look like they need a Glossary entry
+    search_terms_review.py         — List manual sections changed since the last sweep, split by
+                                     whether they have a Search terms line (weekly sweep item 10)
     bump_version.py                — Set version.py's VERSION stamp to now (never hand-edit it)
     create_release.py              — Create the GitHub release and upload the Linux binary/installer
     release-all.sh                 — `make release-all`: Linux release, then the Windows build
@@ -810,7 +813,7 @@ UI: `/food/cache/db-check` sections *Food data problems* (`#calories`), *Amounts
 
 **Change impact.** `_impact_targets()` (`db.recipes_using_food` — recursive over sub-recipes — and `db.meals_using_food`), `_impact_snapshot()` before and after a write, `_impact_store()` diffs calories/protein/carbs/fat and keeps the summary under a one-time token (in-process dict) for `_impact_note.html`. Wired into the incoming-data review POST (Refresh from USDA / Fill in nutrients from another food), the custom-food editor save, and the stale-amount fix. **Recalculation log:** `meal_recalc_log` (`meal_id`, `reason`, `logged_at`), written by `recipe_dcp.cascade_food_change()` and the stale-amount fix, shown by `_recalc_note.html` on meal and Daily Summary pages.
 
-**Generic-density amounts:** `generic_density_in_use()` — see the portions.py section. **In-use gaps and duplicates.** `missing_aa_in_use()` / `missing_portions_in_use()` / `missing_gi_in_use()` list only foods with a recipe, meal or pantry use (`usage_counts()`), most-used first; "not needed" uses `food_data_ignores` keys `aa` / `portions` through the completeness save route (`back=` picks the return anchor) — except the GI list (carbs ≥ `GI_LIST_MIN_CARBS` per 100 g, hidden when GI is opted out in Settings), whose "not needed" is `food_annotations.gi_no_prompt` (group `gi` in that route), the flag glycemic load already reports as "not wanted". Population: `glycemic_load.gi_measured_impaired()` reads the "Impaired glucose tolerance" label the Annotate lookup saves into `gi_source`; GL results carry `impaired` (counted foods with such a GI), shown by `_gl_result.html`'s `gi_population_note` (advice worded once, in `gi_impaired_advice()`, tailored by the Jinja global `user_glucose_tolerance()` — the profile's glucose tolerance), the food/Annotate pages (Jinja filter `gi_impaired`), and as † in GL Top Contributors and swaps. GL Top Contributors' swap notes count `db.foods_with_gi()` and the open rows of this list, linking to `#missing-gi`. No reminder keys. **Days eaten.** `foods_days_eaten(conn, end_date, days)` counts distinct days per food over a span, directly or through logged recipes (`_recipe_food_ids()`, recursive, memoized, cycle-safe); its `gi_gap_days` come from glycemic_load's own day gaps (`no_gi` + `not_wanted`), not the per-100 g rule, so a pinch of a spice never counts. `/food/cache/db-check?de_days=&de_end=` (defaults 30 / today) renders it as `#days-eaten`: all foods, no-GI by gap days, no-carbs (skipping foods whose `macros` group is not needed). `duplicate_groups()` normalises names (`_dup_name`: case, punctuation, "* ", "Copy of ", "(FDC n)") — exact matches only; `/food/cache/duplicates` (on request), `POST .../keep` → `db.merge_food_into()` per dropped food then `cascade_food_change(keep)` with an impact summary, `POST .../dismiss` → `food_duplicate_dismissals` (group key = sorted fdc_ids, so a new copy re-raises the group). The Claude import confirm also records an impact summary (shown on the Food Cache page); the Food Cache CSV import only creates new foods, so there's nothing to diff.
+**Generic-density amounts:** `generic_density_in_use()` — see the portions.py section. **In-use gaps and duplicates.** `missing_aa_in_use()` / `missing_portions_in_use()` / `missing_gi_in_use()` list only foods with a recipe, meal or pantry use (`usage_counts()`), most-used first; "not needed" uses `food_data_ignores` keys `aa` / `portions` through the completeness save route (`back=` picks the return anchor) — except the GI list (carbs ≥ `GI_LIST_MIN_CARBS` per 100 g, hidden when GI is opted out in Settings), whose "not needed" is `food_annotations.gi_no_prompt` (group `gi` in that route), the flag glycemic load already reports as "not wanted". Population: `glycemic_load.gi_measured_impaired()` reads the "Impaired glucose tolerance" label the Annotate lookup saves into `gi_source`; GL results carry `impaired` (counted foods with such a GI), shown by `_gl_result.html`'s `gi_population_note` (advice worded once, in `gi_impaired_advice()`, tailored by the Jinja global `user_glucose_tolerance()` — the profile's glucose tolerance), the food/Annotate pages (Jinja filter `gi_impaired`), and as † in GL Top Contributors and swaps. GL Top Contributors' swap notes count `db.foods_with_gi()` and the open rows of this list, linking to `#missing-gi`. No reminder keys. **Days eaten.** `foods_days_eaten(conn, end_date, days)` counts distinct days per food over a span, directly or through logged recipes (`_recipe_food_ids()`, recursive, memoized, cycle-safe); its `gi_gap_days` come from glycemic_load's own day gaps (`no_gi` + `not_wanted`), not the per-100 g rule, so a pinch of a spice never counts. `/food/cache/db-check?de_days=&de_end=` (defaults 30 / today) renders it as `#days-eaten`: all foods, no-GI by gap days, no-carbs (skipping foods whose `macros` group is not needed). `duplicate_groups()` normalises names (`_dup_name`: case, punctuation, "* ", "Copy of ", "(FDC n)") — exact matches only; `/food/cache/duplicates` (on request; each copy's `edited` = `_edited_labels()` from `db.food_edited_keys`, None when edited but unknowable), `POST .../keep` → if `merge_review(conn, keep, ids, groups)` finds values the dropped copies have that the kept one lacks or has differently (one option per distinct value, user edits marked "mine") or portions it lacks, a redirect to `GET .../review` first, which posts back with `reviewed=1` and `pick_<key>` = source fdc_id (default: fill blanks, else the user's edit on a dropped copy unless the kept value is theirs too); picked values go in through `merge_user_supplied_nutrients` (user edits, noted with the source copy; estimated flags carry over), ticked portions are appended; then `db.merge_food_into()` per dropped food (which also folds pantry rows via `pantry_merge_duplicates`) and `cascade_food_change(keep)` with an impact summary, `POST .../dismiss` → `food_duplicate_dismissals` (group key = sorted fdc_ids, so a new copy re-raises the group). **Pantry doubles.** `db.pantry_add()` returns the existing entry for a food already in the pantry (un-archiving it, appending notes); `db.pantry_duplicate_groups()` / `pantry_merge_duplicates(conn, fdc_id=None)` fold any older doubles into the oldest non-starter row (starter rows are deleted by id when starter data is cleared), run at startup, after a pantry link, and from the duplicates page's **Merge into one** (`POST .../pantry`). The Claude import confirm also records an impact summary (shown on the Food Cache page); the Food Cache CSV import only creates new foods, so there's nothing to diff.
 
 **Trust indicator.** `_calorie_warnings()` returns `estimated_pct` (share of the calorie total from estimated values) alongside its items; `_calorie_note.html` leads with it.
 
@@ -1403,7 +1406,8 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 | Method | Path | Description |
 |---|---|---|
 | GET | `/summary` | Daily summary landing page (Recent Days list) |
-| GET | `/summary/{meal_date}` | Daily summary for one date |
+| GET | `/summary/{meal_date}` | Full-day analysis for one date — the same page as `/meal/{meal_id}/day` (`meal_day.html`); a date with no meals shows an empty day, not a redirect |
+| GET | `/summary/{meal_date}/print` | Printable full-day analysis |
 | POST | `/summary/{meal_date}/profile` | Set/override the profile pinned to that date |
 | GET | `/summary/trend` | Nutrient averages across days view |
 | GET | `/summary/range` | Nutrient totals + per-day average for a date range (`start`, `end`) or meal IDs (`meal_ids`) |
@@ -1467,6 +1471,8 @@ Top to bottom: the not-medical-advice disclaimer box, the conditional banners, t
 **Per-release dismissal.** Even when `check_for_update()` reports a real update, `index()` only lets the **UPDATE AVAILABLE** banner through if `_should_show_update_notice(tag)` (`web/backend.py`) says so — otherwise it sets `update_available = None` before rendering, same as the post-update suppression case. The banner shows on every page load for a given release, so it can't silently disappear before you've acted on it, unless you've ticked its "Don't show this again for this version" checkbox, which saves that release's tag as `update_notice_dismissed_tag` in `prefs.json`. A newer release always gets through. This is a display gate only — it never affects the 6-hour network-cache TTL above. (It replaced an earlier daily/weekly/monthly notification-frequency setting, removed because the banner could vanish on its own.)
 
 **Manual updates (separate from program updates).** `numa_app/services/manual_update.py` checks a rolling prerelease, `manual-latest`, on GitHub for a newer signed `user-manual.html`; `scripts/publish_manual.py` builds, signs (Ed25519, key in `~/.config/numa-signing/`, public key baked into the module), and uploads it. Home shows its own banner (own dismissal pref, `manual_notice_dismissed_stamp`); `POST /manual-update-now` verifies and installs into `<data dir>/manual/`. `/manual` serves the downloaded copy only if it re-verifies and its stamp is newer than the baked-in manual's; the `rebuild_manual_if_stale()` step applies only to the baked-in copy. The manifest's `requires_program` drives the "describes newer features" warning. Never remove or rename a manual anchor (older programs link into newer manuals).
+
+**Search terms lines.** A manual section can carry one line `*Search terms: a, b, c.*` listing words a reader might search for that the section doesn't itself use (rule: CLAUDE.md, "Search terms lines"). `scripts/build_manual.py` turns each into `<span class="search-terms" hidden>` (`hide_search_terms()`), so it is invisible but still in the section's `textContent`, which the sidebar search indexes; the search's highlighter skips `.search-terms`, and opening a section that matched only through its terms says "this section is listed under that search". `check_search_terms()` fails the build on a line that starts like one but isn't in the exact form (it would otherwise render as visible text), and `count_words()` leaves the lines out of reading time. `user-manual.md` itself keeps the readable line.
 
 **Why a freshly-published release can go undetected for a while, and how to force a recheck.** `_cache`/`_cache_checked_at` (`update_check.py`) are plain module-level globals — a per-*process* cache, not a per-page-load or per-user one. If the running server process already checked GitHub (and got "no update") before a new release went live, that `None` answer sticks around in memory for up to 6 hours regardless of how many times the home page is reloaded in the meantime — reloading the page re-runs `check_for_update()`, but the function just returns its cached answer without making a new network call. The fix is to restart the process, since a brand-new process starts with an empty cache and checks GitHub fresh on its very first home-page load. Two ways to do that:
 - **Just relaunch NutriMagnus** (click its icon/shortcut again, or re-run the packaged binary). `web/launcher.py`'s `main()` already detects that its port is occupied and kills the old process for you before starting a new one (`fuser -k {port}/tcp` on Linux/Mac, `taskkill` via `netstat` on Windows) — this is the same port-conflict handling that lets you just launch NuMa again without manually stopping anything first, and it happens to also be the simplest way to force a fresh update check.
@@ -1542,11 +1548,14 @@ Full meal view and edit page. Sections (all collapsible with `<details>`):
 
 #### `meal_day.html`
 
-Full-day analysis for all meals on a single date. Reached via the "Analyze full day" button on `meal.html`. Shows:
+Full-day analysis for all meals on a single date — one page with two URLs, both built by `_day_context()` in `web/backend.py`: `/meal/{meal_id}/day` (the "Analyze full day" button on `meal.html`; breadcrumb Meals › that meal) and `/summary/{meal_date}` (Daily Summary; breadcrumb Analysis › Daily Summary). `day_url` in the context is whichever URL it is, so the profile form, Top Contributors and print link come back to it. Carries the meal page's analysis sections, pooled over the day:
 
 - List of all meals on the date (with links back to each meal)
-- Combined DIAAS (pooled across all meals)
-- Combined nutrient table with RDA % (using full-day totals as the denominator)
+- Top Contributors (by food, and by meal item); GL swap What-if links cover every meal on the date
+- Combined DIAAS (pooled across all meals), protein per meal, Missing AA Profiles
+- Complement suggestions, glycemic load
+- Combined nutrient table with RDA % (using full-day totals as the denominator), calorie / recalculation / diet notes
+- Anti-nutrients (oxalate and other flags, over the day's foods with recipes expanded)
 
 #### `meals_search.html`
 
@@ -1619,7 +1628,7 @@ Both What-if pages share one computation (`_whatif_meals_compute()` / `_whatif_r
 
 #### `summary.html`
 
-Daily summary landing page — no longer a stub. Lists Recent Days (via the day-analysis machinery shared with `meal_day.html`) and links into a specific date's summary (`/summary/{meal_date}`), the nutrient averages view, and the nutrient plot.
+Daily summary landing page. Lists Recent Days and links into a specific date's full-day page (`/summary/{meal_date}`, rendered by `meal_day.html`), the nutrient averages view, and the nutrient plot.
 
 #### `trend.html`
 
@@ -1728,7 +1737,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,348 tests**, all passing (2,339 in the default run plus 9 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,363 tests**, all passing (2,354 in the default run plus 9 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1803,6 +1812,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_manual_update.py` | `numa_app/services/manual_update.py`: Ed25519-verified manual downloads, stamp comparison, and refusal of anything that fails verification |
 | `tests/test_manual_format.py` | `user-manual.md`'s own structure: changelog entry format, hidden Scope blocks, heading conventions |
 | `tests/test_manual_search_js.py` | The manual search box's **Match case** / **Whole words only** checkboxes: runs `build_manual.JS`'s `wordRegex()` under Node with stubbed checkboxes (skipped when Node is absent) |
+| `tests/test_manual_search_terms.py` | Search terms lines in `user-manual.md`: `build_manual.py` hides each as a `.search-terms` span, leaves it out of reading time, and fails the build on a malformed one; the manual itself has none malformed; `search_terms_review.py` lists the right changed sections |
 | `tests/test_launcher.py` | Startup loading page: served on the real port at once, swapped for a failure page if the app cannot start, and the same socket then handed on to uvicorn |
 | `tests/test_link_integrity.py` | Internal links: every manual `#anchor` against the built HTML, and every template `href="/..."` against a registered route (weekly-sweep item 8, automated) |
 | `tests/test_ai_manual.py` | The AI edition of the manual: reading times, HTML comments and Part 11 removed; every internal link rewritten as plain text naming its destination; footnote markers plain; stays well under a Google Doc's size limit |
@@ -1911,7 +1921,7 @@ It asks rather than fails: for a `GITHUB_TOKEN` if none is set (offering the `gh
 
 A recurring maintenance pass, scoped to what changed since the last sweep — not a full re-audit each time. **Run the items in this order** — it's not arbitrary: pruning has to happen before the items that scan the changelog (so they're not reading entries about to be deleted), and items 8-9 (link check, glossary coverage) have to happen last (so they catch anything the manual-editing items introduce) — order between 8 and 9 themselves doesn't matter.
 
-**The nine weekly items are immediately below**, each with its own heading so you can link to one by number. Before starting them, check whether any longer-cadence maintenance is also due — that list follows the items, under *Longer-cadence checks*.
+**The ten weekly items are immediately below**, each with its own heading so you can link to one by number. Before starting them, check whether any longer-cadence maintenance is also due — that list follows the items, under *Longer-cadence checks*.
 
 #### 1. CLAUDE.md drift
 
@@ -1953,6 +1963,10 @@ Two separate targets, both worth checking, since a broken link in either one is 
 
 Scoped to what the week's changelog entries introduced, not a full pass over the whole manual (that's the monthly/full-audit's job — see below). Two checks, both cheap: (a) an abbreviation or term newly introduced this week (`CSV`, a new nutrient short-name, a new source label) that reads like it belongs in the Glossary (Part 7, section B, `{: #gloss-*}` entries) but has no entry yet; (b) a term that already has a `#gloss-*` entry, used in a new passage this week, whose first/prominent mention in that passage isn't linked (`[TERM](#gloss-term)`). The convention is one link (or one inline expansion) per term per section, not every occurrence — **and as of 2026-09-27 that rule is enforced automatically** by `tests/test_manual_abbreviations.py`, so a bare abbreviation in a section that neither expands nor links it now fails the suite rather than waiting for this sweep to spot it. What the test cannot judge is whether a *newly introduced* abbreviation deserves a Glossary entry at all, so that part stays manual: check the week's changelog entries for a term that reads like it belongs in the Glossary (Part 7, section B, `{: #gloss-*}` entries) and has no entry yet. If the test flags something that genuinely needs no expansion — a file format, a country code, a paper size — add it to the `_ALLOWED` set in that test file with a one-line reason rather than working around it in the prose. The per-section rule exists because the manual is never read front to back: every heading is a landing point reached from the app's "learn more..." links, the table of contents, or manual search, so a term spelled out three sections earlier is undefined for the reader who arrives mid-document.
 
+#### 10. Search terms coverage
+
+Run `python scripts/search_terms_review.py` first. It compares `user-manual.md` now (uncommitted edits included) with its copy at the last commit whose message mentions "sweep" (it prints which; `--since <commit or YYYY-MM-DD>` picks another), and lists every section whose text changed, in two groups: those with a Search terms line and those without. A section whose only change is its terms line counts as already reviewed, and the updates log is left out. Those two lists are this item's scope. For each: (a) it has a `*Search terms: ...*` line and the section was reworded, so reread the list against the current text, dropping terms it no longer covers; (b) it has none but covers something readers would search for in words it doesn't use, so add one per the rule in CLAUDE.md ("Search terms lines"). Try a couple of the obvious everyday searches in the built manual's sidebar search to confirm the section comes up. The build already catches a malformed line, so this item is only about which sections have one and whether its words still fit.
+
 #### Notes on the items above
 
 Items 4-6 all scan the same two-week changelog window for gaps, just against three different targets (manual body, README, test suite) — do a single read-through of the changelog and produce three gap-lists from it, rather than re-reading the same entries three separate times (the first full sweep, 2026-08-17, ran two separate audits that each re-read the same window from scratch).
@@ -1982,6 +1996,8 @@ This file (`README-numa-documentation.md`) doesn't get checked for accuracy by t
 - **Test Suite** section — counts and fixture descriptions still match `tests/`.
 
 **Also do a full `user-manual.md` audit this same week** — check the "Last full audit" date in the manual's own header (right below the "Updated" line); if it's not in the current month, this is due. Weekly sweep item 4 (Manual consolidation) only checks what changed since the last sweep — real but gradual drift (a section that was always subtly wrong, or drifted slowly across many small edits with no single triggering changelog entry) can slip past that every week and never get caught. A full audit reads every Part and Appendix against actual current app behavior, the same way item 4 does for a two-week window, just for the whole document. **This subsumes weekly item 4 for that week — skip item 4 separately, since the full audit already covers everything it would have found.** When done, update the manual's "Last full audit" line to today's date, same rule as the accuracy-check date above: update it every time the audit runs, even if nothing needed fixing.
+
+**As part of that full manual audit, a whole-manual search-terms pass** — weekly item 10 only looks at the week's changed sections, so a section that drifted across many small edits, or never got a line it needed, can slip past it indefinitely. Go through every section (`### ` and `#### ` headings): reread each existing `*Search terms: ...*` list against the section's current text, and add one where a section covers something readers would search for in words it doesn't use (rule: CLAUDE.md, "Search terms lines"). Then try a handful of everyday searches in the built manual's sidebar search (*seniors*, *weight loss*, *kidney stones*, *blood sugar*, whatever the audit turned up) and fix any that miss the section a reader would want.
 
 When done, update the "Last monthly accuracy check" line in this file's header to today's date, regardless of whether anything needed fixing — that line is what tells the next sweep whether this check is due, so it must be updated every time the check runs, not just when it finds something.
 

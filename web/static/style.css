@@ -123,6 +123,10 @@ html {
 /* Access key underlines: visible only when shortcuts are enabled */
 .ak { text-decoration: none; }
 .shortcuts-on .ak { text-decoration: underline; }
+/* "(put cursor here: Alt + Shift + I)" beside a search section's heading;
+   hidden when keyboard shortcuts are turned off in Settings. */
+.ak-hint { display: none; font-size: 0.8rem; font-weight: normal; color: #6c757d; }
+.shortcuts-on .ak-hint { display: inline; }
 
 .site-title {
   text-decoration: none;

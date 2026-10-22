@@ -1,42 +1,7 @@
 {% extends "base.html" %}
-{% import "_day_profile_switch.html" as _dps %}
-{% import "_food_amount.html" as _famt %}
-{% import "_ul_column.html" as _ul %}
-{% import "_calorie_note.html" as _cal %}
-{% import "_rda_goal_column.html" as _rdagoal %}
-{% import "_rda_definition_footer.html" as _rda_note %}
-{% import "_rda_legend.html" as _rda_legend %}
-{% import "_dcp_footnote.html" as _dcp_note %}
-{% import "_recipe_amount.html" as _ramt %}
-{% import "_gl_result.html" as _gl %}
-{% block title %}NutriMagnus — {% if date_detail %}Summary — {{ date_detail }}{% else %}Daily Summary{% endif %}{% endblock %}
-
-{% block layout_class %}{% if date_detail %}analysis-page{% else %}container{% endif %}{% endblock %}
-{% block main_class %}{% if date_detail %}analysis-content{% endif %}{% endblock %}
-
-{% block sidebar_nav %}
-{% if date_detail %}
-<aside class="analysis-sidebar">
-  <a class="sb-page-title" href="#analysis-content">{{ date_detail }}</a>
-  <div class="sb-title">Contents</div>
-  <ul class="sb-list">
-    <li class="sb-item"><a class="sb-toggle" href="#sec-meals">Meals</a></li>
-    {% if diaas %}
-    <li class="sb-item"><a class="sb-toggle" href="#sec-diaas">Protein Quality (DIAAS)</a></li>
-    {% endif %}
-    {% if complements and not complements.no_data %}
-    <li class="sb-item"><a class="sb-toggle" href="#sec-comp">Complement Suggestions</a></li>
-    {% endif %}
-    {% if gl and show_gl() %}
-    <li class="sb-item"><a class="sb-toggle" href="#sec-gl">Glycemic Load</a></li>
-    {% endif %}
-    {% if nutrient_sections %}
-    <li class="sb-item"><a class="sb-toggle" href="#sec-nutrients">Total Nutrients</a></li>
-    {% endif %}
-  </ul>
-</aside>
-{% endif %}
-{% endblock %}
+{# Daily Summary landing (recent-days table). A single date's full-day
+   analysis is meal_day.html, at /summary/<date> — backend._day_context(). #}
+{% block title %}NutriMagnus — Daily Summary{% endblock %}
 
 {% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
 
@@ -62,12 +27,7 @@
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/summary">Analysis</a></li>
-    {% if date_detail %}
-    <li class="breadcrumb-item"><a href="/summary">Daily Summary</a></li>
-    <li class="breadcrumb-item active" aria-current="page">{{ date_detail }}</li>
-    {% else %}
     <li class="breadcrumb-item active" aria-current="page">Daily Summary</li>
-    {% endif %}
   </ol>
 </nav>
 
@@ -76,10 +36,10 @@
 {# ── Date picker ──────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap gap-3 align-items-end mb-3">
   <div class="d-flex gap-2 align-items-end">
-    <label class="form-label mb-0" for="summary-date">Most recent date to show</label>
+    <label class="form-label mb-0" for="summary-date">Show the full day for</label>
     <input type="date" class="form-control form-control-sm" id="summary-date"
-           value="{{ date_detail or today }}"
-           onchange="window.location='/summary/'+this.value">
+           value="{{ today }}"
+           onchange="if (this.value) window.location='/summary/'+this.value">
   </div>
   <a href="/summary/trend" class="btn btn-sm btn-outline-secondary">Nutrient averages across days</a>
   <a href="/summary/blocks" class="btn btn-sm btn-outline-secondary">Blocks of days</a>
@@ -89,11 +49,18 @@
 
 {# ── Recent days table ────────────────────────────────────────────────── #}
 {% set show_pct_col = day_rows|selectattr('pct_goal', 'none')|list|length < day_rows|length %}
-<details {% if not date_detail %}open{% endif %} data-remember="recent-days">
+<details open data-remember="recent-days">
   <summary style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.75rem;width:auto">
     <strong>Recent Days with Meals</strong>
+    {% if today_has_meals %}
     <a href="/summary/{{ today }}" class="btn btn-sm btn-outline-primary"
        onclick="event.stopPropagation()">Today's summary</a>
+    {% else %}
+    {# Nothing logged today: say so here rather than open an empty day. #}
+    <button type="button" class="btn btn-sm btn-outline-primary"
+            onclick="event.preventDefault(); event.stopPropagation(); document.getElementById('today-empty-note').hidden = false">Today's summary</button>
+    <span id="today-empty-note" class="rda-near" hidden><small>No meals are logged for today ({{ today }}) yet, so there is nothing to summarize. <a href="/meals" onclick="event.stopPropagation()">Log a meal in Meals &amp; Log</a>.</small></span>
+    {% endif %}
     {% if day_rows %}
     <small class="muted">Specify nutrients you want here: <a href="/settings#meal-list-nutrients" onclick="event.stopPropagation()">Settings &rarr; Meals &amp; Log columns</a></small>
     {% endif %}
@@ -124,7 +91,7 @@
     </thead>
     <tbody>
       {% for r in day_rows %}
-      <tr{% if r.meal_date == date_detail %} class="table-active"{% endif %}>
+      <tr>
         <td class="sticky-col">{{ r.meal_date }}</td>
         <td class="text-center">
           {% if r.day_complete %}
@@ -187,401 +154,12 @@
     — = not yet computed (open a meal and click <em>Compute DCP</em> from the <a href="/meals">Meals</a> page) &middot;
     Complete &#10003; = every meal logged that date is marked complete; &middot; = at least one isn't yet — click it to jump to <a href="/meals">Meals &amp; Log</a> around that date
     {% if not show_pct_col %}&middot; Set a profile in <a href="/settings">Settings</a> to see your daily protein goal{% endif %}
-    {% if show_gl_col %}&middot; Day GL = the whole day&rsquo;s glycemic load, banded on the day scale, and coloured against your daily target if you&rsquo;ve set one ({{ manual_link("gl-target") }}); &ge; = some foods that day have no GI, so the true figure is higher (see <a href="/food/cache/db-check#missing-gi">foods you use with no GI</a>). <a href="/summary/nutrient-plot?nutrients=gl&amp;submitted=1">Plot it over time</a> {{ manual_link("glycemic") }}{% endif %}
+    {% if show_gl_col %}&middot; Day GL = the whole day&rsquo;s glycemic load, banded on the day scale, and colored against your daily target if you&rsquo;ve set one ({{ manual_link("gl-target") }}); &ge; = some foods that day have no GI, so the true figure is higher (see <a href="/food/cache/db-check#missing-gi">foods you use with no GI</a>). <a href="/summary/nutrient-plot?nutrients=gl&amp;submitted=1">Plot it over time</a> {{ manual_link("glycemic") }}{% endif %}
   </small></p>
   {% else %}
   <p class="muted mt-2">No meals logged yet.</p>
   {% endif %}
 </details>
 
-{# ── Full day analysis ─────────────────────────────────────────────────── #}
-{% if date_detail %}
-<hr>
-<h3>{{ date_detail }}{% if date_detail == today %} <small class="muted">(today)</small>{% endif %}</h3>
-{% if day_profile_name %}
-<div class="muted mb-2">
-  <small>
-    Profile: {{ day_profile_name }}{% if day_profile_overridden %} (manually set){% endif %}
-    {{ _dps.switch(date_detail, day_follows_current, "/summary/{{ date_detail }}") }}
-    {% if all_profile_names|length > 1 %}
-    <details class="d-inline-block ms-1">
-      <summary class="btn btn-sm btn-outline-secondary" style="list-style:none;cursor:pointer">Change</summary>
-      <form method="post" action="/summary/{{ date_detail }}/profile" class="d-inline-flex gap-1 mt-1">
-        <select name="profile_name" class="form-select form-select-sm" style="width:auto">
-          {% for nm in all_profile_names %}
-          <option value="{{ nm }}" {% if nm == day_profile_name %}selected{% endif %}>{{ nm }}</option>
-          {% endfor %}
-        </select>
-        <button type="submit" class="btn btn-sm btn-primary">Use this profile for {{ date_detail }}</button>
-      </form>
-    </details>
-    {% endif %}
-  </small>
-</div>
-{% endif %}
-
-<div id="sec-meals" class="mb-3">
-  <strong>{{ meals | length }} meal{{ 's' if meals | length != 1 else '' }}:</strong>
-  {% set _rw = namespace(any=false) %}
-  {% for m in meals %}
-  <div class="ms-2 mt-2">
-    <a href="/meal/{{ m.id }}"><strong>{{ m.name }}</strong></a>
-    <small class="muted">#{{ m.id }}</small>
-    {% if m.complete %}<span class="text-success ms-1" title="Complete">&#10003;</span>{% endif %}
-    {% if m.meal_items %}
-    <ul class="list-unstyled ms-3 mb-0">
-      {% for it in m.meal_items %}
-      <li class="muted" style="font-size:0.9em">
-        {{ it.food_name }}{{ food_id_tag(it.fdc_id, recipe_id=it.recipe_id) }}
-        &mdash;
-        {# Amount first, then its unit ("150 g", "1 servings") — the unit on
-           its own says nothing about how much was eaten. Every item carries
-           a unit ("g" for foods, "servings" for recipes), so the amount was
-           previously never shown here at all. #}
-        {% if it.item_type == "recipe" %}{% set _rw.any = true %}{% endif %}
-        {% if it.item_type == "recipe" %}{{ _ramt.amount(it, "/meal/%s" % m.id) }}
-        {% elif it.amount is not none %}{{ _famt.amount(it) }}
-        {% elif it.unit %}{{ it.unit }}
-        {% endif %}
-        {% if it.item_type == "recipe" and it.recipe_deleted %}<small class="text-danger">(recipe deleted)</small>
-        {% elif it.item_type == "recipe" %}<small>(recipe)</small>{% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-  </div>
-  {% endfor %}
-  {{ _ramt.weight_note(_rw.any) }}
-</div>
-
-{# DIAAS #}
-{% if diaas %}
-<details id="sec-diaas" open data-remember="diaas">
-  <summary><strong>Protein Quality — Full Day (DIAAS)</strong> <span class="manual-link-paren">({{ manual_link("dcp") }})</span> <span class="manual-link-paren">({{ manual_link("fao", "About the FAO reference") }})</span></summary>
-  <div class="protein-meta">
-    <p><strong>Composite DIAAS:</strong>
-      {% if diaas.score is not none %}{{ "%.3f"|format(diaas.score) }}{% else %}N/A{% endif %}
-    </p>
-    {% if diaas.dcp_g is not none %}
-    <p>
-      <strong style="color:#dc2626">Digestible complete protein: {{ diaas.dcp_g }}&thinsp;g</strong>
-      {% if diaas.dcp_was_capped %}
-      <span class="muted">&nbsp;= {{ diaas.aa_protein_g }}&thinsp;g raw &times; {{ "%.3f"|format(diaas.score) }} DIAAS
-        = {{ diaas.uncapped_dcp_g }}&thinsp;g, capped to {{ diaas.dcp_g }}&thinsp;g (absorbed-protein ceiling{% if diaas.avg_digestibility is not none %}, avg. digestibility {{ "%.2f"|format(diaas.avg_digestibility) }}{% endif %})</span>
-      {{ manual_link("dcp-cap") }}
-      {% elif diaas.aa_protein_g and diaas.aa_protein_g < diaas.total_protein_g - 0.05 %}
-      <span class="muted">&nbsp;= {{ diaas.aa_protein_g }}&thinsp;g raw (AA-analyzed foods) &times; {{ "%.3f"|format(diaas.score) }} DIAAS</span>
-      {% else %}
-      <span class="muted">&nbsp;= {{ diaas.total_protein_g }}&thinsp;g raw &times; {{ "%.3f"|format(diaas.score) }} DIAAS</span>
-      {% endif %}
-    </p>
-    {% if protein_adequacy %}
-    <p class="muted"><small>Your daily protein target is a minimum, not a cap — meeting or exceeding it is the goal. This day provides {{ protein_adequacy.pct | int }}% of that target ({{ protein_adequacy.target }}&thinsp;g)
-      {% if protein_adequacy.personal %}(personal profile — <a href="/settings">Settings</a>)
-      {% else %}(standard adult reference 0.8&thinsp;g/kg &times; 70&thinsp;kg){% endif %}
-    </small></p>
-    {% endif %}
-    {% import "_protein_per_meal.html" as _ppm %}{{ _ppm.day_table(protein_per_meal_day) }}
-    {% endif %}
-    {% if diaas.missing %}
-    <p class="muted"><small>&#9888; Missing AA data for: {{ diaas.missing | join("; ") }}</small></p>
-    {% endif %}
-  </div>
-
-  {% if diaas.iaa_rows %}
-  <table class="nutrient-table">
-    <thead>
-      <tr><th>Amino Acid</th><th class="num-col">Ratio</th><th>Status</th><th style="min-width:8rem"></th></tr>
-    </thead>
-    <tbody>
-      {% for aa in diaas.iaa_rows %}
-      <tr{% if aa.is_limiting %} style="font-weight:600"{% endif %}>
-        <td>{{ aa.label }}{% if aa.is_limiting %} <span style="color:#ca8a04">&larr; limiting</span>{% endif %}</td>
-        <td class="num-col">{{ "%.3f"|format(aa.ratio) }}</td>
-        <td>
-          {% if aa.met %}<span class="status-met">&#10003; Met</span>
-          {% else %}<span class="status-gap">&#9888; Gap</span>{% endif %}
-        </td>
-        <td>
-          <div style="width:{{ aa.bar_pct | int }}%; min-width:3px; height:12px; border-radius:2px; background-color:{{ aa.bar_color }};"></div>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <p class="muted mt-1"><small>
-    <span style="color:#166534">&#9632;</span> &ge;1.0 met &nbsp;
-    <span style="color:#7f1d1d">&#9632;</span> 0.80&ndash;0.99 near &nbsp;
-    <span style="color:#dc2626">&#9632;</span> &lt;0.80 gap &nbsp;
-    <span style="color:#ca8a04">&#9632;</span> limiting AA
-  </small></p>
-  {% endif %}
-
-  {% if diaas.eff_pct is not none %}
-  <p class="muted mt-2"><small>
-    Protein utilization efficiency: {{ diaas.eff_pct | int }}%
-    ({{ diaas.aa_protein_g }}&thinsp;g analysed with AA data of {{ diaas.total_protein_g }}&thinsp;g total)
-  </small></p>
-  {% endif %}
-  {% if diaas.phe_tyr_gap %}
-  <p class="muted"><small>&#9888; Phenylalanine+Tyrosine combined: gap present</small></p>
-  {% endif %}
-
-  {% if diaas.ing_rows %}
-  <h4 class="mt-3">Per-ingredient breakdown</h4>
-  <p class="muted mb-2"><small>How each food's own protein fed into the pooled DIAAS/DCP totals above. Sorted by raw protein, highest first.</small></p>
-  <table class="nutrient-table">
-    <thead>
-      <tr>
-        <th>Food</th>
-        <th class="num-col">Protein (g)</th>
-        <th class="num-col">Digestibility</th>
-        <th class="num-col">Digestible (g)</th>
-        <th>AA data</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for ing in diaas.ing_rows %}
-      <tr>
-        <td>{{ ing.food_name }}{{ food_id_tag(ing.fdc_id, ing.recipe_id) }}</td>
-        <td class="num-col">{{ ing.protein_g }}</td>
-        <td class="num-col">
-          {{ "%.2f"|format(ing.digestibility) }}
-          {% if ing.src_tag %}<small class="muted"> {{ ing.src_tag }}</small>{% endif %}
-        </td>
-        <td class="num-col">{{ ing.digestible_protein_g }}</td>
-        <td>
-          {% if ing.has_aa %}<span class="status-met">&#10003;</span>
-          {% else %}<span class="muted">—</span>{% endif %}
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% endif %}
-</details>
-{% endif %}
-
-{# Complement suggestions #}
-{% if complements and not complements.no_data %}
-<details id="sec-comp" data-remember="complements">
-  <summary><strong>Protein Complement Suggestions — Full Day</strong> {{ manual_link("comp") }}</summary>
-  {% include "_diet_pref_quick.html" %}
-  {% if complements.no_gaps %}
-  <p class="status-met mt-2">&#10003; All essential amino acids are adequately covered.</p>
-  <p class="muted mt-1"><small>Every essential amino acid — including whichever one shows as "limiting" above — already meets or exceeds the FAO reference level. "Limiting" identifies the amino acid with the smallest margin, not a deficiency. {{ manual_link("gap") }}</small></p>
-  {% else %}
-  <p class="muted mt-2"><small>{{ complements.comp_ranking_note }}</small></p>
-  <p class="mt-1"><strong>Gaps:</strong>
-    {% for gap in complements.gaps %}
-      {{ gap.label }} ({{ "%.3f"|format(gap.score) }}){% if not loop.last %}, {% endif %}
-    {% endfor %}
-  </p>
-
-  {% macro suggest_card(s) %}
-  <div class="card card-body mb-2 p-2" style="max-width:38rem">
-    <p class="mb-1">
-      <strong>{{ item_link(s.name, s.fdc_id, s.get('recipe_id')) }}</strong>{{ food_id_tag(s.fdc_id, s.get('recipe_id')) }}
-      {% if not s.fdc_id and not s.recipe_id %}<small class="muted"> generic estimate</small>{% elif s.estimated %}<small class="muted"> estimated</small>{% endif %}
-      {% if s.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(s.diaas) }}</small>{% endif %}
-      {% if s.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}
-    </p>
-    {% if s.grad_steps %}
-    <p class="mb-1"><strong>Add to day (graduated):</strong></p>
-    <table class="table table-sm mb-1" style="max-width:36rem">
-      <thead><tr><th>Amount</th><th>Digestible<br>protein added</th><th>DCP<br>achieved</th><th>%<br>increase</th></tr></thead>
-      <tbody>
-        {% for step in s.grad_steps %}
-        <tr{% if loop.last %} class="table-success"{% endif %}>
-          <td><strong>{{ step.grams }}&thinsp;g</strong>{% if step.amount_note %} <span class="muted">({{ step.amount_note }})</span>{% endif %}{% if loop.last %} <span class="muted">({% if s.capped %}per-meal limit{% else %}full{% endif %})</span>{% endif %}</td>
-          <td>{{ step.dig_protein }}&thinsp;g</td>
-          <td>{% if step.dcp is not none %}<strong>{{ step.dcp }}&thinsp;g</strong>{% else %}—{% endif %}</td>
-          <td>{% if step.pct_increase is not none %}{{ "%+.0f"|format(step.pct_increase) }}%{% else %}—{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="mb-1"><strong>Add to day:</strong> {{ s.grams | round | int }}&thinsp;g{% if s.amount_note %} <small class="muted">({{ s.amount_note }})</small>{% endif %}</p>
-    {% endif %}
-    {% include "_complement_target_note.html" %}
-    {% with limit_readonly=true %}{% include "_complement_limit.html" %}{% endwith %}
-    {% if s.aa_effects %}
-    <p class="mb-1 muted"><small>Effect:
-      {% for e in s.aa_effects %}
-        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
-      {% endfor %}
-    </small></p>
-    {% endif %}
-    <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein (from {{ s.protein_added }}&thinsp;g raw protein in this addition)</small></p>
-    <p class="mb-{% if s.new_complete and s.grad_steps %}1{% else %}0{% endif %} muted"><small>Total digestible complete protein with {% if s.capped %}the per-meal limit{% else %}full serving{% endif %}: <strong>{{ s.total_dig }}&thinsp;g</strong></small></p>
-    {% if s.new_complete and s.grad_steps %}
-    <p class="mb-0 muted"><small>The complement fills amino acid gaps in the base protein, making previously wasted raw protein utilizable. DCP rises faster than the complement alone because it unlocks the base protein too.</small></p>
-    {% endif %}
-    {% if s.opens_new_gap %}
-    <p class="mb-0 rda-near"><small>&#9888; Closes above gap but opens a new one.</small></p>
-    {% endif %}
-  </div>
-  {% endmacro %}
-
-  {% if complements.pantry_empty %}
-  <p class="muted"><small>(No pantry items or analyzed recipes qualify — add via Foods &rarr; My Pantry, or analyze a recipe.)</small></p>
-  {% elif complements.pantry_no_qualify %}
-  <p class="muted"><small>(Pantry items found but none qualify for the limiting amino acid.)</small></p>
-  {% endif %}
-  {% if complements.pantry %}
-  <h4 class="mt-3">From your pantry &amp; recipes</h4>
-  {% for s in complements.pantry %}{{ suggest_card(s) }}{% endfor %}
-  {% endif %}
-  {% if complements.general %}
-  <h4 class="mt-3">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</h4>
-  {% for s in complements.general %}{{ suggest_card(s) }}{% endfor %}
-  {% endif %}
-  <p class="muted mt-2 mb-1"><small>{{ complements.dcp_note }}</small></p>
-  <p class="muted mt-2"><small>{{ complements.exhausted_msg }} {{ manual_link("fao", "About the FAO reference") }}</small></p>
-  {% if complements.has_estimate_or_generic %}
-  <p class="muted mt-2"><small>{{ complements.estimate_note }}</small></p>
-  {% endif %}
-
-  {% if complements.pairs %}
-  <h4 class="mt-3">Two-food combinations</h4>
-  <p class="muted"><small>Food A closes the primary gap (but opens a new one); food B closes what A left behind. Together they achieve a complete amino acid profile.</small></p>
-  {% for p in complements.pairs %}
-  <div class="card card-body mb-2 p-2" style="max-width:38rem">
-    <p class="mb-1"><strong>{{ item_link(p.foods[0].name, p.foods[0].fdc_id, p.foods[0].get('recipe_id')) }}</strong> + <strong>{{ item_link(p.foods[1].name, p.foods[1].fdc_id, p.foods[1].get('recipe_id')) }}</strong>
-      {% if p.gaps_closed %}<span class="status-met ms-2">{% if p.new_complete %}<span class="status-met ms-2">&#10003; completes protein</span>{% endif %}#10003; closes all gaps</span>{% endif %}
-    </p>
-    {% for f in p.foods %}
-    <p class="mb-1 ms-2"><strong>Add to day: {{ f.grams }}&thinsp;g{% if f.amount_note %} ({{ f.amount_note }}){% endif %} {{ item_link(f.name, f.fdc_id, f.get('recipe_id')) }}</strong>{{ food_id_tag(f.fdc_id, f.get('recipe_id')) }}
-      {% if f.diaas %}<small class="muted"> &middot; DIAAS {{ "%.2f"|format(f.diaas) }}</small>{% endif %}
-    </p>
-    {% endfor %}
-    {% if p.aa_effects %}
-    <p class="mb-1 muted"><small>Effect:
-      {% for e in p.aa_effects %}
-        {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
-      {% endfor %}
-    </small></p>
-    {% endif %}
-    <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw protein combined)</small></p>
-    <p class="mb-0 muted"><small>Total digestible complete protein with both foods: <strong>{{ p.total_dig_complete }}&thinsp;g</strong></small></p>
-  </div>
-  {% endfor %}
-  {% endif %}
-
-  {% endif %}
-</details>
-{% endif %}
-
-{# Glycemic load #}
-{% if gl and show_gl() %}
-<details id="sec-gl" data-remember="glycemic-load">
-  <summary><strong>Glycemic Load — Full Day</strong> {{ manual_link("glycemic") }}</summary>
-  <div class="protein-meta mt-2">
-    {{ _gl.gl_figure(gl, "day", "Glycemic load:", target=gl_target) }}
-  </div>
-</details>
-{% endif %}
-
-{# Nutrients #}
-{% if nutrient_sections %}
-<details id="sec-nutrients" open data-remember="nutrients">
-  <summary><strong>Total Nutrients — All Meals Combined</strong> {{ manual_link("nutrients") }}</summary>
-  {{ _cal.note(calorie_warnings) }}
-  {% include "_recalc_note.html" %}
-
-  {% if not has_profile %}
-  <p class="rda-no-profile">
-    No personal profile set up &mdash; RDA % targets not shown.
-    <a href="/settings">Set up your profile in Settings.</a>
-  </p>
-  {% endif %}
-
-  {% if diet_notes and diet_notes.iron_zinc %}
-  <p class="rda-near"><small>{{ diet_notes.iron_zinc }} {{ manual_link("diet-bioavailability") }}</small></p>
-  {% endif %}
-  {% if diet_notes and diet_notes.b12 %}
-  <p class="rda-over"><small>&#9888; {{ diet_notes.b12 }} {{ manual_link("diet-bioavailability") }}</small></p>
-  {% endif %}
-  {% if has_profile %}{{ _rda_legend.legend() }}{% endif %}
-
-  {% for section in nutrient_sections %}
-  <h4>{{ section.name }}</h4>
-  <table class="nutrient-table">
-    <thead>
-      <tr>
-        <th>Nutrient</th>
-        <th class="num-col">Total</th>
-        <th>Unit</th>
-        {% if has_profile %}{{ _rdagoal.header('Minimum') }}{% endif %}
-        {% if has_profile %}{{ _rdagoal.header('Target') }}{% endif %}
-        {% if has_profile %}{{ _rdagoal.header('Maximum') }}{% endif %}
-        {% if has_profile %}<th class="num-col">% of daily target</th>{% endif %}
-        {% if has_optimal %}<th class="num-col">Revised Optimal goal</th><th class="num-col">% of Revised Optimal</th>{% endif %}
-        {% if has_ul %}{{ _ul.header() }}{% endif %}
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in section.rows %}
-      <tr class="{{ row.limit_warn or '' }} {{ 'dcp-row' if row.is_dcp_row else '' }} {{ 'subtype-row' if row.is_subtype else '' }}">
-        <td>{{ row.label }}</td>
-        <td class="num-col">{% if row.value is none %}<span class="muted" title="No value recorded for this nutrient">no data</span>{% else %}{{ row.value }}{% endif %}{% if row.supp %}<div class="supp-share" title="From supplements">{% if row.supp == "all" %}all from supplements{% else %}{{ row.supp }} from supplements{% endif %}</div>{% endif %}</td>
-        <td class="muted">{{ row.unit }}</td>
-        {% if has_profile %}{{ _rdagoal.cell(row.rda_minimum) }}{% endif %}
-        {% if has_profile %}{{ _rdagoal.cell(row.rda_target) }}{% endif %}
-        {% if has_profile %}{{ _rdagoal.cell(row.rda_maximum) }}{% endif %}
-        {% if has_profile %}
-        <td class="num-col">
-          {% if row.pct is not none %}
-          <span class="{{ row.rda_css }}" title="{{ rda_type_title(row.rda_type) }}">{{ row.pct | int }}% <small class="muted">{{ rda_type_abbr(row.rda_type) }}</small></span>
-          {% else %}<span class="muted">—</span>{% endif %}
-        </td>
-        {% endif %}
-{% if has_optimal %}
-        <td class="num-col muted">{{ row.optimal_goal or '—' }}</td>
-        <td class="num-col">
-          {% if row.optimal_pct is not none %}
-          <span class="{{ row.optimal_css }}" title="{{ rda_type_title(row.optimal_type) }}">{{ row.optimal_pct | int }}% <small class="muted">{{ rda_type_abbr(row.optimal_type) }}</small></span>
-          {% else %}<span class="muted">—</span>{% endif %}
-        </td>
-        {% endif %}
-        {% if has_ul %}{{ _ul.cell(row) }}{% endif %}
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% if section.has_water %}{% include "_water_notes.html" %}{% endif %}
-  {% endfor %}
-  {{ _dcp_note.note(dcp_missing_names) }}
-  {% if has_profile %}{{ _rda_note.note(has_optimal) }}{% endif %}
-  {% if has_ul %}{{ _ul.note() }}{% endif %}
-</details>
-{% elif meals %}
-<p class="muted">No nutrient data found — ensure foods are in the cache.</p>
-{% endif %}
-
-{% endif %}{# end date_detail #}
 
 {% endblock %}
-
-{% if date_detail %}
-{% block scripts %}
-<script>
-(function () {
-  var sections = Array.from(document.querySelectorAll('[id^="sec-"]'));
-  var links    = Array.from(document.querySelectorAll('.sb-toggle'));
-  function update() {
-    var mid = window.scrollY + window.innerHeight / 3;
-    var active = sections[0];
-    sections.forEach(function (s) { if (s.offsetTop <= mid) active = s; });
-    links.forEach(function (a) {
-      var li = a.parentElement;
-      li.classList.toggle('sb-active', active && a.getAttribute('href') === '#' + active.id);
-    });
-  }
-  window.addEventListener('scroll', update, { passive: true });
-  update();
-})();
-</script>
-{% endblock %}
-{% endif %}

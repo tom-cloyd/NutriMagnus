@@ -9,7 +9,7 @@
 {# ── 1. Profile form ───────────────────────────────────────────────────── #}
 <details open>
   <summary data-ak="1"><u class="ak">1</u>. <strong>Your Profile</strong>
-    {% if profile %}<span class="muted"> — used to calculate personalised RDA targets</span>{% endif %}
+    {% if profile %}<span class="muted"> — used to calculate personalized RDA targets</span>{% endif %}
     {{ manual_link("profile-setup") }}
   </summary>
 
@@ -36,7 +36,7 @@
   {% endif %}
 
   {% if not profile %}
-  <p>No profile set up yet. Fill in the form below to enable personalised
+  <p>No profile set up yet. Fill in the form below to enable personalized
   RDA (Recommended Daily Allowance) targets on food and meal pages.</p>
   {% endif %}
 
@@ -216,7 +216,7 @@
     These targets appear as a <strong>% of daily target</strong> column on food and meal pages.
     <span class="rda-met">Green</span> = at or above target &nbsp;
     <span class="rda-near">Yellow</span> = 70–99% (or 80–100% of a limit — approaching it) &nbsp;
-    <span class="rda-low">Grey</span> = below 70% &nbsp;
+    <span class="rda-low">Gray</span> = below 70% &nbsp;
     <span class="rda-over">Red</span> = over the recommended limit.
   </small></p>
   {% if diet_bioavailability_note %}
@@ -243,7 +243,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="muted mt-2"><small>Set up your profile above to see your personalised daily targets.</small></p>
+  <p class="muted mt-2"><small>Set up your profile above to see your personalized daily targets.</small></p>
   {% endif %}
 </details>
 
@@ -494,7 +494,7 @@
   <p class="mt-2">Which published table answers the GI lookup on a food's
   <a href="/food/annotate">Annotate</a> page {{ manual_link("gi") }}. NuMa ships the 2008
   edition, which is Creative Commons licensed. The 2021 edition is over 4,000 foods, each
-  with the year its study was run, but its licence permits text and data mining while
+  with the year its study was run, but its license permits text and data mining while
   forbidding redistribution — so NuMa ships the program that builds it and never the
   result. You build your own copy, from your own access to the published tables — see
   <a href="#gi-build-form">Build the 2021 table</a> below. {{ manual_link("gi-editions") }}</p>
@@ -913,6 +913,10 @@
         <li><kbd>N</kbd> — Analysis</li>
         <li><kbd>S</kbd> — Settings</li>
         <li><kbd>A</kbd> — Manual</li>
+      </ul>
+      <p class="mb-1 mt-2"><strong>On any page with a search box:</strong></p>
+      <ul class="mb-0">
+        <li><kbd>I</kbd> — jump to the search box</li>
       </ul>
     </div>
     <div class="col-auto">

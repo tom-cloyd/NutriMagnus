@@ -267,7 +267,7 @@ def validate_block(block: dict, idx: int) -> tuple[dict | None, list[str]]:
             stripped.append(k)
 
     if stripped:
-        warnings.append(f"Block {idx} ({name!r}): stripped unrecognised keys: {', '.join(stripped)}")
+        warnings.append(f"Block {idx} ({name!r}): stripped unrecognized keys: {', '.join(stripped)}")
 
     confidence_note = block.get("confidence_note")
 
@@ -303,7 +303,7 @@ def validate_block(block: dict, idx: int) -> tuple[dict | None, list[str]]:
             per_serving_clean, per_serving_stripped = validate_and_strip(per_serving)
             if per_serving_stripped:
                 warnings.append(
-                    f"Block {idx} ({name!r}): stripped unrecognised per-serving keys: "
+                    f"Block {idx} ({name!r}): stripped unrecognized per-serving keys: "
                     f"{', '.join(per_serving_stripped)}"
                 )
             converted = convert_per_serving(per_serving_clean, float(serving_size_g))

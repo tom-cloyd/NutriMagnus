@@ -37,6 +37,16 @@
     <a class="sb-toggle" href="#sec-items">Items</a>
   </li>
   {% endif %}
+  {% if nutrient_sections %}
+  <li class="sb-item" data-target="sec-nutrients">
+    <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
+    <ul class="sb-sub">
+      {% for section in nutrient_sections %}
+      <li><a class="sb-link" href="#nut-{{ loop.index }}">{{ section.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </li>
+  {% endif %}
   {% if contributor_options %}
   <li class="sb-item" data-target="sec-contributors">
     <a class="sb-toggle" href="#sec-contributors">Top Contributors</a>
@@ -46,16 +56,6 @@
       <li><a class="sb-link" href="#contrib-by-item">By meal item, recipes kept whole</a></li>
     </ul>
     {% endif %}
-  </li>
-  {% endif %}
-  {% if nutrient_sections %}
-  <li class="sb-item" data-target="sec-nutrients">
-    <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
-    <ul class="sb-sub">
-      {% for section in nutrient_sections %}
-      <li><a class="sb-link" href="#nut-{{ loop.index }}">{{ section.name }}</a></li>
-      {% endfor %}
-    </ul>
   </li>
   {% endif %}
   {% if diaas %}
@@ -200,7 +200,7 @@
 
 {# ── Add food (inline control — not an analysis section) ──────────────── #}
 <details open class="mb-3" id="add-food-details" data-remember="add-food">
-  <summary><strong>Add Food or Recipe</strong></summary>
+  <summary><strong>Add Food or Recipe</strong> <span class="ak-hint">(put cursor here: Alt + Shift + I)</span></summary>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
   {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
   {% include "_food_quality_note.html" %}
@@ -210,7 +210,7 @@
     <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
     <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
       <div class="input-group" style="max-width:50%">
-        <input type="text" class="form-control" name="q" value="{{ q }}"
+        <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
                placeholder="Search foods or recipes…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
@@ -701,18 +701,6 @@
 </details>
 {% endif %}
 
-{# ── Top Contributors ─────────────────────────────────────────────────── #}
-{% if contributor_options %}
-<section id="sec-contributors" class="analysis-section">
-  {{ _contrib.render("/meal/" ~ meal.id, contributor_options, contributor_rank, contributors,
-                      contributor_total, contributor_count, contributor_unit,
-                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl, missing=contributor_missing,
-                      always_food_level=True,
-                      table_heading="By food, recipes split into their foods" if contributor_by_item else "") }}
-  {% if contributor_by_item %}{{ _contrib.by_item(contributor_by_item, contributor_unit, is_dcp=contributor_is_dcp, is_gl=contributor_gl is not none) }}{% endif %}
-</section>
-{% endif %}
-
 {# ── Nutritional Analysis ─────────────────────────────────────────────── #}
 {% if nutrient_sections %}
 <section id="sec-nutrients" class="analysis-section">
@@ -804,6 +792,18 @@
   {{ _rda_note.note(has_optimal) }}
   {% endif %}
   {% if has_ul %}{{ _ul.note() }}{% endif %}
+</section>
+{% endif %}
+
+{# ── Top Contributors ─────────────────────────────────────────────────── #}
+{% if contributor_options %}
+<section id="sec-contributors" class="analysis-section">
+  {{ _contrib.render("/meal/" ~ meal.id, contributor_options, contributor_rank, contributors,
+                      contributor_total, contributor_count, contributor_unit,
+                      contributor_top_n, contributor_top_n_options, is_dcp=contributor_is_dcp, gl=contributor_gl, missing=contributor_missing,
+                      always_food_level=True,
+                      table_heading="By food, recipes split into their foods" if contributor_by_item else "") }}
+  {% if contributor_by_item %}{{ _contrib.by_item(contributor_by_item, contributor_unit, is_dcp=contributor_is_dcp, is_gl=contributor_gl is not none) }}{% endif %}
 </section>
 {% endif %}
 

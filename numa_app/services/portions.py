@@ -325,7 +325,7 @@ def match_portion_label(raw: str, portions: list[dict], *,
     food's portion with that description (case and spacing ignored). Returns
     (grams at the portion's weight now, label) or None — None too when that
     portion has since been renamed or removed. Without this, re-saving an
-    amount that was entered as a portion failed: "Unit "×" not recognised"."""
+    amount that was entered as a portion failed: "Unit "×" not recognized"."""
     def _key(text: str) -> str:
         return " ".join(str(text).split()).lower()
 

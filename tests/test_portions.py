@@ -42,7 +42,7 @@ def test_ing_amount_display_no_grams_returns_label_unchanged() -> None:
 def test_stored_portion_label_reads_back() -> None:
     """"2 p1" is stored as "2 × 1 large egg" and "p1" as "1 large egg"; both
     must read back, at the portion's weight now, or re-saving an unchanged
-    amount fails with 'Unit "×" not recognised'."""
+    amount fails with 'Unit "×" not recognized'."""
     from numa_app.services.portions import _parse_portion_input
 
     portions = [{"description": "1 large egg", "gram_weight": 50.0}]

@@ -42,7 +42,7 @@ def parse_foods_csv(content: str) -> tuple[list[dict], list[str]]:
 
     unknown = [f for f in fieldnames if f not in _KNOWN_COLUMNS]
     if unknown:
-        warnings.append(f"Ignoring unrecognised column(s): {', '.join(unknown)}")
+        warnings.append(f"Ignoring unrecognized column(s): {', '.join(unknown)}")
 
     valid: list[dict] = []
     for i, row in enumerate(reader, 1):

@@ -84,9 +84,10 @@ def _body_sections() -> list[tuple[str, str]]:
     """The manual's prose, split into (heading, text) sections.
 
     Code fences, <pre> blocks, indented code blocks, footnote definitions,
-    HTML comments and the changelog are all dropped: none of them is prose a
-    reader parses for meaning, and the changelog is a historical record we
-    don't rewrite.
+    HTML comments, Search terms lines and the changelog are all dropped: none
+    of them is prose a reader parses for meaning (Search terms lines are
+    hidden on the page -- build_manual.hide_search_terms()), and the changelog
+    is a historical record we don't rewrite.
 
     Indented code blocks matter more than they look. A Markdown link written
     inside one does not render -- the reader sees the raw
@@ -122,7 +123,7 @@ def _body_sections() -> list[tuple[str, str]]:
         if "-->" in line:
             in_comment = False
             continue
-        if in_pre or in_fence or in_comment or line.startswith("[^"):
+        if in_pre or in_fence or in_comment or line.startswith(("[^", "*Search terms:")):
             continue
         if re.match(r"^(?: {4,}|\t)", line):
             stripped = line.strip()

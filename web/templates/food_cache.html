@@ -18,7 +18,7 @@
     <input type="hidden" name="sort" value="{{ sort }}">
     <p class="muted mb-1"><small><strong>Filter this list</strong> narrows the foods already in your cache. <strong>Search online</strong> looks for these words in USDA, Open Food Facts and the other sources, on Foods&nbsp;→&nbsp;Search.</small></p>
     <div class="input-group" style="max-width:40rem">
-      <input type="text" class="form-control" name="q" value="{{ q or '' }}"
+      <input type="text" data-ak="i" class="form-control" name="q" value="{{ q or '' }}"
              placeholder="Food name or code (U171477)…" title="Type part of a name, or an exact code such as U171477, UD4 to find just that one" autofocus>
       <button type="submit" class="btn btn-outline-secondary">Filter this list</button>
       <button type="button" class="btn btn-outline-primary"

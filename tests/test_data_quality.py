@@ -308,9 +308,18 @@ def test_duplicates_merge_and_dismiss(client):
 
     page = client.get("/food/cache/duplicates").text
     assert "Keep this one" in page and "Not duplicates" in page
+    # Their calories differ, so Keep goes to the review step first.
     r = client.post("/food/cache/duplicates/keep", data={"group_key": pb["key"], "keep": 997201},
                     follow_redirects=False)
-    assert "merged=1" in r.headers["location"]
+    assert r.headers["location"].startswith("/food/cache/duplicates/review?")
+    review = client.get(r.headers["location"]).text
+    assert "Choose values to keep" in review and 'name="pick_calories"' in review
+    with _db.get_db() as conn:
+        assert _db.get_cached_food(conn, 997202) is not None
+    r = client.post("/food/cache/duplicates/keep", data={"group_key": pb["key"], "keep": 997201,
+                                                         "reviewed": "1", "pick_calories": "keep"},
+                    follow_redirects=False)
+    assert "merged=1" in r.headers["location"] and "copied" not in r.headers["location"]
     with _db.get_db() as conn:
         assert _db.get_cached_food(conn, 997202) is None
         ing = conn.execute("SELECT fdc_id, food_name FROM recipe_ingredients WHERE recipe_id = ?", (rid,)).fetchone()
@@ -323,6 +332,111 @@ def test_duplicates_merge_and_dismiss(client):
     with _db.get_db() as conn:
         assert not any("sugars" in g["name"].lower() for g in dq.duplicate_groups(conn))
         assert any("sugars" in g["name"].lower() for g in dq.duplicate_groups(conn, include_dismissed=True))
+
+
+def test_duplicates_merge_identical_skips_review(client):
+    with _db.get_db() as conn:
+        _food(conn, 997211, "Hemp seed test", {**GOOD})
+        _food(conn, 997212, "HEMP SEED TEST", {**GOOD})
+        key = next(g["key"] for g in dq.duplicate_groups(conn) if "hemp" in g["name"].lower())
+    page = client.get("/food/cache/duplicates").text
+    assert "reviewing the others" not in page
+    r = client.post("/food/cache/duplicates/keep", data={"group_key": key, "keep": 997211},
+                    follow_redirects=False)
+    assert "merged=1" in r.headers["location"]
+
+
+def test_merge_review_prefers_the_users_edits():
+    with _db.get_db() as conn:
+        _food(conn, 997221, "Lentils test", {**GOOD})
+        _food(conn, 997222, "LENTILS TEST", {**GOOD, "iron_mg": 2.0, "zinc_mg": 3.0},
+              [{"description": "1 cup", "gram_weight": 198.0}])
+        # The user corrected iron on the copy that's about to be dropped.
+        _db.merge_user_supplied_nutrients(conn, 997222, {"iron_mg": 6.5}, overwrite=True)
+        g = next(g for g in dq.duplicate_groups(conn) if "lentils" in g["name"].lower())
+        edited = {f["fdc_id"]: f["edited"] for f in g["foods"]}
+        review = dq.merge_review(conn, 997221, [997221, 997222], [("All", [
+            ("iron_mg", "Iron", "mg"), ("zinc_mg", "Zinc", "mg"), ("protein_g", "Protein", "g")])])
+    assert edited == {997221: [], 997222: ["Iron"]}
+    fields = {f["key"]: f for f in review["groups"][0]["fields"]}
+    assert set(fields) == {"iron_mg", "zinc_mg"}                    # protein agrees: not listed
+    assert fields["iron_mg"]["pick"] == 997222 and fields["iron_mg"]["options"][0]["mine"]
+    assert fields["zinc_mg"]["pick"] == 997222                      # fills a blank
+    assert [p["portion"]["description"] for p in review["portions"]] == ["1 cup"]
+
+
+def test_merge_review_keeps_kept_foods_own_edit():
+    with _db.get_db() as conn:
+        _food(conn, 997231, "Oats test", {**GOOD})
+        _food(conn, 997232, "OATS TEST", {**GOOD})
+        _db.merge_user_supplied_nutrients(conn, 997231, {"iron_mg": 4.0}, overwrite=True)
+        _db.merge_user_supplied_nutrients(conn, 997232, {"iron_mg": 5.0}, overwrite=True)
+        review = dq.merge_review(conn, 997231, [997231, 997232], [("All", [("iron_mg", "Iron", "mg")])])
+    f = review["groups"][0]["fields"][0]
+    assert f["current_mine"] and f["pick"] is None
+
+
+def test_duplicates_merge_copies_chosen_values_as_edits(client):
+    with _db.get_db() as conn:
+        _food(conn, 997241, "Tahini test", {**GOOD})
+        _food(conn, 997242, "TAHINI TEST", {**GOOD, "calcium_mg": 420.0},
+              [{"description": "1 tbsp", "gram_weight": 15.0}])
+        _db.merge_user_supplied_nutrients(conn, 997242, {"iron_mg": 8.9}, overwrite=True)
+        key = next(g["key"] for g in dq.duplicate_groups(conn) if "tahini" in g["name"].lower())
+    assert "reviewing the others" in client.get("/food/cache/duplicates").text
+    r = client.post("/food/cache/duplicates/keep",
+                    data={"group_key": key, "keep": 997241, "reviewed": "1", "pick_iron_mg": "997242",
+                          "pick_calcium_mg": "997242", "portion": "997242|1 tbsp"},
+                    follow_redirects=False)
+    assert "merged=1" in r.headers["location"] and "copied=3" in r.headers["location"]
+    with _db.get_db() as conn:
+        kept = _db.get_cached_food(conn, 997241)
+        nutrients = json.loads(kept["nutrients_json"])
+        assert nutrients["iron_mg"] == 8.9 and nutrients["calcium_mg"] == 420.0
+        assert [p["description"] for p in json.loads(kept["portions_json"])] == ["1 tbsp"]
+        # Copied in as the user's own, so a USDA refresh won't take them back silently.
+        assert {"iron_mg", "calcium_mg"} <= set(_db.food_edited_keys(conn, 997241))
+        assert "Merged from duplicate TAHINI TEST" in (kept["notes"] or "")
+        assert _db.get_cached_food(conn, 997242) is None
+
+
+def test_merging_foods_leaves_one_pantry_entry(client):
+    with _db.get_db() as conn:
+        _food(conn, 997251, "Chia test", {**GOOD})
+        _food(conn, 997252, "CHIA TEST", {**GOOD})
+        conn.execute("INSERT INTO pantry (food_name, fdc_id, notes) VALUES ('Chia test', 997251, 'bulk bin')")
+        conn.execute("INSERT INTO pantry (food_name, fdc_id, notes) VALUES ('CHIA TEST', 997252, 'organic')")
+        _db.merge_food_into(conn, 997251, 997252)
+        rows = conn.execute("SELECT fdc_id, notes FROM pantry WHERE fdc_id = 997251").fetchall()
+    assert len(rows) == 1 and rows[0]["notes"] == "bulk bin  |  organic"
+
+
+def test_pantry_add_does_not_duplicate():
+    with _db.get_db() as conn:
+        _food(conn, 997261, "Flax test", {**GOOD})
+        a = _db.pantry_add(conn, "Flax test", 997261)
+        _db.set_pantry_archived(conn, a, True)
+        b = _db.pantry_add(conn, "Flax test", 997261, "ground")
+        row = _db.pantry_get(conn, a)
+    assert a == b and row["archived"] == 0 and row["notes"] == "ground"
+
+
+def test_pantry_duplicates_listed_and_merged(client):
+    with _db.get_db() as conn:
+        _food(conn, 997271, "Hemp hearts test", {**GOOD})
+        for notes, archived in (("Starter data", 1), (None, 1), ("raw", 0)):
+            conn.execute("INSERT INTO pantry (food_name, fdc_id, notes, archived) VALUES (?, 997271, ?, ?)",
+                         ("Hemp hearts test", notes, archived))
+        ids = [r[0] for r in conn.execute("SELECT id FROM pantry WHERE fdc_id = 997271 ORDER BY id")]
+    page = client.get("/food/cache/duplicates").text
+    assert "Foods in your pantry more than once" in page and "Hemp hearts test" in page
+    r = client.post("/food/cache/duplicates/pantry", data={"fdc_id": 997271}, follow_redirects=False)
+    assert "pantry_merged=2" in r.headers["location"]
+    with _db.get_db() as conn:
+        rows = conn.execute("SELECT id, notes, archived FROM pantry WHERE fdc_id = 997271").fetchall()
+        assert _db.pantry_duplicate_groups(conn) == []
+    # The starter entry isn't the one kept (clearing starter data deletes those).
+    assert [(r["id"], r["notes"], r["archived"]) for r in rows] == [(ids[1], "raw", 0)]
 
 
 def test_claude_import_shows_impact(client):

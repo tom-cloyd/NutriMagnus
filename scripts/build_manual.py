@@ -55,6 +55,37 @@ def check_adjacent_footnotes(raw: str) -> list[tuple[int, str]]:
         for m in ADJACENT_FOOTNOTES_RE.finditer(raw)
     ]
 
+# "Search terms" lines: extra words a reader might search for that a section
+# doesn't itself use (see CLAUDE.md, "Search terms lines"). One per line,
+# exactly "*Search terms: a, b, c.*". The build turns each into a hidden
+# <span class="search-terms">: invisible on the page, still in the section's
+# textContent, which is what the sidebar search indexes. A line that starts
+# like one but isn't in that form fails the build, since it would otherwise
+# render as visible text.
+SEARCH_TERMS_RE = re.compile(r"^\*Search terms: ([^*\n]+)\*[ \t]*$", re.MULTILINE)
+_SEARCH_TERMS_START_RE = re.compile(r"^[ \t]*\**[ \t]*Search terms\b", re.MULTILINE | re.IGNORECASE)
+
+
+def check_search_terms(raw: str) -> list[tuple[int, str]]:
+    """Return (line_number, line) for every line that begins like a Search
+    terms line but isn't in the exact form SEARCH_TERMS_RE hides."""
+    bad = []
+    for m in _SEARCH_TERMS_START_RE.finditer(raw):
+        line_start = raw.rfind("\n", 0, m.start()) + 1
+        line_end = raw.find("\n", m.start())
+        line = raw[line_start:line_end if line_end != -1 else len(raw)]
+        if not SEARCH_TERMS_RE.fullmatch(line.rstrip()):
+            bad.append((raw.count("\n", 0, line_start) + 1, line))
+    return bad
+
+
+def hide_search_terms(markdown_text: str) -> str:
+    """Swap each Search terms line for its hidden-span form (build only —
+    user-manual.md itself keeps the readable "*Search terms: ...*" line)."""
+    return SEARCH_TERMS_RE.sub(
+        lambda m: f'<span class="search-terms" hidden>Search terms: {m.group(1)}</span>',
+        markdown_text)
+
 # The manual's second line: "*Updated YYYY-MM-DD:HHMM* / Reading time: ..."
 # The timestamp is bumped by hand per CLAUDE.md convention; only the reading
 # time portion is regenerated here.
@@ -76,6 +107,8 @@ def count_words(markdown_text: str) -> int:
     # HTML comments (e.g. hidden "Scope:" developer detail) render invisibly
     # too, so they shouldn't count toward reading time either.
     text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    # Search terms lines are hidden on the page (hide_search_terms()).
+    text = SEARCH_TERMS_RE.sub('', text)
     text = re.sub(r'`[^`]*`', '', text)
     text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
     return len(text.split())
@@ -214,7 +247,7 @@ body {
     padding-bottom: 0.4rem;
     border-bottom: 1px solid var(--border);
 }
-#toc-collapse-all {
+#toc-expand-all, #toc-collapse-all {
     background: none;
     border: 1px solid var(--border);
     border-radius: 3px;
@@ -227,7 +260,7 @@ body {
     flex: none;
 }
 #toc-h2-tools { display: flex; align-items: center; gap: 0.75em; }
-#toc-collapse-all:hover { background: var(--accent-light); color: var(--accent); }
+#toc-expand-all:hover, #toc-collapse-all:hover { background: var(--accent-light); color: var(--accent); }
 #toc-sidebar .toc { list-style: none; }
 #toc-sidebar .toc li { padding: 1px 0; }
 #toc-sidebar .toc a {
@@ -403,8 +436,10 @@ body {
    stop below the sticky breadcrumb bar, not underneath it. Each heading's
    own scroll-margin-top is set individually by precomputeScrollMargins()
    below, from that heading's own (possibly multi-line, wrapped) breadcrumb
-   trail — this fallback only matters before that JS has run. */
-#content h1[id], #content h2[id], #content h3[id], #content h4[id] {
+   trail — this fallback only matters before that JS has run. Every other
+   jump target (an h5, a glossary term, a list item, a footnote) gets one
+   too: the margin of the section heading it sits under. */
+#content [id] {
     scroll-margin-top: 4.5rem;
 }
 
@@ -732,7 +767,8 @@ JS = """\
   function highlightWordInRoot(root, re) {
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
-        return n.parentElement.closest('script,style,mark,.headerlink') ?
+        /* .search-terms: hidden Search terms lines — searched, never highlighted */
+        return n.parentElement.closest('script,style,mark,.headerlink,.search-terms') ?
           NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
       }
     });
@@ -784,6 +820,8 @@ JS = """\
     openSection.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     idx = 0;
     if (sectionMatches.length) scrollToMark(0);
+    else if (openSection.el.parentNode && roots.some(function (r) { return r.querySelector && r.querySelector('.search-terms'); }))
+      setCount('this section is listed under that search');
     else setCount('no matches in this section');
   }
 
@@ -992,18 +1030,23 @@ JS = """\
     var tools = document.createElement('span');
     tools.id = 'toc-h2-tools';
     contentsH2.appendChild(tools);
-    var allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.id = 'toc-collapse-all';
-    allBtn.textContent = 'Expand all';
-    tools.appendChild(allBtn);
-
-    var allCollapsed = true;
-    allBtn.addEventListener('click', function () {
-      allCollapsed = !allCollapsed;
-      parentLis.forEach(function (li) { setCollapsed(li, allCollapsed); });
-      allBtn.textContent = allCollapsed ? 'Expand all' : 'Collapse all';
-    });
+    /* Two buttons, not one toggle: the scroll-spy opens the path to the
+       current section on its own, so a single toggle's label soon stopped
+       matching the list — it said "Expand all" over a half-open list, and
+       closing everything meant expanding everything first. */
+    function addAllButton(id, label, collapsed) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = id;
+      btn.textContent = label;
+      btn.addEventListener('click', function () {
+        parentLis.forEach(function (li) { setCollapsed(li, collapsed); });
+      });
+      tools.appendChild(btn);
+      return btn;
+    }
+    var allBtn = addAllButton('toc-expand-all', 'Expand all', false);
+    addAllButton('toc-collapse-all', 'Collapse all', true);
 
     /* "How to use this list" box under the last TOC entry — visible on a
        first visit, since the list starts collapsed and short. "Got it"
@@ -1136,6 +1179,15 @@ JS = """\
         renderBreadcrumbStack(breadcrumbStackFor(i));
         headings[i].style.scrollMarginTop = (breadcrumbEl.offsetHeight + 12) + 'px';
       }
+      /* Anchors that aren't tracked headings (an h5, a bold glossary term,
+         a list item, a footnote) land under the trail of the heading above
+         them, so they take that heading's margin. querySelectorAll returns
+         document order, so the last heading passed is the enclosing one. */
+      var sectionMargin = '';
+      document.querySelectorAll('#content [id]').forEach(function (el) {
+        if (headings.indexOf(el) !== -1) { sectionMargin = el.style.scrollMarginTop; return; }
+        if (sectionMargin && !breadcrumbEl.contains(el)) el.style.scrollMarginTop = sectionMargin;
+      });
       if (current) updateBreadcrumb(current); else breadcrumbEl.textContent = '';
     }
 
@@ -1503,6 +1555,16 @@ def main() -> None:
             "[^4]<sup>,</sup>[^5]"
         )
 
+    bad_terms = check_search_terms(raw)
+    if bad_terms:
+        lines = "\n".join(f"  line {n}: {text}" for n, text in bad_terms)
+        sys.exit(
+            "Error: Search terms line not in the exact form the build hides "
+            "(it would show as visible text):\n"
+            f"{lines}\n"
+            "Use one line on its own: *Search terms: word, other word, a phrase.*"
+        )
+
     unstamped = strip_part_reading_times(raw)
     word_count = count_words(unstamped)
     reading_time = reading_time_str(word_count)
@@ -1528,7 +1590,7 @@ def main() -> None:
         ],
     )
 
-    body = md.convert(raw)
+    body = md.convert(hide_search_terms(raw))
     toc_html = md.toc  # populated after convert(); sidebar version
 
     html = HTML_TEMPLATE.format(css=CSS, toc=toc_html, body=body, js=JS, title=PAGE_TITLE)

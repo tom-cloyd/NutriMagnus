@@ -4,9 +4,9 @@ Nutritional analysis web app (FastAPI). USDA FoodData Central + Open Food Facts.
 
 Full architecture docs: `README-numa-documentation.md`
 
-**Weekly maintenance sweep** — the nine numbered items live in that same file, under
+**Weekly maintenance sweep** — the ten numbered items live in that same file, under
 `## Maintenance` → `### Weekly sweep`, each one its own `#### N. Title` heading so it can be
-linked by number (the README's Table of Contents lists all nine directly). Longer-cadence
+linked by number (the README's Table of Contents lists all ten directly). Longer-cadence
 checks — monthly, quarterly, annual — follow the nine items, under *Longer-cadence checks*.
 
 ---
@@ -136,7 +136,7 @@ numa_app/
     data_quality.py     — every data-quality check in one place: food_issues(),
                          stale_amounts() ("Amounts that no longer match"),
                          generic_density_in_use(), duplicate_groups(),
-                         old_usda_copies(), scan(); feeds
+                         old_usda_copies(), merge_review(), scan(); feeds
                          Foods → 9, the Home page reminder, and the
                          just-added-food note
     entry_parse.py      — tolerant reading of what people type: numbers,
@@ -414,6 +414,33 @@ scope - description.`) — deliberately not reformatted retroactively; use the n
 only going forward. After editing the manual, run `python3 scripts/build_manual.py` — it
 recomputes the "Reading time" header figure and regenerates `user-manual.html`; don't
 hand-edit reading time.
+
+---
+
+## Search terms lines (user-manual.md)
+
+The manual's sidebar search matches only words actually in a section. When you write or
+edit a manual section about a topic readers are likely to search for using words the
+section doesn't contain (synonyms, everyday terms, other spellings: *seniors* for a
+section that says "65 and over"), give it a search-terms line:
+
+```
+*Search terms: seniors, elderly, older adults, over 65, ageing, aging.*
+```
+
+- One line on its own, with a blank line after it, just under the heading (after any
+  `<span id>` anchor lines). Exactly that form: `build_manual.py` hides it on the page
+  (search still sees it), and fails the build on a line that starts like one but isn't
+  in that form, since that would show as visible text.
+- A handful of terms; don't repeat words already in the section's heading or prose.
+- American spelling only (fiber, color, aging), no British variants, here or anywhere
+  in the manual. Published titles, journal names and URLs quoted in footnotes keep
+  their own spelling.
+- **When you change a section that has one, reread its list:** drop terms the section no
+  longer covers, add any the new wording calls for.
+- Not every section needs one. Weekly sweep item 10 checks the week's changed sections
+  (`python scripts/search_terms_review.py` lists them);
+  the monthly full manual audit (README, *Monthly deep check*) checks every section.
 
 ---
 

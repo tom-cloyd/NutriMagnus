@@ -123,7 +123,7 @@
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
-      <input type="text" class="form-control" name="search"
+      <input type="text" data-ak="i" class="form-control" name="search"
              value="{{ search }}"
              placeholder="Search for a food or recipe to add…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
@@ -308,13 +308,13 @@
 {% if ingredient_rows %}
 <h4 id="cmp-ingredients">Ingredient comparison <span class="muted"><small>{{ basis_heading }}</small></span></h4>
 {% if basis == "recipe" %}
-<p class="muted">Each ingredient&rsquo;s amount exactly as written in its recipe, with the measure you typed beside its grams. Ingredients used by more than one item are listed first and shaded grey. A food entry shows itself as its own single &ldquo;ingredient&rdquo; (100 g).</p>
+<p class="muted">Each ingredient&rsquo;s amount exactly as written in its recipe, with the measure you typed beside its grams. Ingredients used by more than one item are listed first and shaded gray. A food entry shows itself as its own single &ldquo;ingredient&rdquo; (100 g).</p>
 {% elif basis == "amounts" %}
-<p class="muted">Each ingredient&rsquo;s amount in the amount set for its item: a food shows itself as its own single &ldquo;ingredient&rdquo; at its grams; a recipe&rsquo;s ingredients are scaled to the number of servings set. Ingredients used by more than one item are listed first and shaded grey.</p>
+<p class="muted">Each ingredient&rsquo;s amount in the amount set for its item: a food shows itself as its own single &ldquo;ingredient&rdquo; at its grams; a recipe&rsquo;s ingredients are scaled to the number of servings set. Ingredients used by more than one item are listed first and shaded gray.</p>
 {% elif basis == "serving" %}
-<p class="muted">Each ingredient&rsquo;s amount in one serving of its recipe: the recipe&rsquo;s own amounts divided by its number of servings. Ingredients used by more than one item are listed first and shaded grey. A food entry shows itself as its own single &ldquo;ingredient&rdquo; (100 g).</p>
+<p class="muted">Each ingredient&rsquo;s amount in one serving of its recipe: the recipe&rsquo;s own amounts divided by its number of servings. Ingredients used by more than one item are listed first and shaded gray. A food entry shows itself as its own single &ldquo;ingredient&rdquo; (100 g).</p>
 {% else %}
-<p class="muted">Each ingredient's amount is rescaled to what it contributes to 100 g of the finished food or recipe, so recipes of different batch sizes — and a plain food alongside them — are all on the same footing. Ingredients used by more than one item are listed first and shaded grey. A food entry shows itself as its own single "ingredient" (100 g, by definition). A recipe's 100 g is of the finished dish, by its stated total weight when it has one, so after cooking loss its raw ingredients can add up to more than 100 g. {{ manual_link("comparison-estimate", "How?") }}</p>
+<p class="muted">Each ingredient's amount is rescaled to what it contributes to 100 g of the finished food or recipe, so recipes of different batch sizes — and a plain food alongside them — are all on the same footing. Ingredients used by more than one item are listed first and shaded gray. A food entry shows itself as its own single "ingredient" (100 g, by definition). A recipe's 100 g is of the finished dish, by its stated total weight when it has one, so after cooking loss its raw ingredients can add up to more than 100 g. {{ manual_link("comparison-estimate", "How?") }}</p>
 {% endif %}
 <div class="table-responsive">
 <table class="table table-sm table-bordered compare-table mb-4">

@@ -22,12 +22,12 @@
 
 {% if not editing %}
 {# ── List / search view ── #}
-<h2>Annotate a Food {{ manual_link("annotate") }}</h2>
+<h2>Annotate a Food {{ manual_link("annotate") }} <span class="ak-hint">(put cursor here: Alt + Shift + I)</span></h2>
 <p class="muted">Add GI (glycemic index) and DIAAS (protein digestibility) estimates to cached foods.</p>
 
 <form method="get" action="/food/annotate" class="mb-3">
   <div class="input-group" style="max-width:36rem">
-    <input type="text" class="form-control" name="q" value="{{ q or '' }}"
+    <input type="text" data-ak="i" class="form-control" name="q" value="{{ q or '' }}"
            placeholder="Filter by food name or code (U171477)…" title="Type part of a name, or an exact code such as U171477 or UD4 to find just that one" autofocus>
     <button type="submit" class="btn btn-outline-secondary">Filter</button>
     {% if q %}

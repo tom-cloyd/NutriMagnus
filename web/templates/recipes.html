@@ -13,7 +13,7 @@
   <form method="get" action="/recipes">
     <input type="hidden" name="sort" value="{{ sort }}">
     <div class="input-group" style="max-width:28rem">
-      <input type="text" class="form-control form-control-sm" name="q" value="{{ q }}"
+      <input type="text" data-ak="i" class="form-control form-control-sm" name="q" value="{{ q }}"
              placeholder="Filter by name or code (R21)…" title="Type part of a name, or an exact code such as R21 to find just that one" autofocus>
       <button type="submit" class="btn btn-sm btn-outline-secondary">Filter</button>
       {% if q %}<a href="/recipes?sort={{ sort }}" class="btn btn-sm btn-outline-secondary">Clear</a>{% endif %}

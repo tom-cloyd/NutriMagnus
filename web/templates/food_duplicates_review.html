@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Merge Duplicate Foods{% endblock %}
+
+{% macro show_num(v, unit) -%}
+{% if v is none %}<span class="muted">blank</span>{% else %}{{ "%g"|format(v|float) }}{% if unit %} {{ unit }}{% endif %}{% endif %}
+{%- endmacro %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache/db-check">Database check</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache/duplicates">Duplicate Foods</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Choose values to keep</li>
+  </ol>
+</nav>
+
+<h2>Choose values to keep {{ manual_link("duplicate-foods") }}</h2>
+<p style="max-width:52rem">You&rsquo;re keeping <a href="/food/{{ kept.fdc_id }}"><strong>{{ kept.name }}</strong></a>
+<small class="muted">({{ food_id_short(kept.fdc_id) }})</small>. The
+{{ "copy" if others|length == 1 else "copies" }} being merged into it
+({% for o in others %}<a href="/food/{{ o.fdc_id }}">{{ food_id_short(o.fdc_id) }}</a>{% if not loop.last %}, {% endif %}{% endfor %})
+{{ "has" if others|length == 1 else "have" }} the values below that it lacks or has differently. For each, choose which to keep;
+anything not chosen is lost when {{ "that copy is" if others|length == 1 else "those copies are" }} deleted.</p>
+<p class="muted" style="max-width:52rem"><small>Already chosen for you: blanks filled, and any value you edited on a copy being merged,
+unless the kept food&rsquo;s value is your edit too. A value you copy over counts as your own edit, so a later Refresh from USDA
+won&rsquo;t replace it without asking. Values all copies share aren&rsquo;t listed.</small></p>
+
+<form method="post" action="/food/cache/duplicates/keep">
+  <input type="hidden" name="group_key" value="{{ group.key }}">
+  <input type="hidden" name="keep" value="{{ kept.fdc_id }}">
+  <input type="hidden" name="reviewed" value="1">
+
+  {% for group in groups %}
+  <div class="card mb-3" style="max-width:52rem">
+    <div class="card-body">
+      <h5 class="card-title">{{ group.name }}</h5>
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light"><tr><th>Nutrient</th><th>Keep</th></tr></thead>
+        <tbody>
+        {% for f in group.fields %}
+        <tr>
+          <td>{{ f.label }}</td>
+          <td>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="pick_{{ f.key }}" value="keep" id="pick-{{ f.key }}-keep" {{ 'checked' if f.pick is none }}>
+              <label class="form-check-label" for="pick-{{ f.key }}-keep">{{ show_num(f.current, f.unit) }}
+                <small class="muted">&mdash; kept food&rsquo;s own</small>{% if f.current_mine %} <small class="text-warning-emphasis">(yours)</small>{% endif %}</label>
+            </div>
+            {% for o in f.options %}
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="pick_{{ f.key }}" value="{{ o.fdc_id }}" id="pick-{{ f.key }}-{{ o.fdc_id }}" {{ 'checked' if f.pick == o.fdc_id }}>
+              <label class="form-check-label" for="pick-{{ f.key }}-{{ o.fdc_id }}"><strong>{{ show_num(o.value, f.unit) }}</strong>
+                <small class="muted">&mdash; from {{ food_id_short(o.fdc_id) }}</small>{% if o.mine %} <small class="text-warning-emphasis">(yours)</small>{% endif %}</label>
+            </div>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  {% if portions %}
+  <div class="card mb-3" style="max-width:52rem">
+    <div class="card-body">
+      <h5 class="card-title">Portions the kept food doesn&rsquo;t have</h5>
+      <p class="muted mb-2"><small>The kept food&rsquo;s own portions are never changed; ticked ones are added after them.</small></p>
+      <table class="table table-sm mb-0">
+        <tbody>
+        {% for p in portions %}
+        <tr>
+          <td style="width:2rem"><input type="checkbox" class="form-check-input" name="portion" value="{{ p.id }}" id="portion-{{ loop.index }}" checked></td>
+          <td><label for="portion-{{ loop.index }}">{{ p.portion.description }}</label>{% if p.mine %} <small class="text-warning-emphasis">(yours)</small>{% endif %}</td>
+          <td class="text-end">{{ "%g"|format(p.portion.gram_weight|float) }} g</td>
+          <td class="muted"><small>from {{ food_id_short(p.fdc_id) }}</small></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <button type="submit" class="btn btn-primary"
+          onclick="return confirm('Copy the chosen values into the kept food, switch everything using the other {{ others|length }} to it, and delete {{ 'it' if others|length == 1 else 'them' }}? This cannot be undone.')">Keep these values and merge</button>
+  <a href="/food/cache/duplicates" class="btn btn-outline-secondary">Cancel</a>
+</form>
+{% endblock %}

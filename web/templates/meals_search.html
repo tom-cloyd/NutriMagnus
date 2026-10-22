@@ -15,7 +15,7 @@
 
 <form method="get" action="/meals/search" class="mb-3">
   <div class="input-group" style="max-width:32rem">
-    <input type="text" class="form-control" name="q" value="{{ q }}"
+    <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
            placeholder="Food or recipe name, or code (U171477, R21)…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 to find just that one food or recipe" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
     {% if q %}

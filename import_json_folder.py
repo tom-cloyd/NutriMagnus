@@ -86,7 +86,7 @@ def _load_food(path: pathlib.Path) -> dict | None:
         )
 
     if stripped:
-        print(f"  [{path.name}] stripped unrecognised keys: {', '.join(stripped)}")
+        print(f"  [{path.name}] stripped unrecognized keys: {', '.join(stripped)}")
 
     return {
         "path": path,
@@ -121,7 +121,7 @@ def main() -> None:
 
     answer = input(f"\nImport {len(foods)} food(s) into cache? [y/N] ").strip().lower()
     if answer != "y":
-        print("Cancelled — no files moved.")
+        print("Canceled — no files moved.")
         return
 
     _DONE_DIR.mkdir(exist_ok=True)

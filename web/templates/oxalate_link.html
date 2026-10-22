@@ -35,7 +35,7 @@
 <div style="flex:1 1 26rem; min-width:20rem">
 <form method="get" action="/food/{{ food.fdc_id }}/oxalate-link" class="mb-3">
   <div class="input-group" style="max-width:32rem">
-    <input type="text" name="q" class="form-control" value="{{ query }}" placeholder="Search the oxalate reference table…">
+    <input type="text" data-ak="i" name="q" class="form-control" value="{{ query }}" placeholder="Search the oxalate reference table…">
     <button type="submit" class="btn btn-outline-secondary">Search</button>
   </div>
 </form>
@@ -83,7 +83,7 @@ Vegetables · measured in this food</code></pre>
       <strong>= x mg/100g</strong> and can scale it to any amount you eat. Where it's a cup,
       piece or tablespoon, there is no per-100&thinsp;g figure, and that food is left out of
       recipe oxalate totals rather than guessed at.</li>
-    <li><strong>[very high]</strong> — the band NuMa colours the value with. From a
+    <li><strong>[very high]</strong> — the band NuMa colors the value with. From a
       per-100&thinsp;g figure: <em>very high</em> 300&thinsp;mg or more, <em>high</em> 100+,
       <em>moderate</em> 25+, <em>low</em> 5+, <em>negligible</em> below that. Rows that have
       only a per-serving figure are banded on that instead, at 100 / 26 / 10 / 2&thinsp;mg.

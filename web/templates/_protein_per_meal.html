@@ -3,20 +3,19 @@
    stimulating muscle protein synthesis, personalised from the profile.
    meal_line(): one meal (meal page). day_table(): every meal in a day. #}
 
-{% macro amount_text(a) %}{{ "%g"|format(a.low_g) }}&ndash;{{ "%g"|format(a.high_g) }}&thinsp;g{% if a.basis == "adult" %} (0.25&ndash;0.4&thinsp;g per kg of your weight){% elif a.basis == "older" %} (the amount suggested for people 65 and over){% else %} (a general figure &mdash; <a href="/settings">set your profile</a> to personalise it){% endif %}{% endmacro %}
+{% macro amount_text(a) %}{{ "%g"|format(a.low_g) }}&ndash;{{ "%g"|format(a.high_g) }}&thinsp;g{% if a.basis == "adult" %} (0.25&ndash;0.4&thinsp;g per kg of your weight){% elif a.basis == "older" %}{# said after "per meal ..." by the callers, not here #}{% else %} (a general figure &mdash; <a href="/settings">set your profile</a> to personalize it){% endif %}{% endmacro %}
 
 {% macro meal_line(c, a, links=True) %}{% if c %}
 <p class="mb-1 mt-2"><small><strong>Protein per meal:</strong>
   this meal has {{ c.protein_g }}&thinsp;g {{ "digestible complete protein (DCP)" if c.is_dcp else "protein (raw — DCP not worked out)" }}
   &mdash; {% if c.reached %}<span class="status-met">it reaches</span>{% else %}<span class="rda-near">below</span>{% endif %}
-  the {{ amount_text(a) }} often recommended per meal for muscle maintenance and building.
-  {% if c.leucine_g %}Leucine {{ "%.1f"|format(c.leucine_g) }}&thinsp;g{% if c.leucine_reached %} (reaches{% else %} (below{% endif %} the {{ "%g"|format(a.leucine_low_g) }}&thinsp;g suggested).{% endif %}
-  {% if links %}{{ manual_link("protein-per-meal") }}{% endif %}</small></p>
+  the {{ amount_text(a) }} often recommended per meal for muscle maintenance and building{% if a.basis == "older" %} in people 65 and over{% endif %}.{% if links %} {{ manual_link("protein-per-meal", "Explanation and source") }}{% endif %}
+  {% if c.leucine_g %}Leucine {{ "%.1f"|format(c.leucine_g) }}&thinsp;g{% if c.leucine_reached %} (reaches{% else %} (below{% endif %} the {{ "%g"|format(a.leucine_low_g) }}&thinsp;g suggested).{% endif %}</small></p>
 {% endif %}{% endmacro %}
 
 {% macro day_table(d, links=True) %}{% if d and d.rows %}
-<p class="mb-1 mt-2"><small><strong>Protein per meal:</strong> {{ d.reached }} of {{ d.rows|length }} meal{{ "s" if d.rows|length != 1 }} reached the {{ amount_text(d.amount) }} often recommended per meal.
-  Spreading protein over three or four such meals uses it better than one large one.{% if links %} {{ manual_link("protein-per-meal") }} &middot; {{ manual_link("protein-timing", "When to eat protein") }}{% endif %}</small></p>
+<p class="mb-1 mt-2"><small><strong>Protein per meal:</strong> {{ d.reached }} of {{ d.rows|length }} meal{{ "s" if d.rows|length != 1 }} reached the {{ amount_text(d.amount) }} often recommended per meal{% if d.amount.basis == "older" %} for people 65 and over{% endif %}.{% if links %} {{ manual_link("protein-per-meal", "Explanation and source") }}{% endif %}
+  Spreading protein over three or four such meals uses it better than one large one.{% if links %} {{ manual_link("protein-timing", "When to eat protein") }}{% endif %}</small></p>
 <table class="table table-sm mb-2" style="width:auto;font-size:0.85rem">
   <thead class="table-light"><tr><th>Meal</th><th class="num-col">Protein</th><th class="num-col">Leucine</th><th>Per-meal amount</th></tr></thead>
   <tbody>

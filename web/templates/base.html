@@ -1072,10 +1072,36 @@
         var tag = document.activeElement && document.activeElement.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       }
+      // With Shift held, e.key for a digit is the shifted character — "!"
+      // for Alt+Shift+1 on a US keyboard — so the Settings section
+      // shortcuts never matched, the keypress wasn't consumed, and Firefox
+      // ran its own Alt+1 "go to first tab" instead. Digits therefore come
+      // from the physical key (e.code "Digit1"). Letters keep e.key, so
+      // they follow the keyboard layout (Dvorak, AZERTY), falling back to
+      // e.code ("KeyI") only when e.key isn't a plain letter — macOS
+      // Option+Shift+letter gives a special character there.
+      var code = e.code || '';
+      var digit = /^(?:Digit|Numpad)(\d)$/.exec(code);
+      var letter = /^Key([A-Z])$/.exec(code);
       var key = e.key.toLowerCase();
+      if (digit) key = digit[1];
+      else if (!/^[a-z]$/.test(key) && letter) key = letter[1].toLowerCase();
       var target = document.querySelector('[data-ak="' + key + '"]');
       if (!target) return;
       e.preventDefault();
+      // Alt+Shift+I jumps to the page's main search box (data-ak="i" on the
+      // input itself). It may sit inside a collapsed section (the meal
+      // page's "Add Food or Recipe", the recipe editor's "Add Ingredient"),
+      // so open every enclosing <details> first, then focus and select the
+      // text so typing replaces the previous search.
+      if (target.tagName === 'INPUT') {
+        for (var d = target.closest('details'); d; d = d.parentElement.closest('details')) {
+          d.open = true;
+        }
+        target.focus();
+        target.select();
+        return;
+      }
       // Below the navbar's collapse breakpoint (narrow/mobile window), the
       // nav links live inside a collapsed <div id="main-nav"> (display:
       // none until expanded). Clicking a dropdown toggle in there still
