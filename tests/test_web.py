@@ -4479,6 +4479,19 @@ def test_compare_add_multiple_nothing_ticked_says_so(client: TestClient) -> None
     assert "Nothing was ticked for comparison" in page.text
 
 
+def test_compare_clear_button_starts_an_empty_list(client: TestClient, cached_food) -> None:
+    """"Clear the list and start over" shows only once there is a list, and
+    leads to a Compare page with no items (and no stale items= carried)."""
+    import re as _re
+    assert "Clear the list and start over" not in client.get("/compare").text
+    page = client.get(f"/compare?items=f{cached_food['fdcId']}").text
+    m = _re.search(r'<a class="btn btn-outline-secondary" href="([^"]*)"[^>]*>Clear the list and start over</a>', page)
+    assert m, "clear button missing on a non-empty Compare list"
+    href = m.group(1).replace("&amp;", "&")
+    assert href.startswith("/compare") and "items=" not in href
+    assert "Clear the list and start over" not in client.get(href).text
+
+
 def test_food_cache_has_compare_checkbox_and_form(client: TestClient, cached_food) -> None:
     """Regression test: Food Cache rows must offer a way to jump straight into
     Compare with the checked items, without redoing the search there."""

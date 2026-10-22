@@ -2612,6 +2612,22 @@ class TestAntinutrientMatching:
     def test_notes(self, name, groups):
         assert self._groups(name) == groups
 
+    def test_a_suppressed_note_does_not_stop_later_ones(self):
+        # Mutation gap 2026-10-22: `continue` -> `break` on the suppress
+        # check survived. "Green beans" suppresses both legume notes, which
+        # come first in the table; the almond note after them must still show.
+        assert self._groups("Green beans with almonds") == ["oxalate_phytate"]
+
+    def test_word_re(self):
+        # The table's regexes are compiled once at import, out of mutmut's
+        # reach, so the builder gets its own test (2026-10-22, 10 survivors).
+        from usda_nutrients import _word_re
+        assert _word_re(()) is None
+        rx = _word_re((r"beans?", r"pea"))
+        assert rx.pattern == r"\b(?:beans?|pea)\b"
+        assert rx.search("Black BEANS, canned") and rx.search("Pea, split")
+        assert not rx.search("Jellybeans") and not rx.search("Peaches")
+
     def test_bean_note_gives_the_fda_advice(self):
         lectin = next(f for f in _usda.get_antinutrient_flags("Beans, kidney, red, raw") if f["group"] == "lectin")
         text = " ".join(s for _, s in lectin["solutions"])
