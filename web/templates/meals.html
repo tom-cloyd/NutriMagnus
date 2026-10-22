@@ -68,10 +68,6 @@
       </div>
     </div>
   </form>
-  <div>
-    <div><small class="muted">Find every meal that contains a given food, e.g. "tofu"</small></div>
-    <a href="/meals/search" class="btn btn-sm btn-outline-secondary">Search meal history</a>
-  </div>
   <form method="post" action="/meals/compute-bcp" class="d-flex gap-2 align-items-end">
     <input type="hidden" name="redirect_to" value="/meals?sort={{ sort }}{% if date_filter %}&date={{ date_filter }}{% endif %}&limit={{ limit }}">
     <div>
@@ -86,6 +82,18 @@
   </form>
   <small class="muted">DCP = bioavailable (digestible) complete protein{% if protein_target %} · profile goal = {{ protein_target|int }} g/day{% endif %}</small>
 </div>
+<form method="get" action="/meals/search" class="mb-2">
+  <label class="form-label mb-1" for="meal-history-q">Find meals that contain, or don&rsquo;t contain, a food or recipe</label>
+  <div class="input-group input-group-sm" style="max-width:44rem">
+    <select class="form-select" name="mode" style="max-width:15rem" aria-label="Meals that contain, or don't contain, this food">
+      <option value="contains">Meals that contain</option>
+      <option value="lacks">Meals that don&rsquo;t contain</option>
+    </select>
+    <input type="text" class="form-control" id="meal-history-q" name="q" placeholder="Name (e.g. tofu) or ID (U171477, R21)"
+           title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to find just that one food or recipe">
+    <button type="submit" class="btn btn-outline-secondary" data-search-button>Search meal history</button>
+  </div>
+</form>
 
 {# ── Meal list ────────────────────────────────────────────────────────── #}
 {% if meals %}

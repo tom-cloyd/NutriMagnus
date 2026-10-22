@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-22:0320* / Reading time: 9 hours, 19 minutes
+*Updated 2026-10-22:1127* / Reading time: 9 hours, 21 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -757,7 +757,7 @@ Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp
 
 *Search terms: food log, food diary, logging meals, meal list, journal.*
 
-The **Meals & Log** page has a **New Meal** form at the top (name + date), filters for date and sort order, a **Search meal history** link for full-text search across everything you've ever logged (a misspelled search there also offers a ["Did you mean"](#search-suggestions) correction), and a batch button to calculate DCP and calories for all meals, or just the last 10 or 30 days. The list itself shows each meal's completeness, item count, Meal DCP, Day DCP (combined across all meals on that date), % of your daily goal, and calories.
+The **Meals & Log** page has a **New Meal** form at the top (name + date), filters for date and sort order, a **Search meal history** box, on its own line, that finds every meal that contains, or doesn't contain, a food or recipe, by name or [ID](#gloss-id) (a misspelled search there also offers a ["Did you mean"](#search-suggestions) correction), and a batch button to calculate DCP and calories for all meals, or just the last 10 or 30 days. The list itself shows each meal's completeness, item count, Meal DCP, Day DCP (combined across all meals on that date), % of your daily goal, and calories.
 
 Open a meal to add foods or recipes (search box at top — for a recipe you can log the whole thing or just individual ingredients), edit or remove items inline (a food's amount is saved as grams the moment you enter it, so later changes to that food's portions don't alter it — see [Editing or changing a food](#food-edit-consequences)), mark the meal complete/incomplete, rename it or change its date, or merge it with other meals logged the same day. Below the item list: [Nutritional Analysis](#nutrients), [Meal-Level Protein Analysis](#meal-diaas) (with a **Refresh from [USDA](#gloss-usda)** button if amino acid data needs updating), Missing [AA](#gloss-aa) Profiles, Complement Suggestions ([ignorable and recalculable](#ignore-complement)), [Glycemic Load](#glycemic), and Anti-nutrients.
 
@@ -2790,7 +2790,7 @@ Opening and analyzing a meal also saves its DCP and calories automatically.
 
 GL is worked out fresh each time the list is shown, so it never needs calculating and is never out of date. Sorting by GL puts the highest first; an incomplete figure sorts by the part that could be counted, and meals with no figure come last. See [Glycemic Load Output](#glycemic) for what the figure means.
 
-Click a meal to view or edit it, or delete it from there. **Search meal history** (a separate page, linked from Meals & Log) searches every logged food/recipe item by name only — no date filter, sort control, or pagination of its own. Results show a flat "All Occurrences" table (one row per time that food or recipe was logged, linked to its meal) and a "Summary by Food" table grouping those occurrences by name with times-used count, total grams, and first/last-seen dates. Ingredients inside a logged recipe aren't searched — only the recipe itself, by name.
+Click a meal to view or edit it, or delete it from there. **Search meal history** (type a name or [ID](#gloss-id) in its box on Meals & Log; results open on a separate page) searches every logged food/recipe item by name or ID — no date filter, sort control, or pagination of its own. Pick **Meals that don't contain** in the box beside it to list instead every meal that food or recipe is *not* in. Results show a flat "All Occurrences" table (one row per time that food or recipe was logged, linked to its meal) and a "Summary by Food" table grouping those occurrences by name with times-used count, total grams, and first/last-seen dates. Ingredients inside a logged recipe aren't searched — only the recipe itself, by name.
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein). See [daily nutrient goals](#goals) to see how your daily protein target is calculated.
 
@@ -3321,9 +3321,9 @@ A day's estimated [GI](#gloss-gi) is what research calls a *dietary GI*: the [GI
 
 #### Meal History Tables {: #meal-history}
 
-*Search terms: past meals, search history.*
+*Search terms: past meals, search history, exclude, absent, never eaten.*
 
-These tables appear when you click **Search meal history** on the Meals & Log list. Results can be shown as Flat (every occurrence), Summary (totals per food), or Both.
+These tables appear when you type a name or [ID](#gloss-id) in the **Search meal history** box on the Meals & Log list and press Enter or the button. The ID can be a [code](#search-by-code) such as **U171477** or **[R21](#gloss-code)**, or a cached food's [FDC ID](#gloss-fdc-id) number on its own. With **Meals that contain** picked (the usual), you get the two tables below. With **Meals that don't contain** picked, you get one table instead, *Meals without ...*: every logged meal that food or recipe isn't in, with the meal's number, date, name and number of items.
 
 #### MEAL HISTORY -- OCCURRENCES
 Every time a food or recipe appeared in any logged meal.
@@ -3345,7 +3345,7 @@ Totals per food across all matching meals.
     First       Date of the earliest logged occurrence.
     Last        Date of the most recent logged occurrence.
 
-Note: only foods and recipes logged directly as meal items appear here. Ingredients inside a logged recipe are not individually searchable.
+Note: only foods and recipes logged directly as meal items appear here. Ingredients inside a logged recipe are not individually searchable, so a meal that holds a recipe made with the food still counts as a meal that doesn't contain it.
 
 
 #### Missing Amino Acid Profiles {: #missing-aa}
@@ -5961,7 +5961,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 8 minutes)*
+*(Reading time: 1 hour, 9 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5979,6 +5979,8 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 
+- **126.** Buttons now have a blue outline, and a button that acts on what's in the box beside it turns solid blue once there's something there to act on, as **Create Meal** always has (on Meals & Log: **Show** and **Calculate**).
+- **125.** Search meal history, now on its own line on Meals & Log, can also list every meal that *doesn't* contain a food or recipe, and takes a cached food's bare FDC ID number as well as a name or code.
 - **124.** MANUAL: Weekly sweep — the Glossary now explains EFSA, seven more sections are found by everyday words (hydration, fish oil, versus...), the Annotate section describes its **DIAAS needed** button, and the updates log is trimmed to the last two weeks.
 - **123.** Merging duplicate foods (Foods → 9 → **Find duplicate foods**) now first shows any values or portions the copies being deleted have that the kept one lacks or has differently, with your own edits marked and preselected, so nothing you corrected is lost; and a food can no longer end up in your pantry twice.
 - **122.** MANUAL: The manual now uses American spelling throughout (labeled, liters, color, fiber, license); published titles quoted in the notes keep their own spelling.
@@ -6106,6 +6108,45 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 22 updates
+
+**PROGRAM: BUTTONS ARE OUTLINED IN BLUE, AND TURN BLUE WHEN READY**
+
+Buttons now stand out with a blue outline. A button that acts on what you type or pick beside it turns solid blue with white lettering once there's something there to act on, the way **Create Meal** has always looked: on Meals & Log, **Show** (with a number in *Number shown*) and **Calculate** (with a range picked) now start out blue. Save buttons still light up their own way, with "Unsaved changes" beside them, and Search buttons as before.
+
+<!--
+
+```
+Scope: every page; web/static/style.css (.btn-outline-secondary border vars,
+.btn-input-ready), web/templates/base.html (new input-ready script after the
+search-button script). The script finds every submit button styled
+btn-outline-secondary / btn-outline-primary / btn-secondary and toggles
+.btn-input-ready while any text/number/date/select/textarea box in its form
+(form.elements, so form="" boxes count too) is non-blank. Skipped: Search /
+Filter labels and data-search-button (the search-button script's), Save...
+labels (dirty-tracking's job; their boxes are always filled), forms with no
+such boxes (hidden-only Remove/Delete rows, checkbox-only forms).
+Tests: tests/test_input_ready_button_js.py.
+```
+
+-->
+
+**PROGRAM: MEALS THAT DON'T CONTAIN A FOOD**
+
+Search meal history now has its own line on Meals & Log, with a choice beside it: **Meals that contain** a food or recipe, as before, or **Meals that don't contain** it, which lists every logged meal it isn't in. Type part of its name, a code such as U171477 or R21, or a cached food's FDC ID number on its own. [learn more...](#meal-history)
+
+<!--
+
+```
+Scope: Meals & Log, Search meal history; web/templates/meals.html,
+meals_search.html, web/backend.py meals_search() (new mode=contains|lacks
+query param; a bare all-digits query is read as an FDC ID). "Doesn't
+contain" = every meal from db.meal_list_recent(limit=-1) whose id isn't
+among the matching items' meal ids; recipe ingredients still aren't
+searched, so a meal holding a recipe made with the food is listed as
+lacking it (said on the page). Test: test_meal_history_search_lacks.
+```
+
+-->
 
 **MANUAL: WEEKLY SWEEP**
 

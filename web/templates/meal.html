@@ -215,6 +215,7 @@
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </div>
+      {% if q %}<span class="ak-hint">('Alt + Shift + I' returns focus to search input)</span>{% endif %}
       <span id="add-food-no-results" class="search-no-results" style="display:none"
             data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>
       {% if q and external_source_labels %}{{ _osn.notice("add-food-api-loading", external_source_labels) }}{% endif %}

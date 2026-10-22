@@ -1581,5 +1581,36 @@
     });
   })();
   </script>
+  <script>
+  // Buttons that act on what's typed or picked beside them turn solid blue
+  // (like a primary button) while their form has something in a box to act
+  // on — "Show" with a number in Number shown, "Calculate" with a range
+  // picked. Only quiet outline/secondary buttons are changed: primary and
+  // danger buttons keep their own look, Search/Filter buttons have their own
+  // script above, and Save buttons are left to the unsaved-changes badge,
+  // since their boxes are always filled in.
+  (function () {
+    var QUIET = '.btn-outline-secondary, .btn-outline-primary, .btn-secondary';
+    var SKIP_LABEL_RE = /^(search|filter|filter this list|save|saved)\b/i;
+    var BOX_TYPES = /^(text|search|number|date|email|url|tel|month|time|datetime-local|select-one|textarea)$/;
+    document.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (btn) {
+      var form = btn.form;
+      if (!form || !btn.matches(QUIET) || btn.hasAttribute('data-search-button')) return;
+      if (SKIP_LABEL_RE.test((btn.textContent || btn.value || '').trim())) return;
+      var boxes = Array.prototype.filter.call(form.elements, function (el) {
+        return BOX_TYPES.test(el.type) && !el.disabled;
+      });
+      if (!boxes.length) return;
+      function sync() {
+        btn.classList.toggle('btn-input-ready', boxes.some(function (b) {
+          return String(b.value).trim() !== '';
+        }));
+      }
+      form.addEventListener('input', sync);
+      form.addEventListener('change', sync);
+      sync();
+    });
+  })();
+  </script>
 </body>
 </html>

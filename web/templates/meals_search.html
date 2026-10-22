@@ -14,9 +14,13 @@
 <h2>Search Meal History {{ manual_link("meal-history") }}</h2>
 
 <form method="get" action="/meals/search" class="mb-3">
-  <div class="input-group" style="max-width:32rem">
+  <div class="input-group" style="max-width:44rem">
+    <select class="form-select" name="mode" style="max-width:15rem" aria-label="Meals that contain, or don't contain, this food">
+      <option value="contains" {% if mode != "lacks" %}selected{% endif %}>Meals that contain</option>
+      <option value="lacks" {% if mode == "lacks" %}selected{% endif %}>Meals that don&rsquo;t contain</option>
+    </select>
     <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
-           placeholder="Food or recipe name, or code (U171477, R21)…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 to find just that one food or recipe" autofocus>
+           placeholder="Food or recipe name, or ID (U171477, R21)…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to find just that one food or recipe" autofocus>
     <button type="submit" class="btn btn-primary">Search</button>
     {% if q %}
     <a href="/meals/search" class="btn btn-outline-secondary">Clear</a>
@@ -24,7 +28,40 @@
   </div>
 </form>
 
-{% if q and not rows %}
+{% if q and mode == "lacks" %}
+{% if lacking %}
+<p class="muted mb-3">
+  <strong>{{ lacking|length }}</strong> meal{{ 's' if lacking|length != 1 else '' }} on
+  <strong>{{ lacking | map(attribute="meal_date") | unique | list | length }}</strong> date{{ 's' if (lacking | map(attribute="meal_date") | unique | list | length) != 1 else '' }}
+  don&rsquo;t contain <strong>{{ q }}</strong>{% if rows %} ({{ n_meals }} meal{{ 's' if n_meals != 1 else '' }} do){% endif %}.
+  <small>Ingredients inside logged recipes are not checked, so a meal with a recipe that uses it is still listed here.</small>
+</p>
+<h4>Meals without {{ q }}</h4>
+<table class="table table-sm table-hover">
+  <thead class="table-light">
+    <tr>
+      <th class="num-col">ID</th>
+      <th>Date</th>
+      <th>Meal</th>
+      <th class="num-col">Items</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in lacking %}
+    <tr>
+      <td class="num-col muted">{{ m.id }}</td>
+      <td>{{ m.meal_date }}</td>
+      <td><a href="/meal/{{ m.id }}">{{ m.name }}</a></td>
+      <td class="num-col">{{ m.item_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">Every logged meal contains <strong>{{ q }}</strong>.</p>
+{% endif %}
+
+{% elif q and not rows %}
 <p class="muted">No meal items match <strong>{{ q }}</strong>. Ingredients inside logged recipes are not searched.</p>
 <span class="search-no-results" data-query="{{ q }}" data-field="q"></span>
 

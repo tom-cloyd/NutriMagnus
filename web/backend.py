@@ -7938,13 +7938,19 @@ async def meal_merge_post(meal_id: int, request: Request):
 
 
 @app.get("/meals/search", response_class=HTMLResponse)
-async def meals_search(request: Request, q: str = ""):
+async def meals_search(request: Request, q: str = "", mode: str = "contains"):
+    """Meals that contain (mode "contains") or don't contain (mode "lacks")
+    a food or recipe, typed as part of a name, a code (U171477, R21) or a
+    cached food's bare FDC ID number."""
+    mode = "lacks" if mode == "lacks" else "contains"
     rows: list[dict] = []
+    lacking: list[dict] = []
     n_items = n_meals = n_dates = 0
     if q.strip():
         with _db.get_db() as conn:
-            # A code (U171477, R21) finds that one food or recipe; else by name.
-            code = _typed_code(q)
+            # A code (U171477, R21) or a bare FDC ID number finds that one
+            # food or recipe; else by name.
+            code = _typed_code(q) or (("food", int(q.strip())) if q.strip().isdigit() else None)
             rows = [dict(r) for r in (_db.search_meal_history_by_item(conn, *code) if code
                                       else _db.search_meal_history(conn, q.strip()))]
             recipe_ids = {r["recipe_id"] for r in rows if r["item_type"] == "recipe" and r["recipe_id"]}
@@ -7958,9 +7964,16 @@ async def meals_search(request: Request, q: str = ""):
         n_items = len(rows)
         n_meals = len({r["meal_id"] for r in rows})
         n_dates = len({r["meal_date"] for r in rows})
+        if mode == "lacks":
+            found = {r["meal_id"] for r in rows}
+            with _db.get_db() as conn:
+                lacking = [dict(m) for m in _db.meal_list_recent(conn, limit=-1)
+                           if m["id"] not in found]
     return templates.TemplateResponse(request, "meals_search.html", {
         "q":       q,
+        "mode":    mode,
         "rows":    rows,
+        "lacking": lacking,
         "n_items": n_items,
         "n_meals": n_meals,
         "n_dates": n_dates,

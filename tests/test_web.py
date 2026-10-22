@@ -8560,6 +8560,25 @@ def test_meal_history_search_by_code(client: TestClient, cached_food, second_cac
     assert "Test Food Soup" in rows and second_cached_food["name"] not in rows
 
 
+def test_meal_history_search_lacks(client: TestClient, cached_food, second_cached_food) -> None:
+    """mode=lacks lists the meals that DON'T contain the food — by code, by
+    bare FDC ID, or by name — and not the ones that do."""
+    def new_meal(name):
+        return int(client.post("/meals/create", data={"name": name, "meal_date": "2026-07-12"},
+                               follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    with_it, without_it = new_meal("Has it"), new_meal("Lacks it")
+    with _db.get_db() as conn:
+        _db.meal_add_food(conn, with_it, cached_food["fdcId"], cached_food["name"], 100.0, "100 g")
+        _db.meal_add_food(conn, without_it, second_cached_food["fdcId"], second_cached_food["name"], 50.0, "50 g")
+    for q in (f"U{cached_food['fdcId']}", str(cached_food["fdcId"]), cached_food["name"]):
+        page = client.get("/meals/search", params={"q": q, "mode": "lacks"}).text
+        table = page.split("<tbody")[1] if "<tbody" in page else ""
+        assert f"/meal/{without_it}\"" in table and f"/meal/{with_it}\"" not in table, q
+    page = client.get("/meals/search", params={"q": str(cached_food["fdcId"])}).text
+    table = page.split("<tbody")[1] if "<tbody" in page else ""
+    assert f"/meal/{with_it}\"" in table and f"/meal/{without_it}\"" not in table
+
+
 def test_compare_food_portion_amount(client):
     """A food on Compare can be set as a count of one of its portions:
     the unit select posts p<n>, the URL keeps "@2p1", and the comparison

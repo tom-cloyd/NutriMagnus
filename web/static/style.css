@@ -1209,6 +1209,27 @@ td.compare-val-col {
   background-color: #0b5ed7;
 }
 
+/* Every quiet button gets a blue outline, so it reads as something to click
+   rather than a gray box like the form fields around it. */
+.btn-outline-secondary {
+  --bs-btn-border-color: #0d6efd;
+  --bs-btn-hover-border-color: #0d6efd;
+}
+
+/* A quiet button whose form has something typed or picked to act on (base.html's
+   input-ready script): drawn as a primary button, like "Create Meal". */
+.btn.btn-input-ready,
+.btn.btn-input-ready:focus {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff;
+}
+.btn.btn-input-ready:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+  color: #fff;
+}
+
 /* "N from supplements" under a nutrient amount (services/supplements.py). */
 .supp-share {
   font-size: 0.75rem;
