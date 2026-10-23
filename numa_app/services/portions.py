@@ -312,7 +312,7 @@ def generic_density_kind(unit: str | None, portions: list[dict], food_name: str)
     vol = tokens[parsed[1]]
     if vol not in _VOLUME_TO_ML and vol.lower() not in _VOLUME_TO_ML:
         return None
-    return kind if _usda.density_with_source(food_name, portions)[1] == "table" else None
+    return kind if _usda.density_with_source(food_name, portions, last_resort=True)[1] == "table" else None
 
 
 _PORTION_LABEL_RE = re.compile(r"^\s*(\d+(?:\.\d+)?|\d+/\d+)\s*[×x]\s*(.+?)\s*$")
@@ -456,10 +456,9 @@ def _parse_portion_input_raw(
                     grams = w_number * w_factor
                     return grams, f"{w_number:g} {w_unit} ({vol_display})"
 
-        # No explicit weight — calculate via density if known
-        density = _usda.get_density_g_per_ml(food_name, portions)
-        if density is None:
-            return None, vol_display
+        # No explicit weight — calculate via density (a generic one if nothing
+        # better is known: a volume is never refused)
+        density = _usda.get_density_g_per_ml(food_name, portions, last_resort=True)
         grams = number * ml_per_unit * density
         return grams, f"{grams:.4g} gr ({vol_display})"
 

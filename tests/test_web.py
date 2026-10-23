@@ -23,6 +23,7 @@ import db as _db
 from numa_app.services.recipe_nutrients import recipe_aa_indicator
 import diaas as _diaas
 import profile as _profile
+import usda as _usda
 import web.backend as backend
 from tests.conftest import SAMPLE_NUTRIENTS, _mock_api
 
@@ -7746,6 +7747,22 @@ class TestParsePortionStrExplicitWeight:
     def test_typed_weight_needs_no_density(self):
         g, lab = backend._parse_portion_str("2 T 15 g", [], "Zzqx")
         assert (g, lab) == (15.0, "15 g (2 T)")
+
+    def test_volume_of_unknown_food_is_never_refused(self):
+        """Regression test: a spoon measure of a herb/spice NuMa has no
+        density for was refused ("no density data is available"); it now
+        converts with the general figure and is marked ≈ generic."""
+        from numa_app.services.portions import generic_density_kind
+        g, lab = backend._parse_portion_str("1 t", [{"description": "1 PACKET", "gram_weight": 1.0}], "Zzqx")
+        assert g == pytest.approx(4.9 * _usda.LAST_RESORT_DENSITY_G_PER_ML, abs=0.01)
+        assert lab == "1 t"
+        assert generic_density_kind("1 t", [], "Zzqx") == "typed"
+
+    @pytest.mark.parametrize("raw", ["1 T`", "1 `T", "1 T;", "1 T'"])
+    def test_stray_punctuation_is_ignored(self, raw):
+        """Regression test: "1 T`" (a stray backtick) was refused as an
+        unrecognized unit "T`"."""
+        assert backend._parse_portion_str(raw, self._CUP, "Milk") == backend._parse_portion_str("1 T", self._CUP, "Milk")
 
     def test_junk_after_the_volume_is_an_error(self):
         g, msg = backend._parse_portion_str("2 T 15 bananas", self._CUP, "Milk")

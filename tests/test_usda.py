@@ -2199,6 +2199,19 @@ class TestGetDensityGPerMl:
         assert _usda.get_density_g_per_ml("Red pepper flakes", []) == pytest.approx(0.35)
         assert _usda.get_density_g_per_ml("Spices, pepper, red or cayenne", []) == pytest.approx(0.45)
 
+    def test_branded_crushed_red_pepper_has_density(self):
+        """Regression test: user-reported bug — a branded "RED CRUSHED PEPPER,
+        RED" matched no keyword, so "1 t" of it was refused."""
+        assert _usda.density_with_source("RED CRUSHED PEPPER, RED", []) == (pytest.approx(0.35), "table")
+
+    def test_last_resort_density_only_when_asked(self):
+        """Amount entry (last_resort=True) never gets None: an unrecognized
+        food falls back to the general figure, as a "table" (≈ generic)
+        density; other callers still see None."""
+        assert _usda.density_with_source("mystery unrecognized food xyz", [], last_resort=True) == (
+            pytest.approx(_usda.LAST_RESORT_DENSITY_G_PER_ML), "table")
+        assert _usda.get_density_g_per_ml("mystery unrecognized food xyz", []) is None
+
     def test_generic_spice_fallback(self):
         """Any USDA "Spices, ..." food not individually itemized still gets an
         approximate density rather than failing outright."""

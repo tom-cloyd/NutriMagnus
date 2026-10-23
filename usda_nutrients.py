@@ -1714,7 +1714,8 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     # Dried herbs & spices — specific ones first (flaked/leafy herbs are much
     # lighter per volume than ground powders or seeds; values from common
     # spoon-for-spoon weight references, e.g. King Arthur / USDA SR).
-    (("pepper flakes", "crushed red pepper", "chili flakes"),   0.35),
+    (("pepper flakes", "crushed red pepper", "chili flakes",
+      "crushed pepper", "pepper, crushed", "red pepper, crushed"), 0.35),
     (("black pepper", "white pepper", "peppercorn"),            0.44),
     (("pepper, red or cayenne", "cayenne"),                     0.45),
     (("cinnamon",),                                             0.51),
@@ -1747,18 +1748,27 @@ _DENSITY_TABLE: list[tuple[tuple[str, ...], float]] = [
     (("spices,", "spices ("),                                   0.40),
 ]
 
+# Last-resort g/ml for a volume someone typed for a food nothing above
+# recognizes (density_with_source(last_resort=True)): a spoonful of dried
+# herb or spice is the usual case, and refusing the amount outright blocked
+# entering seasonings people only ever measure by the spoon. Marked
+# "≈ generic" like any table density, so it can be replaced by a real weight.
+LAST_RESORT_DENSITY_G_PER_ML = 0.45
+
 
 # Volume portions measured in a state other than the plain food: get_density_g_per_ml()
 # falls back to these only. Word-bounded, so "unsifted" / "unpacked" count as plain.
 _QUALIFIED_VOLUME_RE = re.compile(r"\b(?:whipped|packed|heaping|sifted)\b")
 
 
-def get_density_g_per_ml(food_name: str, portions: list[dict]) -> float | None:
+def get_density_g_per_ml(food_name: str, portions: list[dict], *,
+                         last_resort: bool = False) -> float | None:
     """Estimate g/ml density for a food — see density_with_source()."""
-    return density_with_source(food_name, portions)[0]
+    return density_with_source(food_name, portions, last_resort=last_resort)[0]
 
 
-def density_with_source(food_name: str, portions: list[dict]) -> tuple[float | None, str | None]:
+def density_with_source(food_name: str, portions: list[dict], *,
+                        last_resort: bool = False) -> tuple[float | None, str | None]:
     """
     Estimate g/ml density for a food, and say where it came from:
     (density, "portion") from one of the food's own volume portions,
@@ -1780,7 +1790,9 @@ def density_with_source(food_name: str, portions: list[dict]) -> tuple[float | N
        whipped)" is plain).
        Millilitre portions count too ("100 milliliter" = 90.7 g, olive oil).
     2. Static keyword table when the food has no usable volume portion.
-    3. (None, None) if density cannot be determined.
+    3. With last_resort=True (amount entry, where a volume must never be
+       refused): (LAST_RESORT_DENSITY_G_PER_ML, "table").
+    4. Otherwise (None, None) if density cannot be determined.
     """
     # The food's own portions first
     _VOL_ANCHORS = [
@@ -1837,4 +1849,6 @@ def density_with_source(food_name: str, portions: list[dict]) -> tuple[float | N
         if any(kw in name for kw in keywords):
             return density, "table"
 
+    if last_resort:
+        return LAST_RESORT_DENSITY_G_PER_ML, "table"
     return None, None

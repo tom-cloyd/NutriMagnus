@@ -288,12 +288,10 @@ def _parse_portion_str_raw(
                     return round(w_number * w_factor, 2), f"{w_number:g} {w_rest[0]} ({vol_typed})"
             return None, (f'Could not read "{" ".join(after)}" after "{vol_typed}". '
                           f'To give the weight too, type it like "{vol_typed} 15 g".')
-        density = _usda.get_density_g_per_ml(food_name, portions)
-        if density is None:
-            return None, (
-                f'Volume unit "{unit}" recognized, but no density data is available '
-                f"for this food. Enter weight in g or oz instead."
-            )
+        # Never refused: with no density for this food, a generic one is used
+        # and the amount is marked "≈ generic" (portions.generic_density_kind())
+        # — herbs and spices are often only ever measured by the spoon.
+        density = _usda.get_density_g_per_ml(food_name, portions, last_resort=True)
         grams = round(number * ml_per * density, 2)
         # Store exactly what was typed, not "2 T (≈ 27.23 g)" — the estimated
         # gram figure is a density guess, not a fact, and baking it into the
@@ -324,8 +322,11 @@ def _normalize_amount_text(raw: str) -> str:
     """Fraction characters spelled out ("1½" -> "1 1/2"), thousands commas
     dropped ("1,000 g"), a decimal comma read as a point ("12,5 g"), a
     trailing period dropped from a unit ("tbsp.", "oz."), and common unit
-    spellings mapped to the ones the parser knows ("tbs", "fl oz", "litre")."""
+    spellings mapped to the ones the parser knows ("tbs", "fl oz", "litre"),
+    and stray keystrokes dropped: a backtick anywhere, and punctuation left
+    at the end ("1 T`", "2 tsp;") — they never mean anything in an amount."""
     s = _entry_parse.normalize(raw)
+    s = re.sub(r"[`'\";:,!?\\]+$", "", s.replace("`", "")).strip()
     s = re.sub(r"(?<=\d),(?=\d{3}\b)", "", s)
     s = re.sub(r"(?<=\d),(?=\d)", ".", s)
     s = re.sub(r"(?<=[A-Za-z])\.(?=\s|$)", "", s)
@@ -5510,12 +5511,10 @@ def _food_detail_context(
     # Resolve portion: free-form string takes priority over plain gram amount
     portion_error: str | None = None
     portion_label: str | None = None
-    portion_density_hint = False
     if portion_str.strip():
         parsed_g, parsed_label = _parse_portion_str(portion_str.strip(), portions, food["name"])
         if parsed_g is None:
             portion_error = parsed_label  # error message
-            portion_density_hint = "no density data is available" in parsed_label
             amount = 100.0
         else:
             amount = parsed_g if parsed_g > 0 else 100.0
@@ -5612,7 +5611,6 @@ def _food_detail_context(
         "portion_str":        portion_str.strip(),
         "portion_label":      portion_label,
         "portion_error":      portion_error,
-        "portion_density_hint": portion_density_hint,
         "portions":           portions,
         "nutrient_sections":  _nutrient_sections(display_nutrients, rda_scaled or rda,
                                                  optimal=optimal_scaled or optimal, max_limits=max_limits,

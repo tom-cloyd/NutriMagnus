@@ -45,4 +45,5 @@ from usda_nutrients import (  # noqa: F401
     slow_cooker_bean_risk,
     get_density_g_per_ml,
     density_with_source,
+    LAST_RESORT_DENSITY_G_PER_ML,
 )

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-22:1127* / Reading time: 9 hours, 21 minutes
+*Updated 2026-10-23:0000* / Reading time: 9 hours, 2 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -4690,7 +4690,7 @@ Two fixes: weigh the item once on a kitchen scale and enter that weight directly
 
 *Search terms: no cup measure, volume missing.*
 
-NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Portion Input Formats](#portion-formats)). Outside those cases, entering a volume measure will prompt you to weigh the amount and enter the grams yourself — this is expected, not a bug, since guessing a density would silently produce wrong nutrient totals.
+NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Portion Input Formats](#portion-formats)). And when even that table doesn't know the food, NuMa still takes the amount — a volume is never refused, since herbs and spices are often only ever measured by the spoon — using a general figure of 0.45 g per milliliter, typical of a dried ground spice. Every amount converted with a table figure or that general one is marked **≈ generic** where it's shown, and listed under Foods → 9, so you can see which numbers are guesses. For a teaspoon of spice the guess hardly matters; for a cup of something it can be well off.
 
 If you'll be entering this food by volume repeatedly, teach NuMa the conversion once: weigh a level cup (or tablespoon) of it, then use the same Portions editor as above — the [Food Cache](#food-cache-web) entry's **Portions** action. From then on, cup and tablespoon amounts for that food convert automatically.
 
@@ -5961,7 +5961,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 1 hour, 9 minutes)*
+*(Reading time: 50 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5979,6 +5979,8 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 
+- **128.** A stray backtick or punctuation mark typed with an amount ("1 T`", "2 tsp;") is now ignored instead of making the amount unreadable.
+- **127.** A cup or spoon amount of a food NuMa has no volume weight for, such as a spice, is now always accepted, converted with a general figure and marked **≈ generic**, instead of being refused.
 - **126.** Buttons now have a blue outline, and a button that acts on what's in the box beside it turns solid blue once there's something there to act on, as **Create Meal** always has (on Meals & Log: **Show** and **Calculate**).
 - **125.** Search meal history, now on its own line on Meals & Log, can also list every meal that *doesn't* contain a food or recipe, and takes a cached food's bare FDC ID number as well as a name or code.
 - **124.** MANUAL: Weekly sweep — the Glossary now explains EFSA, seven more sections are found by everyday words (hydration, fish oil, versus...), the Annotate section describes its **DIAAS needed** button, and the updates log is trimmed to the last two weeks.
@@ -6108,6 +6110,38 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 22 updates
+
+**PROGRAM: STRAY PUNCTUATION IN AN AMOUNT IS IGNORED**
+
+An amount typed with a stray backtick or punctuation mark, such as `` 1 T` `` or `2 tsp;`, is now read as `1 T` or `2 tsp` instead of being refused as an unknown unit.
+
+<!--
+
+```
+Scope: web/backend.py _normalize_amount_text(): drops backticks anywhere and
+trailing ' " ; : , ! ? \ — every amount box that goes through _parse_portion_str.
+```
+
+-->
+
+**PROGRAM: SPOON AND CUP AMOUNTS ARE NEVER REFUSED**
+
+You can now enter any food by teaspoon, tablespoon or cup, even one NuMa has no volume weight for, such as a branded crushed red pepper; it's converted with a general figure for dried spices (0.45 g per milliliter) and marked **≈ generic**, like other estimated amounts, so you can replace it with a weighed portion later. [learn more...](#ts-no-volume-portion)
+
+<!--
+
+```
+Scope: recipe/meal/food amount entry. usda_nutrients.density_with_source() and
+get_density_g_per_ml() take last_resort=True (LAST_RESORT_DENSITY_G_PER_ML = 0.45,
+source "table" so the existing "≈ generic" mark and Foods -> 9 listing apply);
+used by backend._parse_portion_str_raw, portions._parse_portion_input_raw and
+portions.generic_density_kind. Other callers still get None. Density table also
+matches "crushed pepper" / "pepper, crushed" (0.35, flakes), so "RED CRUSHED
+PEPPER, RED" (Branded 2454832) no longer missed it. Food page's dead
+"no density data" hint removed.
+```
+
+-->
 
 **PROGRAM: BUTTONS ARE OUTLINED IN BLUE, AND TURN BLUE WHEN READY**
 

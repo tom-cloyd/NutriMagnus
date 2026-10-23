@@ -345,10 +345,6 @@
   </form>
   {% if portion_error %}
   <p class="numa-error mt-1"><small>{{ portion_error }}</small></p>
-  {% if portion_density_hint %}
-  <p class="muted"><small>You can add a cup/tbsp weight for this food once from
-    <a href="/food/cache/{{ food.fdc_id }}/portions">Food Cache → Portions</a>, and volume amounts will convert automatically after that. {{ manual_link("ts-no-volume-portion") }}</small></p>
-  {% endif %}
   {% elif portion_label and food.is_supplement and food.supp_unit %}
   {% if portion_label != "1 " ~ food.supp_unit %}<small class="muted">Showing values for <strong>{{ portion_label }}</strong>
     &middot; <a href="/food/{{ food.fdc_id }}">back to 1 {{ food.supp_unit }}</a>
