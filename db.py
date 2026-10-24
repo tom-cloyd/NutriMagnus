@@ -337,7 +337,7 @@ def init_db() -> None:
         """)
 
         for _col in ("bcp_g REAL", "bcp_computed_at TEXT", "day_pct_goal REAL", "calories REAL",
-                     "nutrients_snapshot_json TEXT"):
+                     "nutrients_snapshot_json TEXT", "notes TEXT"):
             try:
                 conn.execute(f"ALTER TABLE meals ADD COLUMN {_col}")
             except sqlite3.OperationalError:
@@ -2713,6 +2713,11 @@ def meal_set_complete(conn: sqlite3.Connection, meal_id: int, complete: bool) ->
 
 def meal_rename(conn: sqlite3.Connection, meal_id: int, new_name: str) -> None:
     conn.execute("UPDATE meals SET name = ? WHERE id = ?", (new_name, meal_id))
+
+
+def meal_set_notes(conn: sqlite3.Connection, meal_id: int, notes: str) -> None:
+    """Set a meal's free-text note; blank clears it (stored as NULL)."""
+    conn.execute("UPDATE meals SET notes = ? WHERE id = ?", (notes.strip() or None, meal_id))
 
 
 def meal_set_date(conn: sqlite3.Connection, meal_id: int, new_date: str) -> None:

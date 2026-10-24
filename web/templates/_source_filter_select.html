@@ -1,6 +1,6 @@
 {% macro select(current, source_filters, source_labels, field_name="source", show_redo=True) %}
 <div class="d-flex flex-wrap align-items-center gap-2" role="group" aria-label="Source filter">
-  <label class="muted me-1 mb-0"><small><strong>Source</strong></small></label>
+  <label class="muted me-1 mb-0"><small><strong>Sources</strong></small></label>
   <span class="me-1">{{ manual_link("food-data", "What are these sources?") }}</span>
   {% for key in source_filters %}
   <div class="form-check form-check-inline mb-0">

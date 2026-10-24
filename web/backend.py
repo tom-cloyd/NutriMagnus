@@ -7792,6 +7792,13 @@ async def meal_rename_post(meal_id: int, name: str = Form(...), meal_date: str =
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
+@app.post("/meal/{meal_id}/notes", response_class=RedirectResponse)
+async def meal_notes_post(meal_id: int, notes: str = Form("")):
+    with _db.get_db() as conn:
+        _db.meal_set_notes(conn, meal_id, notes)
+    return RedirectResponse(f"/meal/{meal_id}#meal-note", status_code=303)
+
+
 @app.post("/meal/{meal_id}/complete", response_class=RedirectResponse)
 async def meal_toggle_complete(meal_id: int):
     with _db.get_db() as conn:
@@ -7926,6 +7933,21 @@ async def meal_merge_post(meal_id: int, request: Request):
         _day_profile.ensure_day_profile(conn, meal_date)
         for m in meals_to_merge:
             _db.meal_copy_items(conn, m["id"], new_mid)
+        # Meal notes carry over: one note as it is; several (identical ones
+        # once) each under its meal's name, blank line between.
+        notes = [(m["name"], (m["notes"] or "").strip()) for m in meals_to_merge]
+        notes = [n for n in notes if n[1]]
+        unique = list(dict.fromkeys(text for _, text in notes))
+        if len(unique) == 1:
+            _db.meal_set_notes(conn, new_mid, unique[0])
+        elif unique:
+            seen: set[str] = set()
+            parts = []
+            for name, text in notes:
+                if text not in seen:
+                    seen.add(text)
+                    parts.append(f"{name}: {text}")
+            _db.meal_set_notes(conn, new_mid, "\n\n".join(parts))
 
     if delete_originals:
         with _db.get_db() as conn:

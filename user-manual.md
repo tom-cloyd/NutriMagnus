@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-23:0000* / Reading time: 9 hours, 2 minutes
+*Updated 2026-10-24:0311* / Reading time: 9 hours, 3 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -493,7 +493,7 @@ Above the heading, a few one-time or conditional banners can appear when relevan
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed. Likewise, on a page with an Items section (a meal, Compare, Analyze a recipe portion), `Alt+Shift+Y` moves keyboard focus to that section. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
@@ -2339,7 +2339,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 21 minutes)*
+*(Reading time: 1 hour, 22 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2855,6 +2855,9 @@ Columns:
     Notes     Any note saved with this item, if present.
 
 An **Edit** button on each row opens a popup to change the amount/servings and notes without leaving the page; an **✕** button removes that item from the meal (both ask no separate confirmation — Edit requires clicking "Save changes", and Remove acts immediately). Use the "Add Food or Recipe" search above the table to add a new item.
+
+<span id="meal-note"></span>
+**Meal note.** The box to the right of the Protein Summary card (or on its own, for a meal with no protein analysis yet) holds a note about the whole meal — when you ate it, how you felt afterward, what you'd change next time. Click **Save meal note** to keep it; clearing the box and saving removes the note. When you merge meals, the new meal keeps their notes: one note as it is, or several, each under the name of the meal it came from.
 
 
 #### Food Use in Meals — Column Guide {: #fooduse}
@@ -5979,6 +5982,8 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 
+- **130.** Each meal now has a **Meal note** box, beside the Protein Summary on the meal's page, for anything you want to remember about that meal; merging meals keeps their notes.
+- **129.** **Alt+Shift+Y** moves focus to the Items section, on every page that has one (a meal, Compare, and Analyze a recipe portion).
 - **128.** A stray backtick or punctuation mark typed with an amount ("1 T`", "2 tsp;") is now ignored instead of making the amount unreadable.
 - **127.** A cup or spoon amount of a food NuMa has no volume weight for, such as a spice, is now always accepted, converted with a general figure and marked **≈ generic**, instead of being refused.
 - **126.** Buttons now have a blue outline, and a button that acts on what's in the box beside it turns solid blue once there's something there to act on, as **Create Meal** always has (on Meals & Log: **Show** and **Calculate**).
@@ -6108,6 +6113,44 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **3.** Top Contributors can rank a meal's or recipe's foods by glycemic load, and when that load is Medium or High, NuMa suggests lower-GI foods from your Food Cache to swap in, each opening What-if with the swap filled in.
 - **2.** What-if pages now show glycemic load before and after your changes, and say when a swap to a food with no GI makes the "after" look better than it is; every incomplete GL figure now says how much of the carbohydrate it covers.
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
+
+#### October 24 updates
+
+**PROGRAM: A NOTE FOR EACH MEAL**
+
+Each meal's page now has a **Meal note** box, to the right of the Protein Summary card, for anything you want to remember about that meal: when you ate it, how you felt, what you'd change. Type it and click **Save meal note**. Merging meals keeps their notes: a single note as it is, or several, each under its meal's name. [learn more...](#meal-note)
+
+<!--
+```
+Scope: Meals & Log -> a meal. New meals.notes column (db.py migration loop),
+db.meal_set_notes(), POST /meal/{id}/notes. meal.html meal_note_form() macro,
+rendered in a .ps-note-row flex row beside the Protein Summary card (each half
+the width, stacking below 18rem), or alone where the meal has no protein
+analysis. Guarded by the unsaved-edits leave guard. POST /meal/{id}/merge
+carries notes over: one distinct note as-is, else "<meal name>: <note>" per
+distinct note, blank line between.
+```
+-->
+
+#### October 23 updates
+
+**PROGRAM: ALT+SHIFT+Y JUMPS TO THE ITEMS SECTION**
+
+On a page with an Items section — a meal's Items, Compare's list of items being compared, and Analyze a recipe portion's Items in meal — **Alt+Shift+Y** now takes you there and puts keyboard focus on it, opening it first if it's closed. [learn more...](#web-shortcuts)
+
+<!--
+
+```
+Scope: web/templates/base.html (Alt+Shift handler: a data-ak-focus target is
+opened, scrolled to and focused, never clicked, so an open <summary> isn't
+closed); data-ak="y" data-ak-focus on meal.html's Items heading (tabindex -1),
+compare.html's #compare-items table, food_analyze_recipe_portion.html's
+"Items in meal" summary; Settings -> Keyboard Shortcuts lists it. Y is also
+Settings' System Issues, but no page has both. Test:
+test_items_section_shortcut.
+```
+
+-->
 
 #### October 22 updates
 

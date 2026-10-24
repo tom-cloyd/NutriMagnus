@@ -16,6 +16,19 @@
 {% import "_recipe_amount.html" as _ramt %}
 {% import "_online_search_notice.html" as _osn %}
 {% import "_gl_result.html" as _gl %}
+{# The meal's free-text note. Sits beside the Protein Summary card, or on
+   its own where the meal has no protein analysis. #}
+{% macro meal_note_form() %}
+<form method="post" action="/meal/{{ meal.id }}/notes" id="meal-note" class="meal-note"
+      data-leave-guard='"Meal note"'>
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-1">
+    <label class="ps-label mb-0" for="meal-notes">Meal note</label>
+    <button type="submit" class="btn btn-sm btn-outline-primary">Save meal note</button>
+  </div>
+  <textarea class="form-control form-control-sm" id="meal-notes" name="notes" rows="2"
+            placeholder="Anything to remember about this meal">{{ meal.notes or '' }}</textarea>
+</form>
+{% endmacro %}
 {% block title %}NutriMagnus — {{ meal.name }}{% endblock %}
 
 {% block layout_class %}analysis-page{% endblock %}
@@ -199,22 +212,22 @@
 </div>
 
 {# ── Add food (inline control — not an analysis section) ──────────────── #}
-<details open class="mb-3" id="add-food-details" data-remember="add-food">
+{# Header, search box and search tip share one line, a third each
+   (style.css .add-food-row); the messages go below the search form, since
+   the food-quality note holds a form of its own and forms can't nest. #}
+<details open class="mb-3 add-food-row" id="add-food-details" data-remember="add-food">
   <summary><strong>Add Food or Recipe</strong> <span class="ak-hint">(put cursor here: Alt + Shift + I)</span></summary>
-  {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
-  {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
-  {% include "_food_quality_note.html" %}
 
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search data-online-search>
     <input type="hidden" name="sort" value="{{ sort }}">
-    <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-    <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
-      <div class="input-group" style="max-width:50%">
+    <div class="add-food-search d-flex align-items-center flex-wrap gap-2 mb-2">
+      <div class="input-group">
         <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
                placeholder="Search foods or recipes…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </div>
+      <p class="add-food-tip muted mb-0"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
       {% if q %}<span class="ak-hint">('Alt + Shift + I' returns focus to search input)</span>{% endif %}
       <span id="add-food-no-results" class="search-no-results" style="display:none"
             data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>
@@ -228,6 +241,9 @@
       {% endcall %}
     </div>
   </form>
+  {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
+  {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
+  {% include "_food_quality_note.html" %}
 
   {% if q %}
   <form method="get" action="/meal/{{ meal.id }}" class="d-flex flex-wrap gap-2 align-items-center mb-2">
@@ -473,6 +489,7 @@
 {% if diaas %}
 <section id="sec-protein-summary" class="analysis-section">
   <h3 class="section-heading">Protein Summary {{ manual_link("dcp") }}</h3>
+  <div class="ps-note-row">
   {% if diaas.dcp_g is not none %}
   <div class="protein-summary-card {% if diaas.score is not none and diaas.score >= 0.9 %}psc-complete{% elif diaas.dcp_g %}psc-incomplete{% else %}psc-unknown{% endif %}">
     <div class="ps-metric">
@@ -521,16 +538,24 @@
     </div>
   </div>
   {% endif %}
+  {{ meal_note_form() }}
+  </div>
   {% import "_protein_per_meal.html" as _ppm %}{{ _ppm.meal_line(protein_per_meal, protein_per_meal_amount) }}
 </section>
+{% else %}
+<section class="analysis-section">{{ meal_note_form() }}</section>
 {% endif %}
 
 {# ── Items list ───────────────────────────────────────────────────────── #}
 {% if items %}
 <section id="sec-items" class="analysis-section">
   <div class="d-inline-block" style="max-width:100%">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-    <h3 class="section-heading mb-0">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
+  {# Inner box shrinks to the table alone (the footnotes below are wider);
+     width:0 + min-width:100% lets the heading row take that width without
+     widening it, so Sort by ends at the table's right edge. #}
+  <div class="d-inline-block" style="max-width:100%">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2" style="width:0;min-width:100%">
+    <h3 class="section-heading mb-0" data-ak="y" data-ak-focus tabindex="-1">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
     <form method="get" action="/meal/{{ meal.id }}" class="d-flex align-items-center gap-1">
       <label class="muted me-1" for="item_sort"><small>Sort by</small></label>
       <select name="item_sort" id="item_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
@@ -650,6 +675,7 @@
       {% endfor %}
     </tbody>
   </table>
+  </div>
   {{ _ramt.weight_note(items | selectattr("recipe_id") | list | length > 0) }}
   {{ _gd.footnote(items) }}
   {{ _wm.footnote(items) }}

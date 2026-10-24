@@ -1102,6 +1102,20 @@
         target.select();
         return;
       }
+      // Alt+Shift+Y moves focus to the page's Items section (a meal's
+      // Items, Compare's items being compared, Analyze a recipe portion's
+      // Items in meal). Those targets carry data-ak-focus: focus only,
+      // never click — clicking a <summary> would close an open section.
+      // No page has both an Items section and Settings' System Issues
+      // (also Y), so the two never compete.
+      if (target.hasAttribute('data-ak-focus')) {
+        for (var dd = target.closest('details'); dd; dd = dd.parentElement.closest('details')) {
+          dd.open = true;
+        }
+        target.scrollIntoView({block: 'start'});
+        target.focus({preventScroll: true});
+        return;
+      }
       // Below the navbar's collapse breakpoint (narrow/mobile window), the
       // nav links live inside a collapsed <div id="main-nav"> (display:
       // none until expanded). Clicking a dropdown toggle in there still

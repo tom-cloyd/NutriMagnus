@@ -1740,6 +1740,21 @@ def test_settings_sections_order_and_shortcut_keys(client: TestClient) -> None:
     assert not nav_keys & {k for k, _ in found}
 
 
+def test_items_section_shortcut(client: TestClient, cached_food, db_conn) -> None:
+    """Alt+Shift+Y (data-ak="y" data-ak-focus) marks the Items section on a
+    meal and on Compare, and the handler focuses it rather than clicking it."""
+    meal_id = _db.meal_create(db_conn, "Lunch", "2026-10-01")
+    _db.meal_add_food(db_conn, meal_id, cached_food["fdcId"], cached_food["name"], 100.0, "g")
+    db_conn.commit()
+    meal = client.get(f"/meal/{meal_id}").text
+    assert 'data-ak="y" data-ak-focus tabindex="-1">Items (1)' in meal
+    rid = _make_recipe(client, "Y Stew", 1, cached_food["fdcId"], cached_food["name"], "300 g")
+    compare = client.get(f"/compare?items=r{rid},f{cached_food['fdcId']}").text
+    assert 'id="compare-items" data-ak="y" data-ak-focus' in compare
+    base = (pathlib.Path(backend.__file__).parent / "templates" / "base.html").read_text()
+    assert "target.hasAttribute('data-ak-focus')" in base
+
+
 def test_nav_memory_skips_own_section() -> None:
     """Clicking the nav link of the section you're already in goes to its
     list instead of memory-restoring the page you're on."""
@@ -3417,6 +3432,13 @@ def test_meal_add_recipe_rename_merge_refresh_aa(client: TestClient, cached_food
     meal = db_conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone()
     assert meal["name"] == "Renamed Dinner"
 
+    resp = client.post(f"/meal/{meal_id}/notes", data={"notes": "  Ate late.  "}, follow_redirects=False)
+    assert resp.status_code == 303
+    assert db_conn.execute("SELECT notes FROM meals WHERE id = ?", (meal_id,)).fetchone()["notes"] == "Ate late."
+    assert "Ate late.</textarea>" in client.get(f"/meal/{meal_id}").text
+    client.post(f"/meal/{meal_id}/notes", data={"notes": "   "}, follow_redirects=False)
+    assert db_conn.execute("SELECT notes FROM meals WHERE id = ?", (meal_id,)).fetchone()["notes"] is None
+
     resp = client.post(f"/meal/{meal_id}/refresh-aa", follow_redirects=False)
     assert resp.status_code == 303
 
@@ -3433,6 +3455,25 @@ def test_meal_add_recipe_rename_merge_refresh_aa(client: TestClient, cached_food
     merged_id = int(resp.headers["location"].rsplit("/", 1)[-1])
     merged_items = db_conn.execute("SELECT * FROM meal_items WHERE meal_id = ?", (merged_id,)).fetchall()
     assert len(merged_items) == 1
+
+
+def test_meal_merge_carries_notes(client: TestClient, db_conn) -> None:
+    def make(name, note):
+        mid = int(client.post("/meals/create", data={"name": name, "meal_date": "2026-07-12"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+        client.post(f"/meal/{mid}/notes", data={"notes": note})
+        return mid
+
+    def merged_note(ids):
+        resp = client.post(f"/meal/{ids[0]}/merge", data={"merge_ids": ids}, follow_redirects=False)
+        mid = int(resp.headers["location"].rsplit("/", 1)[-1])
+        return db_conn.execute("SELECT notes FROM meals WHERE id = ?", (mid,)).fetchone()["notes"]
+
+    a, b, c, d = make("Breakfast", "Ate late."), make("Snack", ""), make("Lunch", "Too salty."), make("Tea", "Ate late.")
+    assert merged_note([a, b]) == "Ate late."
+    assert merged_note([a, d]) == "Ate late."
+    assert merged_note([a, b, c, d]) == "Breakfast: Ate late.\n\nLunch: Too salty."
+    assert merged_note([b, b]) is None
 
 
 def test_food_use_analysis_shows_recipe_current_name_after_rename(client: TestClient) -> None:
