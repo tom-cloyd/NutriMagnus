@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-24:0311* / Reading time: 9 hours, 3 minutes
+*Updated 2026-10-24:0355* / Reading time: 9 hours, 3 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -2880,6 +2880,10 @@ Columns:
     Days used   Number of distinct calendar days on which this food or
                 recipe appeared, within the meals you selected.
     Meals       Number of selected meals containing this food or recipe.
+    Meal IDs /  The meals (or, switched, the dates) the item was eaten in.
+    Dates eaten A "Last column shows" switch above the table picks which;
+                each meal ID opens that meal, each date opens that day's
+                Daily Summary. Your choice is remembered in this browser.
 
 Rows are ranked most- to least-used by Days used (ties broken by Meals, then
 name), with a bar showing relative frequency.
@@ -5982,6 +5986,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 
+- **131.** Food Use in Meals can show the dates each food or recipe was eaten, instead of meal IDs, in its last column.
 - **130.** Each meal now has a **Meal note** box, beside the Protein Summary on the meal's page, for anything you want to remember about that meal; merging meals keeps their notes.
 - **129.** **Alt+Shift+Y** moves focus to the Items section, on every page that has one (a meal, Compare, and Analyze a recipe portion).
 - **128.** A stray backtick or punctuation mark typed with an amount ("1 T`", "2 tsp;") is now ignored instead of making the amount unreadable.
@@ -6115,6 +6120,21 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 24 updates
+
+**PROGRAM: FOOD USE IN MEALS CAN LIST DATES INSTEAD OF MEAL IDS**
+
+A **Last column shows** switch above the Food Use in Meals table now lets you see the dates each food or recipe was eaten, instead of the meal IDs; each date opens that day's Daily Summary, and the page remembers your choice. [learn more...](#fooduse)
+
+<!--
+
+```
+Scope: Analysis -> Food use in meals; web/templates/analysis_food_use.html.
+Both views are rendered into the cell (r.meal_ids and the existing r.dates
+from the "pick dates" list); client-side radio toggles which is visible,
+localStorage key numa.foodUse.mealcol.
+```
+
+-->
 
 **PROGRAM: A NOTE FOR EACH MEAL**
 

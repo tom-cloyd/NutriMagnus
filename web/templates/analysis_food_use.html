@@ -234,6 +234,15 @@
   <p class="text-warning-emphasis mb-2" id="hidden-no-protein">{{ hidden_no_protein }} food(s) and recipe(s) with no protein are hidden, because <strong>Only protein-containing foods</strong> is ticked &mdash;
     <a href="/analysis/food-use?{{ _all|urlencode }}">show them</a>.</p>
   {% endif %}
+  <p class="mb-2" id="mealcol-switch"><small>Last column shows:
+    <span class="form-check form-check-inline ms-2 me-2">
+      <input class="form-check-input" type="radio" name="mealcol" id="mealcol-ids" value="ids" checked>
+      <label class="form-check-label" for="mealcol-ids">Meal IDs</label>
+    </span>
+    <span class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mealcol" id="mealcol-dates" value="dates">
+      <label class="form-check-label" for="mealcol-dates">Dates eaten (each opens that day's summary)</label>
+    </span></small></p>
   <div class="table-responsive">
     <table class="table table-sm table-hover food-use-table" style="max-width:76rem">
       <thead class="table-light">
@@ -245,7 +254,7 @@
           <th class="num-col">Days used</th>
           <th class="num-col">Meals</th>
           <th style="min-width:14rem">% of Days<br>in Range</th>
-          <th style="min-width:24rem">Meal IDs</th>
+          <th style="min-width:24rem"><span class="js-mealcol-ids">Meal IDs</span><span class="js-mealcol-dates" hidden>Dates eaten</span></th>
           <th title="Open What-if with this item already entered as a change, across the same meals">What-if</th>
         </tr>
       </thead>
@@ -290,7 +299,8 @@
             </div>
           </td>
           <td class="muted">
-            {% for mid in r.meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}
+            <span class="js-mealcol-ids">{% for mid in r.meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>
+            <span class="js-mealcol-dates" hidden>{% for d in r.dates %}<a href="/summary/{{ d.date }}" title="{{ d.weekday }} {{ d.date }}: meal{{ 's' if d.meal_ids|length != 1 }} {{ d.meal_ids|join(', ') }} &mdash; open that day's summary">{{ d.date }}</a>{% if not loop.last %}, {% endif %}{% endfor %}</span>
           </td>
           <td style="white-space:nowrap">
             {% if r.code and not r.deleted %}
@@ -303,7 +313,7 @@
           <td></td>
           <td colspan="{{ 8 if track_water() else 7 }}">
             <div class="small">
-              <span class="muted me-2">Dates eaten (row above) &mdash; tick the ones the change above should reach:</span>
+              <span class="muted me-2">Dates {{ r.name }} was eaten. To replace, remove or add a food in only some of these meals, tick their dates here, then make the change in the <a href="#substitute-panel" class="js-open-substitute">Replace, remove or add a food or recipe in these meals</a> panel near the top of the page. With nothing ticked, the change reaches every meal selected.</span>
               <button type="button" class="btn btn-link btn-sm p-0 align-baseline js-dates-all">tick all</button> &middot;
               <button type="button" class="btn btn-link btn-sm p-0 align-baseline js-dates-none">untick all</button>
             </div>
@@ -339,6 +349,31 @@
 
 <script>
 (function () {
+  // Last column: meal IDs or the dates eaten; the choice is remembered in
+  // this browser.
+  (function () {
+    if (!document.getElementById('mealcol-switch')) return;
+    function show(v) {
+      document.querySelectorAll('.js-mealcol-ids').forEach(function (el) { el.hidden = v === 'dates'; });
+      document.querySelectorAll('.js-mealcol-dates').forEach(function (el) { el.hidden = v !== 'dates'; });
+    }
+    var saved = null;
+    try { saved = localStorage.getItem('numa.foodUse.mealcol'); } catch (e) {}
+    if (saved === 'dates') { document.getElementById('mealcol-dates').checked = true; show('dates'); }
+    document.querySelectorAll('input[name="mealcol"]').forEach(function (r) {
+      r.addEventListener('change', function () {
+        show(r.value);
+        try { localStorage.setItem('numa.foodUse.mealcol', r.value); } catch (e) {}
+      });
+    });
+  })();
+  // The link in a "pick dates" row opens the change panel it names.
+  document.querySelectorAll('.js-open-substitute').forEach(function (a) {
+    a.addEventListener('click', function () {
+      var panel = document.getElementById('substitute-panel');
+      if (panel) panel.open = true;
+    });
+  });
   // "pick dates": narrow the change panel to the meals on the ticked dates.
   var only = document.getElementById('only_meals');
   if (!only) return;
