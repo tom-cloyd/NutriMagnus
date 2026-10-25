@@ -185,7 +185,7 @@
   <input type="hidden" name="dcp" value="{{ 1 if is_dcp else 0 }}">
   <input type="hidden" name="action" value="{{ action }}">
   <input type="hidden" name="next" value="">
-  <button type="submit" class="btn btn-sm {{ 'btn-link p-0 align-baseline' if action == 'needed' else 'btn-outline-secondary py-0' }}" title="{{ title }}">{{ label }}</button>
+  <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline" title="{{ title }}">{{ label }}</button>
 </form>
 {% endmacro %}
 

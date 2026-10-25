@@ -367,7 +367,7 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
       <tr>
         <th>Food</th>
         {% for g, label, _ in groups if g in checked %}<th class="text-center">{{ label }}<br>
-          <small class="fw-normal">ask AI: <a href="#" onclick="setAskAI('{{ g }}', true); return false">all</a> &middot; <a href="#" onclick="setAskAI('{{ g }}', false); return false">none</a></small><br>
+          <small class="fw-normal">ask AI: <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline fw-normal" onclick="setAskAI('{{ g }}', true)">all</button> <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline fw-normal" onclick="setAskAI('{{ g }}', false)">none</button></small><br>
           <button type="button" class="btn btn-outline-secondary btn-sm py-0 mt-1 fw-normal js-col-not-needed" data-group="{{ g }}"
                   title="Ticks &ldquo;not needed&rdquo; for every food in this column. Nothing is saved until you click Save; click again (it then reads Unmark column) to untick them all.">Mark column not needed</button>
           {% if g != "aa" %}<br><button type="button" class="btn btn-outline-secondary btn-sm py-0 mt-1 fw-normal js-col-has-none" data-group="{{ g }}"

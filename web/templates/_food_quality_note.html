@@ -21,6 +21,6 @@
 <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" class="mb-2">
   <input type="hidden" name="group" value="calories_ok"><input type="hidden" name="ignored" value="0">
   <small class="muted">You confirmed this food&rsquo;s calories are right, so they aren&rsquo;t checked against its protein, carbs and fat.</small>
-  <button type="submit" class="btn btn-sm btn-link p-0 align-baseline">Check them again</button>
+  <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline">Check them again</button>
 </form>
 {% endif %}

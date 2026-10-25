@@ -287,7 +287,7 @@
     {% if 'aa' in other_gaps %}
     <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" style="display:inline">
       <input type="hidden" name="group" value="aa">
-      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit" id="aa-not-needed"
+      <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline" id="aa-not-needed"
               title="For a food whose protein doesn't matter, such as a vinegar, a spice or a supplement: stops listing it among foods with no amino acid data (Foods 9, Missing Amino Acid Profiles) and leaves amino acids out of Claude AI prompts. Undo it here.">Amino acids not needed for this food</button>
     </form>
     stops listing it for missing amino acids.
@@ -298,8 +298,8 @@
     <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" style="display:inline">
       <input type="hidden" name="group" value="{{ g }}">
       <input type="hidden" name="ignored" value="0">
-      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit"
-              title="Start flagging this food's missing {{ gap_labels[g] }} again">(undo)</button>
+      <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline"
+              title="Start flagging this food's missing {{ gap_labels[g] }} again">Undo</button>
     </form>{{ ", " if not loop.last else "." }}
     {% endfor %}</span>{% endif %}
     {% if data_nutrients_ignored %}<span class="d-inline-block">No data, marked not needed for this food:
@@ -308,8 +308,8 @@
       <input type="hidden" name="key" value="{{ k }}">
       <input type="hidden" name="action" value="needed">
       <input type="hidden" name="next" value="/food/{{ food.fdc_id }}">
-      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit"
-              title="Removes the not-needed mark for {{ label }}, so this food is listed again among foods with no {{ label }} data under Top Contributors, and asked about in Claude AI prompts">(undo)</button>
+      <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline"
+              title="Removes the not-needed mark for {{ label }}, so this food is listed again among foods with no {{ label }} data under Top Contributors, and asked about in Claude AI prompts">Undo</button>
     </form>{{ ", " if not loop.last else "." }}
     {% endfor %}</span>{% endif %}
   </div>

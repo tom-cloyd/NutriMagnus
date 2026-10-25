@@ -45,7 +45,7 @@
       var banner = document.createElement('div');
       banner.className = 'alert alert-info mt-3 mb-0 py-2';
       banner.innerHTML = 'Plot options preserved from last visit here. ' +
-        '<a href="#" id="reset-nutrient-plot">Reset to defaults</a>';
+        '<button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline" id="reset-nutrient-plot">Reset to defaults</button>';
       var heading = document.getElementById('nutrient-plot-heading');
       if (heading) heading.insertAdjacentElement('afterend', banner);
     }
@@ -127,7 +127,7 @@
   <div class="mb-2 d-flex flex-wrap gap-4 align-items-start">
     <div style="flex-shrink:0">
       <span class="form-label d-block"><strong>Nutrients</strong> <small class="muted">(up to {{ max_nutrients }})</small>
-        <a href="#" id="clear-nutrient-checkmarks" class="muted" style="font-size:0.75em">Clear all nutrient checkmarks</a>
+        <button type="button" id="clear-nutrient-checkmarks" class="btn btn-outline-secondary btn-sm py-0 align-baseline fw-normal" style="font-size:0.75em">Clear all nutrient checkmarks</button>
       </span>
       <div style="position:relative;max-width:28rem">
         <div style="display:flex;gap:1.5rem;max-height:16.5rem;overflow-y:auto;border:1px solid #d7dce4;border-radius:4px;padding:0.4rem 0.6rem 1.6rem 0.6rem">
@@ -154,7 +154,7 @@
          factors section below — not indented under the options group. #}
       <div class="mt-2" style="max-width:28rem">
         <label class="form-label mb-0" for="title"><strong>Plot title</strong>
-          {% if title %}<a href="#" id="title-auto" class="muted" style="font-size:0.75em" title="Clear this and use NuMa's auto-generated title (date range) again">Auto</a>{% endif %}
+          {% if title %}<button type="button" id="title-auto" class="btn btn-outline-secondary btn-sm py-0 align-baseline fw-normal" style="font-size:0.75em" title="Clear this and use NuMa's auto-generated title (date range) again">Auto</button>{% endif %}
         </label>
         <input type="text" class="form-control form-control-sm" id="title" name="title" value="{{ title }}" placeholder="{{ title_placeholder }}">
       </div>
@@ -215,7 +215,7 @@
           {% endif %}
           <div>
             <label class="form-label mb-0" for="scale_factor" title="Step 1: any nutrient plotted alongside a much larger- or smaller-scale one is divided by this so both stay readable on one axis. Prefilled with NuMa's computed default — change it and click Plot to try a different value."><strong>Scale factor</strong>
-              {% if scale_factor %}<a href="#" id="scale-factor-auto" class="muted" style="font-size:0.75em" title="Clear this and use NuMa's computed default again">Auto</a>{% endif %}
+              {% if scale_factor %}<button type="button" id="scale-factor-auto" class="btn btn-outline-secondary btn-sm py-0 align-baseline fw-normal" style="font-size:0.75em" title="Clear this and use NuMa's computed default again">Auto</button>{% endif %}
             </label>
             <div class="d-flex align-items-center gap-1">
               <input type="number" min="0.1" step="0.1" class="form-control form-control-sm" id="scale_factor" name="scale_factor"

@@ -959,7 +959,7 @@
   <p class="muted mt-1"><small>Amino acid values above come from this app's local food cache, not a live lookup.
     {% if diaas.missing %}
     <form method="post" action="/meal/{{ meal.id }}/refresh-aa" style="display:inline">
-      <button type="submit" class="btn btn-link btn-sm p-0 align-baseline" title="Checks USDA for amino acid data on the foods below that are missing it, and saves what it finds.">Refresh from USDA</button>
+      <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline" title="Checks USDA for amino acid data on the foods below that are missing it, and saves what it finds.">Refresh from USDA</button>
     </form>
     &mdash; some foods in this meal (see <a href="#sec-missing-aa">Missing Amino Acid Profiles</a> below) are missing amino acid data; this fetches it if USDA has it.
     {% endif %}

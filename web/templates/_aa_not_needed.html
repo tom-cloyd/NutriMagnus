@@ -7,7 +7,7 @@
 <form method="post" action="/food/{{ fid }}/data-ignore" style="display:inline">
   <input type="hidden" name="group" value="aa">
   <input type="hidden" name="next" value="{{ back }}#sec-missing-aa">
-  <button type="submit" class="btn btn-link btn-sm p-0 ms-2 align-baseline"
+  <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline ms-2"
           title="For a food whose protein doesn't matter here, such as a supplement. Undo it on the food's own page.">Amino acids not needed for this food &mdash; stop listing it</button>
 </form>
 {% endif %}

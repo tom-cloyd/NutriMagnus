@@ -158,7 +158,7 @@
     <input type="hidden" name="only_meals" id="only_meals" value="">
     <p class="mb-2" id="date-limit-summary" style="display:none"><small>
       <span class="badge text-bg-info me-1">only chosen dates</span><span id="date-limit-text"></span>
-      <button type="button" class="btn btn-link btn-sm p-0 ms-2 align-baseline" id="date-limit-clear">untick all dates (use the whole selection)</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline ms-2" id="date-limit-clear">untick all dates (use the whole selection)</button>
     </small></p>
     <div class="mb-2">
       {% for val, text in [("replace", "Replace one with another"), ("remove", "Remove from every meal"), ("add", "Add to every meal")] %}
@@ -305,7 +305,7 @@
           </td>{% endif %}
           <td class="muted" style="white-space:nowrap">{{ food_id_short(r.fdc_id, r.recipe_id if r.kind == "recipe" else none) }}{% if r.kind == "recipe" and r.deleted %} <span class="text-danger">(recipe deleted)</span>{% endif %}</td>
           <td class="num-col" style="white-space:nowrap">{{ r.days }}
-            <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline js-dates-toggle"
+            <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline ms-1 js-dates-toggle"
                     aria-expanded="false" aria-controls="dates-{{ loop.index }}"
                     title="List the dates {{ r.name }} was eaten, to tick just some of them for a replace, remove or add">pick dates</button>
           </td>
@@ -331,8 +331,8 @@
           <td colspan="{{ 8 if track_water() else 7 }}">
             <div class="small">
               <span class="muted me-2">Dates {{ r.name }} was eaten. To replace, remove or add a food in only some of these meals, tick their dates here, then make the change in the <a href="#substitute-panel" class="js-open-substitute">Replace, remove or add a food or recipe in these meals</a> panel near the top of the page. With nothing ticked, the change reaches every meal selected.</span>
-              <button type="button" class="btn btn-link btn-sm p-0 align-baseline js-dates-all">tick all</button> &middot;
-              <button type="button" class="btn btn-link btn-sm p-0 align-baseline js-dates-none">untick all</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline js-dates-all">tick all</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline js-dates-none">untick all</button>
             </div>
             <div class="d-flex flex-wrap gap-3 mt-1">
               {% for d in r.dates %}

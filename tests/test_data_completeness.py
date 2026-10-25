@@ -145,7 +145,7 @@ class TestWeb:
         client.post("/food/748608/data-ignore", data={"group": "macros"})
         resp = client.get("/food/748608")
         assert "Some core macronutrients are missing" not in resp.text
-        assert "Marked not needed for this food:" in resp.text and "(undo)" in resp.text
+        assert "Marked not needed for this food:" in resp.text and ">Undo<" in resp.text
 
     def test_fetch_prompt_skips_ignored_group_and_says_so(self, client):
         _cache(748608, "Oil", OLIVE_OIL)

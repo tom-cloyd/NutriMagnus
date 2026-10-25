@@ -200,7 +200,7 @@
   (<a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print" target="_blank">Print</a>,
   <form method="post" action="/recipe/{{ recipe.id }}/translation/{{ t.id }}/delete"
         class="d-inline js-row-remove" onsubmit="return confirm('Remove this translation?')">
-    <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Remove</button>
+    <button type="submit" class="btn btn-outline-danger btn-sm py-0 align-baseline">Remove</button>
   </form>){% if not loop.last %}, {% endif %}</span>
   {% endfor %}
 </p>

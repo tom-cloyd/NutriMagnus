@@ -219,7 +219,7 @@
       <strong>Current program version date:</strong> {{ version_date }} — <a href="/manual#{{ changelog_anchor }}" target="_blank" rel="noopener">see what changed</a>
       {% if not update_available and not manual_update_available %}
       — <form method="post" action="/check-for-updates" class="d-inline">
-        <button type="submit" class="btn btn-link btn-sm p-0 align-baseline">Check for updates now</button>
+        <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline">Check for updates now</button>
       </form>
       {% endif %}</li>
   </ul>

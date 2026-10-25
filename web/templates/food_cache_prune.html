@@ -15,8 +15,8 @@
 
 {% if unused %}
 <p><strong id="prune-count">{{ unused|length }}</strong> food{% if unused|length != 1 %}s{% endif %} checked for deletion.
-  <button type="button" class="btn btn-link btn-sm p-0 align-baseline" onclick="pruneSetAll(true)">Check all</button> ·
-  <button type="button" class="btn btn-link btn-sm p-0 align-baseline" onclick="pruneSetAll(false)">Uncheck all</button>
+  <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline" onclick="pruneSetAll(true)">Check all</button>
+  <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline" onclick="pruneSetAll(false)">Uncheck all</button>
 </p>
 <form method="post" action="/food/cache/prune" id="prune-form">
 <div class="table-responsive mb-3">

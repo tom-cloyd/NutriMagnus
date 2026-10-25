@@ -170,9 +170,9 @@
       </td>
       <td>
         {% if food.notes or food.curator_notes %}
-        <a href="#" onclick="toggleNotes({{ food.fdc_id }}); return false;" style="cursor:pointer;color:var(--numa-accent)">
+        <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline" onclick="toggleNotes({{ food.fdc_id }})">
           <small>Notes ▸</small>
-        </a>
+        </button>
         {% else %}
         <span class="muted">—</span>
         {% endif %}
