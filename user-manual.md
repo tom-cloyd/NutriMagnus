@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-24:0355* / Reading time: 9 hours, 3 minutes
+*Updated 2026-10-24:1606* / Reading time: 9 hours, 4 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -2339,7 +2339,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 22 minutes)*
+*(Reading time: 1 hour, 23 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2869,7 +2869,15 @@ set of meals you choose — foods logged on their own, recipes, the
 sub-recipes inside them, and every food used inside a recipe. You pick one selection method — one or more date ranges,
 or a list of specific meal IDs (not both in the same run) — then choose
 whether to include all foods or only protein-containing foods
-(more than 0 g of protein per 100 g).
+(more than 0 g of protein per 100 g). To find one food or recipe in a long
+table, type part of its name in
+**Show only foods and recipes whose name contains**{: #fooduse-name}
+(every word you type has to be in the name; capitals don't matter), or an item's
+exact code from the **Code** column, and click **Analyze**. Only the rows
+shown change: counts and percentages are still taken over the whole
+selection, and the heading says how many rows match. A change made from the
+**Replace, remove or add** panel brings you back to the same filtered view.
+**Clear name filter** shows them all again.
 
 Columns:
 
@@ -3012,7 +3020,14 @@ the two items aren't measured the same way.
 On **Food Use in Meals**, substitution only reaches items added *directly*
 to a meal — a food used inside a recipe is part of that recipe's own
 ingredient list, not the meal's, so substitute it from **Food Use in
-Recipes** instead, scoped to that recipe. On **Food Use in Recipes**,
+Recipes** instead, scoped to that recipe. A row eaten inside a recipe says
+so in a line under its name, **Eaten only inside**{: #fooduse-inside-recipes} (or **Also eaten
+inside**, when it's logged directly in some meals too), naming the recipe
+whose ingredient list holds it; its **replace it in that recipe** link
+opens Food Use in Recipes with that recipe selected and the food already
+chosen as the thing to replace. So a food that
+still shows after a replace isn't a sign the replace failed: it's still in
+a recipe those meals include. On **Food Use in Recipes**,
 substitution updates every selected recipe's ingredient list and recomputes
 each changed recipe's [DCP](#gloss-dcp) automatically — including cascading up to any
 recipe that in turn uses one of them as a sub-recipe.
@@ -5968,7 +5983,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 50 minutes)*
+*(Reading time: 51 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5986,6 +6001,8 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 
+- **133.** Food Use in Meals now says when a food is eaten inside a recipe, which a replace there can't reach, and links to replacing it in that recipe.
+- **132.** Food Use in Meals can show just the foods and recipes whose name contains the words you type.
 - **131.** Food Use in Meals can show the dates each food or recipe was eaten, instead of meal IDs, in its last column.
 - **130.** Each meal now has a **Meal note** box, beside the Protein Summary on the meal's page, for anything you want to remember about that meal; merging meals keeps their notes.
 - **129.** **Alt+Shift+Y** moves focus to the Items section, on every page that has one (a meal, Compare, and Analyze a recipe portion).
@@ -6120,6 +6137,26 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 24 updates
+
+**PROGRAM: FOOD USE IN MEALS SAYS WHICH RECIPE A FOOD IS INSIDE**
+
+On Food use in meals, a food or recipe eaten inside a recipe now says so under its name, naming that recipe, with a link that opens Food use in recipes ready to replace it there. A replace made on Food use in meals reaches only foods logged directly on a meal, so before this a food inside a recipe could look as if the replace hadn't worked. [learn more...](#fooduse-inside-recipes)
+
+<!--
+```
+Scope: Analysis -> Food use in meals. web/backend.py: new _food_use_recipe_parents() walks a logged recipe's ingredients (through sub-recipes, cached per page) mapping each row key to the recipe(s) whose own ingredient list holds it; analysis_food_use() collects inside_parents / inside_meal_ids per row, and rows carry inside_recipes + inside_meals. Template line under the name links to /analysis/food-use-recipes?mode=ids&recipe_ids=<parents>&name=<code>&sub_kind/sub_id (that page's existing pre-fill). Reported case: U169655 replaced by U746784, 4 meals still showed it via R58 Thumbprint cookies. Test: test_food_use_meals_names_the_recipe_a_food_is_eaten_inside.
+```
+-->
+
+**PROGRAM: FOOD USE IN MEALS HAS A NAME FILTER**
+
+Analysis -> Food use in meals now has a name box, like Food use in recipes, so you can show just the foods and recipes whose name contains the words you type, or the one with a code you type. [learn more...](#fooduse-name)
+
+<!--
+```
+Scope: Analysis -> Food use in meals. web/backend.py analysis_food_use() takes name (alias of name_filter), filtered after protein_only exactly as analysis_food_use_recipes() does (_typed_code exact match, else every word); rows_before_name feeds the heading count and a distinct empty-state message. _food_use_back()/the substitute POST carry name through so a change returns to the filtered view; the protein-only "show them" link keeps it too. Test: test_food_use_meals_name_filter.
+```
+-->
 
 **PROGRAM: FOOD USE IN MEALS CAN LIST DATES INSTEAD OF MEAL IDS**
 

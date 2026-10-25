@@ -3671,6 +3671,69 @@ def test_food_use_recipes_name_filter(client: TestClient, cached_food: dict, sec
     assert "None of the 2 foods and recipes used in this selection" in resp.text
 
 
+def test_food_use_meals_name_filter(client: TestClient, cached_food: dict, second_cached_food: dict) -> None:
+    """Food Use in Meals' name box narrows the table to rows whose name has
+    every word typed (or the one item with a typed code); the change form
+    carries it, and a change returns to the same filtered view."""
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Dinner", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    for f in (cached_food, second_cached_food):
+        client.post(f"/meal/{meal_id}/add",
+                    data={"fdc_id": f["fdcId"], "food_name": f["name"], "portion_str": "100 g"},
+                    follow_redirects=False)
+    base = "/analysis/food-use?ranges_raw=2026-07-01:2026-07-31"
+    resp = client.get(base + "&name=second+FOOD")
+    assert "Second Test Food" in resp.text
+    assert f'href="/food/{cached_food["fdcId"]}"' not in resp.text
+    assert "1 of 2 rows" in resp.text
+    assert '<input type="hidden" name="name" value="second FOOD">' in resp.text
+    assert "Clear name filter" in resp.text
+    resp = client.get(base + f"&name=U{cached_food['fdcId']}")
+    assert f'href="/food/{cached_food["fdcId"]}"' in resp.text
+    assert "Second Test Food" not in resp.text
+    resp = client.get(base + "&name=zzz")
+    assert "None of the 2 foods and recipes eaten in the selected meals" in resp.text
+    resp = client.post("/analysis/food-use/substitute",
+                       data={"mode": "range", "ranges_raw": "2026-07-01:2026-07-31", "name": "second",
+                             "action": "remove", "old_code": "R999999"},
+                       follow_redirects=False)
+    assert "name=second" in resp.headers["location"]
+
+
+def test_food_use_meals_names_the_recipe_a_food_is_eaten_inside(client: TestClient, cached_food: dict) -> None:
+    """Regression test: a food eaten inside a recipe looked unchanged after a
+    replace on Food Use in Meals (which reaches only foods logged directly),
+    with nothing on its row saying why. The row now names the recipe that
+    holds it and links to Food Use in Recipes, set up to replace it there."""
+    rid = int(
+        client.post("/recipe/new", data={"name": "Cookies", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    client.post(f"/recipe/{rid}/ingredient/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "100 g"},
+                follow_redirects=False)
+    meal_id = int(
+        client.post("/meals/create", data={"name": "Snack", "meal_date": "2026-07-15"}, follow_redirects=False)
+        .headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add-recipe",
+                data={"recipe_id": rid, "recipe_name": "Cookies", "servings": 1, "mode": "recipe"},
+                follow_redirects=False)
+    text = client.get(f"/analysis/food-use?ranges_raw=2026-07-01:2026-07-31&name=U{cached_food['fdcId']}").text
+    assert "Eaten only inside" in text
+    assert f'<a href="/recipe/{rid}">Cookies</a>' in text
+    assert f"recipe_ids={rid}&amp;name=U{cached_food['fdcId']}&amp;sub_kind=food&amp;sub_id={cached_food['fdcId']}" in text
+    # Logged directly as well: the note says "Also", and the recipe's own row has none.
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "50 g"},
+                follow_redirects=False)
+    text = client.get("/analysis/food-use?ranges_raw=2026-07-01:2026-07-31").text
+    assert "Also eaten inside" in text
+    assert text.count("js-inside-recipes") == 1
+
+
 def test_food_page_and_printout_show_its_notes_and_prep_context(client: TestClient, cached_food, db_conn) -> None:
     fid = cached_food["fdcId"]
     db_conn.execute("UPDATE foods SET notes = ? WHERE fdc_id = ?", ("Corrected from the package label", fid))

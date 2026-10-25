@@ -11990,6 +11990,29 @@ def _item_code(e: dict) -> str:
     return classified[0] if classified else ""
 
 
+def _food_use_recipe_parents(conn, recipe_id: int, cache: dict) -> dict[tuple, set[int]]:
+    """Everything a recipe contains, at any depth, keyed as Food Use in
+    Meals keys its rows ((fdc_id, "food") / ("recipe", id)), each mapped to
+    the recipe(s) whose own ingredient list holds it -- the recipe to change
+    to replace or remove it, since a meal-level change can't reach inside a
+    recipe. cache is shared across one page's meals (recipe_id -> result)."""
+    if recipe_id in cache:
+        return cache[recipe_id]
+    cache[recipe_id] = {}  # guards a recipe that (wrongly) contains itself
+    out: dict[tuple, set[int]] = {}
+    for ing in _db.recipe_get_ingredients(conn, recipe_id):
+        if ing["ref_recipe_deleted"]:
+            continue
+        if ing["ref_recipe_id"]:
+            out.setdefault(("recipe", ing["ref_recipe_id"]), set()).add(recipe_id)
+            for key, parents in _food_use_recipe_parents(conn, ing["ref_recipe_id"], cache).items():
+                out.setdefault(key, set()).update(parents)
+        elif ing["fdc_id"] is not None:
+            out.setdefault((ing["fdc_id"], "food"), set()).add(recipe_id)
+    cache[recipe_id] = out
+    return out
+
+
 def _weekday_abbr(date_str: str) -> str:
     """"Mon", "Tue", ... for a YYYY-MM-DD date; "" if it isn't one."""
     try:
@@ -12029,6 +12052,7 @@ async def analysis_food_use(
     ranges_raw: str | None = Query(default=None),
     meal_ids: str = Query(default=""),
     protein_only: bool = Query(default=False),
+    name_filter: str = Query(default="", alias="name"),
     sort: str = Query(default="frequency"),
     substituted: int = Query(default=0),
     removed: int = Query(default=0),
@@ -12040,6 +12064,10 @@ async def analysis_food_use(
     """Food use in meals: frequency-of-use table across a chosen set of meals.
 
     mode selects EITHER date range(s) ("range") OR meal IDs ("ids") — never both.
+    `name` (name_filter) then narrows the table to foods and recipes whose
+    name contains every word typed, or to the one item with a typed code; it
+    changes only which rows show, never the selection the counts and
+    percentages are taken over (as on Food Use in Recipes).
 
     sub_kind/sub_id pre-fill the "Replace this" side of the substitute form —
     used to deep-link here from a delete-blocked message (Food Cache, Custom
@@ -12055,6 +12083,7 @@ async def analysis_food_use(
     requested_ids = _parse_id_list_tokens(meal_ids) if mode != "range" else []
 
     agg: dict[tuple, dict] = {}
+    parents_cache: dict[int, dict] = {}
     with _db.get_db() as conn:
         for meal_id, meal in meals_by_id.items():
             items = _db.meal_expand_food_items(conn, meal_id)
@@ -12087,12 +12116,29 @@ async def analysis_food_use(
                     direct_key = (it["fdc_id"], "food")
                 if direct_key in agg:
                     agg[direct_key].setdefault("direct_meal_ids", set()).add(meal_id)
+                # What this meal eats inside its recipes, and which recipe
+                # holds each -- shown on the row, since a change made here
+                # can't reach those.
+                if it["item_type"] == "recipe" and it["recipe_id"] and _db.recipe_get(conn, it["recipe_id"]):
+                    for key, parents in _food_use_recipe_parents(conn, it["recipe_id"], parents_cache).items():
+                        if key in agg:
+                            agg[key].setdefault("inside_parents", set()).update(parents)
+                            agg[key].setdefault("inside_meal_ids", set()).add(meal_id)
 
     rows_all = list(agg.values())
     hidden_no_protein = 0
     if protein_only:
         hidden_no_protein = sum(1 for r in rows_all if not r["has_protein"])
         rows_all = [r for r in rows_all if r["has_protein"]]
+    name_filter = name_filter.strip()
+    rows_before_name = len(rows_all)
+    name_code = _typed_code(name_filter)
+    if name_code:
+        rows_all = [r for r in rows_all
+                    if name_code == (("recipe", r["recipe_id"]) if r["recipe_id"] else ("food", r["fdc_id"]))]
+    elif name_filter:
+        words = name_filter.lower().split()
+        rows_all = [r for r in rows_all if all(w in (r["name"] or "").lower() for w in words)]
 
     sort_keys = {
         "frequency": lambda e: (-len(e["days"]), -len(e["meal_ids"]), e["name"].lower()),
@@ -12110,6 +12156,11 @@ async def analysis_food_use(
             else:
                 row = _db.get_cached_food(conn, r["fdc_id"]) if r["fdc_id"] else None
             r["is_drink"] = _water.is_drink(row) if row is not None else None
+            r["inside_recipes"] = []
+            for pid in sorted(r.get("inside_parents", ())):
+                prow = _db.recipe_get(conn, pid)
+                if prow:
+                    r["inside_recipes"].append({"id": pid, "code": _food_code(None, pid), "name": prow["name"]})
     result_rows = [{
         "fdc_id":    r["fdc_id"],
         "code":      _item_code(r),
@@ -12122,6 +12173,11 @@ async def analysis_food_use(
         "pct":       round(len(r["days"]) / total_days * 100, 0) if total_days else 0,
         "meal_ids":  sorted(r["meal_ids"]),
         "direct_meals": len(r.get("direct_meal_ids", ())),
+        # The recipes it's eaten inside (each one whose ingredient list
+        # holds it), and in how many meals -- a change made here can't
+        # reach those, so the row says where to make it instead.
+        "inside_recipes": r.get("inside_recipes", []),
+        "inside_meals": len(r.get("inside_meal_ids", ())),
         "is_drink":  r["is_drink"],
         # The row's days, each with its meals, for the "pick dates" list
         # that narrows a replace/remove/add to chosen days.
@@ -12136,6 +12192,8 @@ async def analysis_food_use(
         "meal_ids_raw":  meal_ids,
         "protein_only":  protein_only,
         "hidden_no_protein": hidden_no_protein,
+        "name":          name_filter,
+        "rows_before_name": rows_before_name,
         "sort":          sort,
         "missing_ids":   missing_ids,
         "bad_dates":     _bad_date_lines(ranges_raw) if mode == "range" else [],
@@ -12177,10 +12235,13 @@ async def analysis_food_use_replacement_search(q: str = Query(default="")):
 
 
 def _food_use_back(mode: str, ranges_raw: str, meal_ids: str, protein_only: bool, sort: str,
-                   error: str | None = None, **done: int) -> RedirectResponse:
-    """Back to Food Use in Meals with the same selection, plus an error or
-    a count of what was just changed (substituted= / removed= / added=)."""
+                   error: str | None = None, name: str = "", **done: int) -> RedirectResponse:
+    """Back to Food Use in Meals with the same selection and name filter,
+    plus an error or a count of what was just changed (substituted= /
+    removed= / added=)."""
     params = {"mode": mode, "protein_only": protein_only, "sort": sort}
+    if name.strip():
+        params["name"] = name.strip()
     if mode == "range":
         params["ranges_raw"] = ranges_raw
     else:
@@ -12198,6 +12259,7 @@ async def analysis_food_use_substitute(
     ranges_raw: str = Form(""),
     meal_ids: str = Form(""),
     protein_only: bool = Form(False),
+    name: str = Form(""),
     sort: str = Form("frequency"),
     action: str = Form("replace"),
     old_code: str = Form(""),
@@ -12214,7 +12276,7 @@ async def analysis_food_use_substitute(
     dates" lists) narrows that to the meals on the dates ticked there — never
     widens it past the on-screen selection. Writes at once; no undo."""
     def _back(error: str | None = None, **done: int) -> RedirectResponse:
-        return _food_use_back(mode, ranges_raw, meal_ids, protein_only, sort, error, **done)
+        return _food_use_back(mode, ranges_raw, meal_ids, protein_only, sort, error, name, **done)
 
     only_ids = set(_parse_id_list_tokens(only_meals)) if only_meals.strip() else None
 

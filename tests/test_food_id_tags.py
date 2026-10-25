@@ -26,6 +26,7 @@ EXEMPT = {
     ("food_cache_import_csv.html", "{{ f.name }}"): "import preview: not in the database yet, so no code",
     ("recipe_import_csv.html", "{{ r.name }}"): "import preview: not in the database yet, so no code",
     ("settings.html", "{{ ov.food_name }}"): "DIAAS overrides are keyed by food name, with no food ID stored",
+    ("analysis_food_use.html", "Dates {{ r.name }} was eaten"): "pick-dates row: its code is in the table row directly above",
 }
 
 

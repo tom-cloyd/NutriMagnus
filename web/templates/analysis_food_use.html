@@ -44,6 +44,14 @@
     </div>
   </div>
 
+  <div class="mb-3" style="max-width:30rem">
+    <label class="form-label" for="name-filter">Show only foods and recipes whose name contains <small class="muted">(every word you type; leave blank to show all)</small></label>
+    <div class="input-group">
+      <input type="text" class="form-control" id="name-filter" name="name" value="{{ name or '' }}" placeholder="e.g. okara flour, or a code: U171477, R21" title="Type part of a name, or an exact code such as U171477, UD4 or R21 to find just that one">
+      {% if name %}<a class="btn btn-outline-secondary" href="/analysis/food-use?{{ {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or '', 'protein_only': 'true' if protein_only else '', 'sort': sort or 'frequency'}|urlencode }}">Clear name filter</a>{% endif %}
+    </div>
+  </div>
+
   <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="protein_only" name="protein_only" value="true" {% if protein_only %}checked{% endif %}>
@@ -145,6 +153,7 @@
     <input type="hidden" name="ranges_raw" value="{{ ranges_raw or '' }}">
     <input type="hidden" name="meal_ids" value="{{ meal_ids_raw or '' }}">
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
+    <input type="hidden" name="name" value="{{ name or '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
     <input type="hidden" name="only_meals" id="only_meals" value="">
     <p class="mb-2" id="date-limit-summary" style="display:none"><small>
@@ -228,9 +237,9 @@
   {% if rows %}
   <hr style="margin:1.5em 0 0 0">
   <h3 class="mb-2">Foods used in selected meals
-    <small class="muted fw-normal" style="font-size:0.875rem">({{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %})</small>
+    <small class="muted fw-normal" style="font-size:0.875rem">({{ total_meals }} meal(s) across {{ total_days }} distinct day(s){% if protein_only %} &middot; protein-containing foods only{% endif %}{% if name %} &middot; {{ rows|length }} of {{ rows_before_name }} rows, names containing &ldquo;{{ name }}&rdquo;{% endif %})</small>
   </h3>
-  {% if hidden_no_protein %}{% set _all = {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or '', 'sort': sort or 'frequency'} %}
+  {% if hidden_no_protein %}{% set _all = {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or '', 'name': name or '', 'sort': sort or 'frequency'} %}
   <p class="text-warning-emphasis mb-2" id="hidden-no-protein">{{ hidden_no_protein }} food(s) and recipe(s) with no protein are hidden, because <strong>Only protein-containing foods</strong> is ticked &mdash;
     <a href="/analysis/food-use?{{ _all|urlencode }}">show them</a>.</p>
   {% endif %}
@@ -275,6 +284,14 @@
               {% else %}{{ r.name }}{% endif %}
             {% endif %}
             {% if is_replace_target %}<span class="badge text-bg-warning ms-1">replacing this</span>{% endif %}
+            {% if r.inside_recipes and not r.deleted %}
+            <div class="small text-warning-emphasis js-inside-recipes">
+              {% if r.direct_meals %}Also eaten{% else %}Eaten only{% endif %} inside
+              {% for p in r.inside_recipes %}<a href="/recipe/{{ p.id }}">{{ p.name }}</a> <span class="muted">{{ p.code }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+              ({{ r.inside_meals }} meal{{ 's' if r.inside_meals != 1 }}). A replace or remove made on this page can't reach it there &mdash;
+              <a href="/analysis/food-use-recipes?{{ {'mode': 'ids', 'recipe_ids': r.inside_recipes|map(attribute='id')|join(','), 'name': r.code, 'sub_kind': r.kind, 'sub_id': r.recipe_id if r.kind == 'recipe' else r.fdc_id}|urlencode }}">replace it in {{ 'that recipe' if r.inside_recipes|length == 1 else 'those recipes' }}</a>.
+            </div>
+            {% endif %}
           </td>
           {% if track_water() %}<td class="text-center">
             {% if r.is_drink is not none %}
@@ -342,6 +359,9 @@
     <strong>Drink</strong>: tick a food or recipe that is a drink, and its water counts as water from drinks rather than from food in every meal and day total ({{ manual_link("water") }}).{% endif %}
   </small></p>
   {% include "_code_key.html" %}
+  {% elif name and rows_before_name %}
+  <p class="muted mt-2">None of the {{ rows_before_name }} foods and recipes eaten in the selected meals has a name containing &ldquo;{{ name }}&rdquo;.
+    <a href="/analysis/food-use?{{ {'mode': mode, 'ranges_raw': ranges_raw or '', 'meal_ids': meal_ids_raw or '', 'protein_only': 'true' if protein_only else '', 'sort': sort or 'frequency'}|urlencode }}">Clear name filter</a></p>
   {% else %}
   <p class="muted mt-2">No meals matched the selected date range(s) / meal IDs{% if protein_only %}, or none contained protein-containing foods{% endif %}.</p>
   {% endif %}
