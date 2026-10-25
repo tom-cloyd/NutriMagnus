@@ -46,71 +46,14 @@
         "aa_tyrosine_g": 0.083,
         "aa_valine_g": 0.185,
         "aa_histidine_g": 0.127,
-        "omega3_epa_mg": 0.0
+        "omega3_epa_mg": 0.0,
+        "water_g": 71.6,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
           "description": "cup",
           "gram_weight": 185.0
-        }
-      ]
-    },
-    {
-      "fdc_id": 169655,
-      "name": "* Sugars, granulated",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 387.0,
-        "protein_g": 0.0,
-        "fat_g": 0.0,
-        "carbs_g": 99.98,
-        "fiber_g": 0.0,
-        "calcium_mg": 1.0,
-        "iron_mg": 0.05,
-        "magnesium_mg": 0.0,
-        "phosphorus_mg": 0.0,
-        "potassium_mg": 2.0,
-        "sodium_mg": 1.0,
-        "zinc_mg": 0.01,
-        "selenium_mcg": 0.6,
-        "vitamin_c_mg": 0.0,
-        "thiamin_mg": 0.0,
-        "riboflavin_mg": 0.019,
-        "niacin_mg": 0.0,
-        "b6_mg": 0.0,
-        "folate_mcg": 0.0,
-        "choline_mg": 0.0,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 0.0,
-        "beta_carotene_mcg": 0.0,
-        "alpha_carotene_mcg": 0.0,
-        "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 0.0,
-        "vitamin_e_mg": 0.0,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 0.0,
-        "mono_fat_g": 0.0,
-        "poly_fat_g": 0.0,
-        "omega6_la_mg": 0.0,
-        "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
-      },
-      "portions": [
-        {
-          "description": "cup",
-          "gram_weight": 200.0
-        },
-        {
-          "description": "serving 1 cube",
-          "gram_weight": 2.3
-        },
-        {
-          "description": "tsp",
-          "gram_weight": 4.2
-        },
-        {
-          "description": "serving packet",
-          "gram_weight": 2.8
         }
       ]
     },
@@ -161,7 +104,9 @@
         "aa_valine_g": 0.021,
         "aa_histidine_g": 0.014,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 89.1,
+        "vitamin_k_mcg": 0.4
       },
       "portions": [
         {
@@ -249,14 +194,20 @@
         "beta_carotene_mcg": 0.0,
         "alpha_carotene_mcg": 0.0,
         "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 0.0
+        "lutein_zeaxanthin_mcg": 0.0,
+        "water_g": 63.0,
+        "vitamin_k_mcg": 3.5
       },
       "portions": [
         {
           "description": "cup",
           "gram_weight": 171.0
         }
-      ]
+      ],
+      "gi": {
+        "estimate": 20.0,
+        "source": "Atkinson 2008 international GI tables (carried forward; year of test not recorded): \u201cBeans, dried, boiled, type NS (Italy)16\u201d \u00b7 Impaired glucose tolerance \u00b7 ref Bread, 2h 76"
+      }
     },
     {
       "fdc_id": 173799,
@@ -303,12 +254,18 @@
         "aa_phenylalanine_g": 0.475,
         "aa_tyrosine_g": 0.22,
         "aa_valine_g": 0.372,
-        "aa_histidine_g": 0.244
+        "aa_histidine_g": 0.244,
+        "water_g": 60.2,
+        "vitamin_k_mcg": 4.0
       },
       "portions": [
         {
           "description": "cup",
           "gram_weight": 164.0
+        },
+        {
+          "description": "1 cup",
+          "gram_weight": 168.0
         }
       ]
     },
@@ -348,7 +305,8 @@
         "calories": 424.0,
         "niacin_mg": 3.78,
         "calcium_mg": 79.0,
-        "vitamin_c_mg": 0.0
+        "vitamin_c_mg": 0.0,
+        "water_g": 3.6
       },
       "portions": [
         {
@@ -404,14 +362,20 @@
         "aa_valine_g": 0.348,
         "aa_histidine_g": 0.166,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 75.6,
+        "vitamin_k_mcg": 2.3
       },
       "portions": [
         {
           "description": "cup",
           "gram_weight": 240.0
         }
-      ]
+      ],
+      "gi": {
+        "estimate": 20.0,
+        "source": "Atkinson 2008 international GI tables (carried forward; year of test not recorded): \u201cBeans, dried, boiled, type NS (Italy)16\u201d \u00b7 Impaired glucose tolerance \u00b7 ref Bread, 2h 76"
+      }
     },
     {
       "fdc_id": 175237,
@@ -460,7 +424,9 @@
         "aa_valine_g": 0.464,
         "aa_histidine_g": 0.247,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 65.7,
+        "vitamin_k_mcg": 3.3
       },
       "portions": [
         {
@@ -514,7 +480,9 @@
         "aa_phenylalanine_g": 0.442,
         "aa_tyrosine_g": 0.23,
         "aa_valine_g": 0.428,
-        "aa_histidine_g": 0.228
+        "aa_histidine_g": 0.228,
+        "water_g": 65.7,
+        "vitamin_k_mcg": 3.3
       },
       "portions": [
         {
@@ -569,12 +537,13 @@
         "aa_histidine_g": 0.283,
         "aa_cystine_g": 0.385,
         "fiber_g": 0.0,
-        "choline_mg": 335.0
+        "choline_mg": 335.0,
+        "water_g": 75.8
       },
       "portions": [
         {
           "description": "p1 - one egg shelled",
-          "gram_weight": 45.0
+          "gram_weight": 57.0
         }
       ]
     },
@@ -621,9 +590,15 @@
         "aa_phenylalanine_g": 0.682,
         "aa_tyrosine_g": 0.275,
         "aa_valine_g": 0.564,
-        "aa_histidine_g": 0.357
+        "aa_histidine_g": 0.357,
+        "water_g": 9.44
       },
-      "portions": null,
+      "portions": [
+        {
+          "description": "1 cup",
+          "gram_weight": 136.0
+        }
+      ],
       "ignores": [
         "portions"
       ]
@@ -665,11 +640,14 @@
         "thiamin_mg": 0.0,
         "vitamin_c_mg": 0.0
       },
-      "portions": null
+      "portions": null,
+      "ignores": [
+        "water"
+      ]
     },
     {
       "fdc_id": 2069531,
-      "name": "* 100% FINE GROUND ROASTED SESAME SEEDS TAHINI",
+      "name": "* TAHINI, SESAME SEED, 100% FINE GROUND ROASTED",
       "data_type": "Branded",
       "nutrients": {
         "protein_g": 25.0,
@@ -699,6 +677,9 @@
           "description": "2 Tbsp",
           "gram_weight": 32.0
         }
+      ],
+      "ignores": [
+        "water"
       ]
     },
     {
@@ -734,7 +715,8 @@
         "aa_tyrosine_g": 0.63,
         "aa_valine_g": 0.916,
         "aa_histidine_g": 0.548,
-        "calories": 583.6
+        "calories": 583.6,
+        "water_g": 4.26
       },
       "portions": null,
       "ignores": [
@@ -760,7 +742,7 @@
         "thiamin_mg": 0.23,
         "niacin_mg": 1.218,
         "b6_mg": 0.6603,
-        "vitamin_k_mcg": 0.0,
+        "vitamin_k_mcg": 1.7,
         "saturated_fat_g": 6.054,
         "mono_fat_g": 9.625,
         "poly_fat_g": 49.331,
@@ -774,7 +756,8 @@
         "aa_tyrosine_g": 0.43,
         "aa_valine_g": 0.5967,
         "aa_histidine_g": 0.3433,
-        "calories": 678.7
+        "calories": 678.7,
+        "water_g": 3.14
       },
       "portions": [
         {
@@ -822,8 +805,11 @@
       "portions": [
         {
           "description": "1 cup",
-          "gram_weight": 56.0
+          "gram_weight": 50.0
         }
+      ],
+      "ignores": [
+        "water"
       ]
     },
     {
@@ -908,6 +894,9 @@
           "description": "100 milliliter",
           "gram_weight": 90.7
         }
+      ],
+      "ignores": [
+        "water"
       ]
     },
     {
@@ -957,7 +946,9 @@
         "aa_valine_g": 0.018,
         "aa_histidine_g": 0.012,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 92.2,
+        "vitamin_k_mcg": 0.3
       },
       "portions": [
         {
@@ -1006,7 +997,9 @@
         "mono_fat_g": 0.029,
         "poly_fat_g": 0.112,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 91.7,
+        "vitamin_k_mcg": 18.5
       },
       "portions": [
         {
@@ -1066,7 +1059,8 @@
         }
       ],
       "ignores": [
-        "vitamins"
+        "vitamins",
+        "water"
       ]
     },
     {
@@ -1084,7 +1078,8 @@
       "portions": null,
       "ignores": [
         "portions",
-        "vitamins"
+        "vitamins",
+        "water"
       ]
     },
     {
@@ -1097,7 +1092,8 @@
         "fat_g": 0.38,
         "carbs_g": 28.2,
         "fiber_g": 2.7,
-        "vitamin_c_mg": 10.0
+        "vitamin_c_mg": 10.0,
+        "water_g": 63.1
       },
       "portions": null,
       "ignores": [
@@ -1143,7 +1139,9 @@
         "poly_fat_g": 0.04,
         "beta_sitosterol_mg": 3.0,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 92.2,
+        "vitamin_k_mcg": 310.0
       },
       "portions": [
         {
@@ -1161,46 +1159,47 @@
     },
     {
       "fdc_id": 2261420,
-      "name": "* Almond Flour",
+      "name": "* Almond Flour - raw",
       "data_type": "SR Legacy",
       "nutrients": {
-        "poly_fat_g": 12.3,
-        "zinc_mg": 3.1,
-        "sugar_g": 4.4,
-        "sodium_mg": 1.0,
-        "fiber_g": 12.5,
-        "carbs_g": 21.6,
-        "folate_mcg": 44.0,
-        "aa_phenylalanine_g": 1.132,
-        "potassium_mg": 733.0,
         "magnesium_mg": 270.0,
-        "beta_sitosterol_mg": 132.0,
-        "aa_valine_g": 0.855,
-        "mono_fat_g": 31.6,
-        "niacin_mg": 3.6,
-        "aa_lysine_g": 0.58,
-        "vitamin_e_mg": 25.6,
-        "calcium_mg": 269.0,
-        "protein_g": 21.2,
-        "choline_mg": 52.1,
-        "aa_threonine_g": 0.611,
-        "calories": 579.0,
-        "aa_leucine_g": 1.488,
-        "aa_histidine_g": 0.539,
-        "beta_carotene_mcg": 1.0,
-        "fat_g": 49.9,
-        "b6_mg": 0.14,
-        "aa_methionine_g": 0.157,
-        "riboflavin_mg": 1.14,
-        "lutein_zeaxanthin_mcg": 1.0,
         "aa_tyrosine_g": 0.452,
-        "aa_isoleucine_g": 0.751,
-        "aa_tryptophan_g": 0.214,
+        "aa_lysine_g": 0.58,
+        "aa_histidine_g": 0.539,
+        "potassium_mg": 733.0,
+        "sodium_mg": 1.0,
+        "aa_methionine_g": 0.157,
+        "aa_threonine_g": 0.611,
+        "beta_carotene_mcg": 1.0,
+        "aa_phenylalanine_g": 1.132,
+        "calories": 579.0,
         "thiamin_mg": 0.21,
+        "poly_fat_g": 12.3,
+        "carbs_g": 21.6,
+        "riboflavin_mg": 1.14,
+        "fiber_g": 12.5,
+        "niacin_mg": 3.6,
+        "b6_mg": 0.14,
         "saturated_fat_g": 3.8,
+        "zinc_mg": 3.1,
+        "aa_leucine_g": 1.488,
+        "aa_valine_g": 0.855,
+        "beta_sitosterol_mg": 132.0,
+        "fat_g": 49.9,
+        "aa_isoleucine_g": 0.751,
+        "mono_fat_g": 31.6,
+        "protein_g": 21.2,
+        "iron_mg": 3.7,
         "aa_cystine_g": 0.215,
+        "choline_mg": 52.1,
         "phosphorus_mg": 481.0,
-        "iron_mg": 3.7
+        "aa_tryptophan_g": 0.214,
+        "calcium_mg": 269.0,
+        "sugar_g": 4.4,
+        "folate_mcg": 44.0,
+        "lutein_zeaxanthin_mcg": 1.0,
+        "water_g": 4.32,
+        "vitamin_e_mg": 25.6
       },
       "portions": [
         {
@@ -1247,7 +1246,9 @@
         "poly_fat_g": 0.0,
         "omega6_la_mg": 0.0,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 5.0,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
@@ -1312,7 +1313,9 @@
         "aa_phenylalanine_g": 0.0,
         "aa_tyrosine_g": 0.0,
         "aa_valine_g": 0.0,
-        "aa_histidine_g": 0.0
+        "aa_histidine_g": 0.0,
+        "water_g": 0.2,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
@@ -1377,13 +1380,47 @@
         "carbs_g": 0.58,
         "calories": 717.0,
         "iodine_mcg": 0.0,
-        "selenium_mcg": 0.0
+        "selenium_mcg": 0.0,
+        "water_g": 15.8
       },
       "portions": [
         {
           "description": "1/2 cup",
           "gram_weight": 113.0
         }
+      ]
+    },
+    {
+      "fdc_id": 746784,
+      "name": "* Sugars, granulated",
+      "data_type": "Foundation",
+      "nutrients": {
+        "calories": 385.0,
+        "protein_g": 0.0,
+        "fat_g": 0.32,
+        "carbs_g": 99.6,
+        "sugar_g": 99.8,
+        "calcium_mg": 1.0,
+        "iron_mg": 0.05,
+        "magnesium_mg": 0.3,
+        "phosphorus_mg": 0.0,
+        "potassium_mg": 2.0,
+        "sodium_mg": 1.0,
+        "zinc_mg": 0.01,
+        "water_g": 0.02
+      },
+      "portions": [
+        {
+          "description": "1 teaspoon",
+          "gram_weight": 4.0
+        },
+        {
+          "description": "1 cup",
+          "gram_weight": 188.0
+        }
+      ],
+      "ignores": [
+        "vitamins"
       ]
     },
     {
@@ -1422,7 +1459,9 @@
         "poly_fat_g": 0.004,
         "selenium_mcg": 0.0,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 52.6,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
@@ -1471,7 +1510,7 @@
         "lutein_zeaxanthin_mcg": 18.0,
         "vitamin_e_mg": 0.18,
         "vitamin_d_mcg": 0.0,
-        "vitamin_k_mcg": 0.0,
+        "vitamin_k_mcg": 0.6,
         "saturated_fat_g": 0.03,
         "mono_fat_g": 0.007,
         "poly_fat_g": 0.054,
@@ -1487,7 +1526,8 @@
         "aa_valine_g": 0.008,
         "aa_histidine_g": 0.003,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 82.0
       },
       "portions": [
         {
@@ -1498,7 +1538,7 @@
     },
     {
       "fdc_id": 356527,
-      "name": "* TOMATO SAUCE",
+      "name": "* tomato sauce",
       "data_type": "Branded",
       "nutrients": {
         "calcium_mg": 0.0,
@@ -1524,7 +1564,7 @@
     },
     {
       "fdc_id": 360299,
-      "name": "* TOMATO PASTE",
+      "name": "* tomato paste",
       "data_type": "Branded",
       "nutrients": {
         "iron_mg": 3.27,
@@ -1577,8 +1617,332 @@
       ]
     },
     {
+      "fdc_id": 2454832,
+      "name": "* pepper, red crushed hot",
+      "data_type": "Branded",
+      "nutrients": {
+        "vitamin_c_mg": 0.0,
+        "calories": 500.0,
+        "saturated_fat_g": 0.0,
+        "iron_mg": 0.0,
+        "fiber_g": 0.0,
+        "sodium_mg": 0.0,
+        "carbs_g": 100.0,
+        "protein_g": 0.0,
+        "calcium_mg": 0.0,
+        "fat_g": 0.0
+      },
+      "portions": [
+        {
+          "description": "1 PACKET",
+          "gram_weight": 1.0
+        }
+      ]
+    },
+    {
+      "fdc_id": 171317,
+      "name": "* Spices, basil, dried",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 233.0,
+        "protein_g": 22.98,
+        "fat_g": 4.07,
+        "carbs_g": 47.75,
+        "fiber_g": 37.7,
+        "calcium_mg": 2240.0,
+        "iron_mg": 89.8,
+        "magnesium_mg": 711.0,
+        "phosphorus_mg": 274.0,
+        "potassium_mg": 2630.0,
+        "sodium_mg": 76.0,
+        "zinc_mg": 7.1,
+        "selenium_mcg": 3.0,
+        "vitamin_c_mg": 0.8,
+        "thiamin_mg": 0.08,
+        "riboflavin_mg": 1.2,
+        "niacin_mg": 4.9,
+        "b6_mg": 1.34,
+        "folate_mcg": 310.0,
+        "choline_mg": 54.9,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 37.0,
+        "beta_carotene_mcg": 378.0,
+        "alpha_carotene_mcg": 113.0,
+        "lycopene_mcg": 393.0,
+        "lutein_zeaxanthin_mcg": 1150.0,
+        "vitamin_e_mg": 10.7,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 2.157,
+        "mono_fat_g": 1.238,
+        "poly_fat_g": 0.498,
+        "omega6_la_mg": 199.0,
+        "omega3_ala_mg": 296.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "aa_tryptophan_g": 0.26,
+        "aa_threonine_g": 0.76,
+        "aa_isoleucine_g": 1.06,
+        "aa_leucine_g": 1.85,
+        "aa_lysine_g": 1.15,
+        "aa_methionine_g": 0.32,
+        "aa_cystine_g": 0.19,
+        "aa_phenylalanine_g": 1.25,
+        "aa_tyrosine_g": 0.75,
+        "aa_valine_g": 1.45,
+        "aa_histidine_g": 0.45,
+        "water_g": 10.4,
+        "vitamin_k_mcg": 1710.0
+      },
+      "portions": [
+        {
+          "description": "tbsp, leaves",
+          "gram_weight": 2.1
+        },
+        {
+          "description": "tsp, leaves",
+          "gram_weight": 0.7
+        },
+        {
+          "description": "tbsp, ground",
+          "gram_weight": 4.5
+        },
+        {
+          "description": "tsp, ground",
+          "gram_weight": 1.4
+        }
+      ]
+    },
+    {
+      "fdc_id": 171328,
+      "name": "* Spices, oregano, dried",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 265.0,
+        "protein_g": 9.0,
+        "fat_g": 4.28,
+        "carbs_g": 68.92,
+        "fiber_g": 42.5,
+        "calcium_mg": 1597.0,
+        "iron_mg": 36.8,
+        "magnesium_mg": 270.0,
+        "phosphorus_mg": 148.0,
+        "potassium_mg": 1260.0,
+        "sodium_mg": 25.0,
+        "zinc_mg": 2.69,
+        "selenium_mcg": 4.5,
+        "vitamin_c_mg": 2.3,
+        "thiamin_mg": 0.177,
+        "riboflavin_mg": 0.528,
+        "niacin_mg": 4.64,
+        "b6_mg": 1.044,
+        "folate_mcg": 237.0,
+        "choline_mg": 32.3,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 85.0,
+        "beta_carotene_mcg": 1007.0,
+        "alpha_carotene_mcg": 20.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 1895.0,
+        "vitamin_e_mg": 18.26,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 1.551,
+        "mono_fat_g": 0.716,
+        "poly_fat_g": 1.369,
+        "omega6_la_mg": 748.0,
+        "omega3_ala_mg": 621.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "aa_tryptophan_g": 0.203,
+        "aa_threonine_g": 0.322,
+        "aa_isoleucine_g": 0.441,
+        "aa_leucine_g": 0.78,
+        "aa_lysine_g": 0.5,
+        "aa_methionine_g": 0.127,
+        "aa_cystine_g": 0.11,
+        "aa_phenylalanine_g": 0.449,
+        "aa_tyrosine_g": 0.297,
+        "aa_valine_g": 0.585,
+        "aa_histidine_g": 0.144,
+        "water_g": 9.93,
+        "vitamin_k_mcg": 622.0
+      },
+      "portions": [
+        {
+          "description": "tsp, leaves",
+          "gram_weight": 1.0
+        },
+        {
+          "description": "tsp, ground",
+          "gram_weight": 1.8
+        }
+      ]
+    },
+    {
+      "fdc_id": 171326,
+      "name": "* Spices, nutmeg, ground",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 525.0,
+        "protein_g": 5.84,
+        "fat_g": 36.31,
+        "carbs_g": 49.29,
+        "fiber_g": 20.8,
+        "calcium_mg": 184.0,
+        "iron_mg": 3.04,
+        "magnesium_mg": 183.0,
+        "phosphorus_mg": 213.0,
+        "potassium_mg": 350.0,
+        "sodium_mg": 16.0,
+        "zinc_mg": 2.15,
+        "vitamin_c_mg": 3.0,
+        "thiamin_mg": 0.346,
+        "riboflavin_mg": 0.057,
+        "niacin_mg": 1.299,
+        "b6_mg": 0.16,
+        "folate_mcg": 76.0,
+        "choline_mg": 8.8,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 5.0,
+        "beta_carotene_mcg": 28.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 25.94,
+        "mono_fat_g": 3.22,
+        "poly_fat_g": 0.35,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "water_g": 6.23,
+        "vitamin_k_mcg": 0.0
+      },
+      "portions": [
+        {
+          "description": "tbsp",
+          "gram_weight": 7.0
+        },
+        {
+          "description": "tsp",
+          "gram_weight": 2.2
+        }
+      ],
+      "ignores": [
+        "aa"
+      ]
+    },
+    {
+      "fdc_id": 170931,
+      "name": "* Spices, pepper, black",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 251.0,
+        "protein_g": 10.39,
+        "fat_g": 3.26,
+        "carbs_g": 63.95,
+        "fiber_g": 25.3,
+        "calcium_mg": 443.0,
+        "iron_mg": 9.71,
+        "magnesium_mg": 171.0,
+        "phosphorus_mg": 158.0,
+        "potassium_mg": 1329.0,
+        "sodium_mg": 20.0,
+        "zinc_mg": 1.19,
+        "selenium_mcg": 4.9,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.108,
+        "riboflavin_mg": 0.18,
+        "niacin_mg": 1.143,
+        "b6_mg": 0.291,
+        "folate_mcg": 17.0,
+        "choline_mg": 11.3,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 27.0,
+        "beta_carotene_mcg": 310.0,
+        "alpha_carotene_mcg": 12.0,
+        "lycopene_mcg": 20.0,
+        "lutein_zeaxanthin_mcg": 454.0,
+        "vitamin_e_mg": 1.04,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 1.392,
+        "mono_fat_g": 0.739,
+        "poly_fat_g": 0.998,
+        "omega6_la_mg": 694.0,
+        "omega3_ala_mg": 152.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "aa_tryptophan_g": 0.058,
+        "aa_threonine_g": 0.244,
+        "aa_isoleucine_g": 0.366,
+        "aa_leucine_g": 1.014,
+        "aa_lysine_g": 0.244,
+        "aa_methionine_g": 0.096,
+        "aa_cystine_g": 0.138,
+        "aa_phenylalanine_g": 0.446,
+        "aa_tyrosine_g": 0.483,
+        "aa_valine_g": 0.547,
+        "aa_histidine_g": 0.159,
+        "water_g": 12.5,
+        "vitamin_k_mcg": 164.0
+      },
+      "portions": [
+        {
+          "description": "tbsp, ground",
+          "gram_weight": 6.9
+        },
+        {
+          "description": "dash",
+          "gram_weight": 0.1
+        },
+        {
+          "description": "tsp, ground",
+          "gram_weight": 2.3
+        },
+        {
+          "description": "tsp, whole",
+          "gram_weight": 2.9
+        }
+      ]
+    },
+    {
+      "fdc_id": 172241,
+      "name": "* Vinegar, balsamic",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "water_g": 76.45,
+        "calories": 88.0,
+        "protein_g": 0.49,
+        "fat_g": 0.0,
+        "carbs_g": 17.03,
+        "calcium_mg": 27.0,
+        "iron_mg": 0.72,
+        "magnesium_mg": 12.0,
+        "phosphorus_mg": 19.0,
+        "potassium_mg": 112.0,
+        "sodium_mg": 23.0,
+        "zinc_mg": 0.08,
+        "vitamin_c_mg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "saturated_fat_g": 0.0
+      },
+      "portions": [
+        {
+          "description": "tbsp",
+          "gram_weight": 16.0
+        },
+        {
+          "description": "tsp",
+          "gram_weight": 5.3
+        },
+        {
+          "description": "cup",
+          "gram_weight": 255.0
+        }
+      ]
+    },
+    {
       "fdc_id": 170148,
-      "name": "* Seeds, hemp seed, hulled",
+      "name": "* hemp seed, hulled",
       "data_type": "SR Legacy",
       "nutrients": {
         "calories": 553.0,
@@ -1614,18 +1978,19 @@
         "aa_cystine_g": 0.672,
         "aa_phenylalanine_g": 1.447,
         "aa_valine_g": 1.777,
-        "aa_histidine_g": 0.969
+        "aa_histidine_g": 0.969,
+        "water_g": 4.96
       },
       "portions": [
         {
           "description": "1 cup",
-          "gram_weight": 128.0
+          "gram_weight": 138.0
         }
       ]
     },
     {
       "fdc_id": 173647,
-      "name": "* Beverages, water, tap, drinking",
+      "name": "* Water, tap, drinking",
       "data_type": "SR Legacy",
       "nutrients": {
         "calories": 0.0,
@@ -1661,7 +2026,9 @@
         "selenium_mcg": 0.0,
         "omega6_la_mg": 0.0,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 99.9,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
@@ -1684,7 +2051,7 @@
       "data_type": "Branded",
       "nutrients": {
         "fiber_g": 3.2,
-        "protein_g": 0.0,
+        "protein_g": 1.54,
         "calcium_mg": 65.0,
         "calories": 48.0,
         "carbs_g": 9.68,
@@ -1692,7 +2059,42 @@
         "sodium_mg": 65.0,
         "fat_g": 0.0,
         "iron_mg": 1.16,
-        "saturated_fat_g": 0.0
+        "saturated_fat_g": 0.03,
+        "sugar_g": 3.94,
+        "mono_fat_g": 0.025,
+        "poly_fat_g": 0.115,
+        "water_g": 89.18,
+        "omega3_ala_mg": 5.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "omega6_la_mg": 109.0,
+        "magnesium_mg": 15.0,
+        "phosphorus_mg": 34.0,
+        "potassium_mg": 285.0,
+        "zinc_mg": 0.19,
+        "selenium_mcg": 0.9,
+        "vitamin_a_mcg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "vitamin_e_mg": 1.22,
+        "vitamin_k_mcg": 4.2,
+        "thiamin_mg": 0.035,
+        "riboflavin_mg": 0.032,
+        "niacin_mg": 1.12,
+        "b6_mg": 0.176,
+        "folate_mcg": 4.0,
+        "b12_mcg": 0.0,
+        "choline_mg": 12.8,
+        "aa_tryptophan_g": 0.014,
+        "aa_threonine_g": 0.04,
+        "aa_isoleucine_g": 0.035,
+        "aa_leucine_g": 0.057,
+        "aa_lysine_g": 0.049,
+        "aa_methionine_g": 0.013,
+        "aa_cystine_g": 0.021,
+        "aa_phenylalanine_g": 0.034,
+        "aa_tyrosine_g": 0.023,
+        "aa_valine_g": 0.046,
+        "aa_histidine_g": 0.022
       },
       "portions": [
         {
@@ -1720,7 +2122,8 @@
         "zinc_mg": 0.03,
         "vitamin_c_mg": 0.5,
         "vitamin_a_mcg": 0.0,
-        "saturated_fat_g": 0.0
+        "saturated_fat_g": 0.0,
+        "water_g": 94.5
       },
       "portions": [
         {
@@ -1788,7 +2191,9 @@
         "aa_phenylalanine_g": 0.534,
         "aa_tyrosine_g": 0.342,
         "aa_valine_g": 0.524,
-        "aa_histidine_g": 0.215
+        "aa_histidine_g": 0.215,
+        "water_g": 66.0,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
@@ -1829,13 +2234,14 @@
         "lycopene_mcg": 0.0,
         "lutein_zeaxanthin_mcg": 32.0,
         "vitamin_e_mg": 0.59,
-        "vitamin_k_mcg": 0.0,
+        "vitamin_k_mcg": 7.2,
         "saturated_fat_g": 22.031,
         "mono_fat_g": 11.522,
         "poly_fat_g": 1.221,
         "beta_sitosterol_mg": 29.0,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 1.25
       },
       "portions": [
         {
@@ -1849,38 +2255,6 @@
       ],
       "ignores": [
         "aa"
-      ]
-    },
-    {
-      "fdc_id": 746784,
-      "name": "* Sugars, granulated (Foundation)",
-      "data_type": "Foundation",
-      "nutrients": {
-        "calories": 385.0,
-        "protein_g": 0.0,
-        "fat_g": 0.32,
-        "carbs_g": 99.6,
-        "sugar_g": 99.8,
-        "calcium_mg": 1.0,
-        "iron_mg": 0.05,
-        "magnesium_mg": 0.3,
-        "phosphorus_mg": 0.0,
-        "potassium_mg": 2.0,
-        "sodium_mg": 1.0,
-        "zinc_mg": 0.01
-      },
-      "portions": [
-        {
-          "description": "1 teaspoon",
-          "gram_weight": 4.0
-        },
-        {
-          "description": "1 cup",
-          "gram_weight": 188.0
-        }
-      ],
-      "ignores": [
-        "vitamins"
       ]
     },
     {
@@ -1930,7 +2304,9 @@
         "aa_valine_g": 0.224,
         "aa_histidine_g": 0.117,
         "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
+        "omega3_dha_mg": 0.0,
+        "water_g": 10.6,
+        "vitamin_k_mcg": 31.2
       },
       "portions": [
         {
@@ -1941,58 +2317,6 @@
           "description": "tbsp",
           "gram_weight": 7.8
         }
-      ]
-    },
-    {
-      "fdc_id": 171326,
-      "name": "* Spices, nutmeg, ground",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 525.0,
-        "protein_g": 5.84,
-        "fat_g": 36.31,
-        "carbs_g": 49.29,
-        "fiber_g": 20.8,
-        "calcium_mg": 184.0,
-        "iron_mg": 3.04,
-        "magnesium_mg": 183.0,
-        "phosphorus_mg": 213.0,
-        "potassium_mg": 350.0,
-        "sodium_mg": 16.0,
-        "zinc_mg": 2.15,
-        "vitamin_c_mg": 3.0,
-        "thiamin_mg": 0.346,
-        "riboflavin_mg": 0.057,
-        "niacin_mg": 1.299,
-        "b6_mg": 0.16,
-        "folate_mcg": 76.0,
-        "choline_mg": 8.8,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 5.0,
-        "beta_carotene_mcg": 28.0,
-        "alpha_carotene_mcg": 0.0,
-        "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 0.0,
-        "vitamin_e_mg": 0.0,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 25.94,
-        "mono_fat_g": 3.22,
-        "poly_fat_g": 0.35,
-        "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0
-      },
-      "portions": [
-        {
-          "description": "tbsp",
-          "gram_weight": 7.0
-        },
-        {
-          "description": "tsp",
-          "gram_weight": 2.2
-        }
-      ],
-      "ignores": [
-        "aa"
       ]
     },
     {
@@ -2010,7 +2334,8 @@
       "portions": null,
       "ignores": [
         "portions",
-        "vitamins"
+        "vitamins",
+        "water"
       ]
     },
     {
@@ -2022,7 +2347,8 @@
         "protein_g": 0.0,
         "sodium_mg": 0.0,
         "carbs_g": 0.0,
-        "calories": 0.0
+        "calories": 0.0,
+        "water_g": 0.0
       },
       "portions": null,
       "ignores": [
@@ -2081,7 +2407,9 @@
         "aa_phenylalanine_g": 1.122,
         "aa_tyrosine_g": 0.446,
         "aa_valine_g": 0.848,
-        "aa_histidine_g": 0.534
+        "aa_histidine_g": 0.534,
+        "water_g": 2.41,
+        "vitamin_k_mcg": 0.0
       },
       "portions": [
         {
@@ -2168,7 +2496,7 @@
       "instructions": "I have simplified the mixing instructions; my method works quite well.\r\n\r\n1. Mix dry ingredients well, in a medium bowl.\r\n2. Cream butter and sugar, mix in egg and vanilla, then applesauce - which will curdle the mixture a bit.\r\n3. Dump the butter/sugar mixture into the flour mixture. Cut it in with a large cooking spoon, cutting from the edge to the middle, while constantly turning the bowl. Mix until just combined. Don't over-mix.\r\n4. Put 1.5 T mounds of dough 2\" apart on cookie sheet covered with parchment paper or silicone baking sheet (or greased with butter). Make indentation in center of each dough ball big enough to hold 1/2 T jam or other filling. Fill as desired with jam.\r\n5. Bake at 375F for 12-20 minutes - until edges brown and tops are very lightly browned. (Exact time will vary with oven, how fine your flours are, etc.)\r\n6. Allow to cool 2 minutes on sheet before removing. Cool completely before serving. Store in air tight container to retain chewy texture. They are quite good the day after baking them.\r\n\r\nNote: An excellent nut-cookie can be made by simply flattening the dough ball to about 5/8\". Bake for 20 minutes or until edges brown and tops are very lightly browned.",
       "ingredients": [
         [
-          "* Almond Flour",
+          "* Almond Flour - raw",
           90.0,
           "90 g",
           "food"
@@ -2211,7 +2539,7 @@
         ],
         [
           "* Eggs, Grade A, Large, egg whole",
-          45.0,
+          57.0,
           "p1",
           "food"
         ],
@@ -2225,10 +2553,10 @@
     },
     {
       "uid": "397ca66c0a544efb9c4ebd2719dfb027",
-      "name": "* Marinara pasta sauce - quick, from cans",
+      "name": "* Marinara pasta sauce - quick",
       "description": "quick to make, far tastier than bottled sauces",
       "servings": 6.75,
-      "instructions": "1. Saute onion.\r\n2. Add the red pepper flakes, tomato paste, and 1/3 can of tomato paste. Mix the paste into the sauce well, with a fork. Add the rest of the paste and the chopped tomatoes. Stir together well.\r\n3. Add all other ingredients. While stirring them in well, heat sauce just until it starts to boil. Turn off heat, cover, let sit for at least 10 minutes before eating.\r\n4. Freezes well.",
+      "instructions": "1. Saute onion. (I like to slightly caramelize it)\r\n2. Add the red pepper flakes, tomato sauce, and 1/3 can of tomato paste. Mix the paste into the sauce well, with a fork. Add the rest of the paste and the chopped tomatoes. Stir together well.\r\n3. Add all other ingredients. While stirring them in well, heat sauce just until it starts to boil. Turn off heat, cover, let sit for at least 10 minutes before eating. (It's excellent used immediately, but always better the next day!)",
       "ingredients": [
         [
           "* Oil, olive, extra virgin",
@@ -2243,13 +2571,13 @@
           "food"
         ],
         [
-          "* TOMATO SAUCE",
+          "* tomato sauce",
           425.0,
           "425 g",
           "food"
         ],
         [
-          "* TOMATO PASTE",
+          "* tomato paste",
           170.0,
           "170 g",
           "food"
@@ -2258,6 +2586,42 @@
           "* Organic Diced Tomatoes",
           411.0,
           "411 g",
+          "food"
+        ],
+        [
+          "* pepper, red crushed hot",
+          0.43,
+          "0.25 t",
+          "food"
+        ],
+        [
+          "* Spices, basil, dried",
+          4.5,
+          "1 T",
+          "food"
+        ],
+        [
+          "* Spices, oregano, dried",
+          1.51,
+          "0.5 T",
+          "food"
+        ],
+        [
+          "* Spices, nutmeg, ground",
+          0.58,
+          "0.25 t",
+          "food"
+        ],
+        [
+          "* Spices, pepper, black",
+          0.57,
+          "0.25 t",
+          "food"
+        ],
+        [
+          "* Vinegar, balsamic",
+          8.0,
+          "0.5 T",
           "food"
         ]
       ]
@@ -2276,14 +2640,14 @@
           "food"
         ],
         [
-          "* Marinara pasta sauce - quick, from cans",
+          "* Marinara pasta sauce - quick",
           1.0,
           "1",
           "recipe"
         ],
         [
-          "* Seeds, hemp seed, hulled",
-          16.01352493660186,
+          "* hemp seed, hulled",
+          17.264581572273883,
           "2 T",
           "food"
         ],
@@ -2297,6 +2661,63 @@
           "* Whole Wheat Pasta",
           85.0,
           "85 g",
+          "food"
+        ]
+      ]
+    },
+    {
+      "uid": "e06c21b507354932b276a3a4c78fcb1e",
+      "name": "* Black-bean-quinoa meal",
+      "description": "quick to make, very nutritious",
+      "servings": 1,
+      "instructions": "Put quinoa, hemp seed, and beans into large heat-proof bowl. Stir together all other ingredients, pour over bowl and stir in well. Heat well in microwave. Stir well again before eating",
+      "ingredients": [
+        [
+          "* Beans, black, mature seeds, cooked, boiled, with salt",
+          172.0,
+          "cup",
+          "food"
+        ],
+        [
+          "* Quinoa, cooked",
+          185.0,
+          "cup",
+          "food"
+        ],
+        [
+          "* hemp seed, hulled",
+          35.0,
+          "g",
+          "food"
+        ],
+        [
+          "* Nutritional Yeast Flakes (FDC 2411476)",
+          18.0,
+          "g",
+          "food"
+        ],
+        [
+          "* Water, tap, drinking",
+          62.5,
+          "g",
+          "food"
+        ],
+        [
+          "* SALSA",
+          61.95,
+          "g",
+          "food"
+        ],
+        [
+          "* Vinegar, red wine",
+          4.95,
+          "4.95 g",
+          "food"
+        ],
+        [
+          "* Soy sauce made from soy (tamari)",
+          6.0,
+          "6 g",
           "food"
         ]
       ]
@@ -2321,7 +2742,7 @@
           "food"
         ],
         [
-          "* Seeds, hemp seed, hulled",
+          "* hemp seed, hulled",
           35.0,
           "g",
           "food"
@@ -2333,7 +2754,7 @@
           "food"
         ],
         [
-          "* Beverages, water, tap, drinking",
+          "* Water, tap, drinking",
           62.5,
           "g",
           "food"
@@ -2384,7 +2805,7 @@
           "food"
         ],
         [
-          "* Sugars, granulated (Foundation)",
+          "* Sugars, granulated",
           134.07333333333332,
           "134.1 g (2/3 c)",
           "food"
@@ -2451,8 +2872,8 @@
       "ingredients": [
         [
           "* Beans, pinto, mature seeds, cooked, boiled, with salt",
-          170.0,
-          "g",
+          171.0,
+          "cup",
           "food"
         ],
         [
@@ -2462,7 +2883,7 @@
           "food"
         ],
         [
-          "* Seeds, hemp seed, hulled",
+          "* hemp seed, hulled",
           35.0,
           "g",
           "food"
@@ -2474,7 +2895,7 @@
           "food"
         ],
         [
-          "* Beverages, water, tap, drinking",
+          "* Water, tap, drinking",
           62.5,
           "g",
           "food"
