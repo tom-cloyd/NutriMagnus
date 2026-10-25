@@ -1417,6 +1417,10 @@
         {
           "description": "1 cup",
           "gram_weight": 188.0
+        },
+        {
+          "description": "1 cup",
+          "gram_weight": 208.0
         }
       ],
       "ignores": [
@@ -1938,6 +1942,9 @@
           "description": "cup",
           "gram_weight": 255.0
         }
+      ],
+      "ignores": [
+        "aa"
       ]
     },
     {
@@ -2527,7 +2534,7 @@
         ],
         [
           "* Sugars, granulated",
-          150.83,
+          144.85714285714283,
           "0.75 c",
           "food"
         ],
