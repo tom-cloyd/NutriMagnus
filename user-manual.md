@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-24:1606* / Reading time: 9 hours, 4 minutes
+*Updated 2026-10-24:1720* / Reading time: 9 hours, 5 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -463,7 +463,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 48 minutes)*
+*(Reading time: 49 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -663,7 +663,7 @@ Not every gap matters. Basil doesn't need macronutrients — too little goes int
 
 **When a food has none.**{: #data-completeness-has-none} Some gaps aren't missing data at all: meat has no phytonutrients, a vitamin pill has no macronutrients, sugar has no omega fats. For a gap like that, check **has none (0)** under it instead and save. NuMa asks you to confirm, then records 0 for each of that group's missing values in that food, leaving any values it already has alone, and updates the meals and recipes using it. The food then counts, as 0, everywhere, rather than just being skipped. **Mark column has none** under a column's heading ticks the box for every food in that column, for when a whole column is foods you know have none. Amino acids have no "has none" box: every food in that column has protein, so it has amino acids. Use **has none** only when you know. A food that does contain some is better left **not needed**, which keeps it blank and honest. To change a recorded 0 later, edit the food's values. To deal with one nutrient rather than a whole group, use the list of foods with no data under [Top Contributors](#contrib-no-data-answers).
 
-To fill real gaps, check **ask AI** under each gap you want help with — one food, a few, or a whole group at once with the **all** link under that column's heading — and click **Build a Claude AI prompt for the gaps checked "ask AI"**. The prompt covers only the gaps you checked. See [Fetching missing data with Claude AI](#fetch) below. A food's own page offers the same thing: if it's missing core macronutrients you'll see a warning with **Ask Claude AI for the missing data** and **Macronutrients not needed for this food** buttons, and any other missing group is named in a short line under it.
+To fill real gaps, check **ask AI** under each gap you want help with — one food, a few, or a whole group at once with the **all** link under that column's heading — and click **Build a Claude AI prompt for the gaps checked "ask AI"**. The prompt covers only the gaps you checked. See [Fetching missing data with Claude AI](#fetch) below. A food's own page offers the same thing: if it's missing core macronutrients you'll see a warning with **Ask Claude AI for the missing data** and **Macronutrients not needed for this food** buttons, and any other missing group is named in a short line under it. When that line names *Amino Acids*, it also has an **Amino acids not needed for this food** button, the same mark as the **not needed** box here.
 
 **Calorie checks.**{: #calorie-checks} Calories are the one figure NuMa can check against the rest of a food's data: protein and carbohydrate supply about 4 kcal per gram and fat about 9, so a food's protein, carbs and fat imply roughly what its calories should be. NuMa uses that in two ways.
 
@@ -3393,7 +3393,7 @@ Inside a recipe: ingredients that are part of a recipe you logged.
 
 It's safe to ignore when the affected food contributes negligible protein (garnish, spice, a small amount of fruit). It matters more when the food is a significant protein source in your meal. Foods contributing less than 1 g of protein are treated as negligible and left off this list entirely (a footnote tells you when items were omitted this way).
 
-**Turning this check off for a food.**{: #missing-aa-off} Some foods carry a little protein that doesn't matter for protein quality — a supplement, a seasoning blend, a food you eat for something else entirely. To stop NuMa listing one here, click **Amino acids not needed for this food — stop listing it** beside its name. NuMa marks the food's amino acids "not needed", the same mark as the **not needed** box on Foods → 9, so it also drops off that page's list of foods with no amino acid data and out of Claude AI prompts. It applies everywhere the food is used, not just this meal or recipe; a short line under the list counts the foods hidden this way. The food is still left out of the [DIAAS](#gloss-diaas) calculation — the mark stops the warning, it doesn't supply data. To undo it, open the food's own page and click **(undo)** beside *Amino Acids* under "Marked not needed for this food". The button works for a food inside a recipe too, since the mark belongs to the food.
+**Turning this check off for a food.**{: #missing-aa-off} Some foods carry a little protein that doesn't matter for protein quality — a supplement, a seasoning blend, a food you eat for something else entirely. To stop NuMa listing one here, click **Amino acids not needed for this food — stop listing it** beside its name in this Missing Amino Acid Profiles section, on the meal's, recipe's or day's page. A food contributing less than 1 g of protein is never listed here, so it has no such button; for one of those, tick its **not needed** box on Foods → 9, or click **Amino acids not needed for this food** in the "No data for this food's …" line on the food's own page. All three set the same mark. NuMa marks the food's amino acids "not needed", the same mark as the **not needed** box on Foods → 9, so it also drops off that page's list of foods with no amino acid data and out of Claude AI prompts. It applies everywhere the food is used, not just this meal or recipe; a short line under the list counts the foods hidden this way. The food is still left out of the [DIAAS](#gloss-diaas) calculation — the mark stops the warning, it doesn't supply data. To undo it, open the food's own page and click **(undo)** beside *Amino Acids* under "Marked not needed for this food". The button works for a food inside a recipe too, since the mark belongs to the food.
 
 The [DIAAS](#gloss-diaas) calculation runs on whichever ingredients do have [AA](#gloss-aa) data. The result is flagged as an estimate, and the [DCP](#gloss-dcp) figure reflects only the protein from data-complete ingredients.
 
@@ -6001,6 +6001,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 
+- **134.** A food's own page has an **Amino acids not needed for this food** button when it has no amino acid data.
 - **133.** Food Use in Meals now says when a food is eaten inside a recipe, which a replace there can't reach, and links to replacing it in that recipe.
 - **132.** Food Use in Meals can show just the foods and recipes whose name contains the words you type.
 - **131.** Food Use in Meals can show the dates each food or recipe was eaten, instead of meal IDs, in its last column.
@@ -6137,6 +6138,16 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** A meal's or recipe's Missing Amino Acid Profiles section now has a button beside each food to mark its amino acids "not needed" (for a supplement, say), which stops it being listed; it and the Calories note both link to how to turn their check off.
 
 #### October 24 updates
+
+**PROGRAM: AMINO ACIDS NOT NEEDED, FROM THE FOOD'S OWN PAGE**
+
+A food with no amino acid data now has an **Amino acids not needed for this food** button on its own page, so you can stop it being listed for missing amino acids from wherever you're looking at it. Foods with under 1 g of protein in a meal never show in a meal's Missing Amino Acid Profiles list, so before this the only place for them was Foods → 9. [learn more...](#missing-aa-off)
+
+<!--
+```
+Scope: food_detail.html "No data for this food's ..." line: posts group=aa to the existing /food/{id}/data-ignore (no next, returns to the food page, where the (undo) already lists it). Manual #missing-aa-off now says where the meal/recipe/day button is and points under-1 g foods to Foods 9 or the food page. Test: test_food_page_offers_amino_acids_not_needed.
+```
+-->
 
 **PROGRAM: FOOD USE IN MEALS SAYS WHICH RECIPE A FOOD IS INSIDE**
 

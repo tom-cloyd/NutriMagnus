@@ -284,6 +284,14 @@
     builds a prompt for just {{ "that" if other_gaps|length == 1 else "those" }}. To ask for this food's GI and DIAAS as well, tick
     <strong>Also ask for each food&rsquo;s glycemic index (GI) and DIAAS</strong> at the top of the prompt page it opens.
     {% endif %}
+    {% if 'aa' in other_gaps %}
+    <form method="post" action="/food/{{ food.fdc_id }}/data-ignore" style="display:inline">
+      <input type="hidden" name="group" value="aa">
+      <button type="submit" class="btn btn-link p-0 align-baseline border-0" style="font-size:inherit" id="aa-not-needed"
+              title="For a food whose protein doesn't matter, such as a vinegar, a spice or a supplement: stops listing it among foods with no amino acid data (Foods 9, Missing Amino Acid Profiles) and leaves amino acids out of Claude AI prompts. Undo it here.">Amino acids not needed for this food</button>
+    </form>
+    stops listing it for missing amino acids.
+    {% endif %}
     {% endif %}
     {% if data_gaps_ignored %}<span class="d-inline-block">Marked not needed for this food:
     {% for g in data_gaps_ignored %}{{ gap_labels[g] }}

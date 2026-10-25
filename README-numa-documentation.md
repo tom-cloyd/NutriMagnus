@@ -1739,7 +1739,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,380 tests**, all passing (2,371 in the default run plus 9 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,381 tests**, all passing (2,372 in the default run plus 9 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 

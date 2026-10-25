@@ -3734,6 +3734,24 @@ def test_food_use_meals_names_the_recipe_a_food_is_eaten_inside(client: TestClie
     assert text.count("js-inside-recipes") == 1
 
 
+def test_food_page_offers_amino_acids_not_needed(client: TestClient, cached_food: dict, db_conn) -> None:
+    """A food with no amino acid data can be marked "not needed" from its own
+    page -- a food under 1 g of protein never reaches a meal's Missing Amino
+    Acid Profiles list, where the other button is."""
+    import json
+    fid = cached_food["fdcId"]
+    row = db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = ?", (fid,)).fetchone()
+    nutrients = {k: v for k, v in json.loads(row[0]).items() if not k.startswith("aa_")}
+    db_conn.execute("UPDATE foods SET nutrients_json = ? WHERE fdc_id = ?", (json.dumps(nutrients), fid))
+    db_conn.commit()
+    assert 'id="aa-not-needed"' in client.get(f"/food/{fid}").text
+    resp = client.post(f"/food/{fid}/data-ignore", data={"group": "aa"}, follow_redirects=False)
+    assert resp.headers["location"] == f"/food/{fid}"
+    text = client.get(f"/food/{fid}").text
+    assert 'id="aa-not-needed"' not in text
+    assert "Marked not needed for this food:" in text
+
+
 def test_food_page_and_printout_show_its_notes_and_prep_context(client: TestClient, cached_food, db_conn) -> None:
     fid = cached_food["fdcId"]
     db_conn.execute("UPDATE foods SET notes = ? WHERE fdc_id = ?", ("Corrected from the package label", fid))
