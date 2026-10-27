@@ -146,6 +146,39 @@ def test_foods_9_lists_used_foods_with_no_gi_and_saves_not_needed(foods, db_conn
     assert _db.get_food_annotation(db_conn, BREAD)["gi_no_prompt"] == 0
 
 
+def test_foods_9_button_lists_every_food_whose_gi_is_not_needed(foods, db_conn):
+    """The GI section's "Also list..." button adds every food with GI marked
+    not needed — unused, low-carb or with a GI recorded too — retitles the
+    section to say so, and unticking one there turns its prompt back on."""
+    from fastapi.testclient import TestClient
+    from web import backend
+    from numa_app.services import data_quality as _dq
+    client = TestClient(backend.app)
+    _food(db_conn, 977, "Lettuce", 3.0)                      # low carb, unused
+    for fid in (977, POTATO, BREAD):                         # POTATO has a GI; BREAD unused
+        _db.upsert_food_annotation(db_conn, fid, gi_no_prompt=1)
+    db_conn.commit()
+    assert [r["fdc_id"] for r in _dq.gi_not_needed(db_conn)] == [BREAD, 977, POTATO]
+
+    off = client.get("/food/cache/db-check?gi_show_ignored=false").text
+    sec = off[off.index('id="missing-gi"'):off.index('id="days-eaten"')]
+    assert "Lettuce" not in sec and "plus every food whose GI is marked not needed" not in sec
+    assert "Also list foods for which the GI is marked" in sec
+
+    on = client.get("/food/cache/db-check?gi_show_ignored=true").text
+    sec = on[on.index('id="missing-gi"'):on.index('id="days-eaten"')]
+    assert "Foods you use with no GI, plus every food whose GI is marked not needed" in sec
+    assert "Lettuce" in sec and "Potato, baked" in sec and "has GI 85" in sec and "not used" in sec
+    assert "Hide foods for which the GI is marked" in sec
+    # Remembered: a plain visit keeps the longer list.
+    assert "plus every food whose GI" in client.get("/food/cache/db-check").text
+
+    client.post("/food/cache/db-check/completeness",
+                data={"shown": ["977:gi", f"{POTATO}:gi"], "ignore": f"{POTATO}:gi", "back": "missing-gi"})
+    assert _db.get_food_annotation(db_conn, 977)["gi_no_prompt"] == 0
+    assert _db.get_food_annotation(db_conn, POTATO)["gi_no_prompt"] == 1
+
+
 IMPAIRED_SRC = ("Atkinson 2021 international GI tables, Supplemental Table 1 (ISO 26642:2010 method): "
                 "“Barley” · Impaired glucose tolerance (Type 2, n=9)")
 

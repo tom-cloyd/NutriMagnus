@@ -727,7 +727,8 @@ textarea:focus,
 
 /* ── Unsaved-changes indicator (base.html dirty-tracking script) ───────── */
 
-.btn-dirty { box-shadow: 0 0 0 0.2rem rgba(146, 64, 14, 0.35); }
+/* A Save button whose form has unsaved changes (.btn-dirty) is drawn like a
+   ready Search button: see .btn-search-ready below. */
 .unsaved-badge { display: none; margin-left: .5rem; font-size: .875rem; color: #92400e; }
 .form-dirty .unsaved-badge { display: inline; }
 
@@ -1220,16 +1221,22 @@ td.compare-val-col {
 }
 
 /* A search/filter button whose text box has something in it (base.html's
-   search-button script): lit up so it's obvious what to click next. */
+   search-button script): lit up so it's obvious what to click next. A Save
+   button with unsaved changes in its form (.btn-dirty, base.html's
+   unsaved-changes script) gets the same look, everywhere. */
 .btn.btn-search-ready,
 .btn.btn-search-ready:hover,
-.btn.btn-search-ready:focus {
+.btn.btn-search-ready:focus,
+.btn.btn-dirty,
+.btn.btn-dirty:hover,
+.btn.btn-dirty:focus {
   background-color: #0d6efd;
   border: 2px solid #dc3545;
   color: #fff;
   font-weight: 700;
 }
-.btn.btn-search-ready:hover {
+.btn.btn-search-ready:hover,
+.btn.btn-dirty:hover {
   background-color: #0b5ed7;
 }
 

@@ -11,6 +11,12 @@ Ranks a candidate name against a multi-word query so that:
   3. Source (recipe/pantry/cache/external) breaks remaining ties — a real
      match always beats a weak or coincidental one, regardless of where it
      lives.
+  A query word counts as present only at the START of a word in the name
+  ("raw" matches "Raw" and "rawhide", not "stRAWberry"; "orange" still
+  matches "Oranges"), via word_in_name(). Before 2026-10-26 any substring
+  counted, so a recipe named "...strawberry..." matched "orange raw" and,
+  with recipes then forced to the top of the local block, outranked
+  "Oranges, raw, Florida".
   4. Among external (USDA/OFF) results tied on all of the above, USDA data
      quality breaks the tie: Foundation/SR Legacy (far more likely to carry
      real amino acid data) beats Survey/Experimental, which beats Branded/
@@ -19,6 +25,8 @@ Ranks a candidate name against a multi-word query so that:
      Foundation/SR Legacy food that actually has the data being searched
      for, since a bare text/length tiebreak has no way to prefer it.
 """
+import re
+
 SOURCE_RANK = {"recipe": 0, "pantry": 1, "cache": 2, "usda": 3, "off": 3}
 
 DATA_TYPE_RANK = {
@@ -32,6 +40,14 @@ def _query_words(query: str) -> list[str]:
     return query.lower().split()
 
 
+def word_in_name(word: str, name_lower: str) -> bool:
+    """True if `word` (lowercase) begins a word in `name_lower`: found with no
+    letter or digit just before it. A prefix match, so plurals and longer
+    forms still count ("orange" in "oranges"), but a fragment inside another
+    word does not ("raw" in "strawberry", "sauce" in "applesauce")."""
+    return re.search(r"(?<![a-z0-9])" + re.escape(word), name_lower) is not None
+
+
 def _match_count_and_mask(name_lower: str, words: list[str]) -> tuple[int, int]:
     """Bit i (from the left, MSB = first query word) is set if words[i] is
     present in name_lower. Comparing masks as integers naturally prefers
@@ -40,7 +56,7 @@ def _match_count_and_mask(name_lower: str, words: list[str]) -> tuple[int, int]:
     mask = 0
     n = len(words)
     for i, w in enumerate(words):
-        if w in name_lower:
+        if word_in_name(w, name_lower):
             count += 1
             mask |= 1 << (n - 1 - i)
     return count, mask

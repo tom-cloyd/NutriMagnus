@@ -497,6 +497,11 @@ listed here for information, not as a problem. A food whose macronutrients you&r
 {% endif %}
 
 {% macro _uses(u) %}{% set parts = [] %}{% if u.recipes %}{% set _ = parts.append(u.recipes ~ " recipe" ~ ("s" if u.recipes != 1 else "")) %}{% endif %}{% if u.meals %}{% set _ = parts.append(u.meals ~ " meal" ~ ("s" if u.meals != 1 else "")) %}{% endif %}{% if u.pantry %}{% set _ = parts.append("pantry") %}{% endif %}{{ parts | join(", ") }}{% endmacro %}
+{# Turns to a warning once a box in the list below differs from what is saved
+   (see the script after the loop); the Save button is at the bottom of what
+   can be a long list. #}
+{% macro _save_reminder(sid) %}<small id="{{ sid }}-save-reminder" class="muted js-save-reminder" role="status">Ticked or unticked a &ldquo;not needed&rdquo; box? Click
+    <a href="#{{ sid }}-save-btn">Save &ldquo;not needed&rdquo; choices</a> at the bottom of the list, or the change is not kept.</small>{% endmacro %}
 {% for sec in [
      {"id": "missing-aa", "rows": missing_aa, "key": "aa", "title": "Foods you use with no amino acid data",
       "manual": "missing-aa",
@@ -508,15 +513,34 @@ listed here for information, not as a problem. A food whose macronutrients you&r
       "manual": "missing-gi",
       "intro": "Foods with 5 g or more carbohydrate per 100 g but no glycemic index (GI), so they leave glycemic load incomplete wherever they appear, and can&rsquo;t be suggested as lower-GI swaps. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, click look up a GI and pick the matching row from the reference table. If its GI doesn&rsquo;t matter to you, tick not needed (the same as &ldquo;don&rsquo;t prompt me&rdquo; on its Annotate page)."}] if not gi_opt_out else []) %}
 {% set open_rows = sec.rows | rejectattr("ignored") | list %}
+{# GI only: the button below swaps the in-use "not needed" rows for every food
+   whose GI is marked not needed — used or not, any carbohydrate, GI recorded
+   or not — so the title says the list is no longer just foods in use. #}
+{% set gi_all = sec.key == "gi" and gi_show_ignored %}
+{% set ignored_count = gi_not_needed|length if gi_all else sec.rows|length - open_rows|length %}
 <hr class="mt-5">
-<details id="{{ sec.id }}" class="mt-4">
-  <summary><strong>{{ sec.title }}</strong> &mdash; {{ open_rows|length }} food{{ "s" if open_rows|length != 1 }}{% if sec.rows|length != open_rows|length %} <span class="muted">({{ sec.rows|length - open_rows|length }} marked not needed)</span>{% endif %}</summary>
+<details id="{{ sec.id }}" class="mt-4"{% if sec.key == "gi" and gi_asked %} open{% endif %}>
+  <summary><strong>{% if gi_all %}Foods you use with no GI, plus every food whose GI is marked not needed{% else %}{{ sec.title }}{% endif %}</strong> &mdash; {{ open_rows|length }} food{{ "s" if open_rows|length != 1 }}{% if ignored_count %} <span class="muted">({{ ignored_count }} marked not needed)</span>{% endif %}</summary>
   <p class="muted mt-2" style="max-width:48rem">{{ sec.intro | safe }} {{ manual_link(sec.manual) }}</p>
-  {% set rows = sec.rows if show_ignored_lists else open_rows %}
+  {% if sec.key == "gi" %}
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <form method="get" action="/food/cache/db-check#missing-gi" id="gi-show-ignored-form" class="m-0">
+    <input type="hidden" name="gi_show_ignored" value="{{ 'false' if gi_show_ignored else 'true' }}">
+    <button type="submit" class="btn btn-sm btn-outline-secondary"
+            title="{{ 'Back to just the foods you use that have no GI.' if gi_show_ignored else 'Adds every food whose GI is marked not needed (on this page or with &ldquo;Don&rsquo;t prompt me for a GI estimate&rdquo; on its Annotate page), including foods not used anywhere, low in carbohydrate, or that have a GI anyway. Untick one and save to be asked for its GI again.' | safe }}">
+      {% if gi_show_ignored %}Hide foods for which the GI is marked &ldquo;not needed&rdquo;{% else %}Also list foods for which the GI is marked &ldquo;not needed&rdquo;{% endif %}</button>
+  </form>
+  {% if gi_all or sec.rows %}{{ _save_reminder(sec.id) }}{% endif %}
+  </div>
+  {% endif %}
+  {% if gi_all %}{% set rows = open_rows + gi_not_needed %}{% else %}{% set rows = sec.rows if show_ignored_lists else open_rows %}{% endif %}
+  {% if sec.key != "gi" and rows %}<div class="mb-2">{{ _save_reminder(sec.id) }}</div>{% endif %}
   {% if not rows %}
   <p class="muted">None.</p>
   {% else %}
-  <form method="post" action="/food/cache/db-check/completeness">
+  <form method="post" action="/food/cache/db-check/completeness" id="{{ sec.id }}-form"
+        class="js-not-needed-form" data-reminder="{{ sec.id }}-save-reminder"
+        data-leave-guard="the &ldquo;not needed&rdquo; boxes in {{ sec.title }}">
     <input type="hidden" name="back" value="{{ sec.id }}">
     <div class="table-responsive mb-2">
       <table class="table table-sm align-middle" style="max-width:52rem">
@@ -525,8 +549,8 @@ listed here for information, not as a problem. A food whose macronutrients you&r
           {% for r in rows %}
           <tr>
             <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% elif sec.key == "aa" and r.fill_url %} &middot; <a href="{{ r.fill_url }}" class="small" title="Opens Fill in nutrients from another food, already searching USDA, the other food tables and your Food Cache for this food&rsquo;s name. Pick a similar food and its amino acids are copied, scaled to this food&rsquo;s protein, as an estimate.">find amino acid data</a>{% endif %}</td>
-            <td>{{ _uses(r.use) }}</td>
-            {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% elif sec.key == "gi" %}<td class="text-end">{{ "%.1f"|format(r.carbs) }}&thinsp;g</td>{% endif %}
+            <td>{{ _uses(r.use) or ("" if not gi_all else "&mdash; not used"|safe) }}</td>
+            {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% elif sec.key == "gi" %}<td class="text-end">{% if r.carbs is none %}<span class="muted">unknown</span>{% else %}{{ "%.1f"|format(r.carbs) }}&thinsp;g{% endif %}{% if r.gi is defined and r.gi is not none %}<br><span class="muted small">has GI {{ "%g"|format(r.gi) }}</span>{% endif %}</td>{% endif %}
             <td><input type="hidden" name="shown" value="{{ r.fdc_id }}:{{ sec.key }}">
                 <input type="checkbox" class="form-check-input" name="ignore" value="{{ r.fdc_id }}:{{ sec.key }}" {{ "checked" if r.ignored }} aria-label="{{ r.name }} not needed"></td>
           </tr>
@@ -535,12 +559,63 @@ listed here for information, not as a problem. A food whose macronutrients you&r
       </table>
     </div>
     {% if sec.key == "portions" %}<button type="button" class="btn btn-sm btn-outline-secondary me-1 js-check-all-not-needed">Check all as not needed</button>{% endif %}
-    <button type="submit" class="btn btn-sm btn-primary">Save &ldquo;not needed&rdquo; choices</button>
-    <small class="muted ms-2">The &ldquo;Also list foods whose only gaps are marked not needed&rdquo; option above shows ticked ones here too.</small>
+    <button type="submit" class="btn btn-sm btn-primary" id="{{ sec.id }}-save-btn">Save &ldquo;not needed&rdquo; choices</button>
+    <small class="muted ms-2">{% if sec.key == "gi" %}The &ldquo;Also list foods for which the GI is marked not needed&rdquo; button above shows ticked ones here too.{% else %}The &ldquo;Also list foods whose only gaps are marked not needed&rdquo; option above shows ticked ones here too.{% endif %}</small>
   </form>
   {% endif %}
 </details>
 {% endfor %}
+
+<script>
+// The three "Foods you use with no ..." lists: each one's reminder turns into
+// a warning while any box differs from what is saved. Leaving by a link is
+// covered by base.html's data-leave-guard on each form; the GI list's
+// "Also list..." / "Hide..." button reloads the page, so it offers to save
+// that list's changes first instead of dropping them.
+(function () {
+  function changedBoxes(form) {
+    return Array.prototype.filter.call(form.querySelectorAll('input[type=checkbox]'),
+      function (b) { return b.checked !== b.defaultChecked; });
+  }
+  function markClean(form) {
+    if (window.numaLeaveGuard) window.numaLeaveGuard.markClean(form);
+    if (window.numaDirtyGuard) window.numaDirtyGuard.markClean(form);
+  }
+  document.querySelectorAll('.js-not-needed-form').forEach(function (form) {
+    var note = document.getElementById(form.dataset.reminder);
+    form.addEventListener('change', function () {
+      var n = changedBoxes(form).length;
+      // Boxes ticked and then put back count as nothing to save. Deferred:
+      // base.html's guards handle this same event after this script does.
+      if (!n) setTimeout(function () { markClean(form); }, 0);
+      if (!note) return;
+      note.classList.toggle('muted', !n);
+      note.classList.toggle('text-danger', !!n);
+      note.classList.toggle('fw-semibold', !!n);
+      note.firstChild.textContent = n
+        ? n + ' \u201cnot needed\u201d change' + (n === 1 ? ' is' : 's are') + ' not saved yet. Click '
+        : 'Ticked or unticked a \u201cnot needed\u201d box? Click ';
+    });
+  });
+  var form = document.getElementById('missing-gi-form');
+  var toggle = document.getElementById('gi-show-ignored-form');
+  if (!form || !toggle) return;
+  toggle.addEventListener('submit', function (e) {
+    if (!changedBoxes(form).length) { markClean(form); return; }
+    e.preventDefault();
+    if (confirm('You have \u201cnot needed\u201d changes in this list that are not saved yet.\n\n' +
+                'OK = save them, then change the list. Cancel = stay here without changing the list.')) {
+      fetch(form.action, {method: 'POST', body: new FormData(form)})
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.status);
+          markClean(form);
+          HTMLFormElement.prototype.submit.call(toggle);
+        })
+        .catch(function () { alert('Could not save those changes, so the list was not changed. Please try again.'); });
+    }
+  });
+})();
+</script>
 
 {% macro _days_cell(r) %}{{ r.days }}{% if r.recipe_days %} <span class="muted small">({{ "all" if r.recipe_days == r.days else r.recipe_days }} in a recipe)</span>{% endif %}{% endmacro %}
 {% set de_no_gi = days_eaten | selectattr("gi_gap_days") | sort(attribute="gi_gap_days", reverse=True) | list %}
@@ -712,6 +787,9 @@ document.querySelectorAll('.js-check-all-not-needed').forEach(function (btn) {
     var tick = !allTicked();
     boxes.forEach(function (b) { b.checked = tick; });
     label();
+    // Setting .checked fires no event: tell the reminder, the Unsaved
+    // badge and the leave guard.
+    btn.form.dispatchEvent(new Event('change', {bubbles: true}));
   });
   boxes.forEach(function (b) { b.addEventListener('change', label); });
   label();

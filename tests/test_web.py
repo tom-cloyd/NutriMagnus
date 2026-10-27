@@ -1742,7 +1742,7 @@ def test_settings_sections_order_and_shortcut_keys(client: TestClient) -> None:
 
 def test_items_section_shortcut(client: TestClient, cached_food, db_conn) -> None:
     """Alt+Shift+Y (data-ak="y" data-ak-focus) marks the Items section on a
-    meal and on Compare, and the handler focuses it rather than clicking it."""
+    meal, on Compare and on a recipe's Edit page (its Ingredients), and the handler focuses it rather than clicking it."""
     meal_id = _db.meal_create(db_conn, "Lunch", "2026-10-01")
     _db.meal_add_food(db_conn, meal_id, cached_food["fdcId"], cached_food["name"], 100.0, "g")
     db_conn.commit()
@@ -1751,6 +1751,8 @@ def test_items_section_shortcut(client: TestClient, cached_food, db_conn) -> Non
     rid = _make_recipe(client, "Y Stew", 1, cached_food["fdcId"], cached_food["name"], "300 g")
     compare = client.get(f"/compare?items=r{rid},f{cached_food['fdcId']}").text
     assert 'id="compare-items" data-ak="y" data-ak-focus' in compare
+    edit = client.get(f"/recipe/{rid}/edit").text
+    assert '<summary data-ak="y" data-ak-focus><strong>Ingredients (1)' in edit
     base = (pathlib.Path(backend.__file__).parent / "templates" / "base.html").read_text()
     assert "target.hasAttribute('data-ak-focus')" in base
 
@@ -5018,14 +5020,48 @@ class TestCapResultsPreservingLocal:
         results = self._mk("usda", 10)
         assert backend._cap_results_preserving_local(results, 5) == results[:5]
 
-    def test_recipes_lead_the_local_block(self):
-        """Recipes come ahead of pantry and Food Cache foods, whatever their
-        relevance order; each group keeps its own order."""
+    def test_local_block_keeps_relevance_order_recipes_included(self):
+        """A recipe is not forced ahead of better-matching local foods: the
+        local block keeps the sort's order (recipes still win ties there,
+        through relevance_key's source tiebreak)."""
         results = (self._mk("cache", 2) + self._mk("usda", 1)
                    + [{"source": "pantry", "name": "P"}] + self._mk("recipe", 2))
         capped = backend._cap_results_preserving_local(results, 25)
         assert [r["name"] for r in capped] == [
-            "recipe 0", "recipe 1", "cache 0", "cache 1", "P", "usda 0"]
+            "cache 0", "cache 1", "P", "recipe 0", "recipe 1", "usda 0"]
+
+
+def test_search_ranking_matches_word_starts_not_fragments():
+    """"raw" inside "strawberry" is not a match; "orange" starting "Oranges"
+    is. Reported 2026-10-26: a strawberry recipe outranked "Oranges, raw,
+    Florida" for "orange raw"."""
+    from numa_app.services import search_ranking
+    wis = search_ranking.word_in_name
+    assert wis("raw", "oranges, raw, florida") and wis("orange", "oranges, raw")
+    assert not wis("raw", "english muffin, strawberry") and not wis("sauce", "applesauce")
+    assert wis("b12", "vitamin b12") and wis("2%", "milk, 2% fat") and wis("(mandarin", "tangerines, (mandarin oranges)")
+    q = "orange raw"
+    names = [("English muffin peanut btr sandwich, strawberry - hi-pro. pb#2*", "recipe"),
+             ("Oranges, raw, Florida", "cache"), ("Tangerines, (mandarin oranges), raw", "cache")]
+    ranked = sorted(names, key=lambda n: search_ranking.relevance_key(n[0], q, n[1]))
+    assert ranked[0][0] == "Oranges, raw, Florida" and ranked[-1][1] == "recipe"
+
+
+def test_meal_search_puts_the_best_cached_food_above_a_weak_recipe_match(client: TestClient, db_conn) -> None:
+    """The reported page end to end: a recipe matching one query word must not
+    sit above a cached food matching both; a recipe matching only inside a
+    word ("raw" in "strawberry") is not offered at all."""
+    _db.cache_food(db_conn, 990001, "Oranges, raw, Florida", "SR Legacy", None, None, None,
+                   {"carbs_g": 11.5}, [])
+    db_conn.commit()
+    rid_frag = _db.recipe_create(db_conn, "English muffin sandwich, strawberry", "", 1, "")
+    rid_weak = _db.recipe_create(db_conn, "Orange glazed carrots", "", 1, "")
+    db_conn.commit()
+    rows = backend._run_food_search("orange raw", ["recipe", "cache"], 25, sort="relevance", external=False)
+    names = [r["name"] for r in rows]
+    assert names.index("Oranges, raw, Florida") < names.index("Orange glazed carrots")
+    assert "English muffin sandwich, strawberry" not in names
+    assert rid_frag and rid_weak
 
 
 def test_search_ranking_tie_break_puts_recipes_before_pantry_and_cache():
@@ -8753,6 +8789,31 @@ def test_summary_today_button_explains_empty_day(client: TestClient, cached_food
     logged = client.get("/summary").text
     assert 'id="today-empty-note"' not in logged
     assert f'href="/summary/{today}" class="btn' in logged
+
+
+def test_meal_and_day_dcp_line_gives_the_daily_goal_percent_before_raw_protein(client: TestClient, cached_food) -> None:
+    """The line under a meal's and a day's title (shared _dcp_summary_line.html):
+    DCP grams, then % of the DAILY DCP goal, then % of raw protein (owner's
+    order, 2026-10-26) — on a meal page, how much of the day's goal it covers."""
+    today = datetime.date.today().isoformat()
+    meal_id = int(
+        client.post("/meals/create", data={"meal_date": today, "name": "Lunch"},
+                    follow_redirects=False).headers["location"].rsplit("/", 1)[-1]
+    )
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                      "portion_str": "150 g"},
+                follow_redirects=False)
+    for url, count in ((f"/meal/{meal_id}/day", "1 meal"), (f"/meal/{meal_id}", "1 item")):
+        html = client.get(url).text
+        m = re.search(count + r' &rArr;\s*<strong>([\d.]+)&thinsp;g digestible complete protein \(DCP\)</strong> &mdash;\s*'
+                      r'<strong>(\d+)% of (?:your|the) ([\d.]+)&thinsp;g (?:daily|standard adult) DCP goal</strong>,\s*'
+                      r'(\d+)% of ([\d.]+)&thinsp;g raw protein', html)
+        assert m is not None, url
+        dcp, goal_pct, goal, raw_pct, raw = (float(m.group(1)), int(m.group(2)), float(m.group(3)),
+                                             int(m.group(4)), float(m.group(5)))
+        assert goal_pct == round(100 * dcp / goal), url
+        assert raw_pct == round(100 * dcp / raw), url
 
 
 def test_day_page_same_from_summary_and_meal(client: TestClient, cached_food) -> None:

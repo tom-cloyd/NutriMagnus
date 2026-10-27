@@ -737,9 +737,12 @@ _LOCAL_SEARCH_SOURCES = {"pantry", "cache", "recipe"}
 
 def _cap_results_preserving_local(results: list[dict], limit: int) -> list[dict]:
     """Cap a sorted, already-source-filtered result list to `limit`, and group
-    it into blocks — every local match first (recipes, then pantry and Food
-    Cache foods), then external (USDA/OFF/CNF) matches — each block keeping
-    its existing relative (relevance) order. Templates render these as two visually
+    it into blocks — every local match first (recipes, pantry and Food Cache
+    foods together), then external (USDA/OFF/CNF) matches — each block keeping
+    its existing relative (relevance) order. Within the local block a recipe
+    leads only where the sort itself puts it there (recipes win ties on
+    match quality); until 2026-10-26 every recipe was forced ahead of every
+    local food, so a weak recipe match outranked a food matching every word. Templates render these as two visually
     distinct sections (see is_local_source()) so a food you already have
     never has to be found by scrolling past a wall of external results.
 
@@ -753,10 +756,7 @@ def _cap_results_preserving_local(results: list[dict], limit: int) -> list[dict]
     or drop it entirely, under dozens of branded USDA/OFF products literally
     named "Daily Vitamins".
     """
-    # Recipes lead the local block: a recipe is something you've built
-    # yourself, so it is usually what you're looking for when one matches.
-    local = ([r for r in results if r.get("source") == "recipe"]
-             + [r for r in results if r.get("source") in _LOCAL_SEARCH_SOURCES and r.get("source") != "recipe"])
+    local = [r for r in results if r.get("source") in _LOCAL_SEARCH_SOURCES]
     if len(results) <= limit:
         return local + [r for r in results if r.get("source") not in _LOCAL_SEARCH_SOURCES]
     if not local:
@@ -2675,7 +2675,8 @@ def _search_local_results(query: str, *, clean_query: bool = False) -> list[dict
         cached = _db.search_cached_foods(conn, match_query)
         annotations = _db.annotations_for_fdcids(conn, [row["fdc_id"] for row in cached])
         pantry_id_by_fdc = _pantry_id_by_fdc(conn)
-    matching_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in query_words)]
+    matching_recipes = [r for r in all_recipes
+                        if any(_search_ranking.word_in_name(w, r["name"].lower()) for w in query_words)]
     results = _recipe_search_rows(matching_recipes) + _cached_search_rows(cached, annotations, pantry_id_by_fdc)
     results.extend(_static_source_candidates(match_query))
     return results
@@ -3945,12 +3946,15 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
                                   impact: str = "",
                                   check: list[str] | None = Query(default=None),
                                   show_ignored: bool | None = None,
+                                  gi_show_ignored: bool | None = None,
                                   de_days: str | None = None, de_end: str | None = None):
     """Scan for referential-integrity problems (see db.check_db_integrity),
     then for cached foods missing whole nutrient groups (see
     numa_app/services/data_completeness.py). `check` picks which groups the
     completeness scan looks at; remembered like other list-view toggles."""
     show_ignored = _resolve_bool_pref(show_ignored, "data_check_show_ignored")
+    gi_asked = gi_show_ignored is not None
+    gi_show_ignored = _resolve_bool_pref(gi_show_ignored, "data_check_gi_show_ignored")
     if check is None:
         check = _load_prefs_file().get("data_check_groups", _data_completeness.DEFAULT_CHECKED)
     else:
@@ -4003,6 +4007,7 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
                               "corrections": _db.food_corrections(conn, fixed)[:1]}
         missing_portions = _data_quality.missing_portions_in_use(conn)
         missing_gi = [] if _gi_opt_out() else _data_quality.missing_gi_in_use(conn)
+        gi_not_needed = [] if _gi_opt_out() else _data_quality.gi_not_needed(conn)
         generic_density = _data_quality.generic_density_in_use(conn)
         water_missing = len(_water_backfill.candidates(conn))
         vitamin_k_unchecked = len(_vitamin_k_repair.candidates(conn))
@@ -4053,6 +4058,9 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
         "missing_aa": missing_aa,
         "missing_portions": missing_portions,
         "missing_gi": missing_gi,
+        "gi_not_needed": gi_not_needed,
+        "gi_show_ignored": gi_show_ignored,
+        "gi_asked": gi_asked,
         "gi_opt_out": _gi_opt_out(),
         "show_ignored_lists": show_ignored,
         "old_copy_days": _data_quality.OLD_COPY_DAYS,

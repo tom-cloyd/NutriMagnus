@@ -36,6 +36,10 @@ read from here, so they can't drift apart. The checks themselves:
   but no GI, most-used first — they leave glycemic load incomplete and can't
   be offered as lower-GL swaps. "Not needed" here is the GI "don't prompt me"
   flag (food_annotations.gi_no_prompt), the one glycemic load already honours.
+- gi_not_needed(): every cached food with that flag set, used or not, any
+  carbohydrate, GI recorded or not — the full list behind Foods → 9's "Also
+  list foods for which the GI is marked 'not needed'" button, so a choice
+  made on an Annotate page can be found and undone later.
 - foods_days_eaten(): every food eaten in a chosen span of days (on its own
   or inside a logged recipe), with how many days, for Foods → 9's "Foods:
   days eaten" — the page then picks out those that left a day's glycemic
@@ -573,6 +577,29 @@ def missing_gi_in_use(conn) -> list[dict]:
             rows.append({"fdc_id": row["fdc_id"], "name": row["name"], "carbs": carbs,
                          "use": use, "ignored": bool(a is not None and a["gi_no_prompt"])})
     rows.sort(key=lambda r: (-r["use"]["total"], -r["carbs"], r["name"].lower()))
+    return rows
+
+
+def gi_not_needed(conn) -> list[dict]:
+    """Every cached food whose GI is marked "don't prompt me" (not needed),
+    whether or not it is used, low in carbohydrate or already has a GI.
+    Rows match missing_gi_in_use()'s; "carbs" is None where unknown and
+    "gi" is the recorded GI, if any. Alphabetical."""
+    usage = usage_counts(conn)
+    rows = []
+    for row in conn.execute("SELECT f.fdc_id, f.name, f.nutrients_json, a.gi_estimate "
+                            "FROM food_annotations a JOIN foods f ON f.fdc_id = a.fdc_id "
+                            "WHERE a.gi_no_prompt = 1"):
+        try:
+            n = json.loads(row["nutrients_json"] or "{}")
+        except (ValueError, TypeError):
+            n = {}
+        carbs = n.get("carbs_g") if isinstance(n, dict) else None
+        rows.append({"fdc_id": row["fdc_id"], "name": row["name"],
+                     "carbs": float(carbs) if carbs is not None else None,
+                     "gi": row["gi_estimate"], "ignored": True,
+                     "use": usage.get(row["fdc_id"], {"recipes": 0, "meals": 0, "pantry": 0, "total": 0})})
+    rows.sort(key=lambda r: r["name"].lower())
     return rows
 
 

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-24:1839* / Reading time: 9 hours, 5 minutes
+*Updated 2026-10-26:2143* / Reading time: 9 hours, 11 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -493,9 +493,9 @@ Above the heading, a few one-time or conditional banners can appear when relevan
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed. Likewise, on a page with an Items section (a meal, Compare, Analyze a recipe portion), `Alt+Shift+Y` moves keyboard focus to that section. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed. Likewise, on a page with an Items section (a meal, Compare, Analyze a recipe portion, and a recipe's Edit page, where it's the Ingredients section), `Alt+Shift+Y` moves keyboard focus to that section, opening it first if it's closed. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
-Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes mark their Save button so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
+Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes light up their Save button — solid blue, bold white text, red border, the same as a Search button with something typed in it — with "Unsaved changes" beside it, so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
 #### Search boxes remember your last search {: #search-memory}
 
@@ -761,7 +761,7 @@ The **Meals & Log** page has a **New Meal** form at the top (name + date), filte
 
 Open a meal to add foods or recipes (search box at top — for a recipe you can log the whole thing or just individual ingredients), edit or remove items inline (a food's amount is saved as grams the moment you enter it, so later changes to that food's portions don't alter it — see [Editing or changing a food](#food-edit-consequences)), mark the meal complete/incomplete, rename it or change its date, or merge it with other meals logged the same day. Below the item list: [Nutritional Analysis](#nutrients), [Meal-Level Protein Analysis](#meal-diaas) (with a **Refresh from [USDA](#gloss-usda)** button if amino acid data needs updating), Missing [AA](#gloss-aa) Profiles, Complement Suggestions ([ignorable and recalculable](#ignore-complement)), [Glycemic Load](#glycemic), and Anti-nutrients.
 
-<span id="full-day"></span>If more than one meal is logged on the same date, **Analyze full day** rolls all of them into one combined analysis — total nutrients, pooled protein quality, and complement suggestions across everything you ate that day. It has the same sections as a meal's own page (Top Contributors, Missing Amino Acid Profiles, glycemic load, anti-nutrients and the rest), pooled over the whole day. It is also the page Daily Summary opens for that date: the two differ only in the breadcrumb at the top, which leads back the way you came.
+<span id="full-day"></span>If more than one meal is logged on the same date, **Analyze full day** rolls all of them into one combined analysis — total nutrients, pooled protein quality, and complement suggestions across everything you ate that day. It has the same sections as a meal's own page (Top Contributors, Missing Amino Acid Profiles, glycemic load, anti-nutrients and the rest), pooled over the whole day. It is also the page Daily Summary opens for that date: the two differ only in the breadcrumb at the top, which leads back the way you came. The line under the title sums up the day's protein: how many meals, the day's [DCP](#gloss-dcp), what share of your daily DCP goal that is, and then what share of the day's raw protein it is. A meal's own page has the same line for that meal, so you can see how much of the day's DCP goal one meal covers.
 
 ### H. Using the Analysis menu {: #analysis-menu-web}
 
@@ -3627,7 +3627,7 @@ What you can set:
 
 **If you don't record GI values at all**, say so once instead of per food: tick **I do not record glycemic index data** at the foot of **Settings** then **Glycemic Index Reference Table**. NuMa then never asks you for a GI value when you add a food, the per-food GI checkbox disappears as redundant, the GI field itself folds away on this page (still there if you want it), and the notices about which GI reference table is in use stop. Nothing already recorded is deleted or hidden — a GI value you have saved is still shown and still used to work out [glycemic load](#gl) — and un-ticking it puts everything back, including any per-food choices you had made. A food still missing a DIAAS estimate goes on prompting for that, since it is a separate question.
 
-**Saving settles the food.** Whatever you fill in, clicking **Save annotation** means you have dealt with this food: it stops interrupting you when you add it to a meal or the pantry, even if you deliberately left one of the two estimates blank. Come back any time through Annotate a Food to fill in the rest. **Skip for now** is the opposite — it saves nothing, so NuMa asks again the next time you add that food.
+**Saving settles the food.** As soon as you change anything on this page (an estimate, its source, or either "don't prompt me" box), **Save annotation** lights up in solid blue with a red border, and goes back to normal if you put everything back as it was. Whatever you fill in, clicking **Save annotation** means you have dealt with this food: it stops interrupting you when you add it to a meal or the pantry, even if you deliberately left one of the two estimates blank. Come back any time through Annotate a Food to fill in the rest. **Skip for now** is the opposite — it saves nothing, so NuMa asks again the next time you add that food.
 
 **When only one estimate is outstanding**, the prompt says so, and says which. The form always shows both the GI and the DIAAS field, so a prompt that is really about DIAAS would otherwise look identical to the GI prompt you just dealt with. A line above the form names whichever one is already settled, and the two fields are badged **Asking for this one** and **Settled — not being asked about** so there is no guessing. The page always opens at its top, with the cursor in the GI box when the food has no GI yet; when it has a GI but no DIAAS, a **DIAAS needed, click to go there** button near the top takes you straight to the DIAAS box.
 
@@ -3746,7 +3746,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 47 minutes)*
+*(Reading time: 48 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -3782,14 +3782,14 @@ The setting is saved between sessions and applies to both the interactive comple
 
 ### C. Ordering food search results {: #search-ranking}
 
-*Search terms: search order, search ranking, search by code, result order.*
+*Search terms: search order, search ranking, search by code, result order, best match, partial word.*
 
 **Searching by code.**{: #search-by-code} Every food and recipe search box — Foods → Search, a meal's add-food panel, Edit Recipe's ingredient search, Compare, Convert, My Pantry, and the "search for a food to copy from" boxes — also takes a [code](#gloss-code) on its own: **[R21](#gloss-code)** for a recipe, **U171477**, **[UD4](#gloss-code)** or **[OFF3](#gloss-code)** for a food, **U171477.1** for an older version of one. Upper or lower case both work. The search then shows just that one food or recipe, straight away and without going online, whatever the Source boxes are set to, and even if it's archived. A plain number works too when it is the [FDC ID](#gloss-fdc-id) of a food already in your Food Cache (171477 for U171477). A code NuMa has nothing for, or a number that isn't a cached food's FDC ID, is searched as ordinary text instead, so a USDA FDC ID you haven't used yet still finds the food online. A box that can't offer the item (a recipe in a search for foods only, a recipe inside itself) ignores the code. Hover over a search box for a reminder.
 
 The boxes that *filter a list* take a code too: the Recipes list (**R21**), the Food Cache and Annotate lists, My Pantry's **Filter my pantry list** (**U171477**, **UD4** …), Food Use in Recipes' name filter, the Food Use in Meals "Replace it with" box, and [Search meal history](#meal-history), where **U171477** or **R21** lists every meal that food or recipe was logged in. A code there narrows the list to just that one item, archived or not; anything else filters by name as before.
 When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
 
-**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Within your own matches, **recipes come first**, then Pantry and Food Cache foods, each group in best-match order. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
+**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. A word counts only where a word in the name starts with it: "orange" matches "Oranges", and "raw" matches "raw", but "raw" inside "st**raw**berry" doesn't count, nor "sauce" inside "applesauce" (type "applesauce" for that). Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Your own matches keep that best-match order among themselves too: a recipe comes before a Pantry or Food Cache food only when the two match your words equally well, so a recipe matching one of your words never sits above a food matching all of them. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
 
 **Word order matters, too.** If you type more than one search word, NuMa treats the order you typed them in as a signal of what matters most to you. Suppose you search `milk dry instant` because there are two kinds of dry milk — instant and non-instant — and you specifically want the instant kind, but you've put "dry" before "instant" because that's the more important distinguishing word to you. If nothing in your data matches all three words, NuMa prefers a match on `milk` + `dry` over a match on `milk` + `instant`, precisely because you typed "dry" first. In effect, the words you type earlier act as your stated priorities — a partial match that preserves your earlier words beats one that preserves only a later one, even when both partial matches contain the same number of words.
 
@@ -4056,9 +4056,9 @@ The food's own **Portions page** shows the same list for that one food, right af
 
 **Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a generic density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages, Edit Recipe and meal pages mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
 
-**Foods you use with no amino acid data, or no portion weights.** These two lists on Foods → 9 could be long — dozens of foods for a well-used install — so each starts folded up, showing only its count, and lists only foods you actually use in a recipe, a meal or your pantry (an unused food affects no result), most-used first. Open one when you want to work through it. In the amino acid list, **find amino acid data** beside a food searches for a similar food to copy amino acids from, scaled to this food's protein. Tick **not needed** for a food that doesn't matter — a sprinkle of cheese with no amino acid data, a food you always weigh — and it stops being counted. Neither list raises the Home page reminder: they're improvements to make when you have time, not errors.
+**Foods you use with no amino acid data, or no portion weights.** These two lists on Foods → 9 could be long — dozens of foods for a well-used install — so each starts folded up, showing only its count, and lists only foods you actually use in a recipe, a meal or your pantry (an unused food affects no result), most-used first. Open one when you want to work through it. In the amino acid list, **find amino acid data** beside a food searches for a similar food to copy amino acids from, scaled to this food's protein. Tick **not needed** for a food that doesn't matter — a sprinkle of cheese with no amino acid data, a food you always weigh — and it stops being counted. Each list's Save button is at the bottom, so a reminder above the list says so, and turns red, counting your changes, as soon as you tick or untick a box; leave the page before saving and NuMa asks whether to save them first. Neither list raises the Home page reminder: they're improvements to make when you have time, not errors.
 
-**Foods you use with no GI.**{: #missing-gi} A third folded-up list on Foods → 9, built the same way: foods you use with 5 g or more carbohydrate per 100 g and no [GI](#gloss-gi) recorded, most-used first, with each one's carbohydrate per 100 g. Each one leaves [glycemic load](#gl) incomplete wherever it appears, and can't be offered as a [lower-GI swap](#gl-swaps) — swap suggestions only come from foods with a [GI](#gloss-gi), so this list is also how to get more and better suggestions. Click **look up a GI** beside a food to open its Annotate page with the reference-table lookup ([how](#gi-source-para)); saving brings you back to the list. Tick **not needed** for a food whose [GI](#gloss-gi) doesn't matter to you: it is the same as **don't prompt me** on its Annotate page, so the food stops being listed and a glycemic load that includes it says "marked don't prompt me" instead of asking you to add one. The list is hidden if you've turned GI off in Settings. Like the other two, it never raises the Home page reminder.
+**Foods you use with no GI.**{: #missing-gi} A third folded-up list on Foods → 9, built the same way: foods you use with 5 g or more carbohydrate per 100 g and no [GI](#gloss-gi) recorded, most-used first, with each one's carbohydrate per 100 g. Each one leaves [glycemic load](#gl) incomplete wherever it appears, and can't be offered as a [lower-GI swap](#gl-swaps) — swap suggestions only come from foods with a [GI](#gloss-gi), so this list is also how to get more and better suggestions. Click **look up a GI** beside a food to open its Annotate page with the reference-table lookup ([how](#gi-source-para)); saving brings you back to the list. Tick **not needed** for a food whose [GI](#gloss-gi) doesn't matter to you: it is the same as **don't prompt me** on its Annotate page, so the food stops being listed and a glycemic load that includes it says "marked don't prompt me" instead of asking you to add one. To find a food you've marked this way later — on this list or with **don't prompt me** on its Annotate page — click **Also list foods for which the GI is marked "not needed"** at the top of the list. The list's title changes to **Foods you use with no GI, plus every food whose GI is marked not needed**, and it adds every such food, including ones you don't use anywhere, ones with little carbohydrate, and ones that have a GI anyway (shown as "has GI"). Untick **not needed** for any of them and save, and NuMa asks for its GI again. The button then reads **Hide foods for which the GI is marked "not needed"**; NuMa remembers which way you left it. The Save button is at the bottom of the list, so a reminder beside the button says so, and turns red, counting your changes, as soon as you tick or untick a box. If you leave the page before saving, NuMa asks whether to save those changes first; clicking the **Also list...** / **Hide...** button does the same. The list is hidden if you've turned GI off in Settings. Like the other two, it never raises the Home page reminder.
 
 **Foods: days eaten.**{: #days-eaten} Another folded-up list on Foods → 9, for finding the gaps that matter most. Choose **Days to cover** and the date to go **back from** (30 days ending today, unless you change them) and click **Show foods eaten in these days**. Three tables follow, each most-days first:
 
@@ -5983,7 +5983,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 51 minutes)*
+*(Reading time: 55 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -5998,6 +5998,168 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Insert new updates below here -->
 
 #### Next release summary to this point (dated details below)
+
+Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
+
+- **8.** The line under a day page's title, and now a meal page's too, gives the DCP as a share of your daily DCP goal first, then as a share of raw protein.
+- **7.** Food searches rank better: a word inside another word ("raw" in "strawberry") no longer counts as a match, and recipes no longer jump ahead of foods that match your search better.
+- **6.** Every Save button with unsaved changes in its form now lights up in solid blue with a red border, not just a faint outline.
+- **5.** On the Annotate page, **Save annotation** lights up as soon as you change anything, including a "don't prompt me" box.
+- **4.** Foods → 9's amino acid and portion lists get the same save reminder and leave-without-saving question as the GI list.
+- **3.** Foods → 9's GI list now reminds you to save beside the **Also list...** button, and asks before you leave with unsaved "not needed" changes.
+- **2.** Foods → 9's "Foods you use with no GI" list can now also show every food whose GI you've marked "not needed", so you can find and undo those choices.
+- **1.** **Alt+Shift+Y** on a recipe's Edit page now jumps to its Ingredients section.
+
+#### October 26 updates
+
+**PROGRAM: MEAL AND DAY PAGES SHOW THE DCP GOAL FIRST**
+
+The line under a day page's title now reads, for example, "2 meals ⇒ 89.3 g digestible complete protein (DCP) — 105% of your 85.1 g daily DCP goal, 79% of 112.9 g raw protein". A meal's own page shows the same line for that meal, such as "4 items ⇒ 39.9 g … — 47% of your 85.1 g daily DCP goal, 69% of 57.9 g raw protein", so you can see how much of the day's goal one meal covers. [learn more...](#full-day)
+
+<!--
+
+```
+Scope: a meal's page, a meal -> Analyze full day, and Daily Summary -> a
+date. New macro web/templates/_dcp_summary_line.html, used by meal.html
+and meal_day.html. Uses the existing protein_adequacy
+context (_protein_adequacy(): the day's pinned profile, or the 56 g
+standard adult reference, worded "the ... standard adult DCP goal").
+Test: test_meal_and_day_dcp_line_gives_the_daily_goal_percent_before_raw_protein.
+```
+
+-->
+
+**PROGRAM: FOOD SEARCH PUTS THE BEST MATCH FIRST**
+
+Searching for "orange raw" now lists "Oranges, raw, Florida" first. A search word counts only at the start of a word in a name, so "raw" no longer matches inside "strawberry". Among your own recipes and foods, a recipe now leads only when it matches your words as well as a food does. [learn more...](#search-ranking)
+
+<!--
+
+```
+Scope: every food search (Foods -> Search, meal add-food panel, recipe
+ingredient search, Compare, ...). search_ranking.word_in_name(): a query
+word must not follow a letter/digit (prefix match, so plurals count);
+used by _match_count_and_mask() and by _search_local_results()' recipe
+candidate filter (was any-word substring). _cap_results_preserving_local()
+no longer forces every recipe ahead of local foods (added 2026-10-09); the
+local block keeps the sort's order, where SOURCE_RANK still lets recipes
+win ties. Cached-food candidates still come from db.search_cached_foods()'
+SQL LIKE substring match; a fragment-only one now just ranks low. Reported:
+meal 200, "orange raw", a strawberry recipe above U169918.
+```
+
+-->
+
+**PROGRAM: SAVE BUTTONS LIGHT UP CLEARLY WHEN THERE'S SOMETHING TO SAVE**
+
+Everywhere in NuMa, a Save button whose form has changes you haven't saved now turns solid blue with bold white text and a red border, like a Search button with something typed in it, with "Unsaved changes" beside it as before. [learn more...](#web-shortcuts)
+
+<!--
+
+```
+Scope: sitewide, web/static/style.css. .btn-dirty (set by base.html's
+unsaved-changes script on a tracked form's submit button, and on a
+data-dirty-group's button) drops its faint box-shadow ring and joins the
+.btn-search-ready rule. Annotate's own btn-save-ready script, added
+earlier today, is removed as redundant. Add-food rows are untouched (the
+script gives them no badge or btn-dirty).
+```
+
+-->
+
+**PROGRAM: SAVE ANNOTATION LIGHTS UP WHEN YOU CHANGE SOMETHING**
+
+On a food's Annotate page, **Save annotation** turns solid blue with a red border as soon as you change anything there, including ticking either "don't prompt me" box, so it's clear the change still needs saving. [learn more...](#annotate)
+
+<!--
+
+```
+Scope: Food Cache -> a food -> Annotate (web/templates/food_annotate.html,
+web/static/style.css). Now done sitewide by .btn-dirty (see the entry
+above); the page's own script for it was removed. Browser test in
+tests/e2e/test_gi_not_needed_e2e.py.
+```
+
+-->
+
+**PROGRAM: SAVE REMINDER ON FOODS → 9'S AMINO ACID AND PORTION LISTS**
+
+**Foods you use with no amino acid data** and **Foods you use with no portion weights** now show the same reminder as the GI list, above the table: click **Save "not needed" choices** at the bottom, turning red with a count once you change a box. Leaving the page with changes not saved asks whether to save them first. [learn more...](#missing-gi)
+
+<!--
+
+```
+Scope: Foods -> 9 (#missing-aa, #missing-portions). food_cache_db_check.html:
+_save_reminder(sid) macro; every list form is id "<section>-form" with
+data-leave-guard and data-reminder; one script drives all three reminders
+(GI ids renamed gi-not-needed-form -> missing-gi-form etc.). Ticking boxes
+back to their saved state now clears the leave guard (deferred a tick,
+since base.html's guards handle the same event after the page script).
+"Check all as not needed" dispatches a change event so the reminder, the
+Unsaved badge and the guard notice it.
+```
+
+-->
+
+**PROGRAM: GI "NOT NEEDED" CHANGES ARE HARD TO LOSE**
+
+In Foods → 9's **Foods you use with no GI** list, a note beside the **Also list...** button says to click **Save "not needed" choices** at the bottom of the list, and turns red, counting your changes, once you tick or untick a box. Leaving the page, or clicking that button, with changes not yet saved asks whether to save them first. [learn more...](#missing-gi)
+
+<!--
+
+```
+Scope: Foods -> 9 (#missing-gi), web/templates/food_cache_db_check.html.
+#gi-save-reminder beside the GET toggle form, updated from a change
+listener on #gi-not-needed-form (checked vs defaultChecked). The form
+carries data-leave-guard, so base.html's link-click guard offers save /
+discard. The toggle form's submit handler confirms and saves by fetch
+first (then markClean on numaLeaveGuard + numaDirtyGuard so no generic
+"Leave site?" follows); with nothing changed it just clears the guards.
+Browser test: tests/e2e/test_gi_not_needed_e2e.py.
+```
+
+-->
+
+**PROGRAM: FIND EVERY FOOD WHOSE GI IS MARKED "NOT NEEDED"**
+
+Foods → 9's **Foods you use with no GI** list has a new button, **Also list foods for which the GI is marked "not needed"**. It adds every food you've ticked "not needed" there or "don't prompt me for a GI estimate" on its Annotate page, used or not, and retitles the list to say so; untick one and save to be asked for its GI again. [learn more...](#missing-gi)
+
+<!--
+
+```
+Scope: Foods -> 9 (#missing-gi). data_quality.gi_not_needed(): every cached
+food with food_annotations.gi_no_prompt = 1, regardless of use, carbs or a
+recorded GI (shown "has GI n"). backend food_cache_db_check_get takes
+gi_show_ignored, a sticky pref (data_check_gi_show_ignored) via
+_resolve_bool_pref; the section opens when the param is given. Template:
+GET-form toggle button, retitled summary, rows = open rows + gi_not_needed
+(no duplicates with the in-use "not needed" rows), "not used" in Used in,
+"unknown" carbs. Saving reuses /food/cache/db-check/completeness (shown/
+ignore -> upsert_food_annotation gi_no_prompt). Test in test_gl_swaps.py.
+```
+
+-->
+
+#### October 25 updates
+
+**PROGRAM: ALT+SHIFT+Y JUMPS TO A RECIPE'S INGREDIENTS**
+
+On a recipe's Edit page, **Alt+Shift+Y** now takes you to the Ingredients section and puts keyboard focus on it, opening it first if it's closed, the same way it reaches a meal's Items. [learn more...](#web-shortcuts)
+
+<!--
+
+```
+Scope: Recipes -> a recipe -> Edit. web/templates/recipe_edit.html: the
+Ingredients <summary> gets data-ak="y" data-ak-focus, so base.html's
+existing focus-only handler opens the details and focuses it (no click,
+which would close it). Settings -> Keyboard Shortcuts list and the
+manual's web-shortcuts paragraph updated; test_items_section_shortcut
+covers the edit page.
+```
+
+-->
+
+#### Release v2026-10-24-1839 summary (dated details below)
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Many interface improvements and bug fixes.
 

@@ -1,0 +1,11 @@
+{# The protein line under a meal's or a day's title: how many items/meals,
+   the DCP, its share of the DAILY DCP goal, then its share of raw protein.
+   `adequacy` is _protein_adequacy()'s dict — the profile pinned to that
+   date, or the standard adult reference without one — so a meal's figure
+   reads as "how much of today's goal this meal covers". #}
+{% macro line(count_text, diaas, adequacy) %}
+<p class="mb-1">{{ count_text }} &rArr;
+  <strong>{{ diaas.dcp_g }}&thinsp;g digestible complete protein (DCP)</strong> &mdash;
+  {% if adequacy %}<strong>{{ adequacy.pct | int }}% of {% if adequacy.personal %}your {{ adequacy.target }}&thinsp;g daily DCP goal{% else %}the {{ adequacy.target }}&thinsp;g standard adult DCP goal{% endif %}</strong>,
+  {% endif %}{{ (100 * diaas.dcp_g / diaas.total_protein_g) | round | int }}% of {{ diaas.total_protein_g }}&thinsp;g raw protein</p>
+{% endmacro %}
