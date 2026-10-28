@@ -2362,72 +2362,6 @@
         "portions",
         "vitamins"
       ]
-    },
-    {
-      "fdc_id": 168596,
-      "name": "* Nuts, almonds, dry roasted, with salt added",
-      "data_type": "SR Legacy",
-      "nutrients": {
-        "calories": 598.0,
-        "protein_g": 20.96,
-        "fat_g": 52.54,
-        "carbs_g": 21.01,
-        "fiber_g": 10.9,
-        "calcium_mg": 268.0,
-        "iron_mg": 3.73,
-        "magnesium_mg": 279.0,
-        "phosphorus_mg": 471.0,
-        "potassium_mg": 713.0,
-        "sodium_mg": 234.0,
-        "zinc_mg": 3.31,
-        "selenium_mcg": 2.0,
-        "vitamin_c_mg": 0.0,
-        "thiamin_mg": 0.077,
-        "riboflavin_mg": 1.197,
-        "niacin_mg": 3.637,
-        "b6_mg": 0.136,
-        "folate_mcg": 55.0,
-        "choline_mg": 52.1,
-        "b12_mcg": 0.0,
-        "vitamin_a_mcg": 0.0,
-        "beta_carotene_mcg": 1.0,
-        "alpha_carotene_mcg": 0.0,
-        "lycopene_mcg": 0.0,
-        "lutein_zeaxanthin_mcg": 1.0,
-        "vitamin_e_mg": 23.9,
-        "vitamin_d_mcg": 0.0,
-        "saturated_fat_g": 4.092,
-        "mono_fat_g": 33.076,
-        "poly_fat_g": 12.955,
-        "omega6_la_mg": 12945.0,
-        "omega3_ala_mg": 6.0,
-        "omega3_epa_mg": 0.0,
-        "omega3_dha_mg": 0.0,
-        "beta_sitosterol_mg": 4.0,
-        "aa_tryptophan_g": 0.209,
-        "aa_threonine_g": 0.595,
-        "aa_isoleucine_g": 0.745,
-        "aa_leucine_g": 1.461,
-        "aa_lysine_g": 0.563,
-        "aa_methionine_g": 0.155,
-        "aa_cystine_g": 0.214,
-        "aa_phenylalanine_g": 1.122,
-        "aa_tyrosine_g": 0.446,
-        "aa_valine_g": 0.848,
-        "aa_histidine_g": 0.534,
-        "water_g": 2.41,
-        "vitamin_k_mcg": 0.0
-      },
-      "portions": [
-        {
-          "description": "oz (22 whole kernels)",
-          "gram_weight": 28.35
-        },
-        {
-          "description": "cup whole kernels",
-          "gram_weight": 138.0
-        }
-      ]
     }
   ],
   "pantry": [],
@@ -2845,27 +2779,6 @@
           "* ORGANIC GROUND CAYENNE PEPPER",
           1.65,
           "0.75 t",
-          "food"
-        ]
-      ]
-    },
-    {
-      "uid": "97de210f40c34b1a905d09a2583c5203",
-      "name": "* Peanut butter - Tom's peanut/almond blend",
-      "description": "A delicious mixture, but with drawbacks.",
-      "servings": 67,
-      "instructions": "No nutritional data for \"almond butter\" is available. Whole almonds take their place in the recipe. But it is presumed that they are ground into almond butter. Almond butter often settles out so that dense layers are at the bottom of its container. Roughly mix both butters in a large bowl, then warm them to about 120-150F in an oven. They will mix together more easily when warm.\r\n\r\nReplacing about 1/3 of the peanut butter with almond butter DECREASES the protein in a single serving by 10%. It also adds 1943 g of oxalates to a single serving. Peanut butter alone has no oxalates.\r\n\r\nThe cost of almond butter is almost twice that of peanut butter. Other than taste, there appears to be no rational reason for creating this mixture.",
-      "ingredients": [
-        [
-          "* Old Fashioned Peanut Butter",
-          1580.0,
-          "1580 g",
-          "food"
-        ],
-        [
-          "* Nuts, almonds, dry roasted, with salt added",
-          765.0,
-          "765 g",
           "food"
         ]
       ]
