@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-10-28:1329
+UPDATED: 2026-10-28:1407
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -1922,7 +1922,7 @@ Every scenario runs in throwaway `HOME` / `NUMA_DATA_DIR` / `NUMA_CONFIG_DIR` di
 
 Added 2026-10-07. `make release-all` (`scripts/release-all.sh`) does the whole release from a terminal: `make push-release` (starter-data check, upgrade smoke test, push, GitHub release with the Linux binary), then `make release-windows` (build the `.exe` on the VM, attach it to that same release). Always in that order, never in parallel, since the Windows upload targets the newest release.
 
-It asks rather than fails: for a `GITHUB_TOKEN` if none is set (offering the `gh` CLI's login token when available), whether to go on with uncommitted changes (they won't be in the release), a final yes before anything is pushed, and, if the Windows build fails once Linux is published, whether to retry, retry with a fixed VM IP (`NUMA_VM_IP`), or stop and run `make release-windows` later. It refuses to run without a terminal.
+It asks rather than fails: for a `GITHUB_TOKEN` if none is set (offering the `gh` CLI's login token when available), whether to go on with uncommitted changes (they won't be in the release), a final yes before anything is pushed, and, if the Windows build fails once Linux is published, whether to retry, retry with a fixed VM IP (`NUMA_VM_IP`), or stop and run `make release-windows` later. It refuses to run without a terminal. If the Linux step stops, it ends with a boxed **WHY:** at the bottom: for the usual cause, a regenerated `starter_data.json`, what changed and the commands to commit it (or undo it); otherwise the last 20 lines of that step's output, which it also keeps in a log, and whether the source had already been pushed (then `make release-linux` is what to re-run).
 
 ### Weekly sweep (Wednesday evening / Thursday morning)
 

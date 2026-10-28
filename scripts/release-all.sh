@@ -61,12 +61,45 @@ ask "Go ahead? [y/N]" n || { echo "Stopped — nothing done."; exit 1; }
 # ── Linux ───────────────────────────────────────────────────────────────────
 echo
 echo "==> Step 1 of 2: Linux release (make push-release)"
-if ! make push-release; then
+# The step's output is also kept in a log, so a failure can be explained at
+# the bottom of the screen instead of somewhere in hundreds of lines above.
+linux_log="$(mktemp -t numa-release-linux.XXXXXX.log)"
+make push-release 2>&1 | tee "$linux_log"
+if [[ "${PIPESTATUS[0]}" -ne 0 ]]; then
     echo
-    echo "The Linux step stopped (see above). Nothing was sent to Windows."
-    echo "If it stopped before pushing, fix the problem and re-run make release-all."
+    echo "════════════════════════════════════════════════════════════════════"
+    echo "The Linux step stopped. Nothing was sent to Windows."
+    if ! git diff --quiet numa_app/services/starter_data.json; then
+        echo
+        echo "WHY: the starter data changed. Exporting the \"*\"-marked foods and"
+        echo "recipes from your database gave a different starter_data.json, and a"
+        echo "release must not ship starter data nobody has looked at. Nothing was"
+        echo "built or pushed. What changed:"
+        git diff --stat numa_app/services/starter_data.json | sed 's/^/    /'
+        echo
+        echo "If the change is what you meant, commit it and re-run:"
+        echo "    git add numa_app/services/starter_data.json"
+        echo "    git commit -m 'Update starter data'"
+        echo "    make release-all"
+        echo "If not, fix the \"*\" marks in NuMa, then: git checkout numa_app/services/starter_data.json"
+    else
+        echo
+        echo "WHY: see the last lines of its output, repeated here"
+        echo "(full output: $linux_log):"
+        echo "────────────────────────────────────────────────────────────────────"
+        grep -v '^\s*$' "$linux_log" | tail -n 20 | sed 's/^/    /'
+        echo "────────────────────────────────────────────────────────────────────"
+        if [[ "$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 1)" -eq 0 ]]; then
+            echo "The source WAS pushed, so the stop came while building or publishing"
+            echo "the release itself. Fix that, then run: make release-linux"
+        else
+            echo "Nothing was pushed yet. Fix the problem and re-run: make release-all"
+        fi
+    fi
+    echo "════════════════════════════════════════════════════════════════════"
     exit 1
 fi
+rm -f "$linux_log"
 
 # ── Windows ─────────────────────────────────────────────────────────────────
 echo
