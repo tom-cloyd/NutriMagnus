@@ -6199,15 +6199,12 @@ def test_nutrient_plot_home_pref_rolling_with_trailing_params_stays_checked(clie
     assert "checked" in toggle
 
 
-def test_nutrient_plot_stale_home_qs_offers_remove_button(client: TestClient, cached_food) -> None:
-    """If home_nutrient_plot_qs in prefs doesn't match the qs the current
-    view would produce (e.g. leftover from before a qs-format change, or
-    just a different selection than what's on screen), "Show on Home page"
-    can't be shown checked -- checking it would silently overwrite the Home
-    page plot with whatever's on screen. That used to leave no way to turn
-    the Home page plot off at all from here. A "Remove it from Home page"
-    button should appear instead, and posting it (with no "enabled" field)
-    should disable the Home page plot regardless of the qs mismatch."""
+def test_nutrient_plot_home_page_copy_follows_changes(client: TestClient, cached_food) -> None:
+    """While a plot is on the Home page, plotting anything different on the
+    Nutrient Plot page saves it as the Home page plot too, so the two never
+    drift apart: the toggle stays checked, no "a different plot is on the
+    Home page" warning appears, and the Home page shows the new selection.
+    Turning the toggle off (posting with no "enabled") still removes it."""
     import html
     yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
     resp = client.post("/meals/create", data={"name": "Meal", "meal_date": yesterday}, follow_redirects=False)
@@ -6220,18 +6217,18 @@ def test_nutrient_plot_stale_home_qs_offers_remove_button(client: TestClient, ca
     qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r.text).group(1))
     client.post("/summary/nutrient-plot/home-pref", data={"qs": qs, "enabled": "1"}, follow_redirects=False)
 
-    # Visit a different selection -- now on-screen qs no longer matches the
-    # saved home_nutrient_plot_qs.
-    r2 = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g")
-    assert "Remove it from Home page" in r2.text
+    r2 = client.get("/summary/nutrient-plot?nutrients=dcp&nutrients=protein_g&legend=right")
+    assert "Remove it from Home page" not in r2.text
     toggle = re.search(r'id="home-plot-toggle"[^>]*>', r2.text).group(0)
-    assert "checked" not in toggle
-
-    r3 = client.post("/summary/nutrient-plot/home-pref", data={"qs": qs}, follow_redirects=False)
-    assert r3.status_code == 303
-
+    assert "checked" in toggle
     home = client.get("/")
-    assert "Your nutrient plot" not in home.text
+    assert "nutrients=protein_g" in home.text and "legend=right" in home.text
+    assert "nutrients=calories" not in home.text
+
+    new_qs = html.unescape(re.search(r'name="qs" value="([^"]*)"', r2.text).group(1))
+    r3 = client.post("/summary/nutrient-plot/home-pref", data={"qs": new_qs}, follow_redirects=False)
+    assert r3.status_code == 303
+    assert "Your nutrient plot" not in client.get("/").text
 
 
 def test_nutrient_plot_remove_from_home_page_works_with_no_nutrients_chosen(
@@ -6670,9 +6667,19 @@ def test_plot_legend_placement_auto_switches_at_one_row() -> None:
     one_row, two_rows = LEGEND_MAX_NCOL, LEGEND_MAX_NCOL + 1
     assert render(one_row, "auto") == render(one_row, "top")
     assert render(one_row, "auto") != render(one_row, "bottom")
-    assert render(two_rows, "auto") == render(two_rows, "bottom")
+    assert render(two_rows, "auto") == render(two_rows, "right")
     assert render(two_rows, "auto") != render(two_rows, "top")
     assert render(one_row, "sideways") == render(one_row, "auto")
+    # A narrow-screen image never gets the side column: "right", asked for or
+    # picked by auto, becomes "bottom"; other placements are unaffected.
+    def render_narrow(n_series: int, legend_pos: str) -> bytes:
+        series = [{"x": dates, "y": [1.0 + i, 2.0, 3.0], "label": f"Nutrient {i}"}
+                  for i in range(n_series)]
+        return line_plot_image(series, xlabel="Date", ylabel="Value", title="T",
+                               subtitle="(sub)", legend_pos=legend_pos, narrow=True)
+    assert render_narrow(two_rows, "auto") == render(two_rows, "bottom")
+    assert render_narrow(two_rows, "right") == render(two_rows, "bottom")
+    assert render_narrow(one_row, "auto") == render(one_row, "top")
 
 
 def test_nutrient_plot_legend_placement_round_trips(client: TestClient, cached_food) -> None:
@@ -6703,6 +6710,59 @@ def test_nutrient_plot_legend_placement_round_trips(client: TestClient, cached_f
     img = client.get("/summary/nutrient-plot/image?nutrients=calories&nutrients=protein_g&legend=bottom")
     assert img.status_code == 200
     assert img.headers["content-type"] == "image/png"
+
+    # The wide-screen <source> asks for the image as chosen; the narrow-screen
+    # <img> fallback adds narrow=1, which moves a right-hand legend below.
+    right = client.get("/summary/nutrient-plot?submitted=1&nutrients=calories&legend=right")
+    assert 'value="right" selected' in right.text
+    assert 'srcset="/summary/nutrient-plot/image?' in right.text
+    srcset = right.text.split('id="plot-src-wide"', 1)[1].split(">", 1)[0]
+    img_tag = right.text.split('id="plot-img"', 1)[1].split(">", 1)[0]
+    assert "legend=right" in srcset and "narrow=1" not in srcset
+    assert "legend=right" in img_tag and "narrow=1" in img_tag
+    narrow_img = client.get("/summary/nutrient-plot/image?nutrients=calories&legend=right&narrow=1")
+    assert narrow_img.status_code == 200
+    img = client.get("/summary/nutrient-plot/image?nutrients=calories&nutrients=protein_g&legend=right")
+    assert img.status_code == 200
+
+
+def test_every_plot_line_gets_its_own_marker_shape(monkeypatch) -> None:
+    """Each series, up to the plot's maximum, draws its points (and so its
+    legend sample) with a different marker; a hollow point on a stroke-only
+    shape (asterisk, "#") gets a ring instead of an unfilled copy."""
+    import matplotlib.axes
+    from numa_app.services import plotting
+
+    assert len({repr(m[0]) for m in plotting.MARKERS}) == len(plotting.MARKERS) >= plotting.MAX_SERIES
+    drawn = []
+    real_plot = matplotlib.axes.Axes.plot
+
+    def spy(self, *args, **kwargs):
+        drawn.append(kwargs)
+        return real_plot(self, *args, **kwargs)
+    monkeypatch.setattr(matplotlib.axes.Axes, "plot", spy)
+    dates = ["2026-09-01", "2026-09-02"]
+    series = [{"x": dates, "y": [1.0 + i, 2.0], "label": f"N{i}", "hollow": [True, False]}
+              for i in range(plotting.MAX_SERIES)]
+    plotting.line_plot_image(series, xlabel="Date", ylabel="Value")
+    lines = [k for k in drawn if "label" in k]
+    assert len({repr(k["marker"]) for k in lines}) == plotting.MAX_SERIES
+    overlays = [k for k in drawn if "label" not in k]
+    stroke_only = [i for i, m in enumerate(plotting.MARKERS[:plotting.MAX_SERIES]) if not m[2]]
+    for i in stroke_only:
+        assert overlays[i]["marker"] == "o" and overlays[i]["markerfacecolor"] == "none"
+
+
+def test_right_legend_wraps_names_without_splitting_groups() -> None:
+    """The one-column right-of-plot legend wraps long names, but never
+    inside a parenthesized group or the scale factor, so no fragment like
+    "×8" is left alone on a line."""
+    from numa_app.services.plotting import _wrap_legend_label
+
+    lines = _wrap_legend_label("Daily glycemic load (hollow = partial) ÷31.1 ×8").split("\n")
+    assert lines[0] == "Daily glycemic load"
+    assert lines[1].replace("\u00a0", " ") == "(hollow = partial) ÷31.1 ×8"
+    assert _wrap_legend_label("Fiber (g)") == "Fiber (g)"
 
 
 # ---------------------------------------------------------------------------
@@ -8839,3 +8899,83 @@ def test_day_page_same_from_summary_and_meal(client: TestClient, cached_food) ->
     # A date with nothing logged says so rather than bouncing back.
     r = client.get("/summary/2001-01-01", follow_redirects=False)
     assert r.status_code == 200 and "No meals are logged for 2001-01-01" in r.text
+
+
+# ── Online food search: sources asked together, recent results remembered ──
+
+def _stub_live_sources(monkeypatch, delay: float = 0.0, fail: set[str] = frozenset()):
+    """Stub USDA/OFF/CNF search with fixed rows; returns the call log."""
+    import threading, time
+    import cnf_api, openfoodfacts
+    calls, lock = [], threading.Lock()
+
+    def make(key, rows):
+        def fn(query, *a, **kw):
+            with lock:
+                calls.append(key)
+            time.sleep(delay)
+            if key in fail:
+                raise RuntimeError("offline")
+            return [dict(r) for r in rows]
+        return fn
+
+    monkeypatch.setattr(_usda, "search_foods", make("usda", [{"fdcId": 1, "description": "Lemon, raw"}]))
+    monkeypatch.setattr(openfoodfacts, "search_foods", make("off", [
+        {"fdcId": -101, "description": "lemon, raw", "_from_off": True},      # same name as USDA's
+        {"fdcId": -102, "description": "Lemon curd", "_from_off": True},
+        {"fdcId": -103, "description": "Lemon curd", "_from_off": True}]))    # repeats itself
+    monkeypatch.setattr(cnf_api, "search_foods", make("cnf", [{"fdcId": -201, "description": "Lemon juice", "_from_cnf": True}]))
+    return calls
+
+
+def test_live_sources_are_asked_at_the_same_time(monkeypatch):
+    import time
+    _stub_live_sources(monkeypatch, delay=0.3)
+    t = time.monotonic()
+    rows = backend._live_source_rows("lemon", ["usda", "off", "cnf"], 10)
+    # USDA's two requests plus OFF and CNF, one after another, would be 1.2 s.
+    assert time.monotonic() - t < 0.8
+    assert [r["fdcId"] for r in rows] == [1, -102, -201]   # OFF name repeats dropped, order kept
+
+
+def test_repeated_live_search_is_answered_from_memory(monkeypatch):
+    calls = _stub_live_sources(monkeypatch)
+    first = backend._live_source_rows("Lemon", ["usda", "off", "cnf"], 10)
+    n = len(calls)
+    assert backend._live_source_rows("lemon ", ["usda", "off", "cnf"], 10) == first
+    assert len(calls) == n
+    # A different source selection or limit is a different search.
+    backend._live_source_rows("lemon", ["usda"], 10)
+    backend._live_source_rows("lemon", ["usda", "off", "cnf"], 20)
+    assert len(calls) > n
+
+
+def test_remembered_live_search_expires(monkeypatch):
+    """A remembered online search is reused only within _LIVE_SEARCH_TTL_S;
+    after that the same search asks the sources again."""
+    calls = _stub_live_sources(monkeypatch)
+    backend._live_source_rows("lemon", ["usda", "off", "cnf"], 10)
+    n = len(calls)
+    monkeypatch.setattr(backend, "_LIVE_SEARCH_TTL_S", 0)
+    backend._live_source_rows("lemon", ["usda", "off", "cnf"], 10)
+    assert len(calls) > n
+
+
+def test_live_search_with_a_failed_source_is_not_remembered(monkeypatch):
+    calls = _stub_live_sources(monkeypatch, fail={"off"})
+    rows = backend._live_source_rows("lemon", ["usda", "off", "cnf"], 10)
+    assert [r["fdcId"] for r in rows] == [1, -201]
+    n = len(calls)
+    backend._live_source_rows("lemon", ["usda", "off", "cnf"], 10)
+    assert len(calls) > n
+
+
+def test_prefs_saved_from_many_threads_keep_every_change(monkeypatch, tmp_path):
+    import threading
+    monkeypatch.setattr(backend, "_PREFS_FILE", tmp_path / "prefs.json")
+    threads = [threading.Thread(target=backend._save_prefs_file, args=({f"k{i}": i},)) for i in range(40)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    assert backend._load_prefs_file() == {f"k{i}": i for i in range(40)}

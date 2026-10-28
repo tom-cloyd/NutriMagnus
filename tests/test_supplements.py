@@ -87,6 +87,8 @@ def test_a_supplement_weighs_nothing_and_stays_out_of_gl():
         assert _db.recipe_compute_weight(conn, rid) == (200.0, True)
         leaves = expand_recipe_ingredients(rid, conn)
         assert [lf["is_supplement"] for lf in leaves] == [False, True]
+        # Only the supplement's nutrients carry the from-supplements split.
+        assert [any(k.endswith("__supp") for k in lf["nutrients_100g"]) for lf in leaves] == [False, True]
         gl = recipe_gl(conn, rid)
         assert not [g for g in gl["gaps"] if g["fdc_id"] == B12_ID]
 

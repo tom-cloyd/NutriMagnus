@@ -13,6 +13,8 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
+import platform_utils as _platform_utils
+
 _CONFIG_FILE = pathlib.Path.home() / ".config" / "numa" / "config.json"
 _BASE_URL = "https://api.nal.usda.gov/fdc/v1"
 
@@ -205,8 +207,7 @@ def _load_config() -> dict:
 
 
 def _save_config(cfg: dict) -> None:
-    _CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG_FILE.write_text(json.dumps(cfg, indent=2) + "\n")
+    _platform_utils.write_text_atomic(_CONFIG_FILE, json.dumps(cfg, indent=2) + "\n")
 
 
 def get_api_key() -> str | None:

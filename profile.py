@@ -286,7 +286,7 @@ def save_profile(profile: UserProfile) -> None:
     """Save profile to profiles/{profile.name}.json and update active pointer."""
     _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     path = _PROFILES_DIR / f"{profile.name}.json"
-    path.write_text(json.dumps(asdict(profile), indent=2) + "\n")
+    _platform_utils.write_text_atomic(path, json.dumps(asdict(profile), indent=2) + "\n")
 
 
 def delete_profile(name: str) -> bool:

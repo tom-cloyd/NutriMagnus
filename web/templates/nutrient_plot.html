@@ -205,11 +205,12 @@
             <label class="form-check-label" for="grayscale" title="Renders every line in black, using a different dash pattern per nutrient instead of color, so the plot still reads correctly on a printer that can't print color. Preview it here before you print.">Black &amp; white (printer-friendly)</label>
           </div>
           <div>
-            <label class="form-label mb-0" for="legend" title="Where the list naming each colored line sits. Auto puts it above the plot while it fits on one line, and below once it would wrap onto several. Saved with this plot, including the print view, downloads, and the Home page copy."><strong>Legend placement</strong></label>
+            <label class="form-label mb-0" for="legend" title="Where the list naming each colored line sits. Auto puts it above the plot while it fits on one line, and in a column to the right once it would wrap onto several. Right of the plot stacks the names in one column beside it, moving below the plot when the window is too narrow for both side by side. Saved with this plot, including the print view, downloads, and the Home page copy."><strong>Legend placement</strong></label>
             <select class="form-select form-select-sm" id="legend" name="legend" style="width:12rem">
-              <option value="auto" {% if legend_pos == 'auto' %}selected{% endif %}>Auto (above if it fits)</option>
+              <option value="auto" {% if legend_pos == 'auto' %}selected{% endif %}>Auto (above, else right)</option>
               <option value="top" {% if legend_pos == 'top' %}selected{% endif %}>Always above the plot</option>
               <option value="bottom" {% if legend_pos == 'bottom' %}selected{% endif %}>Always below the plot</option>
+              <option value="right" {% if legend_pos == 'right' %}selected{% endif %}>Right of the plot, in a column</option>
             </select>
           </div>
           {% endif %}
@@ -279,7 +280,13 @@ marked complete, and <strong>Roll to last complete day</strong> leaves those day
 <a href="/meals">Meals &amp; Log</a>, or untick Roll to last complete day.</div>
 {% else %}
 <div class="mb-2 mt-3">
-  <img id="plot-img" src="/summary/nutrient-plot/image?{{ qs }}" alt="Nutrient plot" style="max-width:100%;border:1px solid #d7dce4;border-radius:4px">
+  {# A right-of-plot legend would shrink everything to unreadable on a narrow
+     screen, so below 992px wide the browser loads the narrow=1 image, which
+     puts it below the plot instead (other placements draw the same either way). #}
+  <picture>
+    <source id="plot-src-wide" media="(min-width: 992px)" srcset="/summary/nutrient-plot/image?{{ qs }}">
+    <img id="plot-img" src="/summary/nutrient-plot/image?{{ qs }}&narrow=1" alt="Nutrient plot" style="max-width:100%;border:1px solid #d7dce4;border-radius:4px">
+  </picture>
 </div>
 <div class="d-flex gap-2 align-items-center flex-wrap">
   <a id="plot-dl-png" href="/summary/nutrient-plot/image?{{ qs }}&download=1" class="btn btn-sm btn-outline-secondary">Download PNG</a>
@@ -308,7 +315,10 @@ marked complete, and <strong>Roll to last complete day</strong> leaves those day
   // immediately, without waiting for a full Plot click / page reload. Both
   // controls drive the same URL rewrite, so changing one leaves the other's
   // param as it found it.
+  // The <img> is the narrow-screen fallback; its narrow=1 param (left
+  // alone here) makes the server draw a right-of-plot legend below instead.
   var targets = [
+    {el: document.getElementById('plot-src-wide'), attr: 'srcset'},
     {el: document.getElementById('plot-img'), attr: 'src'},
     {el: document.getElementById('plot-dl-png'), attr: 'href'},
     {el: document.getElementById('plot-dl-svg'), attr: 'href'},
@@ -336,6 +346,26 @@ marked complete, and <strong>Roll to last complete day</strong> leaves those day
         }
         t.el[t.attr] = url.pathname + '?' + url.searchParams.toString();
       });
+      // Keep the address bar, the Home page form's qs, and (while this plot
+      // is on the Home page) the saved Home page plot in step with the
+      // change, so a reload or the Home page shows it too.
+      function withParam(search) {
+        var sp = new URLSearchParams(search);
+        if (v === null) { sp.delete(c.param); } else { sp.set(c.param, v); }
+        return sp.toString();
+      }
+      history.replaceState(null, '', window.location.pathname + '?' + withParam(window.location.search));
+      var qsInput = document.querySelector('#home-pref-form input[name="qs"]');
+      if (!qsInput) return;
+      qsInput.value = withParam(qsInput.value);
+      var homeToggle = document.getElementById('home-plot-toggle');
+      if (homeToggle && homeToggle.checked) {
+        var rolling = new URLSearchParams(qsInput.value).get('rolling') === '1';
+        fetch('/summary/nutrient-plot/home-pref', {
+          method: 'POST', redirect: 'manual',
+          body: new URLSearchParams({qs: qsInput.value, enabled: '1', rolling: rolling ? '1' : ''}),
+        });
+      }
     });
   });
 })();

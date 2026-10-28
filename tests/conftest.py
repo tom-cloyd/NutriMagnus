@@ -8,6 +8,7 @@ Key fixtures:
   use_test_prefs    — autouse; redirects web/backend.py's prefs.json to a per-test temp path
   no_off            — autouse; stubs Open Food Facts search/barcode lookup
   no_cnf            — autouse; stubs Canadian Nutrient File search/detail lookup
+  no_live_search_cache — autouse; empties web/backend.py's recent online-search cache
   db_conn           — direct sqlite3 connection to the temp DB for assertions
   cached_food       — inserts SAMPLE_FOOD_DETAIL into the temp DB cache; use this
                       in any test that needs a food available without hitting the API
@@ -220,6 +221,15 @@ def no_update_check(monkeypatch: pytest.MonkeyPatch) -> None:
     # let a test rewrite the real one in the repo.
     from numa_app.services import manual_build as _manual_build
     monkeypatch.setattr(_manual_build, "rebuild_manual_if_stale", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def no_live_search_cache() -> None:
+    """Start every test with web/backend.py's recent online-search cache
+    empty, so rows one test's stubbed USDA/OFF/CNF returned never answer
+    another test's search."""
+    from web import backend as _backend
+    _backend._live_search_cache.clear()
 
 
 # ---------------------------------------------------------------------------

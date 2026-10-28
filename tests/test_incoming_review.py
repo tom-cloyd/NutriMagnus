@@ -222,6 +222,22 @@ def test_scaled_aa_scales_by_protein_ratio():
     assert _ae.scaled_aa(AA_SOURCE, None) == ({}, None)
 
 
+def test_scaled_aa_edges():
+    """No protein on either side gives nothing to scale by; under 1 g on
+    either side still scales; values keep 4 decimal places (mutation-testing
+    gaps, 2026-10-28)."""
+    from numa_app.services import aa_estimate as _ae
+    assert _ae.scaled_aa({"aa_lysine_g": 1.0}, 10.0) == ({}, None)
+    assert _ae.scaled_aa({"protein_g": 0.0, "aa_lysine_g": 1.0}, 10.0) == ({}, None)
+    assert _ae.scaled_aa(AA_SOURCE, -1.0) == ({}, None)
+    scaled, factor = _ae.scaled_aa(AA_SOURCE, 0.5)
+    assert factor == 0.025 and scaled["aa_lysine_g"] == 0.05
+    scaled, factor = _ae.scaled_aa({"protein_g": 0.5, "aa_lysine_g": 0.1}, 1.0)
+    assert factor == 2.0 and scaled == {"aa_lysine_g": 0.2}
+    scaled, _ = _ae.scaled_aa({"protein_g": 1.0, "aa_lysine_g": 0.123456}, 1.0)
+    assert scaled == {"aa_lysine_g": 0.1235}
+
+
 def test_fill_from_scales_amino_acids_to_this_foods_protein(client):
     _cache(SAMPLE_FDC_ID, "Target", {"protein_g": 10.0, "calories": 50.0})
     _cache(2002, "Source", dict(AA_SOURCE, iron_mg=3.0))

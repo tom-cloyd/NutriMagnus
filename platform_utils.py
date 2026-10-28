@@ -12,6 +12,7 @@ Windows:
 import os
 import pathlib
 import sys
+import threading
 
 
 def get_config_dir() -> pathlib.Path:
@@ -41,3 +42,15 @@ def get_data_dir() -> pathlib.Path:
         localappdata = os.environ.get("LOCALAPPDATA") or str(pathlib.Path.home() / "AppData" / "Local")
         return pathlib.Path(localappdata) / "numa"
     return pathlib.Path.home() / ".local" / "share" / "numa"
+
+
+def write_text_atomic(path: pathlib.Path, text: str) -> None:
+    """Write `text` to `path` so a reader never sees it half-written: write a
+    temp file beside it, then swap it into place in one step. The web app
+    serves requests on several threads at once, so a settings file read
+    while another request is saving it must find the old content or the
+    new, never an empty or truncated file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)

@@ -11,7 +11,10 @@ import os
 import re
 import shutil
 import sys
+import threading
+import time
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import parse_qs, parse_qsl, quote, urlencode
@@ -421,11 +424,18 @@ def _load_prefs_file() -> dict:
     return {}
 
 
+# Requests run on several threads at once (plain `def` routes), so two can
+# save prefs together: the lock stops one save's read-modify-write from
+# dropping the other's change, and the atomic write stops a reader from
+# seeing a half-written file (and saving that emptiness back).
+_prefs_lock = threading.Lock()
+
+
 def _save_prefs_file(updates: dict) -> None:
-    data = _load_prefs_file()
-    data.update(updates)
-    _PREFS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _PREFS_FILE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    with _prefs_lock:
+        data = _load_prefs_file()
+        data.update(updates)
+        _platform_utils.write_text_atomic(_PREFS_FILE, json.dumps(data, indent=2, sort_keys=True) + "\n")
 
 
 def _list_return(next_url: str, fallback: str, flags: str = "") -> str:
@@ -517,29 +527,41 @@ _SEARCH_CATEGORY_RANK = {"recipe": 0, "pantry": 1, "cache": 2, "usda": 3, "off":
                           "cofid": 3, "afcd": 3, "ciqual": 3}
 _SEARCH_SORT_MODES = {"grouped", "relevance"}
 
-def _fetch_usda_candidates(api_query: str, limit: int, existing: list[dict]) -> list[dict]:
-    general = _usda.search_foods(api_query, page_size=limit)
+def _fetch_usda_candidates(api_query: str, limit: int) -> list[dict]:
     # USDA's own relevance ranking can bury plain/raw preparations (the ones
     # with real amino-acid data) ~20 deep for a common single-word query —
     # see _search_logic for the "potato" case that exposed this. The result
     # cap is user-configurable (Settings → Advanced); 0 means no cap.
-    foundation = _usda.search_foods(api_query, data_types=["Foundation", "SR Legacy"],
-                                     page_size=_usda.get_search_boost_page_size())
+    # The two requests go out together rather than one after the other.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        general_f = pool.submit(_usda.search_foods, api_query, page_size=limit)
+        foundation_f = pool.submit(_usda.search_foods, api_query, data_types=["Foundation", "SR Legacy"],
+                                   page_size=_usda.get_search_boost_page_size())
+        general, foundation = general_f.result(), foundation_f.result()
     found_ids = {f["fdcId"] for f in foundation}
     return foundation + [f for f in general if f["fdcId"] not in found_ids]
 
 
-def _fetch_off_candidates(api_query: str, limit: int, existing: list[dict]) -> list[dict]:
-    found = []
-    for food in _off.search_foods(api_query, page_size=limit):
-        name_lower = food.get("description", "").lower()
-        if not any(name_lower == f.get("description", "").lower() for f in existing + found):
-            found.append(food)
-    return found
+def _fetch_off_candidates(api_query: str, limit: int) -> list[dict]:
+    return _off.search_foods(api_query, page_size=limit)
 
 
-def _fetch_cnf_candidates(api_query: str, limit: int, existing: list[dict]) -> list[dict]:
+def _fetch_cnf_candidates(api_query: str, limit: int) -> list[dict]:
     return _cnf.search_foods(api_query, page_size=limit)
+
+
+def _drop_repeated_names(rows: list[dict], existing: list[dict]) -> list[dict]:
+    """Open Food Facts rows minus any whose name exactly repeats a row
+    already found (from USDA, or earlier in OFF's own list) — OFF ids never
+    match USDA's, so the name is the only way to spot the same food twice."""
+    seen = {f.get("description", "").lower() for f in existing}
+    kept = []
+    for food in rows:
+        name_lower = food.get("description", "").lower()
+        if name_lower not in seen:
+            seen.add(name_lower)
+            kept.append(food)
+    return kept
 
 
 # Every live (network-backed) food-search source: (key, human name, fetch
@@ -855,25 +877,66 @@ def _sort_search_results(results: list[dict], query: str, mode: str) -> list[dic
     )
 
 
+# Raw online-source rows from recent searches, so the same search repeated
+# within a few minutes (the page reloading after "Add to meal", Back, a
+# re-sort) doesn't wait on USDA/OFF/CNF again. Keyed by everything that
+# changes what the sources return; only a search where every source
+# answered is kept, so a momentary outage isn't remembered.
+_LIVE_SEARCH_TTL_S = 600
+_LIVE_SEARCH_CACHE_MAX = 50
+_live_search_cache: dict[tuple, tuple[float, list[dict]]] = {}
+_live_search_lock = threading.Lock()
+
+
+def _live_source_rows(api_query: str, sources: list[str], limit: int) -> list[dict]:
+    """The selected _LIVE_SOURCES' raw rows, in _LIVE_SOURCES order. The
+    sources are asked all at once, so the wait is the slowest one rather
+    than all of them added up; a source that fails contributes nothing."""
+    selected = [(key, fn) for key, _name, fn in _LIVE_SOURCES if key in sources]
+    if not selected:
+        return []
+    cache_key = (api_query.strip().lower(), tuple(key for key, _fn in selected), limit,
+                 _usda.get_search_boost_page_size() if "usda" in sources else None)
+    now = time.monotonic()
+    with _live_search_lock:
+        hit = _live_search_cache.get(cache_key)
+        if hit and now - hit[0] < _LIVE_SEARCH_TTL_S:
+            return list(hit[1])
+
+    with ThreadPoolExecutor(max_workers=len(selected)) as pool:
+        futures = [(key, pool.submit(fn, api_query, limit)) for key, fn in selected]
+    raw_api: list[dict] = []
+    all_answered = True
+    for key, fut in futures:
+        try:
+            rows = fut.result()
+        except Exception:
+            all_answered = False
+            continue
+        raw_api.extend(_drop_repeated_names(rows, raw_api) if key == "off" else rows)
+
+    if all_answered:
+        with _live_search_lock:
+            for k in [k for k, (t, _rows) in _live_search_cache.items() if now - t >= _LIVE_SEARCH_TTL_S]:
+                del _live_search_cache[k]
+            if len(_live_search_cache) >= _LIVE_SEARCH_CACHE_MAX:
+                del _live_search_cache[min(_live_search_cache, key=lambda k: _live_search_cache[k][0])]
+            _live_search_cache[cache_key] = (now, list(raw_api))
+    return raw_api
+
+
 def _external_food_search_results(api_query: str, exclude_ids: set[int], q: str, sort: str,
                                    sources: list[str] | None = None,
                                    limit: int = _SEARCH_RESULT_LIMIT_DEFAULT) -> list[dict]:
-    """Live-source search: one blocking network call per selected source in
-    _LIVE_SOURCES (`sources` defaults to "all of them", for callers that
-    don't filter by source at all) — skipping whichever are unchecked in the
-    current Source filter. Callers on the web should run this out-of-band
+    """Live-source search: the selected _LIVE_SOURCES, asked all at once and
+    remembered for a few minutes (see _live_source_rows; `sources` defaults
+    to "all of them", for callers that don't filter by source at all) —
+    skipping whichever are unchecked in the current Source filter. Callers on the web should run this out-of-band
     from the initial page render (see /meal/{meal_id}/search-api-results) so
     cached results aren't stuck waiting behind slow external APIs."""
     if sources is None:
         sources = [key for key, _name, _fn in _LIVE_SOURCES]
-    raw_api: list[dict] = []
-    for key, _name, fetch_fn in _LIVE_SOURCES:
-        if key not in sources:
-            continue
-        try:
-            raw_api.extend(fetch_fn(api_query, limit, raw_api))
-        except Exception:
-            pass
+    raw_api = _live_source_rows(api_query, sources, limit)
 
     candidate_ids = [f["fdcId"] for f in raw_api if isinstance(f.get("fdcId"), int)]
     with _db.get_db() as conn:
@@ -1152,7 +1215,7 @@ _RESTARTING_PAGE = """<!doctype html><html lang="en"><head><meta charset="utf-8"
 
 
 @app.post("/restart-now", response_class=HTMLResponse)
-async def restart_now(next: str = Form("/")):
+def restart_now(next: str = Form("/")):
     """The banner's Restart NuMa now button: answer with a page that waits
     for the new version, then restart behind it."""
     import json as _json
@@ -1164,7 +1227,7 @@ async def restart_now(next: str = Form("/")):
 
 
 @app.get("/restart-status")
-async def restart_status():
+def restart_status():
     """Which version is answering — the restarting page polls this."""
     return JSONResponse({"version": VERSION})
 
@@ -2577,7 +2640,7 @@ async def manual_update_now():
 
 
 @app.post("/settings/gi-notices", response_class=RedirectResponse)
-async def settings_gi_notices_post(gi_opt_out: str = Form("")):
+def settings_gi_notices_post(gi_opt_out: str = Form("")):
     """Opt out of (or back into) glycemic index data entirely: numa stops asking
     for GI values when a food is added, and stops reporting which GI reference
     table is in use. Separate from the home notice's own 'do not remind me
@@ -2587,7 +2650,7 @@ async def settings_gi_notices_post(gi_opt_out: str = Form("")):
 
 
 @app.post("/settings/gl", response_class=RedirectResponse)
-async def settings_gl_post(track_gl: str = Form("")):
+def settings_gl_post(track_gl: str = Form("")):
     """Settings → 8: show glycemic load everywhere, or hide all of it.
     Nothing is deleted."""
     _save_prefs_file({"track_gl": bool(track_gl)})
@@ -2595,7 +2658,7 @@ async def settings_gl_post(track_gl: str = Form("")):
 
 
 @app.post("/settings/water", response_class=RedirectResponse)
-async def settings_water_post(track_water: str = Form("")):
+def settings_water_post(track_water: str = Form("")):
     """Settings → 9: show water (drinks / food split, drink tick-boxes,
     backfill, wet/dry name check) or hide all of it. Nothing is deleted."""
     _save_prefs_file({"track_water": bool(track_water)})
@@ -2603,7 +2666,7 @@ async def settings_water_post(track_water: str = Form("")):
 
 
 @app.post("/gi-table-notice/ack-banner", response_class=RedirectResponse)
-async def gi_table_notice_ack_banner():
+def gi_table_notice_ack_banner():
     """'Do not remind me again' on the home-page GI-table banner. Cleared
     automatically if a locally-built 2021 table is ever seen again, so a later
     disappearance of it is still reported."""
@@ -2612,7 +2675,7 @@ async def gi_table_notice_ack_banner():
 
 
 @app.post("/profile-notice/ack-banner", response_class=RedirectResponse)
-async def profile_notice_ack_banner():
+def profile_notice_ack_banner():
     """'Don't remind me about this again' on the home-page profile-not-set
     banner."""
     _save_prefs_file({"profile_notice_dismissed": True})
@@ -2620,7 +2683,7 @@ async def profile_notice_ack_banner():
 
 
 @app.post("/manual-notice/ack-banner", response_class=RedirectResponse)
-async def manual_notice_ack_banner(stamp: str = Form(...)):
+def manual_notice_ack_banner(stamp: str = Form(...)):
     """'Don't show this again' on the home-page manual-update banner —
     dismisses only that exact manual version."""
     _save_prefs_file({"manual_notice_dismissed_stamp": stamp})
@@ -2640,7 +2703,7 @@ async def update_now():
 
 
 @app.post("/recompute-errors/ack-banner", response_class=RedirectResponse)
-async def recompute_errors_ack_banner(return_to: str = Form("")):
+def recompute_errors_ack_banner(return_to: str = Form("")):
     """'Got it, don't remind again' on the System Issues alert at the top of
     every page (base.html) — silences it for currently-outstanding errors
     without resolving them; they remain visible under Settings > System Issues
@@ -3059,7 +3122,7 @@ async def search(request: Request, query: str = Form(""), limit: int | None = Fo
 
 
 @app.get("/search-rows/{screen}", response_class=HTMLResponse)
-async def search_rows(request: Request, screen: str):
+def search_rows(request: Request, screen: str):
     """Full (local + online) result rows for a search screen in
     _SEARCH_SCREENS, fetched by base.html's [data-search-results] script
     after the page has shown its local matches. `id` is the page's own id."""
@@ -3071,7 +3134,7 @@ async def search_rows(request: Request, screen: str):
 
 
 @app.get("/food/search-api-results", response_class=HTMLResponse)
-async def food_search_api_results(request: Request, query: str = "", sort: str | None = None,
+def food_search_api_results(request: Request, query: str = "", sort: str | None = None,
                                    source: list[str] | None = Query(default=None),
                                    limit: int | None = None):
     """Fetched by JS on the Food Search page after the initial (cache-only)
@@ -3091,7 +3154,7 @@ async def food_search_api_results(request: Request, query: str = "", sort: str |
 
 
 @app.get("/food/analyze-portion-api-results", response_class=HTMLResponse)
-async def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None,
+def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None,
                                             source: list[str] | None = Query(default=None),
                                             limit: int | None = None):
     """Same as /food/search-api-results, for the Analyze a Food Portion page."""
@@ -3106,7 +3169,7 @@ async def food_analyze_portion_api_results(request: Request, query: str = "", so
 
 
 @app.get("/search/suggestions")
-async def search_suggestions_api(query: str = "") -> dict:
+def search_suggestions_api(query: str = "") -> dict:
     """Did-you-mean suggestions for a search box that came up empty —
     called by JS (see base.html's numaInitSearchSuggestions) once a page's
     own search-no-results element becomes visible. Shared by every search
@@ -3117,7 +3180,7 @@ async def search_suggestions_api(query: str = "") -> dict:
 
 
 @app.post("/food/confirm-aa", response_class=RedirectResponse)
-async def food_confirm_aa(
+def food_confirm_aa(
     fdc_ids: list[int] = Form(...),
     query: str = Form(""),
     sort: str = Form(""),
@@ -3171,7 +3234,7 @@ async def food_confirm_aa(
 # ---------------------------------------------------------------------------
 
 @app.get("/food/analyze-portion", response_class=HTMLResponse)
-async def food_analyze_portion_get(request: Request):
+def food_analyze_portion_get(request: Request):
     sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     source = _resolve_source_filter(None, "sort_food_search_source")
     limit = _resolve_result_limit(None)
@@ -3189,7 +3252,7 @@ async def food_analyze_portion_post(request: Request, query: str = Form(""), sou
 
 
 @app.get("/food/analyze-recipe-portion", response_class=HTMLResponse)
-async def food_analyze_recipe_portion_get(request: Request):
+def food_analyze_recipe_portion_get(request: Request):
     with _db.get_db() as conn:
         recipes = [dict(r) for r in _db.recipe_list(conn)]
     return templates.TemplateResponse(request, "food_analyze_recipe_portion.html", {
@@ -3198,7 +3261,7 @@ async def food_analyze_recipe_portion_get(request: Request):
 
 
 @app.post("/food/analyze-recipe-portion", response_class=HTMLResponse)
-async def food_analyze_recipe_portion_post(
+def food_analyze_recipe_portion_post(
     request: Request,
     recipe_id: int = Form(...),
     servings: float = Form(1.0),
@@ -3281,7 +3344,7 @@ async def food_analyze_recipe_portion_post(
 
 
 @app.get("/food/convert", response_class=HTMLResponse)
-async def food_convert_get(request: Request):
+def food_convert_get(request: Request):
     # Local matches render now; online ones fill in via /search-rows/convert
     _rows_template, search_ctx = _screen_convert(request.query_params, False)
     return templates.TemplateResponse(request, "food_convert.html", {
@@ -3292,7 +3355,7 @@ async def food_convert_get(request: Request):
 
 
 @app.get("/food/convert/{fdc_id}", response_class=HTMLResponse)
-async def food_convert_detail(
+def food_convert_detail(
     request: Request,
     fdc_id: int,
     portion_str: str = Query(default=""),
@@ -3345,7 +3408,7 @@ async def food_convert_detail(
 
 
 @app.get("/food/convert/recipe/{recipe_id}", response_class=HTMLResponse)
-async def food_convert_recipe(
+def food_convert_recipe(
     request: Request,
     recipe_id: int,
     portion_str: str = Query(default=""),
@@ -3529,7 +3592,7 @@ _FOOD_CACHE_SORT_KEYS = {
 
 
 @app.get("/food/cache", response_class=HTMLResponse)
-async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
+def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
                           show_archived: bool | None = None, archived: int = 0, restored: int = 0,
                           still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
                           blocked_fdc_id: int | None = None,
@@ -3591,7 +3654,7 @@ async def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: s
 
 
 @app.get("/food/cache/export.csv")
-async def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
+def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
         if q.strip():
@@ -3608,7 +3671,7 @@ async def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
 
 
 @app.post("/food/cache/delete", response_class=RedirectResponse)
-async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form(""),
+def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form(""),
                              sort: str = Form(""), show_archived: int = Form(0)):
     """Delete a cached food — refused if a pantry entry, recipe, or meal still
     references it, since that would silently orphan the reference (it would
@@ -3648,7 +3711,7 @@ async def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = 
 # ---------------------------------------------------------------------------
 
 @app.post("/food/cache/claude-fetch", response_class=HTMLResponse)
-async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[]),
+def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[]),
                                   group: list[str] = Form(default=[]),
                                   want: list[str] = Form(default=[]),
                                   gi_diaas: int = Form(0),
@@ -3723,7 +3786,7 @@ async def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(def
 
 
 @app.get("/food/cache/claude-import", response_class=HTMLResponse)
-async def food_cache_claude_import_get(request: Request):
+def food_cache_claude_import_get(request: Request):
     return templates.TemplateResponse(request, "claude_import.html", {
         "response_text": "",
         "review":        None,
@@ -3731,7 +3794,7 @@ async def food_cache_claude_import_get(request: Request):
 
 
 @app.post("/food/cache/claude-import", response_class=HTMLResponse)
-async def food_cache_claude_import_post(request: Request,
+def food_cache_claude_import_post(request: Request,
                                          response_text: str = Form(...),
                                          action: str = Form("preview"),
                                          overwrite: int = Form(0)):
@@ -3795,7 +3858,7 @@ async def food_cache_claude_import_post(request: Request,
 # ---------------------------------------------------------------------------
 
 @app.get("/food/cache/import-csv", response_class=HTMLResponse)
-async def food_cache_import_csv_get(request: Request):
+def food_cache_import_csv_get(request: Request):
     return templates.TemplateResponse(request, "food_cache_import_csv.html", {
         "csv_text": "",
         "review":   None,
@@ -3839,7 +3902,7 @@ async def food_cache_import_csv_post(request: Request,
 
 
 @app.post("/food/{fdc_id}/drink", response_class=RedirectResponse)
-async def food_set_drink(fdc_id: int, is_drink: int = Form(0), next: str = Form("")):
+def food_set_drink(fdc_id: int, is_drink: int = Form(0), next: str = Form("")):
     """Mark a food as a drink or not — moves its water between "from drinks"
     and "from food" in every recipe and meal that uses it. From the food's
     page, or a row of Analysis → Food use in meals (`next`)."""
@@ -3858,7 +3921,7 @@ async def food_set_drink(fdc_id: int, is_drink: int = Form(0), next: str = Form(
 
 
 @app.post("/food/{fdc_id}/rename", response_class=RedirectResponse)
-async def food_rename(fdc_id: int, name: str = Form("")):
+def food_rename(fdc_id: int, name: str = Form("")):
     """Rename any food from its own page, a USDA food included
     (db.rename_food_by_user): the new name goes to every recipe, meal and
     pantry line using it, and stays the user's through a Refresh."""
@@ -3875,7 +3938,7 @@ async def food_rename(fdc_id: int, name: str = Form("")):
 
 
 @app.post("/food/{fdc_id}/supplement", response_class=RedirectResponse)
-async def food_set_supplement(fdc_id: int, is_supplement: int = Form(0), next: str = Form("")):
+def food_set_supplement(fdc_id: int, is_supplement: int = Form(0), next: str = Form("")):
     """The "This is a supplement" switch on a food's page (supplements.py):
     no food checks, no weight, and its nutrients counted as from supplements.
     Recalculates every recipe and meal using it, so their totals gain or lose
@@ -3890,7 +3953,7 @@ async def food_set_supplement(fdc_id: int, is_supplement: int = Form(0), next: s
 
 
 @app.post("/food/cache/{fdc_id}/archive", response_class=RedirectResponse)
-async def food_cache_archive(request: Request, fdc_id: int, q: str = Form(""), sort: str = Form(""),
+def food_cache_archive(request: Request, fdc_id: int, q: str = Form(""), sort: str = Form(""),
                               show_archived: int = Form(0)):
     """Archive or restore a cached food — flips whichever state it's currently in."""
     params = {"q": q, "sort": sort, "show_archived": show_archived}
@@ -3916,7 +3979,7 @@ async def food_cache_archive(request: Request, fdc_id: int, q: str = Form(""), s
 
 
 @app.get("/food/cache/prune", response_class=HTMLResponse)
-async def food_cache_prune_get(request: Request):
+def food_cache_prune_get(request: Request):
     """Preview foods not referenced by any pantry entry, recipe, or meal before pruning."""
     with _db.get_db() as conn:
         unused = _db.list_unused_cached_foods(conn)
@@ -3939,7 +4002,7 @@ async def food_cache_prune_post(request: Request):
 
 
 @app.get("/food/cache/db-check", response_class=HTMLResponse)
-async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, zeroed: int = 0,
+def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, zeroed: int = 0,
                                   amounts_fixed: int = 0,
                                   amounts_kept: int = 0,
                                   fixed: int = 0, fix_stale: int = 0,
@@ -4084,7 +4147,7 @@ async def food_cache_db_check_get(request: Request, repaired: int = 0, saved: in
 
 
 @app.post("/food/cache/water-backfill", response_class=RedirectResponse)
-async def food_cache_water_backfill():
+def food_cache_water_backfill():
     """Start filling in USDA's water value for every USDA food lacking one
     (numa_app/services/water_backfill.py); progress shows on Foods → 9."""
     _water_backfill.start()
@@ -4092,7 +4155,7 @@ async def food_cache_water_backfill():
 
 
 @app.post("/food/cache/vitamin-k-repair", response_class=RedirectResponse)
-async def food_cache_vitamin_k_repair():
+def food_cache_vitamin_k_repair():
     """Start correcting the vitamin K of every USDA food cached before the
     2026-10-14 fix (numa_app/services/vitamin_k_repair.py); progress shows on
     Foods → 9."""
@@ -4101,7 +4164,7 @@ async def food_cache_vitamin_k_repair():
 
 
 @app.post("/food/cache/db-check/completeness", response_class=RedirectResponse)
-async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
+def food_cache_completeness_save(shown: list[str] = Form(default=[]),
                                        ignore: list[str] = Form(default=[]),
                                        zero: list[str] = Form(default=[]),
                                        back: str = Form("completeness")):
@@ -4145,7 +4208,7 @@ async def food_cache_completeness_save(shown: list[str] = Form(default=[]),
 
 
 @app.post("/food/cache/db-check/stale-amounts", response_class=RedirectResponse)
-async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
+def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
                                        portions_fdc_id: int | None = Form(default=None),
                                        action: str = Form(default="update")):
     """Set the ticked recipe ingredients / logged meal foods to the grams
@@ -4207,7 +4270,7 @@ async def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
 
 
 @app.get("/food/cache/duplicates", response_class=HTMLResponse)
-async def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int = 0,
+def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int = 0,
                                 dismissed: int = 0, impact: str = "", copied: int = 0,
                                 pantry_merged: int = 0):
     """Duplicate foods (data_quality.duplicate_groups), run on request from
@@ -4238,7 +4301,7 @@ def _duplicate_group(conn, group_key: str) -> dict | None:
 
 
 @app.get("/food/cache/duplicates/review", response_class=HTMLResponse)
-async def food_cache_duplicates_review(request: Request, group_key: str = "", keep: int = 0):
+def food_cache_duplicates_review(request: Request, group_key: str = "", keep: int = 0):
     """Before keeping one of a group: the values and portions the others
     have that it lacks or has differently (data_quality.merge_review), each
     with a choice of which to keep. Nothing is written here."""
@@ -4321,7 +4384,7 @@ async def food_cache_duplicates_keep(request: Request):
 
 
 @app.post("/food/cache/duplicates/pantry", response_class=RedirectResponse)
-async def food_cache_duplicates_pantry(fdc_id: int = Form(...)):
+def food_cache_duplicates_pantry(fdc_id: int = Form(...)):
     """Fold one food's pantry entries into one (db.pantry_merge_duplicates)."""
     with _db.get_db() as conn:
         removed = _db.pantry_merge_duplicates(conn, fdc_id)
@@ -4329,14 +4392,14 @@ async def food_cache_duplicates_pantry(fdc_id: int = Form(...)):
 
 
 @app.post("/food/cache/duplicates/dismiss", response_class=RedirectResponse)
-async def food_cache_duplicates_dismiss(group_key: str = Form(...)):
+def food_cache_duplicates_dismiss(group_key: str = Form(...)):
     with _db.get_db() as conn:
         _db.dismiss_duplicate_group(conn, group_key)
     return RedirectResponse("/food/cache/duplicates?dismissed=1", status_code=303)
 
 
 @app.post("/food/{fdc_id}/data-ignore", response_class=RedirectResponse)
-async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1),
+def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1),
                            next: str = Form(default="")):
     """Mark (or unmark) one nutrient group not needed for this food, from
     its own page. Also takes data_quality.CALORIES_OK_KEY, "these calories
@@ -4353,7 +4416,7 @@ async def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = F
 
 
 @app.post("/food/{fdc_id}/data-fix", response_class=RedirectResponse)
-async def food_data_fix(fdc_id: int, fix: str = Form(...)):
+def food_data_fix(fdc_id: int, fix: str = Form(...)):
     """Apply one of Foods → 9's one-click fixes for a food data problem
     (data_quality.apply_fix: worked out again from the food as it is now,
     logged with its reason), then recalculate whatever uses the food.
@@ -4368,7 +4431,7 @@ async def food_data_fix(fdc_id: int, fix: str = Form(...)):
 
 
 @app.post("/food/{fdc_id}/data-gap", response_class=RedirectResponse)
-async def food_data_gap(fdc_id: int, key: str = Form(...), action: str = Form(...),
+def food_data_gap(fdc_id: int, key: str = Form(...), action: str = Form(...),
                         dcp: int = Form(0), next: str = Form(default="")):
     """One-click answers for a food on the no-data list under Top
     Contributors (`key` the ranked nutrient; dcp=1 for the DCP ranking):
@@ -4397,7 +4460,7 @@ async def food_data_gap(fdc_id: int, key: str = Form(...), action: str = Form(..
 
 
 @app.post("/food/cache/db-check/repair", response_class=RedirectResponse)
-async def food_cache_db_check_repair(category: str = Form(default="")):
+def food_cache_db_check_repair(category: str = Form(default="")):
     """category: one of db.REPAIRABLE_ISSUE_CATEGORIES to fix just that kind
     of problem, or "" (the "Remove all" button) to fix every repairable kind
     at once."""
@@ -4425,7 +4488,7 @@ def _portion_amounts_review(fdc_id: int) -> dict:
 
 
 @app.get("/food/cache/{fdc_id}/portions", response_class=HTMLResponse)
-async def food_cache_portions_get(request: Request, fdc_id: int, amounts_fixed: int = 0,
+def food_cache_portions_get(request: Request, fdc_id: int, amounts_fixed: int = 0,
                                   amounts_kept: int = 0,
                                   impact: str = ""):
     with _db.get_db() as conn:
@@ -4446,7 +4509,7 @@ async def food_cache_portions_get(request: Request, fdc_id: int, amounts_fixed: 
 
 
 @app.post("/food/cache/{fdc_id}/portions/add", response_class=HTMLResponse)
-async def food_cache_portions_add(
+def food_cache_portions_add(
     request: Request,
     fdc_id: int,
     description: str = Form(...),
@@ -4484,7 +4547,7 @@ async def food_cache_portions_add(
 
 
 @app.post("/food/cache/{fdc_id}/portions/edit", response_class=HTMLResponse)
-async def food_cache_portions_edit(
+def food_cache_portions_edit(
     request: Request,
     fdc_id: int,
     portion_index: int = Form(...),
@@ -4525,7 +4588,7 @@ async def food_cache_portions_edit(
 
 
 @app.post("/food/cache/{fdc_id}/portions/delete", response_class=HTMLResponse)
-async def food_cache_portions_delete(
+def food_cache_portions_delete(
     request: Request,
     fdc_id: int,
     portion_index: int = Form(...),
@@ -4549,7 +4612,7 @@ async def food_cache_portions_delete(
 
 
 @app.post("/food/cache/{fdc_id}/portions/move", response_class=HTMLResponse)
-async def food_cache_portions_move(
+def food_cache_portions_move(
     request: Request,
     fdc_id: int,
     portion_index: int = Form(...),
@@ -4577,7 +4640,7 @@ async def food_cache_portions_move(
 
 
 @app.post("/food/cache/{fdc_id}/refresh", response_class=HTMLResponse)
-async def food_cache_refresh(request: Request, fdc_id: int):
+def food_cache_refresh(request: Request, fdc_id: int):
     """Re-fetch nutrients from USDA and replace all cached nutrient data."""
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
@@ -4639,7 +4702,7 @@ async def food_cache_refresh(request: Request, fdc_id: int):
 
 
 @app.get("/pantry", response_class=HTMLResponse)
-async def pantry_get(request: Request, added: str = "", linked: str = "",
+def pantry_get(request: Request, added: str = "", linked: str = "",
                       link_id: int = 0, filter: str = "",
                       show_archived: bool | None = None, archived: int = 0, restored: int = 0):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_pantry")
@@ -4702,7 +4765,7 @@ async def pantry_get(request: Request, added: str = "", linked: str = "",
 
 
 @app.post("/pantry/add", response_class=RedirectResponse)
-async def pantry_add(
+def pantry_add(
     food_name: str = Form(...),
     notes: str = Form(""),
     fdc_id: str = Form(""),
@@ -4774,7 +4837,7 @@ async def pantry_add(
 
 
 @app.post("/pantry/remove/{pantry_id}", response_class=RedirectResponse)
-async def pantry_remove(request: Request, pantry_id: int, next: str = Form("")):
+def pantry_remove(request: Request, pantry_id: int, next: str = Form("")):
     with _db.get_db() as conn:
         _db.pantry_remove(conn, pantry_id)
     if _is_ajax_row_action(request):
@@ -4783,7 +4846,7 @@ async def pantry_remove(request: Request, pantry_id: int, next: str = Form("")):
 
 
 @app.post("/pantry/{pantry_id}/archive", response_class=RedirectResponse)
-async def pantry_archive(request: Request, pantry_id: int, next: str = Form("")):
+def pantry_archive(request: Request, pantry_id: int, next: str = Form("")):
     """Archive or restore a pantry entry — flips whichever state it's currently in."""
     with _db.get_db() as conn:
         row = _db.pantry_get(conn, pantry_id)
@@ -4800,7 +4863,7 @@ async def pantry_archive(request: Request, pantry_id: int, next: str = Form(""))
 
 
 @app.get("/food/custom-profiles", response_class=HTMLResponse)
-async def food_custom_profiles_get(request: Request, copy_q: str = Query(default=""),
+def food_custom_profiles_get(request: Request, copy_q: str = Query(default=""),
                                     delete_blocked: int = 0, blocked_fdc_id: int | None = None,
                                     blocked_pantry: str = "",
                                     blocked_recipes: str = "", blocked_meals: str = ""):
@@ -4824,7 +4887,7 @@ async def food_custom_profiles_get(request: Request, copy_q: str = Query(default
 
 
 @app.post("/food/custom-profiles/create", response_class=RedirectResponse)
-async def food_custom_profiles_create(name: str = Form(...)):
+def food_custom_profiles_create(name: str = Form(...)):
     name = name.strip()
     if not name:
         return RedirectResponse("/food/custom-profiles", status_code=303)
@@ -4846,7 +4909,7 @@ async def food_custom_profiles_create(name: str = Form(...)):
 
 
 @app.post("/food/custom-profiles/delete/{fdc_id}", response_class=RedirectResponse)
-async def food_custom_profiles_delete(fdc_id: int):
+def food_custom_profiles_delete(fdc_id: int):
     """Refused if still referenced — see food_cache_delete()'s docstring for why."""
     with _db.get_db() as conn:
         refs = _db.food_references(conn, fdc_id)
@@ -4868,7 +4931,7 @@ _SOURCE_PICKER_FILTERS = (["cache"] + [key for key, _name in _STATIC_SOURCES]
 
 
 @app.get("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
-async def food_custom_profiles_edit_get(request: Request, fdc_id: int,
+def food_custom_profiles_edit_get(request: Request, fdc_id: int,
                                         aa_applied: str = Query(default=""),
                                         nutrients_applied: str = Query(default="")):
     with _db.get_db() as conn:
@@ -5048,7 +5111,7 @@ async def food_custom_profiles_edit_post(request: Request, fdc_id: int):
 
 
 @app.post("/food/custom-profiles/{fdc_id}/copy-aa", response_class=RedirectResponse)
-async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(...), off_code: str = Form("")):
+def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(...), off_code: str = Form("")):
     """Estimate this food's amino acid profile by scaling a source food's AA
     values to this food's own protein content (see numa_app/services/aa_estimate.py).
     Marks the target user_drafted=True, same as any other in-place edit."""
@@ -5091,7 +5154,7 @@ async def food_custom_profiles_copy_aa(fdc_id: int, source_fdc_id: int = Form(..
 
 
 @app.get("/food/custom-profiles/{fdc_id}/compare", response_class=RedirectResponse)
-async def food_custom_profiles_compare(fdc_id: int, pick: list[str] = Query(default=[]),
+def food_custom_profiles_compare(fdc_id: int, pick: list[str] = Query(default=[]),
                                        return_to: str = Query(default="")):
     """The edit page's "Compare checked foods": open Compare with the profile
     being edited first, then each checked search result, and a button back.
@@ -5128,7 +5191,7 @@ async def food_custom_profiles_compare(fdc_id: int, pick: list[str] = Query(defa
 
 
 @app.get("/food/custom-profiles/{fdc_id}/copy-nutrients/select", response_class=HTMLResponse)
-async def food_custom_profiles_copy_nutrients_select(request: Request, fdc_id: int,
+def food_custom_profiles_copy_nutrients_select(request: Request, fdc_id: int,
                                                        source_fdc_id: int = Query(...),
                                                        off_code: str = Query("")):
     """Let the user pick exactly which nutrient values to bring in from
@@ -5179,7 +5242,7 @@ async def food_custom_profiles_copy_nutrients_select(request: Request, fdc_id: i
 
 
 @app.post("/food/custom-profiles/{fdc_id}/copy-nutrients", response_class=RedirectResponse)
-async def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...),
+def food_custom_profiles_copy_nutrients(fdc_id: int, source_fdc_id: int = Form(...),
                                                off_code: str = Form(""), keys: list[str] = Form(default=[])):
     """Copy only the selected nutrient keys from source_fdc_id's per-100g
     values onto this profile, raw and unscaled — everything else already on
@@ -5257,7 +5320,7 @@ def _duplicate_food_as_draft(conn, cached) -> int:
 
 
 @app.post("/food/custom-profiles/copy/{fdc_id}", response_class=RedirectResponse)
-async def food_custom_profiles_copy(fdc_id: int):
+def food_custom_profiles_copy(fdc_id: int):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         if not cached:
@@ -5267,7 +5330,7 @@ async def food_custom_profiles_copy(fdc_id: int):
 
 
 @app.post("/food/custom-profiles/copy-from-search", response_class=RedirectResponse)
-async def food_custom_profiles_copy_from_search(fdc_id: int = Form(...), off_code: str = Form("")):
+def food_custom_profiles_copy_from_search(fdc_id: int = Form(...), off_code: str = Form("")):
     """Shortcut from Food Search results: duplicate a search result as an
     editable custom-profile draft in one step, without a detour through the
     Custom Profiles page's own "copy a cached food as a draft" search box.
@@ -5345,7 +5408,7 @@ def _annotation_prompt_needed(fdc_id: int) -> bool:
 
 
 @app.get("/food/annotate", response_class=HTMLResponse)
-async def food_annotate_list(request: Request, q: str = ""):
+def food_annotate_list(request: Request, q: str = ""):
     with _db.get_db() as conn:
         if q.strip():
             rows = _db.search_cached_foods(conn, q.strip())
@@ -5373,7 +5436,7 @@ async def food_annotate_list(request: Request, q: str = ""):
 
 
 @app.get("/food/annotate/{fdc_id}", response_class=HTMLResponse)
-async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "", next: str = ""):
+def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "", next: str = ""):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
         ann = _db.get_food_annotation(conn, fdc_id)
@@ -5396,7 +5459,7 @@ async def food_annotate_edit_get(request: Request, fdc_id: int, saved: str = "",
 
 
 @app.get("/food/annotate/{fdc_id}/gi-lookup", response_class=JSONResponse)
-async def food_annotate_gi_lookup(fdc_id: int, q: str = "", population: str = "both"):
+def food_annotate_gi_lookup(fdc_id: int, q: str = "", population: str = "both"):
     if population not in ("normal", "impaired", "both"):
         population = "both"
     results = _gi_lookup.search(q, population=population, limit=8)
@@ -5410,7 +5473,7 @@ async def food_annotate_gi_lookup(fdc_id: int, q: str = "", population: str = "b
 
 
 @app.post("/food/annotate/{fdc_id}", response_class=RedirectResponse)
-async def food_annotate_edit_post(
+def food_annotate_edit_post(
     fdc_id: int,
     gi_estimate:     str = Form(""),
     gi_source:       str = Form(""),
@@ -5460,7 +5523,7 @@ async def food_annotate_edit_post(
 
 
 @app.post("/food/annotate/{fdc_id}/skip-forever", response_class=RedirectResponse)
-async def food_annotate_skip_forever(fdc_id: int, next: str = Form("")):
+def food_annotate_skip_forever(fdc_id: int, next: str = Form("")):
     """Suppress future GI and DIAAS prompts for this food without touching any
     stored estimate. Both, because the button reads as "stop asking me about
     this food" — suppressing only one would keep the detour appearing."""
@@ -5472,7 +5535,7 @@ async def food_annotate_skip_forever(fdc_id: int, next: str = Form("")):
 
 
 @app.post("/food/annotate/{fdc_id}/clear", response_class=RedirectResponse)
-async def food_annotate_clear(fdc_id: int):
+def food_annotate_clear(fdc_id: int):
     with _db.get_db() as conn:
         _db.delete_food_annotation(conn, fdc_id)
     return RedirectResponse(f"/food/annotate/{fdc_id}", status_code=303)
@@ -5658,7 +5721,7 @@ def _food_detail_context(
 
 
 @app.get("/food/{fdc_id}", response_class=HTMLResponse)
-async def food_detail(
+def food_detail(
     request: Request,
     fdc_id: int,
     amount: float = Query(default=100.0, gt=0),
@@ -5750,7 +5813,7 @@ def _local_next(next_url: str, fallback: str) -> str:
 
 
 @app.get("/food/{fdc_id}/review-incoming", response_class=HTMLResponse)
-async def food_review_incoming(request: Request, fdc_id: int, source: str = "usda",
+def food_review_incoming(request: Request, fdc_id: int, source: str = "usda",
                                source_fdc_id: int | None = None, off_code: str = "",
                                next: str = ""):
     """One review screen for incoming data (incoming_review.py): a fresh USDA
@@ -5973,7 +6036,7 @@ async def food_review_incoming_apply(request: Request, fdc_id: int):
 
 
 @app.get("/food/{fdc_id}/fill-from", response_class=HTMLResponse)
-async def food_fill_from(request: Request, fdc_id: int):
+def food_fill_from(request: Request, fdc_id: int):
     """Fill in nutrients from another food, for a food that isn't a custom
     profile (those have the same search on Edit Custom Profile). Search,
     compare checked results with this food, then review values to copy."""
@@ -6001,7 +6064,7 @@ async def food_fill_from(request: Request, fdc_id: int):
 
 
 @app.post("/food/{fdc_id}/toggle-starter", response_class=RedirectResponse)
-async def food_toggle_starter(fdc_id: int, next: str = Form("")):
+def food_toggle_starter(fdc_id: int, next: str = Form("")):
     """Add or remove the "* " starter-data name prefix (see
     scripts/export_starter_data.py) on a food -- deliberately a plain rename
     (db.rename_cached_food), NOT a full update_cached_food_profile() edit,
@@ -6023,7 +6086,7 @@ async def food_toggle_starter(fdc_id: int, next: str = Form("")):
 
 
 @app.get("/food/{fdc_id}/oxalate-link", response_class=HTMLResponse)
-async def oxalate_link_get(request: Request, fdc_id: int, q: str | None = None):
+def oxalate_link_get(request: Request, fdc_id: int, q: str | None = None):
     import oxalate as _ox
     with _db.get_db() as conn:
         food = _db.get_cached_food(conn, fdc_id)
@@ -6055,7 +6118,7 @@ async def oxalate_link_get(request: Request, fdc_id: int, q: str | None = None):
 
 
 @app.post("/food/{fdc_id}/oxalate-link", response_class=RedirectResponse)
-async def oxalate_link_post(
+def oxalate_link_post(
     fdc_id: int,
     choice: str = Form(...),
 ):
@@ -6090,7 +6153,7 @@ def _food_available_sections(ctx: dict) -> list[str]:
 
 
 @app.get("/food/{fdc_id}/print", response_class=HTMLResponse)
-async def food_print(
+def food_print(
     request: Request,
     fdc_id: int,
     amount: float = Query(default=100.0, gt=0),
@@ -7123,7 +7186,7 @@ def _meals_sorted_by_gl(limit: int, before_date: str | None) -> list[dict]:
 
 
 @app.get("/meals", response_class=HTMLResponse)
-async def meals_list(request: Request, limit: int = 9, date: str = "", sort: str | None = None):
+def meals_list(request: Request, limit: int = 9, date: str = "", sort: str | None = None):
     sort = _resolve_sort(sort, "sort_meals", "date", _MEALS_SORT_KEYS)
     before_date = date.strip() or None
     limit = max(1, limit)
@@ -7140,7 +7203,7 @@ async def meals_list(request: Request, limit: int = 9, date: str = "", sort: str
 
 
 @app.post("/meals/compute-bcp", response_class=RedirectResponse)
-async def meals_compute_bcp(redirect_to: str = Form("/meals"), scope: str = Form("all")):
+def meals_compute_bcp(redirect_to: str = Form("/meals"), scope: str = Form("all")):
     """Recompute and persist DCP + calories for complete meals in the chosen scope
     (all meals and days / last 30 days / last 10 days)."""
     with _db.get_db() as conn:
@@ -7167,7 +7230,7 @@ async def meals_compute_bcp(redirect_to: str = Form("/meals"), scope: str = Form
 
 
 @app.post("/meals/create", response_class=RedirectResponse)
-async def meal_create(
+def meal_create(
     name: str = Form(""),
     meal_date: str = Form(""),
 ):
@@ -7180,7 +7243,7 @@ async def meal_create(
 
 
 @app.post("/meal/{meal_id}/refresh-aa", response_class=RedirectResponse)
-async def meal_refresh_aa(meal_id: int):
+def meal_refresh_aa(meal_id: int):
     """Fetch AA nutrient data from USDA for all foods in this meal that lack
     it — or whose amino acids are only estimates (db.estimated_keys), which
     USDA's measured values replace. Otherwise fills blanks only."""
@@ -7235,7 +7298,7 @@ async def meal_refresh_aa(meal_id: int):
 
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
-async def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
+def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
                      item_sort: str | None = None, source: list[str] | None = Query(default=None),
                      limit: int | None = None,
                      ignore_complements: list[str] = Query(default=[]),
@@ -7544,7 +7607,7 @@ def _meal_available_sections(ctx: dict) -> list[str]:
 
 
 @app.get("/meal/{meal_id}/print", response_class=HTMLResponse)
-async def meal_print(
+def meal_print(
     request: Request,
     meal_id: int,
     sections: list[str] = Query(default=[]),
@@ -7581,7 +7644,7 @@ async def meal_print(
 
 
 @app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
-async def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None,
+def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None,
                                    source: list[str] | None = Query(default=None),
                                    limit: int | None = None):
     """Fetched by JS on the meal page after the initial (cache-only) render.
@@ -7606,7 +7669,7 @@ async def meal_search_api_results(request: Request, meal_id: int, q: str = "", s
 
 
 @app.post("/meal/{meal_id}/confirm-aa", response_class=RedirectResponse)
-async def meal_confirm_aa(
+def meal_confirm_aa(
     meal_id: int,
     fdc_ids: list[int] = Form(...),
     q: str = Form(""),
@@ -7652,7 +7715,7 @@ async def meal_confirm_aa(
 
 
 @app.post("/meal/{meal_id}/add", response_class=RedirectResponse)
-async def meal_add_food(
+def meal_add_food(
     meal_id: int,
     fdc_id: int = Form(...),
     food_name: str = Form(""),
@@ -7720,7 +7783,7 @@ async def meal_add_food(
 
 
 @app.post("/meal/{meal_id}/add-recipe", response_class=RedirectResponse)
-async def meal_add_recipe_item(
+def meal_add_recipe_item(
     meal_id: int,
     recipe_id: int = Form(...),
     recipe_name: str = Form(""),
@@ -7779,14 +7842,14 @@ async def meal_add_recipe_item(
 
 
 @app.post("/meal/{meal_id}/remove/{item_id}", response_class=RedirectResponse)
-async def meal_remove_item(meal_id: int, item_id: int):
+def meal_remove_item(meal_id: int, item_id: int):
     with _db.get_db() as conn:
         _db.meal_remove_item(conn, item_id, meal_id)
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/rename", response_class=RedirectResponse)
-async def meal_rename_post(meal_id: int, name: str = Form(...), meal_date: str = Form(...)):
+def meal_rename_post(meal_id: int, name: str = Form(...), meal_date: str = Form(...)):
     name = name.strip()
     meal_date = meal_date.strip()
     with _db.get_db() as conn:
@@ -7801,14 +7864,14 @@ async def meal_rename_post(meal_id: int, name: str = Form(...), meal_date: str =
 
 
 @app.post("/meal/{meal_id}/notes", response_class=RedirectResponse)
-async def meal_notes_post(meal_id: int, notes: str = Form("")):
+def meal_notes_post(meal_id: int, notes: str = Form("")):
     with _db.get_db() as conn:
         _db.meal_set_notes(conn, meal_id, notes)
     return RedirectResponse(f"/meal/{meal_id}#meal-note", status_code=303)
 
 
 @app.post("/meal/{meal_id}/complete", response_class=RedirectResponse)
-async def meal_toggle_complete(meal_id: int):
+def meal_toggle_complete(meal_id: int):
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
     if meal:
@@ -7818,21 +7881,21 @@ async def meal_toggle_complete(meal_id: int):
 
 
 @app.post("/meal/{meal_id}/delete", response_class=RedirectResponse)
-async def meal_delete_post(meal_id: int):
+def meal_delete_post(meal_id: int):
     with _db.get_db() as conn:
         _db.meal_delete(conn, meal_id)
     return RedirectResponse("/meals", status_code=303)
 
 
 @app.post("/meals/delete-day", response_class=RedirectResponse)
-async def meals_delete_day_post(meal_date: str = Form(...), redirect_to: str = Form("/meals")):
+def meals_delete_day_post(meal_date: str = Form(...), redirect_to: str = Form("/meals")):
     with _db.get_db() as conn:
         _db.meal_delete_by_date(conn, meal_date)
     return RedirectResponse(redirect_to, status_code=303)
 
 
 @app.post("/meal/{meal_id}/update/{item_id}", response_class=RedirectResponse)
-async def meal_update_item_post(
+def meal_update_item_post(
     meal_id: int,
     item_id: int,
     amount: str = Form(...),
@@ -7891,7 +7954,7 @@ async def meal_update_item_post(
 
 
 @app.post("/meal/{meal_id}/item/{item_id}/serving-weight", response_class=RedirectResponse)
-async def meal_item_serving_weight_post(meal_id: int, item_id: int, choice: str = Form(...)):
+def meal_item_serving_weight_post(meal_id: int, item_id: int, choice: str = Form(...)):
     """Resolve a logged recipe whose serving weight changed since it was
     logged. choice="keep": keep the grams originally eaten, by rescaling the
     servings count to the recipe's new serving. choice="accept": keep the
@@ -7966,7 +8029,7 @@ async def meal_merge_post(meal_id: int, request: Request):
 
 
 @app.get("/meals/search", response_class=HTMLResponse)
-async def meals_search(request: Request, q: str = "", mode: str = "contains"):
+def meals_search(request: Request, q: str = "", mode: str = "contains"):
     """Meals that contain (mode "contains") or don't contain (mode "lacks")
     a food or recipe, typed as part of a name, a code (U171477, R21) or a
     cached food's bare FDC ID number."""
@@ -8175,7 +8238,7 @@ def _day_context(meal_date: str, from_meal_id: int | None = None,
 
 
 @app.get("/meal/{meal_id}/day", response_class=HTMLResponse)
-async def meal_day_view(request: Request, meal_id: int, rank: str | None = None, top_n: str | None = None):
+def meal_day_view(request: Request, meal_id: int, rank: str | None = None, top_n: str | None = None):
     with _db.get_db() as conn:
         meal = _db.meal_get(conn, meal_id)
     if not meal:
@@ -8234,7 +8297,7 @@ def _day_print_response(request: Request, ctx: dict, sections: list[str], sectio
 
 
 @app.get("/meal/{meal_id}/day/print", response_class=HTMLResponse)
-async def meal_day_print(
+def meal_day_print(
     request: Request,
     meal_id: int,
     sections: list[str] = Query(default=[]),
@@ -8252,7 +8315,7 @@ async def meal_day_print(
 
 
 @app.post("/meal/{meal_id}/day/profile", response_class=RedirectResponse)
-async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...)):
+def meal_day_profile_override(meal_id: int, profile_name: str = Form(...)):
     """Reassign which profile this meal's date is scored against — for when
     illness/travel/a profile switch didn't line up with the calendar day."""
     with _db.get_db() as conn:
@@ -8270,7 +8333,7 @@ async def meal_day_profile_override(meal_id: int, profile_name: str = Form(...))
 # ---------------------------------------------------------------------------
 
 @app.get("/settings", response_class=HTMLResponse)
-async def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0,
+def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0,
                        gi_build_error: str = "", kept_recipes: int = 0, kept_edited: int = 0,
                        target_error: str = "", applied: int = 0, apply_error: int = 0):
     profile = _profile.load_profile()
@@ -8392,7 +8455,7 @@ async def settings_get(request: Request, saved: str = "", recompute_retry: str =
 
 
 @app.post("/settings", response_class=RedirectResponse)
-async def settings_post(
+def settings_post(
     age:            int   = Form(...),
     sex:            str   = Form(...),
     weight:         float = Form(...),
@@ -8452,7 +8515,7 @@ def _after_profile_save() -> int:
 
 
 @app.post("/settings/profile/apply-to-days", response_class=RedirectResponse)
-async def settings_profile_apply_to_days(start: str = Form("")):
+def settings_profile_apply_to_days(start: str = Form("")):
     """Switch every logged day from `start` to today to follow the current
     profile (each keeps its own pinned copy, to switch back on its day page
     or Meals & Log). Days whose profile was set by hand are left alone."""
@@ -8470,7 +8533,7 @@ async def settings_profile_apply_to_days(start: str = Form("")):
 
 
 @app.post("/day/{meal_date}/profile-mode", response_class=RedirectResponse)
-async def day_profile_mode(meal_date: str, mode: str = Form("pinned"), next: str = Form("")):
+def day_profile_mode(meal_date: str, mode: str = Form("pinned"), next: str = Form("")):
     """The per-day switch: mode "current" scores meal_date against the
     current profile (keeping its own pinned copy); anything else puts that
     copy back."""
@@ -8484,7 +8547,7 @@ async def day_profile_mode(meal_date: str, mode: str = Form("pinned"), next: str
 
 
 @app.post("/settings/diet", response_class=RedirectResponse)
-async def settings_diet_post(diet_pref: str = Form(...), next: str = Form(None)):
+def settings_diet_post(diet_pref: str = Form(...), next: str = Form(None)):
     if diet_pref in _VALID_DIET_PREFS:
         _save_prefs_file({"diet_pref": diet_pref})
     if next and next.startswith("/") and not next.startswith("//"):
@@ -8524,7 +8587,7 @@ async def complement_limit_post(request: Request):
 
 
 @app.post("/update-notice/ack-banner", response_class=RedirectResponse)
-async def update_notice_ack_banner(tag: str = Form(...)):
+def update_notice_ack_banner(tag: str = Form(...)):
     """'Don't show this again for this version' on the home-page "update
     available" banner — dismisses only that exact release; a newer one
     still shows normally, same as the System Issues banner's 'Got it'."""
@@ -8533,7 +8596,7 @@ async def update_notice_ack_banner(tag: str = Form(...)):
 
 
 @app.post("/check-for-updates", response_class=RedirectResponse)
-async def check_for_updates_now():
+def check_for_updates_now():
     """Manually re-check GitHub for a new release right now — for anyone who
     dismissed a release and changed their mind (clears the dismissal) or
     doesn't want to wait for the periodic check's cache to refresh."""
@@ -8607,7 +8670,7 @@ def _data_check_reminder() -> dict | None:
 
 
 @app.post("/settings/data-check-reminder", response_class=RedirectResponse)
-async def settings_data_check_reminder_post(enabled: list[str] = Form(default=[]), weeks: str = Form("0")):
+def settings_data_check_reminder_post(enabled: list[str] = Form(default=[]), weeks: str = Form("0")):
     try:
         w = max(0, min(52, int(weeks or 0)))
     except ValueError:
@@ -8617,7 +8680,7 @@ async def settings_data_check_reminder_post(enabled: list[str] = Form(default=[]
 
 
 @app.post("/settings/browser", response_class=RedirectResponse)
-async def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None)):
+def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None)):
     if preferred_browser in _VALID_BROWSER_PREFS:
         _save_prefs_file({"preferred_browser": preferred_browser})
     if next and next.startswith("/") and not next.startswith("//"):
@@ -8626,13 +8689,13 @@ async def settings_browser_post(preferred_browser: str = Form(""), next: str = F
 
 
 @app.post("/settings/api-key", response_class=RedirectResponse)
-async def settings_api_key_post(api_key: str = Form("")):
+def settings_api_key_post(api_key: str = Form("")):
     _usda.set_api_key(api_key.strip())
     return RedirectResponse("/settings?saved=api_key", status_code=303)
 
 
 @app.post("/settings/search-boost", response_class=RedirectResponse)
-async def settings_search_boost_post(search_boost_page_size: int = Form(...)):
+def settings_search_boost_post(search_boost_page_size: int = Form(...)):
     if search_boost_page_size >= 0:
         _usda.set_search_boost_page_size(search_boost_page_size)
         return RedirectResponse("/settings?saved=search_boost", status_code=303)
@@ -8640,7 +8703,7 @@ async def settings_search_boost_post(search_boost_page_size: int = Form(...)):
 
 
 @app.post("/settings/diaas-override", response_class=RedirectResponse)
-async def settings_diaas_override_post(
+def settings_diaas_override_post(
     food_name:     str   = Form(...),
     digestibility: float = Form(...),
     notes:         str   = Form(""),
@@ -8653,7 +8716,7 @@ async def settings_diaas_override_post(
 
 
 @app.post("/settings/diaas-override/delete", response_class=RedirectResponse)
-async def settings_diaas_override_delete(request: Request, food_name: str = Form(...)):
+def settings_diaas_override_delete(request: Request, food_name: str = Form(...)):
     with _db.get_db() as conn:
         _diaas.diaas_override_delete(conn, food_name.strip())
     if _is_ajax_row_action(request):
@@ -8662,7 +8725,7 @@ async def settings_diaas_override_delete(request: Request, food_name: str = Form
 
 
 @app.post("/settings/nutrient-target", response_class=RedirectResponse)
-async def settings_nutrient_target_post(
+def settings_nutrient_target_post(
     key:      str   = Form(...),
     optimal:  str   = Form(""),
     limit:    str   = Form(""),
@@ -8704,7 +8767,7 @@ async def settings_nutrient_target_post(
 
 
 @app.post("/settings/nutrient-target/load-defaults", response_class=RedirectResponse)
-async def settings_nutrient_target_load_defaults():
+def settings_nutrient_target_load_defaults():
     """Apply profile.compute_optimal_defaults() to any nutrient the user
     hasn't already customized."""
     profile = _profile.load_profile()
@@ -8749,7 +8812,7 @@ async def settings_gi_table_build(files: list[UploadFile] = File(...)):
 
 
 @app.post("/settings/starter-data/load", response_class=RedirectResponse)
-async def settings_demo_data_load():
+def settings_demo_data_load():
     """Populate a fresh install with starter foods/pantry/recipes to explore
     the app with. See numa_app.services.demo_data for what's inserted and
     why — a marker file lets settings_demo_data_clear() undo exactly this."""
@@ -8761,7 +8824,7 @@ async def settings_demo_data_load():
 
 
 @app.post("/settings/starter-data/clear", response_class=RedirectResponse)
-async def settings_demo_data_clear():
+def settings_demo_data_clear():
     """Remove exactly the starter foods/pantry/recipes settings_demo_data_load() added.
 
     A starter food the user has since used in a meal, recipe, or their pantry is
@@ -8812,7 +8875,7 @@ async def settings_starter_data_improve(request: Request):
 
 
 @app.post("/settings/starter-data/keep-mine", response_class=RedirectResponse)
-async def settings_starter_data_keep_mine():
+def settings_starter_data_keep_mine():
     """Decline every pending starter improvement; the user's copies stay as they are."""
     from numa_app.services import demo_data as _demo_data
     _demo_data.decline_improvements()
@@ -8820,7 +8883,7 @@ async def settings_starter_data_keep_mine():
 
 
 @app.post("/starter-notice/ack", response_class=RedirectResponse)
-async def starter_notice_ack():
+def starter_notice_ack():
     """'Got it' on the home page's new/improved starter items notice. The
     items themselves stay listed in Settings -> 11 until dealt with."""
     from numa_app.services import demo_data as _demo_data
@@ -8848,7 +8911,7 @@ async def settings_meal_nutrients_post(request: Request):
 
 
 @app.post("/settings/meal-nutrients/restore-defaults", response_class=RedirectResponse)
-async def settings_meal_nutrients_restore_defaults():
+def settings_meal_nutrients_restore_defaults():
     """Put the Meals & Log / Recent Days columns back to DEFAULT_MEAL_LIST_NUTRIENTS."""
     from numa_app.services.meal_list_columns import DEFAULT_MEAL_LIST_NUTRIENTS
     _save_prefs_file({"meal_list_nutrients": list(DEFAULT_MEAL_LIST_NUTRIENTS)})
@@ -8856,7 +8919,7 @@ async def settings_meal_nutrients_restore_defaults():
 
 
 @app.post("/settings/recompute-error/{error_id}/resolve", response_class=RedirectResponse)
-async def settings_recompute_error_resolve(error_id: int):
+def settings_recompute_error_resolve(error_id: int):
     """Retry the failed recompute right now, and only mark the log entry
     resolved if the retry actually succeeds — clicking this never just hides
     the entry while the underlying stale/uncomputed recipe is still broken."""
@@ -8878,7 +8941,7 @@ async def settings_recompute_error_resolve(error_id: int):
 
 
 @app.post("/recipes/compute-bcp", response_class=RedirectResponse)
-async def recipes_compute_bcp(redirect_to: str = Form("/recipes")):
+def recipes_compute_bcp(redirect_to: str = Form("/recipes")):
     """Recompute and persist DCP/serving for every recipe with resolvable data.
 
     Recipes missing amino acid data on a significant ingredient, or with 0
@@ -8903,7 +8966,7 @@ _RECIPE_SORT_KEYS = {
 
 
 @app.get("/recipes", response_class=HTMLResponse)
-async def recipes_list(request: Request, q: str = "", sort: str | None = None,
+def recipes_list(request: Request, q: str = "", sort: str | None = None,
                         show_archived: bool | None = None, archived: int = 0,
                         restored: int = 0, still_used: int = 0,
                         recipes_created: int = 0, recipes_reused: int = 0):
@@ -8944,7 +9007,7 @@ async def recipes_list(request: Request, q: str = "", sort: str | None = None,
 
 
 @app.get("/recipes/broken-refs", response_class=HTMLResponse)
-async def recipes_broken_refs(request: Request):
+def recipes_broken_refs(request: Request):
     with _db.get_db() as conn:
         broken = _db.list_all_broken_recipe_refs(conn)
     return templates.TemplateResponse(request, "recipe_broken_refs.html", {
@@ -8954,7 +9017,7 @@ async def recipes_broken_refs(request: Request):
 
 
 @app.get("/recipe/import-csv", response_class=HTMLResponse)
-async def recipe_import_csv_get(request: Request):
+def recipe_import_csv_get(request: Request):
     return templates.TemplateResponse(request, "recipe_import_csv.html", {
         "recipes_text": "",
         "foods_text":   "",
@@ -9004,12 +9067,12 @@ async def recipe_import_csv_post(request: Request,
 
 
 @app.get("/recipe/new", response_class=HTMLResponse)
-async def recipe_new_get(request: Request):
+def recipe_new_get(request: Request):
     return templates.TemplateResponse(request, "recipe_new.html", {})
 
 
 @app.post("/recipe/new", response_class=RedirectResponse)
-async def recipe_new_post(
+def recipe_new_post(
     name: str = Form(...),
     description: str = Form(""),
     servings: float = Form(4),
@@ -9476,7 +9539,7 @@ def _build_recipe_ingredient_rows(entries: list[dict]) -> list[dict]:
 
 
 @app.get("/compare", response_class=HTMLResponse)
-async def compare_get(
+def compare_get(
     request: Request,
     items: str = "",
     error: str = "",
@@ -9528,7 +9591,7 @@ async def compare_get(
 
 
 @app.get("/compare/export.csv")
-async def compare_export_csv(items: str = ""):
+def compare_export_csv(items: str = ""):
     item_list = _parse_compare_items(items)
     entries = (_load_compare_entries(item_list, _compare_basis(), _parse_compare_amounts(items))
                if item_list else [])
@@ -9543,7 +9606,7 @@ async def compare_export_csv(items: str = ""):
 
 
 @app.post("/compare/add", response_class=RedirectResponse)
-async def compare_add(
+def compare_add(
     kind:    str = Form(...),
     item_id: int = Form(...),
     items:   str = Form(""),    return_to: str = Form(""),
@@ -9615,7 +9678,7 @@ async def compare_add_multiple(request: Request, items: str = Form(""), return_t
 
 
 @app.post("/compare/remove", response_class=RedirectResponse)
-async def compare_remove(
+def compare_remove(
     remove_kind: str = Form(...),
     remove_id:   int = Form(...),
     items:       str = Form(""),    return_to: str = Form(""),
@@ -9655,7 +9718,7 @@ async def compare_set_amounts(request: Request, items: str = Form(""), return_to
 
 
 @app.post("/compare/cache-food", response_class=RedirectResponse)
-async def compare_cache_food(
+def compare_cache_food(
     fdc_id: int = Form(...),
     items:  str = Form(""),    return_to: str = Form(""),
 ):
@@ -9667,7 +9730,7 @@ async def compare_cache_food(
 
 
 @app.post("/compare/save", response_class=RedirectResponse)
-async def compare_save(
+def compare_save(
     name:  str = Form(""),
     items: str = Form(""),    return_to: str = Form(""),
 ):
@@ -9686,7 +9749,7 @@ async def compare_save(
 
 
 @app.get("/compare/load/{cmp_id}", response_class=RedirectResponse)
-async def compare_load(cmp_id: int, return_to: str = ""):
+def compare_load(cmp_id: int, return_to: str = ""):
     with _db.get_db() as conn:
         row = _db.saved_mixed_comparison_get(conn, cmp_id)
     if not row:
@@ -9700,7 +9763,7 @@ async def compare_load(cmp_id: int, return_to: str = ""):
 
 
 @app.post("/compare/saved/rename", response_class=RedirectResponse)
-async def compare_saved_rename(
+def compare_saved_rename(
     cmp_id: int = Form(...),
     name:   str = Form(""),
     items:  str = Form(""),    return_to: str = Form(""),
@@ -9713,7 +9776,7 @@ async def compare_saved_rename(
 
 
 @app.post("/compare/saved/delete", response_class=RedirectResponse)
-async def compare_saved_delete(
+def compare_saved_delete(
     cmp_id: int = Form(...),
     items:  str = Form(""),    return_to: str = Form(""),
 ):
@@ -9854,7 +9917,7 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
 
 
 @app.get("/recipe/{recipe_id}", response_class=HTMLResponse)
-async def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
+def recipe_detail(request: Request, recipe_id: int, servings: float | None = None,
                          ignore_complements: list[str] = Query(default=[]),
                          unignore: list[str] = Query(default=[]),
                          comp_sort: str | None = None, diaas_sort: str | None = None,
@@ -9875,7 +9938,7 @@ async def recipe_detail(request: Request, recipe_id: int, servings: float | None
 
 
 @app.get("/recipe/{recipe_id}/export.csv")
-async def recipe_export_csv(recipe_id: int):
+def recipe_export_csv(recipe_id: int):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -9923,7 +9986,7 @@ def _recipe_available_sections(ctx: dict) -> list[str]:
 
 
 @app.get("/recipe/{recipe_id}/print", response_class=HTMLResponse)
-async def recipe_print(
+def recipe_print(
     request: Request,
     recipe_id: int,
     servings: float | None = None,
@@ -10154,7 +10217,7 @@ def _render_translated_recipe(ctx: dict, translated: dict) -> dict:
 
 
 @app.get("/recipe/{recipe_id}/translate", response_class=HTMLResponse)
-async def recipe_translate_get(request: Request, recipe_id: int, language: str = ""):
+def recipe_translate_get(request: Request, recipe_id: int, language: str = ""):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -10177,7 +10240,7 @@ async def recipe_translate_get(request: Request, recipe_id: int, language: str =
 
 
 @app.get("/recipe/{recipe_id}/translate/import", response_class=HTMLResponse)
-async def recipe_translate_import_get(request: Request, recipe_id: int, language: str = ""):
+def recipe_translate_import_get(request: Request, recipe_id: int, language: str = ""):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -10191,7 +10254,7 @@ async def recipe_translate_import_get(request: Request, recipe_id: int, language
 
 
 @app.post("/recipe/{recipe_id}/translate/import", response_class=HTMLResponse)
-async def recipe_translate_import_post(
+def recipe_translate_import_post(
     request: Request,
     recipe_id: int,
     response_text: str = Form(...),
@@ -10237,7 +10300,7 @@ async def recipe_translate_import_post(
 
 
 @app.get("/recipe/{recipe_id}/translation/{translation_id}/print", response_class=HTMLResponse)
-async def recipe_translation_print(
+def recipe_translation_print(
     request: Request,
     recipe_id: int,
     translation_id: int,
@@ -10284,7 +10347,7 @@ async def recipe_translation_print(
 
 
 @app.post("/recipe/{recipe_id}/translation/{translation_id}/delete", response_class=RedirectResponse)
-async def recipe_translation_delete(request: Request, recipe_id: int, translation_id: int):
+def recipe_translation_delete(request: Request, recipe_id: int, translation_id: int):
     with _db.get_db() as conn:
         _db.recipe_translation_delete(conn, translation_id)
     if _is_ajax_row_action(request):
@@ -10293,7 +10356,7 @@ async def recipe_translation_delete(request: Request, recipe_id: int, translatio
 
 
 @app.get("/recipe/{recipe_id}/edit", response_class=HTMLResponse)
-async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
+def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = "", error: str = "",
                            relinked: str = "", relinked_to: str = "", added_check: str = ""):
     # Keep the "Add Ingredient" panel open across a reload triggered from
     # inside it (Search, Reset all sources to ON, Refresh search) even when
@@ -10379,7 +10442,7 @@ async def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: 
 
 
 @app.post("/recipe/{recipe_id}/relink", response_class=RedirectResponse)
-async def recipe_relink_post(recipe_id: int, matched_name: str = Form(...), target_recipe_id: int = Form(...)):
+def recipe_relink_post(recipe_id: int, matched_name: str = Form(...), target_recipe_id: int = Form(...)):
     """recipe_id is only where to redirect back to (the edit page the user was
     on) — target_recipe_id (picked from the candidate/all-recipes dropdown,
     defaulting to recipe_id) is where the broken refs actually get relinked,
@@ -10396,7 +10459,7 @@ async def recipe_relink_post(recipe_id: int, matched_name: str = Form(...), targ
 
 
 @app.post("/recipe/{recipe_id}/edit", response_class=RedirectResponse)
-async def recipe_edit_post(
+def recipe_edit_post(
     recipe_id: int,
     name: str = Form(...),
     description: str = Form(""),
@@ -10432,7 +10495,7 @@ async def recipe_edit_post(
 
 
 @app.post("/recipe/{recipe_id}/delete", response_class=RedirectResponse)
-async def recipe_delete_post(request: Request, recipe_id: int, next: str = Form("")):
+def recipe_delete_post(request: Request, recipe_id: int, next: str = Form("")):
     with _db.get_db() as conn:
         _db.recipe_delete(conn, recipe_id)
     if _is_ajax_row_action(request):
@@ -10441,7 +10504,7 @@ async def recipe_delete_post(request: Request, recipe_id: int, next: str = Form(
 
 
 @app.post("/recipe/{recipe_id}/drink", response_class=RedirectResponse)
-async def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = Form("")):
+def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = Form("")):
     """Mark a whole recipe as a drink or not (all its water counts as water
     from drinks) — then refresh its saved nutrients and the recipes and
     meals built on it."""
@@ -10453,7 +10516,7 @@ async def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = 
 
 
 @app.post("/recipe/{recipe_id}/gi-as-eaten", response_class=RedirectResponse)
-async def recipe_set_gi_as_eaten(recipe_id: int, as_eaten: int = Form(0), next: str = Form("")):
+def recipe_set_gi_as_eaten(recipe_id: int, as_eaten: int = Form(0), next: str = Form("")):
     """Say this recipe's raw/dry/flour ingredients are eaten as they are, so
     its estimated GI stops flagging them — or start flagging them again."""
     with _db.get_db() as conn:
@@ -10463,7 +10526,7 @@ async def recipe_set_gi_as_eaten(recipe_id: int, as_eaten: int = Form(0), next: 
 
 
 @app.post("/recipe/{recipe_id}/archive", response_class=RedirectResponse)
-async def recipe_archive(request: Request, recipe_id: int, next: str = Form("")):
+def recipe_archive(request: Request, recipe_id: int, next: str = Form("")):
     """Archive or restore a recipe — flips whichever state it's currently in."""
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
@@ -10486,7 +10549,7 @@ async def recipe_archive(request: Request, recipe_id: int, next: str = Form(""))
 
 
 @app.post("/recipe/{recipe_id}/copy", response_class=RedirectResponse)
-async def recipe_copy_post(recipe_id: int):
+def recipe_copy_post(recipe_id: int):
     with _db.get_db() as conn:
         src = _db.recipe_get(conn, recipe_id)
         if not src:
@@ -10514,7 +10577,7 @@ async def recipe_copy_post(recipe_id: int):
 
 
 @app.post("/recipe/{recipe_id}/confirm-aa", response_class=RedirectResponse)
-async def recipe_confirm_aa(
+def recipe_confirm_aa(
     recipe_id: int,
     fdc_ids: list[int] = Form(...),
     q: str = Form(""),
@@ -10557,7 +10620,7 @@ async def recipe_confirm_aa(
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add", response_class=RedirectResponse)
-async def recipe_ingredient_add(
+def recipe_ingredient_add(
     recipe_id: int,
     fdc_id: int = Form(...),
     food_name: str = Form(""),
@@ -10601,7 +10664,7 @@ async def recipe_ingredient_add(
 
 
 @app.post("/recipe/{recipe_id}/ingredient/add-recipe", response_class=RedirectResponse)
-async def recipe_ingredient_add_recipe(
+def recipe_ingredient_add_recipe(
     recipe_id: int,
     ref_recipe_id: int = Form(...),
     recipe_name: str = Form(""),
@@ -10654,7 +10717,7 @@ async def recipe_ingredient_add_recipe(
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/remove", response_class=RedirectResponse)
-async def recipe_ingredient_remove(recipe_id: int, ing_id: int):
+def recipe_ingredient_remove(recipe_id: int, ing_id: int):
     with _db.get_db() as conn:
         _db.recipe_remove_ingredient(conn, ing_id)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
@@ -10662,7 +10725,7 @@ async def recipe_ingredient_remove(recipe_id: int, ing_id: int):
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/edit", response_class=RedirectResponse)
-async def recipe_ingredient_edit(
+def recipe_ingredient_edit(
     recipe_id: int,
     ing_id: int,
     portion_str: str = Form(...),
@@ -10717,7 +10780,7 @@ async def recipe_ingredient_edit(
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/move", response_class=RedirectResponse)
-async def recipe_ingredient_move(recipe_id: int, ing_id: int, direction: str = Form(...), next: str = Form("edit")):
+def recipe_ingredient_move(recipe_id: int, ing_id: int, direction: str = Form(...), next: str = Form("edit")):
     with _db.get_db() as conn:
         ings = _db.recipe_get_ingredients(conn, recipe_id)
         ids = [i["id"] for i in ings]
@@ -10734,7 +10797,7 @@ async def recipe_ingredient_move(recipe_id: int, ing_id: int, direction: str = F
 
 
 @app.post("/recipe/{recipe_id}/instructions", response_class=RedirectResponse)
-async def recipe_instructions_post(recipe_id: int, instructions: str = Form("")):
+def recipe_instructions_post(recipe_id: int, instructions: str = Form("")):
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -10756,7 +10819,7 @@ async def recipe_instructions_post(recipe_id: int, instructions: str = Form(""))
 
 
 @app.get("/summary/trend", response_class=HTMLResponse)
-async def summary_trend(request: Request, days: int = Query(7)):
+def summary_trend(request: Request, days: int = Query(7)):
     """Nutrient averages across the last N days vs. RDA — surfaces chronic
     shortfalls (B12, iron, iodine, vitamin D, ...) a single day's snapshot
     can't."""
@@ -10774,7 +10837,7 @@ async def summary_trend(request: Request, days: int = Query(7)):
 
 
 @app.get("/summary/range", response_class=HTMLResponse)
-async def summary_range(request: Request, start: str = Query(""), end: str = Query(""),
+def summary_range(request: Request, start: str = Query(""), end: str = Query(""),
                         meal_ids: str = Query("")):
     """Full nutrient summation — totals plus the per-day average — for any
     date range, or for a hand-picked set of meals by ID ("N-M" ranges
@@ -10939,7 +11002,7 @@ BLOCK_COUNT_MAX = 104
 
 
 @app.get("/summary/blocks", response_class=HTMLResponse)
-async def summary_blocks(request: Request, size: int = Query(7), count: int = Query(8),
+def summary_blocks(request: Request, size: int = Query(7), count: int = Query(8),
                          end: str = Query("")):
     """Daily Summary in blocks of N days: one row per block, most recent
     first, each nutrient averaged over the block's logged days (days with no
@@ -11233,7 +11296,7 @@ def _plot_legend_pos(value: str | None) -> str:
     """Sanitize the Nutrient Plot legend-placement param to one of
     plotting.LEGEND_POSITIONS. Anything unrecognized (including a hand-edited
     or stale querystring) falls back to "auto", which lets plotting.py pick
-    top while the legend fits one row and bottom once it would wrap."""
+    top while the legend fits one row and right once it would wrap."""
     from numa_app.services.plotting import LEGEND_POSITIONS
     cleaned = (value or "auto").strip().lower()
     return cleaned if cleaned in LEGEND_POSITIONS else "auto"
@@ -11481,7 +11544,7 @@ def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | No
     # the qs recomputed for the same view (is_home_plot compares the two
     # with ==, and an unconditional param would make every saved plot read
     # as "not the Home page one" the first time it was reloaded).
-    if legend in ("top", "bottom"):
+    if legend != "auto":
         params.append(("legend", legend))
     params.append(("smoothing", str(smoothing)))
     for key, val in (nutrient_factors or {}).items():
@@ -11491,7 +11554,7 @@ def _nutrient_plot_qs(chosen: list[str], days_back: str | None, anchor: str | No
 
 
 @app.get("/summary/nutrient-plot", response_class=HTMLResponse)
-async def nutrient_plot_page(
+def nutrient_plot_page(
     request: Request,
     nutrients: list[str] = Query([]),
     days_back: str | None = Query(None),
@@ -11606,6 +11669,12 @@ async def nutrient_plot_page(
 
     prefs = _load_prefs_file()
     home_plot_enabled = bool(prefs.get("home_nutrient_plot_enabled"))
+    # While a plot is on the Home page, it follows whatever is plotted here:
+    # any change made on this page is saved as the Home page plot too, so the
+    # two never drift apart. (Turning "Show on Home page" off stops this.)
+    if has_plot and home_plot_enabled and prefs.get("home_nutrient_plot_qs") != qs:
+        _save_prefs_file({"home_nutrient_plot_qs": qs})
+        prefs["home_nutrient_plot_qs"] = qs
     is_home_plot = bool(has_plot and home_plot_enabled and prefs.get("home_nutrient_plot_qs") == qs)
     # True when some (possibly different, e.g. stale from before a qs-format
     # change, or just a different nutrient/range selection) plot is enabled
@@ -11646,7 +11715,7 @@ async def nutrient_plot_page(
 
 
 @app.post("/summary/nutrient-plot/home-pref")
-async def nutrient_plot_home_pref(qs: str = Form(default=""), enabled: str | None = Form(None),
+def nutrient_plot_home_pref(qs: str = Form(default=""), enabled: str | None = Form(None),
                                    rolling: str | None = Form(None)):
     """"Show this plot on the Home page" toggle on the Nutrient Plot page —
     stores the full plot querystring in prefs.json so index() can reuse it
@@ -11688,7 +11757,7 @@ async def nutrient_plot_home_pref(qs: str = Form(default=""), enabled: str | Non
 
 
 @app.get("/summary/nutrient-plot/image")
-async def nutrient_plot_image(
+def nutrient_plot_image(
     request: Request,
     nutrients: list[str] = Query([]),
     days_back: str | None = Query(None),
@@ -11702,6 +11771,7 @@ async def nutrient_plot_image(
     fmt: str = Query("png"),
     download: bool = Query(False),
     rolling: bool = Query(False),
+    narrow: bool = Query(False),
 ):
     from numa_app.services.plotting import line_plot_image
 
@@ -11749,7 +11819,7 @@ async def nutrient_plot_image(
                                    title=plot_title, subtitle=plot_subtitle,
                                    image_format=image_format, grayscale=grayscale,
                                    hide_y_values=(plot_ylabel == _GENERIC_PLOT_YLABEL),
-                                   legend_pos=_plot_legend_pos(legend))
+                                   legend_pos=_plot_legend_pos(legend), narrow=narrow)
     media_type = "image/svg+xml" if image_format == "svg" else "image/png"
     headers = ({"Content-Disposition": f'attachment; filename="numa-nutrient-plot.{image_format}"'}
                if download else {})
@@ -11757,7 +11827,7 @@ async def nutrient_plot_image(
 
 
 @app.get("/summary/nutrient-plot/print", response_class=HTMLResponse)
-async def nutrient_plot_print(
+def nutrient_plot_print(
     request: Request,
     nutrients: list[str] = Query([]),
     days_back: str | None = Query(None),
@@ -11874,7 +11944,7 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
 
 
 @app.get("/summary", response_class=HTMLResponse)
-async def summary_index(request: Request):
+def summary_index(request: Request):
     """Summary landing: recent-days table + date picker."""
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=30)
@@ -11893,7 +11963,7 @@ async def summary_index(request: Request):
 
 
 @app.get("/summary/{meal_date}", response_class=HTMLResponse)
-async def summary_date(request: Request, meal_date: str, rank: str | None = None, top_n: str | None = None):
+def summary_date(request: Request, meal_date: str, rank: str | None = None, top_n: str | None = None):
     """The Full Day page for a date, reached from Daily Summary — the same
     page as /meal/<id>/day (see _day_context)."""
     try:
@@ -11905,7 +11975,7 @@ async def summary_date(request: Request, meal_date: str, rank: str | None = None
 
 
 @app.get("/summary/{meal_date}/print", response_class=HTMLResponse)
-async def summary_date_print(
+def summary_date_print(
     request: Request,
     meal_date: str,
     sections: list[str] = Query(default=[]),
@@ -11921,7 +11991,7 @@ async def summary_date_print(
 
 
 @app.post("/summary/{meal_date}/profile", response_class=RedirectResponse)
-async def summary_date_profile_override(meal_date: str, profile_name: str = Form(...)):
+def summary_date_profile_override(meal_date: str, profile_name: str = Form(...)):
     """Reassign which profile meal_date is scored against."""
     with _db.get_db() as conn:
         _day_profile.set_day_profile_override(conn, meal_date, profile_name)
@@ -12054,7 +12124,7 @@ def _resolve_meals_for_food_use(
 
 
 @app.get("/analysis/food-use", response_class=HTMLResponse)
-async def analysis_food_use(
+def analysis_food_use(
     request: Request,
     mode: str = Query(default="range"),
     ranges_raw: str | None = Query(default=None),
@@ -12219,7 +12289,7 @@ async def analysis_food_use(
 
 
 @app.get("/analysis/food-use/replacement-search", response_class=JSONResponse)
-async def analysis_food_use_replacement_search(q: str = Query(default="")):
+def analysis_food_use_replacement_search(q: str = Query(default="")):
     """Type-ahead for the Substitute panel's "With this" box: cached foods
     and recipes whose names contain every typed word, best match first, so
     the replacement can be picked by name instead of looked up by code.
@@ -12262,7 +12332,7 @@ def _food_use_back(mode: str, ranges_raw: str, meal_ids: str, protein_only: bool
 
 
 @app.post("/analysis/food-use/substitute", response_class=RedirectResponse)
-async def analysis_food_use_substitute(
+def analysis_food_use_substitute(
     mode: str = Form(...),
     ranges_raw: str = Form(""),
     meal_ids: str = Form(""),
@@ -12527,7 +12597,7 @@ def _whatif_page_extras(request: Request, page: str, result, edits) -> dict:
 
 
 @app.get("/analysis/whatif", response_class=HTMLResponse)
-async def analysis_whatif(
+def analysis_whatif(
     request: Request,
     mode: str = Query(default="range"),
     ranges_raw: str | None = Query(default=None),
@@ -12610,7 +12680,7 @@ def _parse_food_use_recipes_selection(
 
 
 @app.get("/analysis/whatif-recipes", response_class=HTMLResponse)
-async def analysis_whatif_recipes(
+def analysis_whatif_recipes(
     request: Request,
     mode: str = Query(default="all"),
     ranges_raw: str = Query(default=""),
@@ -12655,13 +12725,13 @@ async def analysis_whatif_recipes(
 
 
 @app.get("/analysis/whatif/export.csv")
-async def analysis_whatif_csv(request: Request):
+def analysis_whatif_csv(request: Request):
     """The What-if: Meals result as CSV — every nutrient, changed or not."""
     return _whatif_csv_response("meals", request.url.query)
 
 
 @app.get("/analysis/whatif-recipes/export.csv")
-async def analysis_whatif_recipes_csv(request: Request):
+def analysis_whatif_recipes_csv(request: Request):
     """The What-if: Recipes result as CSV — every recipe reached, no column cap."""
     return _whatif_csv_response("recipes", request.url.query)
 
@@ -12696,7 +12766,7 @@ def _whatif_back(page: str, query: str, **extra) -> RedirectResponse:
 
 
 @app.post("/analysis/whatif/save", response_class=RedirectResponse)
-async def analysis_whatif_save(page: str = Form(...), name: str = Form(""), query: str = Form("")):
+def analysis_whatif_save(page: str = Form(...), name: str = Form(""), query: str = Form("")):
     if page in _WHATIF_PAGES:
         with _db.get_db() as conn:
             _db.saved_whatif_save(conn, name.strip() or "Untitled", page, _whatif_clean_query(query))
@@ -12704,7 +12774,7 @@ async def analysis_whatif_save(page: str = Form(...), name: str = Form(""), quer
 
 
 @app.get("/analysis/whatif/load/{scenario_id}", response_class=RedirectResponse)
-async def analysis_whatif_load(scenario_id: int):
+def analysis_whatif_load(scenario_id: int):
     with _db.get_db() as conn:
         row = _db.saved_whatif_get(conn, scenario_id)
     if not row:
@@ -12713,7 +12783,7 @@ async def analysis_whatif_load(scenario_id: int):
 
 
 @app.post("/analysis/whatif/saved/rename", response_class=RedirectResponse)
-async def analysis_whatif_saved_rename(scenario_id: int = Form(...), name: str = Form(""),
+def analysis_whatif_saved_rename(scenario_id: int = Form(...), name: str = Form(""),
                                        page: str = Form("meals"), query: str = Form("")):
     with _db.get_db() as conn:
         _db.saved_whatif_rename(conn, scenario_id, name.strip() or "Untitled")
@@ -12721,7 +12791,7 @@ async def analysis_whatif_saved_rename(scenario_id: int = Form(...), name: str =
 
 
 @app.post("/analysis/whatif/saved/delete", response_class=RedirectResponse)
-async def analysis_whatif_saved_delete(scenario_id: int = Form(...),
+def analysis_whatif_saved_delete(scenario_id: int = Form(...),
                                        page: str = Form("meals"), query: str = Form("")):
     with _db.get_db() as conn:
         _db.saved_whatif_delete(conn, scenario_id)
@@ -12765,7 +12835,7 @@ def _whatif_apply_plan(conn, page: str, query: str) -> dict:
 
 
 @app.get("/analysis/whatif/apply", response_class=HTMLResponse)
-async def analysis_whatif_apply_confirm(request: Request, page: str = Query("meals"), query: str = Query("")):
+def analysis_whatif_apply_confirm(request: Request, page: str = Query("meals"), query: str = Query("")):
     """Confirmation step for Apply for real: lists exactly what will change."""
     page = page if page in _WHATIF_PAGES else "meals"
     with _db.get_db() as conn:
@@ -12777,7 +12847,7 @@ async def analysis_whatif_apply_confirm(request: Request, page: str = Query("mea
 
 
 @app.post("/analysis/whatif/apply", response_class=RedirectResponse)
-async def analysis_whatif_apply(page: str = Form(...), query: str = Form("")):
+def analysis_whatif_apply(page: str = Form(...), query: str = Form("")):
     """Do it: db.substitute_item_in_meals / substitute_item_in_recipes per
     replace edit, all in one transaction, then (recipes) recompute DCP for
     every recipe changed. Re-plans from the query, so it does exactly what
@@ -12802,7 +12872,7 @@ async def analysis_whatif_apply(page: str = Form(...), query: str = Form("")):
 
 
 @app.get("/analysis/food-use-recipes", response_class=HTMLResponse)
-async def analysis_food_use_recipes(
+def analysis_food_use_recipes(
     request: Request,
     mode: str = Query(default="all"),
     ranges_raw: str = Query(default=""),
@@ -12919,7 +12989,7 @@ async def analysis_food_use_recipes(
 
 
 @app.post("/analysis/food-use-recipes/substitute", response_class=RedirectResponse)
-async def analysis_food_use_recipes_substitute(
+def analysis_food_use_recipes_substitute(
     mode: str = Form(...),
     ranges_raw: str = Form(""),
     recipe_ids: str = Form(""),
@@ -12970,7 +13040,7 @@ async def analysis_food_use_recipes_substitute(
 
 
 @app.get("/manual", response_class=HTMLResponse)
-async def manual(request: Request):
+def manual(request: Request):
     from numa_app.services.manual_build import rebuild_manual_if_stale
     # Rebuild only ever applies to the baked-in copy (it has a .md source
     # beside it); a downloaded manual is html-only and must never be rebuilt.
@@ -12982,7 +13052,7 @@ async def manual(request: Request):
 
 
 @app.get("/disclaimer", response_class=HTMLResponse)
-async def disclaimer(request: Request):
+def disclaimer(request: Request):
     if not _DISCLAIMER_MD.exists():
         return HTMLResponse("<p>Disclaimer not found.</p>", status_code=404)
     body = _md.markdown(_DISCLAIMER_MD.read_text(encoding="utf-8"), extensions=["footnotes"])

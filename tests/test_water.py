@@ -166,6 +166,17 @@ class TestTotals:
         assert total["water_food_g"] == 0.0
         assert sub_total["water_food_g"] == pytest.approx(85.6)   # not a drink on its own
 
+    def test_drink_sub_recipe_inside_a_food_recipe(self, foods):
+        """A sub-recipe marked as a drink counts its water as drinks even
+        inside a recipe that isn't one (mutation-testing gap, 2026-10-28)."""
+        sub = _recipe([("food", APPLE, 100.0)], name="Apple juice")
+        rid = _recipe([("food", MILK, 200.0), ("recipe", sub, 1.0)])
+        with _db.get_db() as conn:
+            _db.set_recipe_is_drink(conn, sub, True)
+            total = recipe_total_nutrients(rid, conn)
+        assert total["water_drinks_g"] == pytest.approx(85.6)
+        assert total["water_food_g"] == pytest.approx(176.0)
+
     def test_whatif_matches_meal_page_total(self, foods):
         rid = _recipe([("food", TEA, 200.0), ("food", APPLE, 100.0)], servings=2)
         mid = _meal([("food", MILK, 100.0), ("recipe", rid, 1.0)])

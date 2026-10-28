@@ -2211,6 +2211,9 @@ class TestGetDensityGPerMl:
         assert _usda.density_with_source("mystery unrecognized food xyz", [], last_resort=True) == (
             pytest.approx(_usda.LAST_RESORT_DENSITY_G_PER_ML), "table")
         assert _usda.get_density_g_per_ml("mystery unrecognized food xyz", []) is None
+        # get_density_g_per_ml passes the flag on (mutation-testing gap, 2026-10-28).
+        assert _usda.get_density_g_per_ml("mystery unrecognized food xyz", [], last_resort=True) == (
+            pytest.approx(_usda.LAST_RESORT_DENSITY_G_PER_ML))
 
     def test_generic_spice_fallback(self):
         """Any USDA "Spices, ..." food not individually itemized still gets an
