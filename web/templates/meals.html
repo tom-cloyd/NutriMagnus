@@ -82,7 +82,7 @@
   </form>
   <small class="muted">DCP = bioavailable (digestible) complete protein{% if protein_target %} · profile goal = {{ protein_target|int }} g/day{% endif %}</small>
 </div>
-<form method="get" action="/meals/search" class="mb-2">
+<form method="get" action="/meals/search" class="mb-2" data-search-form>
   <label class="form-label mb-1" for="meal-history-q">Find meals that contain, or don&rsquo;t contain, a food or recipe</label>
   <div class="input-group input-group-sm" style="max-width:44rem">
     <select class="form-select" name="mode" style="max-width:15rem" aria-label="Meals that contain, or don't contain, this food">

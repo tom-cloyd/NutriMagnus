@@ -106,7 +106,7 @@ vm-setup:
 	@echo "==> Serving setup files at http://192.168.122.1:8765/"
 	@echo "    (keep this running; Ctrl+C when setup is complete)"
 	@echo ""
-	@echo "    Inside the VM, open PowerShell and paste this one line:"
+	@echo "    Inside the VM, open PowerShell as Administrator and paste this one line:"
 	@echo ""
 	@echo '    powershell -ExecutionPolicy Bypass -Command "iwr '"'"'http://192.168.122.1:8765/scripts/vm-setup.ps1'"'"' -OutFile $$env:TEMP\vm-setup.ps1; & $$env:TEMP\vm-setup.ps1"'
 	@echo ""

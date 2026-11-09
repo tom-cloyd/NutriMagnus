@@ -28,6 +28,7 @@ def expand_recipe_ingredients(
     *,
     portion_factor: float = 1.0,
     rewrite: Rewrite | None = None,
+    cooked_water: bool = True,
     _drink: bool | None = None,
 ) -> list[dict]:
     """Recursively expand a recipe into its leaf food ingredients.
@@ -45,11 +46,16 @@ def expand_recipe_ingredients(
     from-supplements split (supplements.tag), and "grams" is its internal
     100 g per unit — callers that total weight skip it.
     Each leaf's nutrients_100g carries its water split (water.tag): from
-    drinks when the food is a drink, or when this recipe or any recipe it
-    sits inside is marked as one.
+    drinks only when this recipe or a recipe it sits inside is marked as one —
+    an ingredient's own drink flag doesn't count inside a recipe (a cup of tap
+    water in bread dough is food water). See drink_ingredient_water().
+    A recipe with its water once cooked set has its leaves' water rescaled to
+    match (apply_cooked_water()); cooked_water=False skips that for this
+    recipe itself (not its sub-recipes) — to show the raw figure beside it.
     """
+    recipe = _db.recipe_get(conn, recipe_id)
     if _drink is None:
-        _drink = _water.is_drink(_db.recipe_get(conn, recipe_id))
+        _drink = _water.is_drink(recipe)
     result: list[dict] = []
     for ing in _db.recipe_get_ingredients(conn, recipe_id):
         if ing["ref_recipe_id"]:
@@ -79,15 +85,140 @@ def expand_recipe_ingredients(
             nuts_100g = json.loads(cached["nutrients_json"])
             if nuts_100g:
                 supp = _supps.is_supplement(cached)
-                nuts_100g = _supps.tag(_water.tag(nuts_100g, _drink or _water.is_drink(cached)), supp)
+                # Inside a recipe, only the recipe's own drink flag (or an
+                # enclosing recipe's) counts: tap water in bread dough isn't
+                # a drink, whatever the food's own flag says (2026-11-09).
+                nuts_100g = _supps.tag(_water.tag(nuts_100g, _drink), supp)
                 result.append({
                     "food_name":      cached["name"] if rewritten and item_id != ing["fdc_id"] else ing["food_name"],
                     "fdc_id":         item_id,
                     "nutrients_100g": nuts_100g,
                     "grams":          qty * portion_factor,
                     "is_supplement":  supp,
+                    "food_is_drink":  _water.is_drink(cached),
                 })
+    if cooked_water:
+        apply_cooked_water(recipe, result, portion_factor, drink=_drink)
     return result
+
+
+def drink_ingredient_water(recipe_id: int, conn) -> list[dict]:
+    """The drink foods inside a recipe whose water counts as water from food
+    because the recipe isn't a drink — for the note on the recipe page.
+    [{"name", "water_g"}] per whole batch (after cooking, when set), merged by
+    food and heaviest first; [] for a drink recipe or one with none."""
+    found: dict[int, dict] = {}
+    for lf in expand_recipe_ingredients(recipe_id, conn):
+        food_water = lf["nutrients_100g"].get(_water.FOOD_KEY)
+        if not lf.get("food_is_drink") or not food_water:
+            continue
+        entry = found.setdefault(lf["fdc_id"], {"name": lf["food_name"], "water_g": 0.0})
+        entry["water_g"] += float(food_water) * lf["grams"] / 100.0
+    return sorted(found.values(), key=lambda e: -e["water_g"])
+
+
+def stated_batch_grams(recipe) -> float | None:
+    """The recipe's stated total weight in grams (what one finished batch
+    weighs), or None when none is stated or its unit isn't a weight. The
+    ingredient-sum fallback recipe_serving_grams() uses is deliberately not
+    used here: that's the raw weight, before cooking changed it."""
+    from numa_app.services.portions import _UNIT_TO_GRAMS
+    if not recipe or not recipe["total_weight"]:
+        return None
+    factor = _UNIT_TO_GRAMS.get((recipe["total_weight_unit"] or "g").lower())
+    return float(recipe["total_weight"]) * factor if factor else None
+
+
+def cooked_water_per_100g(recipe) -> float | None:
+    """recipes.cooked_water_per_100g, or None (unset, or a row selected
+    without that column)."""
+    try:
+        v = recipe["cooked_water_per_100g"]
+    except (IndexError, KeyError, TypeError):
+        return None
+    return float(v) if v is not None else None
+
+
+def apply_cooked_water(recipe, leaves: list[dict], portion_factor: float,
+                       *, drink: bool) -> None:
+    """Replace the water `leaves` (one recipe's expanded ingredients, at
+    `portion_factor` of a batch) add up to with the recipe's water once
+    cooked — recipes.cooked_water_per_100g × its stated total weight — when
+    both are set. Cooking drives water off, so the raw ingredients' water
+    overstates it. In place; each leaf's water is scaled by the same factor,
+    so per-food breakdowns still add up to the recipe's total. The cooked
+    water counts as water from food unless the recipe (or one it sits in)
+    is a drink: water baked into bread is no longer a drink. Nothing happens
+    without both values, so a recipe never loses its water by accident.
+    """
+    per_100g = cooked_water_per_100g(recipe)
+    batch_g = stated_batch_grams(recipe)
+    if per_100g is None or not batch_g:
+        return
+    target = per_100g * batch_g / 100.0 * portion_factor
+    food_leaves = [lf for lf in leaves if not lf.get("is_supplement")]
+    with_water = [lf for lf in food_leaves if lf["nutrients_100g"].get(_water.WATER_KEY) is not None]
+    raw = sum(float(lf["nutrients_100g"][_water.WATER_KEY]) * lf["grams"] / 100.0 for lf in with_water)
+    if raw > 0:
+        factor = target / raw
+        for lf in with_water:
+            water = float(lf["nutrients_100g"][_water.WATER_KEY]) * factor
+            lf["nutrients_100g"] = _water.tag({**lf["nutrients_100g"], _water.WATER_KEY: water}, drink)
+        return
+    # No ingredient has a water value: the whole amount goes on the heaviest one.
+    heaviest = max((lf for lf in food_leaves if lf["grams"] > 0), key=lambda lf: lf["grams"], default=None)
+    if heaviest is not None:
+        water = target * 100.0 / heaviest["grams"]
+        heaviest["nutrients_100g"] = _water.tag({**heaviest["nutrients_100g"], _water.WATER_KEY: water}, drink)
+
+
+def recipe_water_per_100g(recipe_id: int, conn) -> float | None:
+    """The recipe's water in g per 100 g as numa counts it — its cooked water
+    when set, else its ingredients' water over its batch weight (stated, or
+    the complete ingredient sum). None when either is unknown."""
+    recipe = _db.recipe_get(conn, recipe_id)
+    if not recipe:
+        return None
+    per_100g = cooked_water_per_100g(recipe)
+    if per_100g is not None and stated_batch_grams(recipe):
+        return per_100g
+    serving_g = recipe_serving_grams(recipe_id, conn)
+    water = recipe_total_nutrients(recipe_id, conn).get(_water.WATER_KEY)
+    if not serving_g or water is None:
+        return None
+    return water / (serving_g * float(recipe["servings"] or 1)) * 100.0
+
+
+def cooked_water_info(recipe_id: int, conn) -> dict | None:
+    """Figures for the recipe page's "water after cooking" box, or None for
+    no recipe: "value" (cooked_water_per_100g, or None), "batch_g" (stated
+    total weight in g, or None), "applied" (value and batch_g both set),
+    "raw_water_g" (the water the ingredients add up to, before cooking),
+    "raw_g" (what the ingredients weigh), "raw_complete" (every ingredient's
+    weight known), and "estimate" — g of water per 100 g if everything
+    cooking took off the weight was water, or None when there's no stated
+    weight, no complete raw weight, or no loss."""
+    recipe = _db.recipe_get(conn, recipe_id)
+    if not recipe:
+        return None
+    raw_water = None
+    for lf in expand_recipe_ingredients(recipe_id, conn, cooked_water=False):
+        w = lf["nutrients_100g"].get(_water.WATER_KEY)
+        if w is not None and not lf.get("is_supplement"):
+            raw_water = (raw_water or 0.0) + float(w) * lf["grams"] / 100.0
+    computed = _db.recipe_compute_weight(conn, recipe_id)
+    raw_g = computed[0] if computed else None
+    raw_complete = bool(computed and computed[1])
+    batch_g = stated_batch_grams(recipe)
+    value = cooked_water_per_100g(recipe)
+    estimate = None
+    if batch_g and raw_g and raw_complete and raw_water is not None and raw_g > batch_g:
+        left = raw_water - (raw_g - batch_g)
+        if left > 0:
+            estimate = left / batch_g * 100.0
+    return {"value": value, "batch_g": batch_g, "applied": value is not None and bool(batch_g),
+            "raw_water_g": raw_water, "raw_g": raw_g, "raw_complete": raw_complete,
+            "estimate": estimate}
 
 
 def atomic_recipe_ingredients(

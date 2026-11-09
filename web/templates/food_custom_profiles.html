@@ -76,7 +76,7 @@
   </summary>
   <div class="card card-body mt-2" style="max-width:36rem">
     <p class="muted"><small>Search the food cache, then click Copy to create an editable draft pre-filled with that food's nutrient data.</small></p>
-    <form method="get" action="/food/custom-profiles" class="mb-2">
+    <form method="get" action="/food/custom-profiles" class="mb-2" data-search-form>
       <div class="input-group">
         <input type="text" class="form-control" name="copy_q"
                value="{{ copy_q or '' }}"
@@ -86,7 +86,7 @@
     </form>
     {% if copy_results %}
     <p class="result-count">{{ copy_results|length }} result{% if copy_results|length != 1 %}s{% endif %} for <strong>{{ copy_q }}</strong></p>
-    <table class="table table-sm table-hover">
+    <table class="table table-sm table-hover" data-search-output>
       <thead class="table-light">
         <tr><th>Food</th><th>Type</th><th></th></tr>
       </thead>

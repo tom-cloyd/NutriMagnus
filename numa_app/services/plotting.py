@@ -99,6 +99,46 @@ def _wrap_legend_label(label: str) -> str:
     return "\n".join(textwrap.wrap(glued, LEGEND_RIGHT_WRAP_CHARS)) or label
 
 
+# Reference-line patterns, in points of line length: a goal is dashed, a
+# limit dotted. Lines of one kind that land at (nearly) the same height share
+# the pattern's period, each drawing only its own slice of it, so
+# coinciding lines alternate colors instead of the last one hiding the rest.
+_REF_PATTERNS = {"goal": (3.7, 1.6), "limit": (1.0, 1.65)}  # matplotlib's own "--" and ":"
+# How close two same-kind reference lines must be, as a fraction of the plot's
+# y-range, to count as coinciding (closer than this they'd draw as one line).
+REF_LINE_MERGE_FRACTION = 0.01
+
+
+def _draw_reference_lines(ax, series: list[dict], ref_lines: list[tuple[str, float, str]]) -> None:
+    """Draw the goal (dashed) and limit (dotted) reference lines. Same-kind
+    lines within REF_LINE_MERGE_FRACTION of the y-range of each other are
+    drawn interleaved — one dash of each color in turn — so every series'
+    line stays visible (e.g. a scaled Calories goal landing on the DCP goal)."""
+    if not ref_lines:
+        return
+    ys = [y for s in series for y in s["y"] if not math.isnan(y)] + [y for _k, y, _c in ref_lines]
+    tol = (max(ys) - min(ys)) * REF_LINE_MERGE_FRACTION if ys else 0.0
+    for kind, (on, off) in _REF_PATTERNS.items():
+        lines = sorted((y, c) for k, y, c in ref_lines if k == kind)
+        groups: list[list[tuple[float, str]]] = []
+        for y, c in lines:
+            if groups and y - groups[-1][0][0] <= tol:
+                groups[-1].append((y, c))
+            else:
+                groups.append([(y, c)])
+        for group in groups:
+            n = len(group)
+            if n == 1:
+                y, c = group[0]
+                ax.axhline(y=y, color=c, linestyle=(0, (on, off)), linewidth=1)
+                continue
+            y_mid = sum(y for y, _c in group) / n
+            period = (on + off) * n
+            for j, (_y, c) in enumerate(group):
+                ax.axhline(y=y_mid, color=c, linewidth=1,
+                           linestyle=(j * (on + off), (on, period - on)))
+
+
 def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "",
                      subtitle: str = "", image_format: str = "png", grayscale: bool = False,
                      hide_y_values: bool = False, legend_pos: str = "auto",
@@ -182,6 +222,7 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
     auto_colors = [c for c in CATEGORICAL_COLORS if c not in claimed] or CATEGORICAL_COLORS
     auto_i = 0
     dash_i = 0
+    ref_lines: list[tuple[str, float, str]] = []  # (kind, y, color), drawn after the data
     for i, s in enumerate(series):
         is_highlight = bool(s.get("highlight"))
         if grayscale:
@@ -214,12 +255,10 @@ def line_plot_image(series: list[dict], xlabel: str, ylabel: str, title: str = "
             else:
                 ax.plot(hx, hy, linestyle="none", marker="o", markersize=msize + 3,
                         markerfacecolor="none", markeredgecolor=color, markeredgewidth=1)
-        goal = s.get("goal")
-        if goal is not None:
-            ax.axhline(y=goal, color=color, linestyle="--", linewidth=1)
-        limit = s.get("limit")
-        if limit is not None:
-            ax.axhline(y=limit, color=color, linestyle=":", linewidth=1)
+        for kind in ("goal", "limit"):
+            if s.get(kind) is not None:
+                ref_lines.append((kind, float(s[kind]), color))
+    _draw_reference_lines(ax, series, ref_lines)
     ax.set_xlabel(xlabel)
     if hide_y_values:
         ax.set_yticklabels([])

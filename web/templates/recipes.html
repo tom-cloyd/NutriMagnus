@@ -10,7 +10,7 @@
 </div>
 
 <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
-  <form method="get" action="/recipes">
+  <form method="get" action="/recipes" data-search-form>
     <input type="hidden" name="sort" value="{{ sort }}">
     <div class="input-group" style="max-width:28rem">
       <input type="text" data-ak="i" class="form-control form-control-sm" name="q" value="{{ q }}"
@@ -49,6 +49,7 @@
 </div>
 {% endif %}
 
+<div{% if q %} data-search-output{% endif %}>
 {% if not recipes %}
   {% if q %}
   <p class="muted">No recipes match <strong>{{ q }}</strong>.</p>
@@ -140,4 +141,5 @@
 
 <p class="muted mt-2"><small>{{ recipes|length }} recipe{% if recipes|length != 1 %}s{% endif %}{% if q %} matching "{{ q }}"{% endif %}</small></p>
 {% endif %}
+</div>
 {% endblock %}

@@ -34,7 +34,7 @@ if (Test-Path $pythonPathFile) {
     $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
     $pythonExe = if ($pythonCmd) { $pythonCmd.Source } else { $null }
     if (-not $pythonExe) {
-        $candidates = @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe", "C:\Python313\python.exe")
+        $candidates = @("$env:ProgramFiles\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe", "C:\Python313\python.exe")
         foreach ($c in $candidates) { if (Test-Path $c) { $pythonExe = $c; break } }
     }
 }

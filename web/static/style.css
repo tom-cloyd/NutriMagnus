@@ -731,6 +731,11 @@ textarea:focus,
    ready Search button: see .btn-search-ready below. */
 .unsaved-badge { display: none; margin-left: .5rem; font-size: .875rem; color: #92400e; }
 .form-dirty .unsaved-badge { display: inline; }
+/* Portions page: the badge's room is kept from the start (hidden, not
+   absent), so typing in a row doesn't widen its button cell and squeeze
+   the Description box. */
+.portions-table .unsaved-badge { display: inline; visibility: hidden; }
+.portions-table .form-dirty .unsaved-badge { visibility: visible; }
 
 .rda-no-profile {
   border-left: 3px solid #bbb;
@@ -1147,6 +1152,11 @@ td.compare-val-col {
   padding: 0.25rem 0.6rem;
   border-radius: 4px;
   margin: 0;
+}
+
+/* Alt+Shift+I cleared the previous search's output (see base.html) */
+.numa-search-cleared {
+  display: none !important;
 }
 
 .search-suggestions {

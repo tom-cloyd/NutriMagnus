@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% import "_source_filter_select.html" as source_filter %}
 {% import "_failsafe_note.html" as _failsafe %}
 {% import "_online_search_notice.html" as _osn %}
@@ -94,13 +95,14 @@
     is left exactly as it is on this profile. If you only want amino acids, scaled to this food's own
     protein content rather than copied raw, use "Estimate amino acids from another food" below instead.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2" data-online-search>
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2" data-online-search data-search-form>
     <input type="hidden" name="aa_source_q" value="{{ aa_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="nutrient_source_q" value="{{ nutrient_source_q }}"
-             placeholder="Search for a food to copy from…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" style="max-width:22rem">
+             placeholder="Search for a food to copy from…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" style="max-width:22rem">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
     </div>
+    {{ _sh.hint("mb-2") }}
     {{ source_filter.select(nutrient_source, source_filters, source_labels, "nutrient_source") }}
   </form>
   {% if nutrient_omitted_sources %}
@@ -141,13 +143,14 @@
     everything else on this profile is left untouched. Want to replace the whole profile instead? Use
     "Copy nutrient values from another food" above.</small>
   </p>
-  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2" data-online-search>
+  <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/edit" class="mb-2" data-online-search data-search-form>
     <input type="hidden" name="nutrient_source_q" value="{{ nutrient_source_q }}">
     <div class="d-flex gap-2 mb-2 align-items-center">
       <input type="text" class="form-control form-control-sm" name="aa_source_q" value="{{ aa_source_q }}"
-             placeholder="Search for a similar food…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" style="max-width:22rem">
+             placeholder="Search for a similar food…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" style="max-width:22rem">
       <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
     </div>
+    {{ _sh.hint("mb-2") }}
     {{ source_filter.select(aa_source, source_filters, source_labels, "aa_source") }}
   </form>
   {% if aa_omitted_sources %}

@@ -86,13 +86,12 @@
         <th class="num-col nutrient-group" style="white-space:nowrap;line-height:1.2">{{ col_header(col.label) }}</th>
         <th class="num-col" style="white-space:nowrap;line-height:1.2" title="That date's own RDA/target/limit for {{ col.label }}">{{ pct_goal_header() }}</th>
         {% endfor %}
-        <th></th>
       </tr>
     </thead>
     <tbody>
       {% for r in day_rows %}
       <tr>
-        <td class="sticky-col">{{ r.meal_date }}</td>
+        <td class="sticky-col"><a href="/summary/{{ r.meal_date }}" title="Full nutrient analysis for {{ r.meal_date }}">{{ r.meal_date }}</a></td>
         <td class="text-center">
           {% if r.day_complete %}
           <span class="text-success" title="All meals on this date are marked complete">&#10003;</span>
@@ -143,7 +142,6 @@
         </td>
         <td class="num-col">{{ pct_goal_cell(r.pct_goal_map.get(col.key)) }}</td>
         {% endfor %}
-        <td><a href="/summary/{{ r.meal_date }}" class="btn btn-sm btn-link p-0">Full nutrient analysis</a></td>
       </tr>
       {% endfor %}
     </tbody>

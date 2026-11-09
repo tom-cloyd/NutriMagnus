@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% from "_archived_toggle.html" import archived_toggle %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
@@ -42,7 +43,7 @@
 
 {# ── Search USDA / Open Food Facts / cache to add a food with full nutrient data ── #}
 <h5>{% if link_id %}Find a match for "{{ link_name }}"{% else %}Add a pantry item — search for full amino acid data{% endif %} <span class="ak-hint">(put cursor here: Alt + Shift + I)</span></h5>
-<form method="get" action="/pantry" class="mb-2" data-online-search>
+<form method="get" action="/pantry" class="mb-2" data-online-search data-search-form>
   {% if link_id %}<input type="hidden" name="link_id" value="{{ link_id }}">{% endif %}
   {% if filter %}<input type="hidden" name="filter" value="{{ filter }}">{% endif %}
   <p class="muted mb-1"><small>This searches your food cache and the online databases for foods to <em>add</em> — to narrow your existing pantry list, use <strong>Filter my pantry list</strong> further down.</small></p>
@@ -55,6 +56,7 @@
     </div>
     {% if search %}<span id="pantry-search-no-results" class="search-no-results" data-query="{{ search }}" data-field="search"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ search }}</strong>.</span>{% endif %}
   </div>
+  {{ _sh.hint("mb-2") }}
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   {{ _rli.input(limit) }}
 </form>
@@ -143,9 +145,20 @@
 {# Where Archive/Remove land if their in-place (fetch) submit falls back to a
    full page load: this same filtered list, not the unfiltered Pantry. #}
 {% set list_url = "/pantry?filter=%s" % (filter | urlencode) if filter else "/pantry" %}
-<p class="mb-2">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <form method="get" action="/pantry" class="d-inline-flex align-items-center">
+    {% if filter %}<input type="hidden" name="filter" value="{{ filter }}">{% endif %}
+    <label class="muted me-1" style="font-size:0.875rem" for="pantry-sort"><small>Sort by</small></label>
+    <select name="sort" id="pantry-sort" class="form-select form-select-sm d-inline-block" style="width:auto"
+            onchange="this.form.submit()">
+      {% for v, label in [("name", "Name"), ("id", "Code"), ("type", "Type"), ("diaas", "DIAAS"),
+                          ("gi", "GI estimate"), ("used", "Used in (most first)"), ("added", "Added")] %}
+      <option value="{{ v }}" {% if sort == v %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
   <button type="submit" form="compare-pantry-form" class="btn btn-sm btn-outline-secondary" data-compare-btn>Compare nutrition of selected (up to 8)</button>
-</p>
+</div>
 <table class="table table-sm table-hover" data-show-archived="{{ 'true' if show_archived else 'false' }}">
   <thead class="table-light">
     <tr>
@@ -156,6 +169,7 @@
       <th class="text-center" title="Amino acid data">AA</th>
       <th class="text-center">GI est.</th>
       <th class="text-center">DIAAS</th>
+      <th title="How many recipes and logged meals use this food directly">Used in</th>
       <th>Notes</th>
       <th>Added</th>
       <th></th>
@@ -205,6 +219,11 @@
         {% endif %}
         {% else %}—{% endif %}
       </td>
+      <td style="white-space:nowrap"><small>
+        {% if item.use.recipes or item.use.meals %}
+        {{ item.use.recipes }} recipe{{ "s" if item.use.recipes != 1 }}, {{ item.use.meals }} meal{{ "s" if item.use.meals != 1 }}
+        {% else %}<span class="muted">not used</span>{% endif %}
+      </small></td>
       <td class="muted">{{ item.notes or "—" }}</td>
       <td class="muted">{{ item.added_at or "—" }}</td>
       <td style="white-space:nowrap">

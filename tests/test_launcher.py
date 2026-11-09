@@ -35,3 +35,20 @@ def test_loading_page_served_then_socket_handed_on() -> None:
     conn.close()
     client.close()
     sock.close()
+
+
+def test_running_chromium_snap_opens_chromium_not_os_default(monkeypatch) -> None:
+    """A running Chrome/Chromium shows to pgrep as "chrome", a name nothing on
+    $PATH answers to; it must still launch the real browser instead of
+    falling back to webbrowser.open (the OS default — Firefox, 2026-11-06)."""
+    on_path = {"chromium": "/snap/bin/chromium", "firefox": "/usr/bin/firefox"}
+    monkeypatch.setattr(launcher, "_resolve_executable", on_path.get)
+    monkeypatch.setattr(launcher, "_preferred_browser_pref", lambda: "")
+    monkeypatch.setattr(launcher, "_detect_running_browsers", lambda: ["chrome"])
+    launched = []
+    monkeypatch.setattr(launcher.subprocess, "Popen",
+                        lambda cmd, **kw: launched.append(cmd))
+    monkeypatch.setattr(launcher.webbrowser, "open",
+                        lambda url: launched.append(["default", url]))
+    launcher._pick_and_open_browser("http://127.0.0.1:8000")
+    assert launched == [["/snap/bin/chromium", "http://127.0.0.1:8000"]]

@@ -25,7 +25,7 @@
 <h2>Annotate a Food {{ manual_link("annotate") }} <span class="ak-hint">(put cursor here: Alt + Shift + I)</span></h2>
 <p class="muted">Add GI (glycemic index) and DIAAS (protein digestibility) estimates to cached foods.</p>
 
-<form method="get" action="/food/annotate" class="mb-3">
+<form method="get" action="/food/annotate" class="mb-3" data-search-form>
   <div class="input-group" style="max-width:36rem">
     <input type="text" data-ak="i" class="form-control" name="q" value="{{ q or '' }}"
            placeholder="Filter by food name or code (U171477)…" title="Type part of a name, or an exact code such as U171477 or UD4 to find just that one" autofocus>
@@ -36,6 +36,7 @@
   </div>
 </form>
 
+<div{% if q %} data-search-output{% endif %}>
 {% if foods %}
 <p class="result-count">{{ foods|length }} food{% if foods|length != 1 %}s{% endif %}
   {% if q %}matching <strong>{{ q }}</strong>{% endif %}
@@ -72,6 +73,7 @@
 <p>No cached foods found{% if q %} matching that filter{% endif %}.</p>
 {% if q %}<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>{% endif %}
 {% endif %}
+</div>
 
 {% else %}
 {# ── Edit view ── #}

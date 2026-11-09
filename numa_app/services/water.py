@@ -5,7 +5,10 @@ A food's own nutrient data carries one value, water_g (total moisture per
 100 g — USDA nutrient 1051). Whether that water counts as "from drinks" is a
 property of the food (foods.is_drink) or of a recipe (recipes.is_drink — then
 ALL its water counts as drinks, even from ingredients that aren't drinks on
-their own: a smoothie's banana). The split exists only once a meal, recipe or
+their own: a smoothie's banana). Inside a recipe only the recipe's flag
+counts: a drink food used as an ingredient (tap water in bread dough) gives
+water from food unless the recipe, or one it sits in, is a drink (from
+2026-11-09). A food logged straight into a meal keeps its own flag. The split exists only once a meal, recipe or
 day is totalled: tag() adds the two derived keys to one food's per-100 g
 nutrients at that point, so every ordinary sum carries the split along with
 everything else, into meal nutrient snapshots, day totals, columns and plots.

@@ -94,6 +94,26 @@ def test_food_search_by_name(client: TestClient, monkeypatch: pytest.MonkeyPatch
     assert "Chicken" in resp.text
 
 
+def test_search_results_marked_for_alt_shift_i_clear(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Alt+Shift+I (base.html) hides every [data-search-output] region.
+    _mock_api(monkeypatch)
+    assert "<div data-search-output>" in client.get("/food/search", params={"query": "Chicken"}).text
+    assert "<div data-search-output>" in client.get("/food/cache", params={"q": "Chicken"}).text
+    assert "<div data-search-output>" not in client.get("/food/cache").text
+    assert "numa-search-cleared" in client.get("/").text
+
+
+def test_every_main_search_box_lands_on_its_results() -> None:
+    # base.html's data-search-form handling is opt-in per form: a page that
+    # gains an Alt+Shift+I search box has to join it. The landing itself is
+    # tests/e2e/test_search_lands_on_results_e2e.py.
+    templates = pathlib.Path(__file__).resolve().parent.parent / "web" / "templates"
+    for path in templates.glob("*.html"):
+        for form in re.findall(r"<form\b.*?</form>", path.read_text(), re.DOTALL):
+            if 'data-ak="i"' in form:
+                assert "data-search-form" in form, path.name
+
+
 def test_food_search_page_defers_usda_off_to_async_endpoint(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -526,6 +546,51 @@ def test_food_search_by_barcode_prefers_cache_over_off(
     resp = client.get("/food/search", params={"query": barcode})
     assert resp.status_code == 200
     assert "Already Cached Bar" in resp.text
+
+
+def test_barcode_search_on_meal_and_recipe_pages(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every search box on the shared pipeline (_run_food_search) finds a
+    typed barcode: the instant local pass only checks the cache, the online
+    pass asks Open Food Facts and caches the product. Each page also shows
+    the barcode hint under its search box."""
+    import datetime as _dt
+    import openfoodfacts as _off
+    barcode = "012345678905"
+    calls: list[str] = []
+
+    def fake_lookup(bc: str) -> dict:
+        calls.append(bc)
+        return {
+            "fdcId": _off.off_id(bc), "name": "Pipeline Test Bar", "dataType": "Open Food Facts",
+            "brand": "Acme", "servingSize": 40.0, "servingUnit": "g",
+            "nutrients": {"protein_g": 10.0}, "portions": [],
+        }
+
+    monkeypatch.setattr("web.backend._off.lookup_by_barcode", fake_lookup)
+    with _db.get_db() as conn:
+        meal_id = _db.meal_create(conn, "Barcode meal", _dt.date.today().isoformat())
+        rid = _db.recipe_create(conn, "Barcode Recipe", "", 1, "")
+
+    # Instant render: not cached yet, so no network call and no name search.
+    page = client.get(f"/meal/{meal_id}", params={"q": barcode})
+    assert page.status_code == 200
+    assert calls == []
+    assert "12/13-digit barcode (UPC-A or EAN-13)" in page.text
+
+    resp = client.get(f"/meal/{meal_id}/search-api-results", params={"q": barcode})
+    assert resp.status_code == 200
+    assert "Pipeline Test Bar" in resp.text
+    assert calls == [barcode]
+
+    # Now cached: the recipe page's local pass finds it, OFF not asked again.
+    page = client.get(f"/recipe/{rid}/edit", params={"q": barcode})
+    assert "Pipeline Test Bar" in page.text
+    assert "12/13-digit barcode (UPC-A or EAN-13)" in page.text
+    rows = client.get("/search-rows/recipe", params={"q": barcode, "id": rid})
+    assert "Pipeline Test Bar" in rows.text
+    assert calls == [barcode]
 
 
 def test_food_search_by_barcode_not_found(client: TestClient) -> None:
@@ -2570,7 +2635,7 @@ def test_recipe_delete_warns_about_meals_and_sub_recipe_use(client: TestClient, 
     detail = client.get(f"/recipe/{used}").text
     assert "logged in 2 meals (from 2026-10-01 to 2026-10-05)" in detail
     assert "used as a sub-recipe in: Chili Bowl" in detail
-    assert "Archive on the Recipes list" in detail
+    assert "the Archive button next to Delete" in detail
     # The apostrophe must not end the single-quoted onsubmit attribute.
     assert "Tom\\u0027s Chili" in detail
 
@@ -2605,6 +2670,33 @@ def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -
     assert "restored=1" in resp.headers["location"]
     resp = client.get("/recipes")
     assert "Soup" in resp.text
+
+
+def test_recipe_page_archive_button_sits_between_copy_and_delete(client: TestClient, db_conn) -> None:
+    """The recipe's own page has an Archive/Restore toggle between Copy recipe
+    and Delete recipe; it lands back on the recipe page with a notice."""
+    recipe_id = int(
+        client.post("/recipe/new", data={"name": "Stew", "servings": 1}, follow_redirects=False)
+        .headers["location"].split("/recipe/")[1].split("/")[0]
+    )
+    page = client.get(f"/recipe/{recipe_id}").text
+    copy_at, arch_at, del_at = (page.index("Copy recipe</button>"),
+                                page.index("Archive recipe</button>"),
+                                page.index("Delete recipe</button>"))
+    assert copy_at < arch_at < del_at
+
+    resp = client.post(f"/recipe/{recipe_id}/archive",
+                       data={"next": f"/recipe/{recipe_id}"}, follow_redirects=False)
+    assert resp.headers["location"].startswith(f"/recipe/{recipe_id}?archived=1")
+    page = client.get(resp.headers["location"]).text
+    assert "Archived — hidden from default lists" in page
+    assert "Restore recipe</button>" in page
+
+    resp = client.post(f"/recipe/{recipe_id}/archive",
+                       data={"next": f"/recipe/{recipe_id}"}, follow_redirects=False)
+    page = client.get(resp.headers["location"]).text
+    assert "Restored." in page
+    assert "Archive recipe</button>" in page
 
 
 @pytest.mark.parametrize("url,noun", [
@@ -3302,6 +3394,25 @@ def test_settings_updates_an_improved_starter_food(
     assert _json.loads(row["nutrients_json"])["protein_g"] == 14.0
 
 
+def test_settings_updates_all_improved_starter_items(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
+) -> None:
+    import json as _json
+    from numa_app.services import demo_data as _dd
+    _starter_v1_then_v2(monkeypatch, db_conn)
+    client.get("/")
+    pending = _dd.pending_changes(db_conn)
+    count = len(pending["improved_foods"]) + len(pending["improved_recipes"])
+    assert count
+    settings = client.get("/settings").text
+    assert f"Update all {count} items to the new version</button>" in settings
+    resp = client.post("/settings/starter-data/improve-all", follow_redirects=True)
+    assert "all the improved starter items now match this version" in resp.text
+    assert "Improved in this version of NuMa" not in resp.text
+    row = db_conn.execute("SELECT nutrients_json FROM foods WHERE fdc_id = 1").fetchone()
+    assert _json.loads(row["nutrients_json"])["protein_g"] == 14.0
+
+
 def test_settings_keep_mine_declines_improvements(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, db_conn,
 ) -> None:
@@ -3605,6 +3716,72 @@ def test_duplicate_foods_page_shows_user_edited(client: TestClient, db_conn) -> 
     db_conn.commit()
     html = client.get("/food/cache/duplicates").text
     assert "SR Legacy · user-edited" in html
+
+
+def test_food_cache_shows_used_in_counts(client: TestClient, db_conn) -> None:
+    """Each Food Cache row says how many recipes and meals use the food."""
+    for fid, name in ((999121, "Raisin Used"), (999122, "Raisin Unused")):
+        _db.cache_food(db_conn, fdc_id=fid, name=name, data_type="SR Legacy", brand=None,
+                       serving_size=100.0, serving_unit="g", nutrients={"calories": 300})
+    db_conn.commit()
+    rid = int(client.post("/recipe/new", data={"name": "Bun", "servings": 2}, follow_redirects=False)
+              .headers["location"].split("/recipe/")[1].split("/")[0])
+    _db.recipe_add_ingredient(db_conn, rid, 999121, "Raisin Used", 30, "g")
+    db_conn.commit()
+    html = client.get("/food/cache", params={"q": "raisin"}).text
+    assert "1 recipe, 0 meals" in html
+    assert "not used" in html
+
+
+def test_food_cache_and_pantry_sort_by_used_in(client: TestClient, db_conn) -> None:
+    """Sort "used" puts the most-used food first, on Food Cache and Pantry;
+    Pantry shows the Used in counts too."""
+    for fid, name in ((999131, "Aaa Sortfood"), (999132, "Zzz Sortfood")):
+        _db.cache_food(db_conn, fdc_id=fid, name=name, data_type="SR Legacy", brand=None,
+                       serving_size=100.0, serving_unit="g", nutrients={"calories": 300})
+    db_conn.commit()
+    rid = int(client.post("/recipe/new", data={"name": "Bun", "servings": 2}, follow_redirects=False)
+              .headers["location"].split("/recipe/")[1].split("/")[0])
+    _db.recipe_add_ingredient(db_conn, rid, 999132, "Zzz Sortfood", 30, "g")
+    db_conn.commit()
+    for fid, name in ((999131, "Aaa Sortfood"), (999132, "Zzz Sortfood")):
+        client.post("/pantry/add", data={"fdc_id": fid, "food_name": name}, follow_redirects=False)
+
+    html = client.get("/food/cache", params={"q": "sortfood", "sort": "used"}).text
+    assert html.index("Zzz Sortfood") < html.index("Aaa Sortfood")
+    html = client.get("/food/cache", params={"q": "sortfood", "sort": "name"}).text
+    assert html.index("Aaa Sortfood") < html.index("Zzz Sortfood")
+
+    html = client.get("/pantry", params={"sort": "used"}).text
+    body = html[html.index('id="compare-pantry-form"'):]
+    assert body.index("Zzz Sortfood") < body.index("Aaa Sortfood")
+    assert "1 recipe, 0 meals" in body
+    assert '<option value="used" selected>' in html
+    # Remembered: the next plain visit keeps that sort.
+    body = client.get("/pantry").text
+    body = body[body.index('id="compare-pantry-form"'):]
+    assert body.index("Zzz Sortfood") < body.index("Aaa Sortfood")
+    body = client.get("/pantry", params={"sort": "name"}).text
+    body = body[body.index('id="compare-pantry-form"'):]
+    assert body.index("Aaa Sortfood") < body.index("Zzz Sortfood")
+
+
+def test_duplicate_foods_page_delete_button(client: TestClient, db_conn) -> None:
+    """Each unused copy gets a Delete button that comes back to the page; a
+    copy still in use gets a disabled one (Keep another copy instead)."""
+    for fid in (999111, 999112):
+        _db.cache_food(db_conn, fdc_id=fid, name="Triplet Food", data_type="SR Legacy", brand=None,
+                       serving_size=100.0, serving_unit="g", nutrients={"calories": 100})
+    db_conn.commit()
+    client.post("/pantry/add", data={"fdc_id": 999112, "food_name": "Triplet Food"}, follow_redirects=False)
+    html = client.get("/food/cache/duplicates").text
+    assert html.count('name="return_to" value="/food/cache/duplicates"') == 1
+    assert "Keep another copy instead" in html
+    r = client.post("/food/cache/delete", data={"fdc_id": 999111, "return_to": "/food/cache/duplicates"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/food/cache/duplicates?deleted=1"
+    assert _db.get_cached_food(db_conn, 999111) is None
+    assert "Food deleted." in client.get(r.headers["location"]).text
 
 
 def test_food_use_analysis_links_food_and_recipe_names_to_analysis_pages(client: TestClient, cached_food: dict) -> None:
@@ -5738,7 +5915,8 @@ def test_recent_days_protein_leads_and_calories_now_optional(client: TestClient,
     protein_pos = text.index(">Protein<")
     dcp_pos = text.index(">Day DCP<")
     assert protein_pos < dcp_pos, "Protein should come before Day DCP"
-    assert "Full nutrient analysis" in text
+    # The date itself links to that day's analysis (no separate link column)
+    assert f'<a href="/summary/{today}" title="Full nutrient analysis for {today}">{today}</a>' in text
 
     # Settings section 8 should now list Calories as pickable
     r2 = client.get("/settings")
@@ -5774,7 +5952,7 @@ def test_recent_days_shows_complete_column(client: TestClient, cached_food) -> N
     # Isolate each date's actual table row (not the unrelated "Today's
     # summary" link elsewhere on the page, which also contains today's date).
     def _row_for(date: str) -> str:
-        m = re.search(rf'<tr[^>]*>\s*<td[^>]*>{date}</td>.*?</tr>', r.text, re.DOTALL)
+        m = re.search(rf'<tr[^>]*>\s*<td[^>]*><a [^>]*>{date}</a></td>.*?</tr>', r.text, re.DOTALL)
         assert m, f"no table row found for {date}"
         return m.group(0)
     today_row = _row_for(today)
@@ -5811,7 +5989,7 @@ def test_recent_days_shows_pct_goal_for_every_nutrient_column(client: TestClient
     assert text.count('<small class="muted">Goal</small>') == 2
 
     def _row_for(date: str) -> str:
-        m = re.search(rf'<tr[^>]*>\s*<td[^>]*>{date}</td>.*?</tr>', text, re.DOTALL)
+        m = re.search(rf'<tr[^>]*>\s*<td[^>]*><a [^>]*>{date}</a></td>.*?</tr>', text, re.DOTALL)
         assert m, f"no table row found for {date}"
         return m.group(0)
     row = _row_for(today)
@@ -6126,6 +6304,32 @@ def test_nutrient_plot_image_renders_goal_lines(client: TestClient, cached_food)
     img = client.get("/summary/nutrient-plot/image?nutrients=dcp&nutrients=calories")
     assert img.status_code == 200
     assert img.headers["content-type"] == "image/png"
+
+
+def test_coinciding_goal_lines_each_stay_visible(monkeypatch) -> None:
+    """Two series whose goals land at (nearly) the same height after scaling
+    (seen live: Calories 2424 ÷28.5 = 85.05 against the DCP goal 85.1) used
+    to draw one dashed line over the other, so one goal vanished. They now
+    share the height in interleaved dashes — one line per series, each in
+    its own color, with dash offsets that don't overlap."""
+    import matplotlib.axes
+    from numa_app.services import plotting
+
+    calls = []
+    real = matplotlib.axes.Axes.axhline
+    monkeypatch.setattr(matplotlib.axes.Axes, "axhline",
+                        lambda self, *a, **kw: calls.append(kw) or real(self, *a, **kw))
+    x = ["2026-11-01", "2026-11-02"]
+    plotting.line_plot_image([
+        {"x": x, "y": [60.0, 90.0], "label": "A", "color": "#ff0000", "goal": 85.1},
+        {"x": x, "y": [70.0, 100.0], "label": "B", "color": "#00ff00", "goal": 85.05},
+        {"x": x, "y": [10.0, 30.0], "label": "C", "color": "#0000ff", "goal": 14.6},
+    ], xlabel="Date", ylabel="")
+    assert len(calls) == 3
+    shared = [c for c in calls if c["y"] != 14.6]
+    assert {c["color"] for c in shared} == {"#ff0000", "#00ff00"}
+    assert len({c["y"] for c in shared}) == 1
+    assert len({c["linestyle"][0] for c in shared}) == 2   # different dash offsets
 
 
 def test_nutrient_plot_image_renders_limit_lines(client: TestClient, cached_food) -> None:
@@ -6512,9 +6716,36 @@ def test_nav_memory_skips_post_rendered_pages(client: TestClient, db_conn) -> No
     got = client.get(f"/food/cache/{fdc_id}/portions")
     assert "var isGetPage = true;" in got.text
 
-    posted = client.post(f"/food/cache/{fdc_id}/portions/delete", data={"portion_index": 0})
+    posted = client.post("/food/cache/claude-fetch", data={"fdc_id": [fdc_id]})
     assert posted.status_code == 200
     assert "var isGetPage = false;" in posted.text
+
+
+def test_portion_changes_redirect_back_to_the_portions_page(client: TestClient, db_conn) -> None:
+    """Add/edit/move/remove on a food's Portions page redirect to the page
+    itself, so reloading after a Save doesn't hit the POST-only
+    /portions/edit ("Method Not Allowed"); the outcome still shows."""
+    import json as _json
+    fdc_id = 999141
+    db_conn.execute(
+        "INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?, ?, ?, ?, ?)",
+        (fdc_id, "Cracker", "User Drafted", _json.dumps({"protein_g": 2.0}),
+         _json.dumps([{"description": "2 crackers", "gram_weight": 30.0},
+                      {"description": "1 sleeve", "gram_weight": 120.0}])))
+    db_conn.commit()
+    page = f"/food/cache/{fdc_id}/portions"
+    for action, data, note in (
+            ("edit", {"portion_index": 0, "description": "1 cracker", "gram_weight": "15"}, "Portion updated."),
+            ("add", {"description": "1 box", "gram_weight": "400"}, "Portion saved."),
+            ("move", {"portion_index": 1, "direction": "up"}, "Portion order updated."),
+            ("delete", {"portion_index": 2}, "Portion removed."),
+            ("edit", {"portion_index": 0, "description": "x", "gram_weight": "0"},
+             "Gram weight must be a positive number.")):
+        r = client.post(f"{page}/{action}", data=data, follow_redirects=False)
+        assert r.status_code == 303 and r.headers["location"].startswith(page + "?"), action
+        assert note in client.get(r.headers["location"]).text, action
+    assert [p["description"] for p in _json.loads(_db.get_cached_food(db_conn, fdc_id)["portions_json"])] \
+        == ["1 sleeve", "1 cracker"]
 
 
 def test_page_state_memory_panels_are_marked(client: TestClient, cached_food) -> None:

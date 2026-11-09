@@ -13,7 +13,7 @@
 
 <h2>Search Meal History {{ manual_link("meal-history") }}</h2>
 
-<form method="get" action="/meals/search" class="mb-3">
+<form method="get" action="/meals/search" class="mb-3" data-search-form>
   <div class="input-group" style="max-width:44rem">
     <select class="form-select" name="mode" style="max-width:15rem" aria-label="Meals that contain, or don't contain, this food">
       <option value="contains" {% if mode != "lacks" %}selected{% endif %}>Meals that contain</option>
@@ -28,6 +28,7 @@
   </div>
 </form>
 
+<div{% if q %} data-search-output{% endif %}>
 {% if q and mode == "lacks" %}
 {% if lacking %}
 <p class="muted mb-3">
@@ -159,5 +160,6 @@
   </tbody>
 </table>
 {% endif %}
+</div>
 
 {% endblock %}

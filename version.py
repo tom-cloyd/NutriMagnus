@@ -1,4 +1,4 @@
-VERSION = "2026-10-28:1228"
+VERSION = "2026-11-09:0047"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -10,7 +10,7 @@ VERSION = "2026-10-28:1228"
 # it on every dev-session bump, which drifted it away from the real release
 # count); bump the MAJOR.MINOR.PATCH part by hand only for a deliberate
 # milestone (e.g. reaching 1.0.0).
-RELEASE_VERSION = "0.1.0-rc.27"
+RELEASE_VERSION = "0.1.0-rc.28"
 
 # A short, plain-language note shown next to VERSION on the home page and
 # used to describe this build in the update-available banner (see
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.27"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Many interface improvements and bug fixes."
+NEW_VERSION_NOTE = "GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. Many interface improvements and bug fixes."

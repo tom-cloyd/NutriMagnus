@@ -736,6 +736,9 @@
   {% if saved == 'starter_data_improved' %}
   <p class="status-met mt-2"><strong>&#10003; Your copies of the selected starter items now match this version.</strong></p>
   {% endif %}
+  {% if saved == 'starter_data_improved_all' %}
+  <p class="status-met mt-2"><strong>&#10003; Your copies of all the improved starter items now match this version.</strong></p>
+  {% endif %}
   {% if saved == 'starter_data_kept' %}
   <p class="status-met mt-2"><strong>&#10003; Kept your copies as they are.</strong> NuMa won't offer those improved versions again.</p>
   {% endif %}
@@ -744,7 +747,7 @@
   <div class="border rounded px-3 py-2 mt-2" id="starter-data-improved">
     <p class="mb-1"><strong>Improved in this version of NuMa</strong></p>
     <p class="mb-1 muted"><small>These starter items have been improved since the version you had before, and you have a copy of each.
-      Check the ones you want brought up to date. <strong>Updating replaces your copy with the new version, including any changes you made to it yourself.</strong>
+      Check the ones you want brought up to date, or update them all at once. <strong>Updating replaces your copy with the new version, including any changes you made to it yourself.</strong>
       Meals, recipes and pantry entries that use it keep working.</small></p>
     <form method="post" action="/settings/starter-data/improve" class="mb-1">
       <ul class="mt-0 mb-1" style="list-style:none; padding-left:0;">
@@ -795,6 +798,11 @@
         {% endfor %}
       </ul>
       <button type="submit" class="btn btn-outline-secondary btn-sm">Update the checked items to the new version</button>
+    </form>
+    {% set _improved_count = starter_changes.improved_foods|length + starter_changes.improved_recipes|length %}
+    <form method="post" action="/settings/starter-data/improve-all" class="mb-1"
+          onsubmit="return confirm('Update all {{ _improved_count }} of these items to the new version? This replaces your copies, including any changes you made to them yourself.')">
+      <button type="submit" class="btn btn-outline-secondary btn-sm">Update all {{ _improved_count }} items to the new version</button>
     </form>
     <form method="post" action="/settings/starter-data/keep-mine" class="mb-0"
           onsubmit="return confirm('Keep your current copies of all these items, and stop offering the improved versions?')">
@@ -916,7 +924,7 @@
       </ul>
       <p class="mb-1 mt-2"><strong>On any page with a search box:</strong></p>
       <ul class="mb-0">
-        <li><kbd>I</kbd> — jump to the search box</li>
+        <li><kbd>I</kbd> — jump to the search box and clear the previous results</li>
       </ul>
       <p class="mb-1 mt-2"><strong>On any page with an Items section:</strong></p>
       <ul class="mb-0">

@@ -27,6 +27,9 @@ NuMa won&rsquo;t list them together again.</p>
 {% if pantry_merged %}
 <div class="alert alert-success">Pantry entries merged &mdash; {{ pantry_merged }} extra entr{{ "ies" if pantry_merged != 1 else "y" }} removed.</div>
 {% endif %}
+{% if deleted %}
+<div class="alert alert-success">Food deleted.</div>
+{% endif %}
 {% if dismissed %}
 <div class="alert alert-success">Noted &mdash; that group won&rsquo;t be listed again.</div>
 {% endif %}
@@ -70,6 +73,17 @@ NuMa won&rsquo;t list them together again.</p>
               <input type="hidden" name="keep" value="{{ f.fdc_id }}">
               <button type="submit" class="btn btn-sm btn-outline-primary">{{ "Keep this one, reviewing the others&rsquo; values first"|safe if f.needs_review else "Keep this one" }}</button>
             </form>
+            {% if f.use.total %}
+            <button type="button" class="btn btn-sm btn-outline-danger" disabled
+                    title="In use &mdash; Keep another copy instead, which switches everything using this one over and then deletes it">Delete</button>
+            {% else %}
+            <form method="post" action="/food/cache/delete" class="d-inline"
+                  onsubmit="return confirm('Delete {{ f.name | replace("'", "\\'") }} from your Food Cache? This cannot be undone.')">
+              <input type="hidden" name="fdc_id" value="{{ f.fdc_id }}">
+              <input type="hidden" name="return_to" value="/food/cache/duplicates">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

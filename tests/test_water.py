@@ -16,6 +16,7 @@ import web.backend as backend
 from numa_app.services import meal_list_columns as _mlc
 from numa_app.services import water as _water
 from numa_app.services import whatif as _wi
+from numa_app.services import recipe_nutrients as _rn
 from numa_app.services.recipe_nutrients import recipe_total_nutrients
 
 TEA, APPLE, MILK, DRY = 1, 2, 3, 4
@@ -148,12 +149,24 @@ class TestTotals:
         assert total["water_food_g"] == pytest.approx(171.2)
         assert total["water_g"] == pytest.approx(total["water_drinks_g"] + total["water_food_g"])
 
-    def test_recipe_inherits_drink_ingredients(self, foods):
+    def test_drink_ingredient_counts_as_food_in_a_recipe_that_isnt_a_drink(self, foods):
+        """From 2026-11-09 only the recipe's own drink flag counts inside it:
+        tap water in a bread dough isn't a drink."""
         rid = _recipe([("food", TEA, 200.0), ("food", APPLE, 100.0)])
         with _db.get_db() as conn:
             total = recipe_total_nutrients(rid, conn)
-        assert total["water_drinks_g"] == pytest.approx(199.4)
-        assert total["water_food_g"] == pytest.approx(85.6)
+            assert _rn.drink_ingredient_water(rid, conn) == [{"name": "x", "water_g": pytest.approx(199.4)}]
+            _db.set_recipe_is_drink(conn, rid, True)
+            assert _rn.drink_ingredient_water(rid, conn) == []
+        assert total["water_drinks_g"] == 0.0
+        assert total["water_food_g"] == pytest.approx(199.4 + 85.6)
+
+    def test_drink_food_logged_straight_into_a_meal_still_counts_as_drinks(self, foods):
+        rid = _recipe([("food", TEA, 200.0)])
+        mid = _meal([("food", TEA, 100.0), ("recipe", rid, 1.0)])
+        _, total, _, _ = backend._meal_totals(mid)
+        assert total["water_drinks_g"] == pytest.approx(99.7)
+        assert total["water_food_g"] == pytest.approx(199.4)
 
     def test_drink_recipe_counts_all_its_water_including_sub_recipes(self, foods):
         sub = _recipe([("food", APPLE, 100.0)], name="Apple puree")
@@ -429,7 +442,7 @@ class TestWetDry:
     def test_recipe_and_meal_rows_flag_the_wet_one_only(self, client, okara):
         text = client.get(f"/recipe/{okara['rid']}").text
         assert "82% water &mdash; but named flour?" in text
-        assert "(8% water)" in text                     # the real flour: just its water
+        assert "(8% water, " in text                    # the real flour: just its water
         assert "Named dry, but mostly water" in text    # footnote
         assert "82% water &mdash; but named flour?" in client.get(f"/recipe/{okara['rid']}/edit").text
         assert "82% water &mdash; but named flour?" in client.get(f"/meal/{okara['mid']}").text
@@ -594,3 +607,179 @@ class TestReferenceAndLimits:
         _meal([("food", TEA, 500.0)])
         text = client.get("/summary/2026-10-01").text
         assert "NICE starts routine fluid maintenance" in text
+
+
+class TestCookedWater:
+    """recipes.cooked_water_per_100g — the water a cooked dish keeps, which
+    replaces the water its raw ingredients add up to (recipe_nutrients.
+    apply_cooked_water). The "bread": 400 g tea (a drink, 99.7%) + 100 g apple
+    (85.6%) + 100 g of a food with no water value = 484.4 g water in 600 g raw;
+    it weighs 500 g baked, in 5 servings."""
+
+    def _bread(self, *, weight=500.0, cooked=40.0):
+        rid = _recipe([("food", TEA, 400.0), ("food", APPLE, 100.0), ("food", DRY, 100.0)],
+                      servings=5, name="Bread")
+        with _db.get_db() as conn:
+            if weight is not None:
+                conn.execute("UPDATE recipes SET total_weight = ?, total_weight_unit = 'g' WHERE id = ?",
+                             (weight, rid))
+            _db.set_recipe_cooked_water(conn, rid, cooked)
+        return rid
+
+    def test_unset_keeps_the_ingredients_water(self, foods):
+        rid = self._bread(cooked=None)
+        with _db.get_db() as conn:
+            total = recipe_total_nutrients(rid, conn)
+        assert total["water_g"] == pytest.approx(484.4)
+        assert total["water_drinks_g"] == 0.0          # tea inside a food recipe: food water
+
+    def test_replaces_water_and_counts_it_as_food(self, foods):
+        rid = self._bread()
+        with _db.get_db() as conn:
+            total = recipe_total_nutrients(rid, conn)
+            leaves = _rn.expand_recipe_ingredients(rid, conn)
+        assert total["water_g"] == pytest.approx(200.0)
+        assert total["water_food_g"] == pytest.approx(200.0)
+        assert total["water_drinks_g"] == 0.0
+        assert total["calories"] == pytest.approx(4 + 52 + 400)       # nothing else changes
+        # Every leaf scaled by the same factor, so per-food figures add up.
+        per_leaf = [lf["nutrients_100g"].get("water_g", 0) * lf["grams"] / 100 for lf in leaves]
+        assert sum(per_leaf) == pytest.approx(200.0)
+        assert per_leaf[0] / per_leaf[1] == pytest.approx(398.8 / 85.6)
+
+    def test_needs_a_stated_total_weight(self, foods):
+        rid = self._bread(weight=None)
+        with _db.get_db() as conn:
+            assert recipe_total_nutrients(rid, conn)["water_g"] == pytest.approx(484.4)
+            assert _rn.cooked_water_info(rid, conn)["applied"] is False
+
+    def test_drink_recipe_counts_it_as_drinks(self, foods):
+        rid = self._bread()
+        with _db.get_db() as conn:
+            _db.set_recipe_is_drink(conn, rid, True)
+            total = recipe_total_nutrients(rid, conn)
+        assert total["water_drinks_g"] == pytest.approx(200.0)
+        assert total["water_food_g"] == 0.0
+
+    def test_meal_portion_and_sub_recipe(self, foods):
+        rid = self._bread()
+        mid = _meal([("recipe", rid, 1.0)])
+        _, total, _, _ = backend._meal_totals(mid)
+        assert total["water_g"] == pytest.approx(40.0)
+        outer = _recipe([("recipe", rid, 2.0), ("food", APPLE, 100.0)], name="Sandwich")
+        with _db.get_db() as conn:
+            assert recipe_total_nutrients(outer, conn)["water_g"] == pytest.approx(80.0 + 85.6)
+            # The outer dish's own cooked value wins over everything inside it.
+            conn.execute("UPDATE recipes SET total_weight = 300, total_weight_unit = 'g' WHERE id = ?", (outer,))
+            _db.set_recipe_cooked_water(conn, outer, 10.0)
+            assert recipe_total_nutrients(outer, conn)["water_g"] == pytest.approx(30.0)
+        with _db.get_db() as conn:
+            assert _wi.meal_nutrients(mid, conn)["water_g"] == pytest.approx(40.0)
+
+    def test_no_ingredient_water_goes_on_the_heaviest(self, foods):
+        rid = _recipe([("food", DRY, 300.0)], name="Bar")
+        with _db.get_db() as conn:
+            conn.execute("UPDATE recipes SET total_weight = 250, total_weight_unit = 'g' WHERE id = ?", (rid,))
+            _db.set_recipe_cooked_water(conn, rid, 20.0)
+            assert recipe_total_nutrients(rid, conn)["water_g"] == pytest.approx(50.0)
+
+    def test_info_estimates_from_weight_lost(self, foods):
+        with _db.get_db() as conn:
+            info = _rn.cooked_water_info(self._bread(cooked=None), conn)
+        assert info["raw_water_g"] == pytest.approx(484.4)
+        assert info["raw_g"] == pytest.approx(600.0)
+        assert info["estimate"] == pytest.approx((484.4 - 100.0) / 500.0 * 100.0)
+        assert info["value"] is None and not info["applied"]
+
+    def test_web_set_from_number_code_and_clear(self, client, foods):
+        rid = self._bread(cooked=None)
+        mid = _meal([("recipe", rid, 1.0)])
+        backend._compute_and_store_meal_bcp(mid)
+        assert 'id="cooked-water"' in client.get(f"/recipe/{rid}").text
+        resp = client.post(f"/recipe/{rid}/cooked-water", data={"value": "40 g"}, follow_redirects=False)
+        assert resp.status_code == 303
+        with _db.get_db() as conn:
+            assert _db.recipe_get(conn, rid)["cooked_water_per_100g"] == 40.0
+            assert mid in _db.stale_meal_ids(conn)
+        assert "In use: 200 g of water in the 500 g batch, counted as water from food" in client.get(f"/recipe/{rid}").text
+        assert "(40% water, 40&thinsp;g)" in client.get(f"/meal/{mid}").text   # 1 of 5 servings
+        client.post(f"/recipe/{rid}/cooked-water", data={"value": "u2"})        # the apple's 85.6
+        with _db.get_db() as conn:
+            assert _db.recipe_get(conn, rid)["cooked_water_per_100g"] == 85.6
+        client.post(f"/recipe/{rid}/cooked-water", data={"value": ""})
+        with _db.get_db() as conn:
+            assert _db.recipe_get(conn, rid)["cooked_water_per_100g"] is None
+
+    @pytest.mark.parametrize("value, message", [
+        ("150", "between 0 and 100"),
+        ("U4", "isn&#39;t a cached food with a water value"),
+        ("lots", "is not a food or recipe code"),
+    ])
+    def test_web_rejects(self, client, foods, value, message):
+        rid = self._bread(cooked=None)
+        resp = client.post(f"/recipe/{rid}/cooked-water", data={"value": value})
+        assert message in resp.text
+        with _db.get_db() as conn:
+            assert _db.recipe_get(conn, rid)["cooked_water_per_100g"] is None
+
+    def test_copy_keeps_it(self, client, foods):
+        rid = self._bread()
+        new_id = int(client.post(f"/recipe/{rid}/copy", follow_redirects=False).headers["location"].split("/")[2])
+        with _db.get_db() as conn:
+            assert _db.recipe_get(conn, new_id)["cooked_water_per_100g"] == 40.0
+
+
+class TestWaterAmounts:
+    """Grams of water beside each item: meal items, recipe ingredients, the
+    day page and Analyze a saved recipe portion (_mark_water)."""
+
+    def test_meal_recipe_and_day_rows(self, client, foods):
+        rid = _recipe([("food", APPLE, 200.0)], servings=4, name="Apple sauce")   # 171.2 g water
+        mid = _meal([("food", MILK, 250.0), ("recipe", rid, 2.0)])
+        text = client.get(f"/meal/{mid}").text
+        assert "(88% water, 220&thinsp;g)" in text
+        assert "(86% water, 86&thinsp;g)" in text   # 2 of 4 servings of 171.2 g
+        day = client.get(f"/meal/{mid}/day").text
+        assert "(88% water, 220&thinsp;g)" in day and "(86% water, 86&thinsp;g)" in day
+        assert "(86% water, 171&thinsp;g)" in client.get(f"/recipe/{rid}").text
+
+    def test_analyze_recipe_portion_rows(self, client, foods):
+        rid = _recipe([("food", MILK, 100.0)], name="Milk glass")
+        resp = client.post("/food/analyze-recipe-portion", data={"recipe_id": rid, "servings": 1})
+        assert "(88% water, 88&thinsp;g)" in resp.text
+
+    def test_drink_note_on_recipe_page(self, client, foods):
+        rid = _recipe([("food", TEA, 300.0), ("food", APPLE, 100.0)], servings=2, name="Tea cake")
+        text = client.get(f"/recipe/{rid}").text
+        assert 'id="drink-water-note"' in text
+        assert "299 g in the batch, 150 g per serving" in text
+        client.post(f"/recipe/{rid}/drink", data={"is_drink": "1"})
+        assert 'id="drink-water-note"' not in client.get(f"/recipe/{rid}").text
+
+    def test_one_time_refresh_of_meals_with_drink_recipes(self, foods):
+        rid = _recipe([("food", TEA, 200.0)])
+        other = _recipe([("food", APPLE, 100.0)], name="Apple")
+        m1 = _meal([("recipe", rid, 1.0)])
+        m2 = _meal([("recipe", other, 1.0)])
+        with _db.get_db() as conn:
+            conn.execute("DELETE FROM one_time_steps WHERE name = 'recipe-drink-water'")
+            conn.execute("DELETE FROM stale_meals")
+        _db.init_db()
+        with _db.get_db() as conn:
+            stale = _db.stale_meal_ids(conn)
+            assert m1 in stale and m2 not in stale
+            assert conn.execute("SELECT 1 FROM one_time_steps WHERE name = 'recipe-drink-water'").fetchone()
+            conn.execute("DELETE FROM stale_meals")
+        _db.init_db()                                           # runs once only
+        with _db.get_db() as conn:
+            assert _db.stale_meal_ids(conn) == []
+
+    @pytest.mark.parametrize("row, shown", [
+        ({"water_pct": 72.4, "water_amount_g": 97.6}, "(72% water, 98&thinsp;g)"),
+        ({"water_pct": 72.4}, "(72% water)"),
+        ({"water_pct": None, "water_amount_g": 37.2}, "(37&thinsp;g water)"),
+        ({"water_pct": 0.4, "water_amount_g": 0.3}, "(0% water, &lt;1&thinsp;g)"),
+    ])
+    def test_mark_forms(self, row, shown):
+        mod = backend.templates.env.get_template("_water_mark.html").module
+        assert shown in str(mod.mark({"fdc_id": 1, "wet_dry": None, **row}))

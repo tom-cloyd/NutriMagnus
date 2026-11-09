@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% import "_generic_density.html" as _gd with context %}
 {% import "_water_mark.html" as _wm %}
 {% import "_source_filter_select.html" as _srcf %}
@@ -163,7 +164,7 @@
 
         {% if nutrition_summary.has_data %}
         <div class="mt-3" style="max-width:26rem">
-          <div class="card" title="Updates after each ingredient change">
+          <div class="card" id="recipe-running-totals" title="Updates after each ingredient change">
             <div class="card-header py-1"><strong>Running totals</strong></div>
             <div class="card-body py-1 px-3">
               <table class="nutrient-table compact-table mb-0" style="width:100%;font-size:0.85rem">
@@ -229,18 +230,45 @@
 
   </form>
 </details>
+<script>
+// Introduction, Instructions and Notes share the height that ends them level
+// with the bottom of Running totals, so both columns sit the same distance
+// above Add Ingredient. How tall the left column is depends on how its labels
+// wrap, so this is measured, not a row count. Side-by-side layout only, and
+// the rows="5" stands wherever there is no Running totals card to line up with.
+(function () {
+  var card = document.getElementById('recipe-running-totals');
+  if (!card) return;
+  var boxes = ['introduction', 'instructions', 'notes'].map(function (id) {
+    return document.getElementById(id);
+  });
+  var MIN_HEIGHT = 86;  // about 3 rows
+  var sideBySide = window.matchMedia('(min-width: 992px)');
+  function fit() {
+    boxes.forEach(function (b) { b.style.height = ''; });
+    if (!sideBySide.matches || !card.offsetParent) return;
+    var excess = boxes[2].getBoundingClientRect().bottom - card.getBoundingClientRect().bottom;
+    var height = Math.max(MIN_HEIGHT, boxes[2].offsetHeight - excess / boxes.length);
+    boxes.forEach(function (b) { b.style.height = height + 'px'; });
+  }
+  fit();
+  window.addEventListener('load', fit);
+  window.addEventListener('resize', fit);
+  card.closest('details').addEventListener('toggle', fit);
+})();
+</script>
 
 {# ── Add ingredient ───────────────────────────────────────────────────── #}
 <div class="mt-3">
     <details id="add-ingredient-section" {% if show_add_section %}open{% endif %}>
       <summary><strong>Add Ingredient</strong></summary>
 
-      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search data-online-search>
+      <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search data-online-search data-search-form>
         <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
           <div class="input-group" style="max-width:28rem">
             <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
-                   placeholder="Search foods…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
+                   placeholder="Search foods…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" autofocus>
             <button type="submit" class="btn btn-primary">Search</button>
             <button type="button" class="btn btn-outline-secondary"
                     onclick="this.form.querySelectorAll('input[name=source]').forEach(cb => cb.checked = true); this.form.requestSubmit();"
@@ -248,6 +276,7 @@
           </div>
           {% if q %}<span id="recipe-search-no-results" class="search-no-results" data-query="{{ q }}" data-field="q"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ q }}</strong>.</span>{% endif %}
         </div>
+        {{ _sh.hint("mb-2") }}
         <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
         <div class="mb-2">{{ _rli.input(limit) }}</div>
         {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}

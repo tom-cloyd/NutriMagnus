@@ -1,8 +1,10 @@
 # NutriMagnus User Manual
 
-*Updated 2026-10-28:1329* / Reading time: 8 hours, 45 minutes
+*Updated 2026-11-09:0047* / Reading time: 9 hours, 2 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
+
+<!-- WORK TO BE DONE: Denoted by `[//]: #...` at the beginning of a line -->
 
 <!-- t:26-10-02:0741 Today I will start marking sections I have reviewed/edited with HTML comment of this sort. I have previously reviewed many sections, but not marked them, but I need to know which sections have not yet been reviewed so this is how I'll keep records. A section no so marked may be one of those previously reviewed, but it will take me a while to catch up with such sections, and I may not recall them all anyway. I may or may not append a comment to the basic flag comment, the first of which may be seen below. -->
 
@@ -34,7 +36,7 @@ People in these groups rarely have an accurate sense of the nutritional adequacy
 
 User-derived issues get immediate priority in the program-development process!
 
-**Manual authors:** This manual was designed by Tom Cloyd but largely written by Claude AI, which does an excellent job of summarizing code and research reports. Tom is reviewing the manual, critical sections first, and making editorial changes. Overt errors in the manual have been extremely rare. A weekly and monthly sweep of the manual by Claude, and of the program code as well
+**Manual authors:** This manual was designed by Tom Cloyd but largely written by Claude AI, which does an excellent job of summarizing program code and research reports. Tom is reviewing the manual, critical sections first, and making editorial changes. Overt errors in the manual have been extremely rare. A weekly, monthly, quarterly, and annual sweep (review) by Claude AI of the manual and of the program code as well, is also done - see ([what each one covers](#periodic-review)).
 
 ---
 
@@ -136,7 +138,7 @@ NuMa puts only a handful of files on your computer. The program itself is one fi
 
 | File | What it's for |
 |---|---|
-| `nutrimagnus.exe` (Windows, in the folder you chose) or `~/.local/bin/nutrimagnus` (Linux) | The whole program, in one file. The built-in User Manual and NuMa's reference tables (oxalate, glycemic index, the UK, Australian and French food tables, starter foods and recipes) are packed inside it. |
+| `nutrimagnus.exe` (Windows, in the folder you chose) or `~/.local/bin/nutrimagnus` (Linux) | The whole program, in one file. The built-in User Manual and NuMa's reference tables (oxalate, glycemic index, the UK, Australian and French food databases, starter foods and recipes) are packed inside it. |
 | `~/.local/share/icons/nutrimagnus.png` (Linux) | NuMa's icon, for the applications menu. |
 | `~/.local/share/applications/nutrimagnus.desktop` (Linux) | The applications-menu entry that starts NuMa. |
 
@@ -169,7 +171,7 @@ Everything you put into NuMa lives in two folders on your computer, kept apart f
 
 **To restore, or to move your data to another computer** — a new computer, or one whose system was wiped — install NuMa as described above, but don't start it yet. Copy both backed-up `numa` folders into place, replacing any that exist, and then start NuMa. Everything comes back as it was.
 
-A [CSV](#gloss-csv) export from the Food Cache or Recipes pages is *not* a full backup. It's for moving selected foods or recipes around, and leaves out your meals, pantry, profile and settings.
+A [CSV](#gloss-csv) export from the Food Cache or Recipes pages is *not* a full backup. It's for moving selected foods or recipes around, and leaves out your meals, pantry, profile and settings (see [Moving foods and recipes with CSV files](#csv-transfer)).
 
 ### B. Start with what's easiest <!-- t:26-10-03 -->
 
@@ -311,7 +313,7 @@ This program necessarily uses some specialized vocabulary. You have two options:
 
 ## Part 2 — Introduction to NutriMagnus, a tool for intelligent eating: what you can do with this tool and why it matters
 
-*(Reading time: 13 minutes)*
+*(Reading time: 14 minutes)*
 
 ---
 
@@ -322,36 +324,37 @@ This program necessarily uses some specialized vocabulary. You have two options:
 The five items in the top navigation bar correspond to the five major things you can do with the program:
 
 - **Foods**
-    - Search the [USDA](#gloss-usda) and Open Food Facts[^3] [databases](#gloss-database)
-    - Analyze the nutrients in a specific portion of any food or recipe
-    - Compare up to eight foods side-by-side
-    - Manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles
-    - Annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates
-    - Export/import your Food Cache as [CSV](#gloss-csv), to move data to or from another NuMa install
+    - Search the [USDA](#gloss-usda) and Open Food Facts[^3] [databases](#gloss-database), the Canadian Nutrient File, and the UK, Australian and French food databases bundled with NuMa — see [Search](#search-web).
+    - Analyze the nutrients in a specific portion of any food or recipe — see [Analyze a food portion](#analyze-portion).
+    - Compare up to eight foods and recipes side-by-side — see [Compare](#compare-web).
+    - Manage your personal [Food Cache](#gloss-food-cache), Pantry, and custom food profiles — see [Food Cache](#food-cache-web), [My Pantry](#pantry-web) and [Custom food profiles](#custom-foods).
+    - Annotate foods with glycemic index and [DIAAS](#gloss-diaas) estimates — see [Annotate a Food](#annotate).
+    - Export/import your Food Cache as [CSV](#gloss-csv), to move data to or from another NuMa install — see [Moving foods with CSV files](#csv-foods).
 - **Recipes**
-    - Create and save recipes with ingredients and instructions
-    - Browse, copy, and delete saved recipes
-    - Export/import a recipe as a self-contained [CSV](#gloss-csv), bundling every sub-recipe and ingredient's data along with it
-    - Develop a recipe iteratively with nutritional feedback after each ingredient change
-    - Analyze a recipe portion for full nutrient data, protein quality, and complement suggestions
+    - Create and save recipes with ingredients and instructions — see [Using the Recipes menu](#recipes-menu-web).
+    - Browse, copy, and delete saved recipes — see [Recipes List Table](#recipes).
+    - Export/import a recipe as a self-contained [CSV](#gloss-csv), bundling every sub-recipe and ingredient's data along with it — see [Moving recipes with CSV files](#csv-recipes).
+    - Develop a recipe iteratively with nutritional feedback after each ingredient change — see the **Running totals** card in [Using the Recipes menu](#recipes-menu-web).
+    - Analyze a recipe portion for full nutrient data, protein quality, and complement suggestions — see [Analyze a saved recipe portion](#analyze-portion).
 - **Meals & Log**
-    - Record what you eat by date
-    - Add foods and recipes to meals
-    - Analyze individual meals or the combined total for a full day, to monitor intake of any nutrient(s) of particular interest
-    - Search your entire meal history for any food
+    - Record what you eat by date — see [Using the Meals & Log menu](#meals-menu-web).
+    - Add foods and recipes to meals — see [Meal Items Table](#meal-detail).
+    - Analyze individual meals or the combined total for a full day, to monitor intake of any nutrient(s) of particular interest — see [Analyze full day](#full-day).
+    - Search your entire meal history for any food — see [Meal History Tables](#meal-history).
 - **Analysis** — a growing set of preset analyses
-    - **Daily summary — [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals
-    - **Food use in meals**: rank everything you actually ate — foods, recipes, sub-recipes, and the foods inside recipes — across a chosen set of date ranges and/or meals, with a frequency histogram
-    - **Food use in recipes**: the same ranking, but for which foods and recipes are used as ingredients across your recipe book — not a measure of what you eat
-    - Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute)
-    - **What-if: meals**: see how your average daily nutrition over a set of days would change if you removed, added, replaced or cut down foods and recipes — without changing anything — see [What-if: Meals](#whatif)
-    - **What-if: recipes**: the same for your recipes — how each one's nutrition per serving would change if you removed, added or replaced an ingredient — see [What-if: Recipes](#whatif-recipes)
+    - **Daily summary — [DCP](#gloss-dcp) and goals**: combined nutrient totals for today or any past date, compared against personalized [RDA](#gloss-rda) targets, plus a list of recent days with meals — see [Using the Analysis menu](#analysis-menu-web) and [Daily Nutrient Goals](#goals).
+    - **Food use in meals**: rank everything you actually ate — foods, recipes, sub-recipes, and the foods inside recipes — across a chosen set of date ranges and/or meals, with a frequency histogram — see [Food Use in Meals](#fooduse).
+    - **Food use in recipes**: the same ranking, but for which foods and recipes are used as ingredients across your recipe book — not a measure of what you eat — see [Food Use in Recipes](#fooduse-recipes).
+    - **Food use in recipes**: the same ranking, but for which foods and recipes are used as ingredients across your recipe book — not a measure of what you eat.
+    - Both Food Use pages can also bulk-substitute one food or recipe for another across the current selection — see [Substituting a Food or Recipe](#fooduse-substitute).
+    - **What-if: meals**: see how your average daily nutrition over a set of days would change if you removed, added, replaced or cut down foods and recipes — without changing anything — see [What-if: Meals](#whatif).
+    - **What-if: recipes**: the same for your recipes — how each one's nutrition per serving would change if you removed, added or replaced an ingredient — see [What-if: Recipes](#whatif-recipes).
 - **Settings**
-    - Color theme
-    - Personal profile (age, sex, weight, height, activity level)
-    - Dietary preferences
-    - Editor command
-    - Advanced options: your personal [USDA](#gloss-usda) [API key](#food-data) (a free code from USDA's website that increases how many food searches you can do), and protein digestibility overrides
+    - Your profile (age, sex, weight, height, activity level), which sets all your daily nutrient targets — see [Your Profile](#profile-setup).
+    - Dietary preferences — see [Dietary Preferences](#diet).
+    - Researched nutrient targets and maximum limits — see [Revised Optimal targets](#optimal) and [Maximum Nutrient Limits](#maxlimits).
+    - Protein digestibility overrides — see [Protein Digestibility Overrides](#dcp-overrides).
+    - Your personal [USDA](#gloss-usda) [API key](#food-data) (a free code from USDA's website that increases how many food searches you can do), the glycemic index table, glycemic load and water display, Meals & Log columns, starter data, keyboard shortcuts and more — see [Using the Settings menu](#settings).
 
 **Detailed how-to guides for each menu area follow later in this manual.** If you prefer to learn by example before reading explanations, skip ahead to [Sample Workflows](#sample-workflows) at the end of this introduction — it points you to a set of annotated walkthroughs.
 
@@ -452,7 +455,7 @@ In addition, the following internal data sources are used:
 
 **The protein-complement suggestions and the Claude AI fetch and import workflow each have extensive tests of their own**, on top of the above. What each one does is explained in [Protein Complement Suggestions](#comp) through [Two-step combinations](#comb), and in [Fetching missing data with Claude AI](#fetch).
 
-#### Periodic review
+#### Periodic review {: #periodic-review}
 
 <!-- t:26-10-28 -->
 
@@ -463,7 +466,7 @@ In addition, the following internal data sources are used:
 - **Weekly:** everything that changed that week. Does the manual describe each change correctly, and in the places a reader would look for it? Did each change get a test? Do the manual's links, Glossary and search words still fit? Any calculation module whose code changed substantially is flagged for another round of mutation testing.
 - **Monthly:** the whole manual is read through against the program as it is now, not just the week's changes, along with the program's own technical documentation.
 - **Quarterly:** the three online food sources ([USDA](#gloss-usda), Open Food Facts and the Canadian Nutrient File) checked for changes in how they send their data; the Glossary checked against the whole manual; and the next group of program modules put through mutation testing, so that every part of the program gets that check at least once a year.
-- **Annually:** the bundled national food tables (UK, Australia, France) checked for newer editions. The first check, in September 2026, found one: the French table was upgraded to its 2025 edition, adding nearly 300 foods.
+- **Annually:** the bundled national food databases (UK, Australia, France) checked for newer editions. The first check, in September 2026, found one: the French database was upgraded to its 2025 edition, adding nearly 300 foods.
 
 *(For technically skilled users: the file-by-file test breakdown, the tools used, the full review procedures, and the mutation-testing log with its results are in README-numa-documentation.md's Test Suite and Maintenance sections.)*
 
@@ -495,7 +498,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 49 minutes)*
+*(Reading time: 50 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -525,7 +528,7 @@ Above the heading, a few one-time or conditional banners can appear when relevan
 
 Every page has the same navigation bar across the top: **NuMa** (takes you home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings**, and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open as drop-down menus with several choices each; the others go straight to their page.
 
-If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed. Likewise, on a page with an Items section (a meal, Compare, Analyze a recipe portion, and a recipe's Edit page, where it's the Ingredients section), `Alt+Shift+Y` moves keyboard focus to that section, opening it first if it's closed. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
+If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed — and clears the previous search's results from the page. Likewise, on a page with an Items section (a meal, Compare, Analyze a recipe portion, and a recipe's Edit page, where it's the Ingredients section), `Alt+Shift+Y` moves keyboard focus to that section, opening it first if it's closed. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes light up their Save button — solid blue, bold white text, red border, the same as a Search button with something typed in it — with "Unsaved changes" beside it, so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
@@ -651,13 +654,13 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 ### D. Using the Foods menu {: #foods-menu-web}
 
-#### Search (Foods → Search)
+#### Search (Foods → Search) {: #search-web}
 
 *Search terms: food search, find a food, look up food.*
 
-Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, a 12/13-digit barcode ([UPC](#gloss-upc)-A or [EAN](#gloss-ean)-13), or a food's or recipe's [code](#search-by-code) — see [Your own data is always checked first](#search-ranking) in Part 6 for how results are sourced and ordered. Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, [USDA](#gloss-usda), Open Food Facts, the Canadian Nutrient File, and the UK, Australian and French tables) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 5 for details. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, a 12/13-digit barcode ([UPC](#gloss-upc)-A or [EAN](#gloss-ean)-13), or a food's or recipe's [code](#search-by-code) — see [Your own data is always checked first](#search-ranking) in Part 6 for how results are sourced and ordered. Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, [USDA](#gloss-usda), Open Food Facts, the Canadian Nutrient File, and the UK, Australian and French databases) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 5 for details. After a search, the search form comes to the top of the window and the cursor lands on the first result, so you can press Enter to open it; every page with a search does this, and on a meal or recipe it is the amount box of the first result, with "Add Food or Recipe" or "Add Ingredient" at the top. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
 
-#### Analyze a food portion / Analyze a saved recipe portion
+#### Analyze a food portion / Analyze a saved recipe portion {: #analyze-portion}
 
 *Search terms: portion analysis, analyze an amount, how much protein in.*
 
@@ -669,7 +672,7 @@ Shortcuts into Search that take you straight to entering an amount once you've p
 
 A pure unit-conversion tool — search for a food (with the same [Source filter](#food-search) as every other search box), then type any amount (`3 oz`, `1/4 cup`, `150 g`) to see its gram/mL equivalent and the closest named portion size. No nutrient analysis is shown here; use Search for that.
 
-#### Compare
+#### Compare {: #compare-web}
 
 *Search terms: compare foods, comparison, which is better.*
 
@@ -679,7 +682,7 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 
 *Search terms: cached foods, saved foods, food list, stored foods, my foods.*
 
-Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, Code, Type, [DIAAS](#gloss-diaas), or [GI](#gloss-gi) estimate. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. The box at the top has two buttons: **Filter this list** narrows the foods already in your cache, and **Search online** opens [Foods → Search](#food-search) with the same words, to look in USDA, Open Food Facts and the other sources. After filtering, a **Not here? Search online** link next to the count does the same. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
+Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, or **Used in** (the foods most recipes and meals use come first). A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. The box at the top has two buttons: **Filter this list** narrows the foods already in your cache, and **Search online** opens [Foods → Search](#food-search) with the same words, to look in USDA, Open Food Facts and the other sources. After filtering, a **Not here? Search online** link next to the count does the same. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
 
 **Check [database](#gloss-database) integrity.**{: #db-check} *(This page — Foods → 9 — runs several checks: broken references, below; [missing nutrient data](#data-completeness); [food data problems](#calorie-checks); [amounts that no longer match](#stale-amounts); [amounts converted with a generic density](#generic-density); foods you use with no amino acid data or no portion weights; [duplicate foods](#duplicate-foods); and [old USDA copies](#old-copies). [Checking your data](#checking-your-data) lists every data check NuMa makes.)* The first scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
@@ -738,14 +741,14 @@ The prompt asks only for what each food is missing — the specific values, food
 From there:
 
 1. Go to [claude.ai](https://claude.ai) — open a **new chat** (not an existing one) — paste the prompt, and send.
-2. **Check the reply for gaps.** Claude's first answer often sticks to USDA data and leaves out anything USDA doesn't have. If many values are missing, or Claude says they're unknown, ask it in the same chat: *"Please do a literature review for the missing values and give me all the food blocks again, complete and in the same format."* That usually turns up more, from published studies and other countries' food tables. (The prompt asks for this already, but Claude doesn't always do it the first time.)
+2. **Check the reply for gaps.** Claude's first answer often sticks to USDA data and leaves out anything USDA doesn't have. If many values are missing, or Claude says they're unknown, ask it in the same chat: *"Please do a literature review for the missing values and give me all the food blocks again, complete and in the same format."* That usually turns up more, from published studies and other countries' food databases. (The prompt asks for this already, but Claude doesn't always do it the first time.)
 3. Copy Claude's latest complete reply with the **Copy** button under it, rather than by selecting the text (all of it, including every fenced `json` block — if Claude splits its answer across multiple messages, copy each one and paste them together). If you did select the text instead, NuMa will usually still find the data and say so; nothing else to do.
 4. Back in NuMa, click **Import Claude response** (also reachable directly from the Food Cache page), paste the reply into the box, and click **Review**.
 5. NuMa shows you a table of what it understood from the reply — name, [FDC](#gloss-fdc) ID, calories, protein, how many of the 11 tracked amino acids were found, and what importing will do — plus any warnings about data it couldn't use. Check it over, then click **Import** to save it to your cache.
 
 **Importing only fills gaps.** For a food already in your cache, importing adds the values it was missing and nothing else — every value it already has stays, and so do its name, portions, and notes. If Claude's reply includes a different value for something the food already has, the review table names it, and a checkbox, **Also replace the values these foods already have**, lets you take Claude's value instead. Leave it unchecked unless you mean it.
 
-#### My Pantry
+#### My Pantry {: #pantry-web}
 
 *Search terms: foods on hand, staples, groceries.*
 
@@ -785,7 +788,7 @@ Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp
 - **Edit** — a details form plus an ingredients table, with a single **Save recipe details** button (on the "Recipe details" heading row) that saves every field in that form at once. The details form includes an **Introduction** field for background — where the recipe came from, why you like it, serving notes — anything that isn't the step-by-step instructions — and, below Instructions, a **Notes and documentation** field for anything you want on record: sources you consulted, substitutions you have tried, changes to make next time. Notes print at the very bottom of the recipe's nutritional analysis, go into the recipe [CSV](#gloss-csv) export, and are included in the [AI](#gloss-ai) translation. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" [AA](#gloss-aa)-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`) — NuMa saves it as grams at that moment, so later changes to the food's portions don't alter it (see [Editing or changing a food](#food-edit-consequences)); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
 - **Detail** — mirrors a food's detail page (Introduction right after the title, Protein Summary, Ingredients, Instructions, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions — [ignorable and recalculable](#ignore-complement) here too, [Glycemic Load](#glycemic), Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in a new tab, with Introduction included as one of the "Include on this printout" checkboxes. Above those checkboxes, a **Print layout** choice (Full sheet or Half sheet — Half sheet shrinks the title and tightens line spacing throughout, including the Ingredients list) and a **Paper size** choice (US Letter or A4, which sets the exact page dimensions your browser's Print/Save-as-[PDF](#gloss-pdf) preview paginates against) are both remembered for next time. This printable page — and the same layout/paper choices — is also available from a food's, a meal's, and a day's own detail page, not just a recipe's.
 
-### G. Using the Meals & Log menu
+### G. Using the Meals & Log menu {: #meals-menu-web}
 
 *Search terms: food log, food diary, logging meals, meal list, journal.*
 
@@ -857,7 +860,7 @@ Loading starter data never touches anything already in your cache, pantry, or re
 **When a new version changes the starter set.** NuMa remembers which starter foods and recipes the version you ran before came with, so after an update it can tell you exactly what's different:
 
    - **New items** are marked **(new in this version)** in the **Restore individual starter items** list, which opens by itself when there are any, with a short description: a food's type, calories and protein per 100 g, and whether it has amino acid figures; a recipe's ingredients. Check the ones you want and click **Restore selected**. Something you deleted on purpose is never presented as new; only items the new version actually added are.
-   - **Improved items** — starter foods or recipes you already have, which the new version has corrected or improved — are listed under **Improved in this version of NuMa**. Under each one, NuMa shows exactly what updating would change in *your* copy: for a food, each value side by side (yours now, the new version), with any value you edited yourself marked **your edit**, and portions that would be added or removed; for a recipe, changed servings, name, description or instructions, and ingredients added, removed or with a new amount. Check the ones you want and click **Update the checked items to the new version**. Updating replaces your copy with the new one, *including any changes you made to it yourself*, so leave unchecked anything you've edited and want to keep. Meals, recipes and pantry entries that use an updated item keep working, and their figures are recalculated. **Keep all my copies as they are** stops NuMa offering the improved versions.
+   - **Improved items** — starter foods or recipes you already have, which the new version has corrected or improved — are listed under **Improved in this version of NuMa**. Under each one, NuMa shows exactly what updating would change in *your* copy: for a food, each value side by side (yours now, the new version), with any value you edited yourself marked **your edit**, and portions that would be added or removed; for a recipe, changed servings, name, description or instructions, and ingredients added, removed or with a new amount. Check the ones you want and click **Update the checked items to the new version**. Updating replaces your copy with the new one, *including any changes you made to it yourself*, so leave unchecked anything you've edited and want to keep. To take every one at once, click **Update all N items to the new version** instead, after looking over what it would replace; it asks you to confirm first. Meals, recipes and pantry entries that use an updated item keep working, and their figures are recalculated. **Keep all my copies as they are** stops NuMa offering the improved versions.
 
 These lists stay until you act on them, even after you dismiss the home-page message about them. If you skip a version, nothing is lost: the next version's lists include the skipped one's changes.
 
@@ -906,7 +909,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 2 hours)*
+*(Reading time: 2 hours, 3 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
 
@@ -1997,7 +2000,7 @@ A line plot of one or more nutrients across your logged days, day on the x-axis 
 
 **Every logged day appears, whether or not its meals are marked complete.** A day with no logged meal at all shows as a **break in the line**, not a false drop to zero, and the line picks up again at the next day with data; a note under the plot says how many such days its span has. Completeness only comes into play through "Always end on last complete day" below. **A nutrient with no data at all in the range** isn't drawn, and a yellow note under the plot names it so it doesn't just quietly go missing. **Daily glycemic load** has its own rule: a day where some carbohydrate food has no [GI](#gloss-gi) is drawn as a hollow point (its real [GL](#gloss-gl) was at least that high; on a line whose points are an asterisk or #, which have no inside to leave empty, a ring around the point) when foods with a [GI](#gloss-gi) make up at least 80% of that day's carbohydrate, and left out below that; a note under the plot counts both kinds of day.
 
-**Goal and limit reference lines.** Any chosen nutrient with a profile target automatically gets one or two flat horizontal lines drawn across the plot, in that nutrient's own color, so you can see at a glance whether your actual day-to-day intake is tracking toward — or drifting past — where you want it: a **dashed** line for its goal (your [Revised Optimal](#optimal) target if you've set one, otherwise its [RDA](#gloss-rda)/[AI](#gloss-ai)) and a **dotted** line for its maximum limit (a built-in [Tolerable Upper Intake Level](#maxlimits), or your own configured cap if you've set one). Nothing to turn on — just pick a nutrient that has a goal and/or limit set and the line(s) appear; a nutrient with neither configured plots with no reference line at all. A small note under the plot's title spells out which dashed/dotted lines are present.
+**Goal and limit reference lines.** Any chosen nutrient with a profile target automatically gets one or two flat horizontal lines drawn across the plot, in that nutrient's own color, so you can see at a glance whether your actual day-to-day intake is tracking toward — or drifting past — where you want it: a **dashed** line for its goal (your [Revised Optimal](#optimal) target if you've set one, otherwise its [RDA](#gloss-rda)/[AI](#gloss-ai)) and a **dotted** line for its maximum limit (a built-in [Tolerable Upper Intake Level](#maxlimits), or your own configured cap if you've set one). Nothing to turn on — just pick a nutrient that has a goal and/or limit set and the line(s) appear; a nutrient with neither configured plots with no reference line at all. When two nutrients' lines land at the same height (which scaling can make happen), they share it as one line whose dashes alternate between the two colors, so neither hides the other. A small note under the plot's title spells out which dashed/dotted lines are present.
 
 **Always end on the last complete day.** Checking this box next to the home-page toggle stops "Ending on" from freezing at whatever date was current when you last saved the plot — instead the end date always slides forward to the most recent day whose meals are all marked complete, automatically, which can be today once you've marked today's meals complete. Useful for a Home page plot in particular, since without it the plot would otherwise stay stuck on its original end date until you revisited this page and re-saved it. With this box checked, an earlier day with an incomplete meal is **left out** too, as a break in the line, so a partly logged day can't drag the line down; the note under the Home page plot says how many days that is. If every day in the plot's range has an incomplete meal, there's nothing to draw, and the page says so instead.
 
@@ -2317,15 +2320,15 @@ These are guides for keeping and building muscle, not medical advice. If you hav
 
 ### AA. Water: from drinks and from food {: #water}
 
-*Search terms: older people, seniors, elderly, older adults, over 65, over-65, 65 and over, aging.*
+*Search terms: older people, seniors, elderly, older adults, over 65, over-65, 65 and over, aging, fluids, hydration, beverages, dough, batter, grams of water.*
 
 NuMa counts the water you take in from everything you log, not just what you drink. (If you'd rather not track water, turn it off in Settings → 9; nothing is deleted, and turning it back on brings it all back.) Fruit and vegetables are mostly water (an apple is about 86%), and so are milk, soup and cooked grains, so food supplies a real share of each day's water.
 
-**Where you see it.** Meal, recipe and day pages show a **Water** row with two rows under it: **Water from drinks** and **Water from food**. The two always add up to the Water total. A single food's page shows only its Water, since one food is either a drink or it isn't. Most branded drinks have no water value, since US labels don't list it; tick **This food is a drink** on one and NuMa estimates it as 100 g minus the drink's protein, carbs and fat, and the food's page says it's an estimate. Water from drinks and Water from food can also be chosen as columns in Meals & Log and Recent Days, and plotted in the [Nutrient Plot](#nutrient-plot). Amounts are in grams; for water, 1 g is 1 mL, so 250 g is a 250 mL glass.
+**Where you see it.** Meal, recipe and day pages show a **Water** row with two rows under it: **Water from drinks** and **Water from food**. The two always add up to the Water total. Each food and recipe in a meal's items, a recipe's ingredients, the list of meals on a day's page and *Analyze a saved recipe portion* also shows its water beside its name, in gray: "(72% water, 98 g)" is the share of water in it and the grams of water in the amount listed. A recipe shows its water as counted, after cooking if you've set that, and just the grams when its weight isn't known. A single food's page shows only its Water, since one food is either a drink or it isn't. Most branded drinks have no water value, since US labels don't list it; tick **This food is a drink** on one and NuMa estimates it as 100 g minus the drink's protein, carbs and fat, and the food's page says it's an estimate. Water from drinks and Water from food can also be chosen as columns in Meals & Log and Recent Days, and plotted in the [Nutrient Plot](#nutrient-plot). Amounts are in grams; for water, 1 g is 1 mL, so 250 g is a 250 mL glass.
 
 **What counts as a drink.** You decide, with a **This food is a drink** checkbox on each food's page. Recipes have their own **This recipe is a drink** checkbox, and both can be ticked straight from the list on Analysis → Food use in meals. When NuMa first saves a food from [USDA](#gloss-usda), it ticks the box itself if USDA files the food under beverages (tea, coffee, juice, soft drinks, water). It doesn't guess for milk, soup or smoothies, so tick those yourself if you think of them as drinks. Changing the box updates every meal and recipe that uses the food. Ticking it on a food with no water value (true of most branded drinks, since US labels don't list water) fills in an estimate: 100 g minus the food's protein, carbs and fat. The food's page says it's an estimate, and a measured water value is never replaced.
 
-A recipe counts its drink ingredients as drinks and the rest as food: a smoothie made with milk and banana splits its water between the two. Tick **This recipe is a drink** and *all* of its water counts as drinks, including any recipes used inside it.
+**Inside a recipe, only the recipe decides.**{: #water-in-recipes} All the water in a recipe counts as water from food, even from ingredients that are drinks on their own, like the cups of tap water in a bread dough or the milk in a pancake batter: once it's baked or mixed into a dish, it isn't something you drank. When a recipe has such ingredients, its page says so in a blue note just under **This recipe is a drink**, naming each one with its water in the batch and per serving. If you do drink the recipe (a smoothie, a coffee, a broth you sip), tick **This recipe is a drink** and *all* of its water counts as drinks, including any recipes used inside it, and a recipe marked as a drink still counts as one when it's used inside another recipe. A drink food logged straight into a meal counts as a drink, as always. Until 9 November 2026 a recipe counted its drink ingredients as drinks; meals that used such a recipe were recalculated once, and their pages say so. For a cooked dish, see also [water after cooking](#cooked-water).
 
 **The daily goal.**{: #water-reference} The goal is the [Adequate Intake](#gloss-ai) for *total* water from the IOM (US Institute of Medicine, 2004): 3.7 liters a day for men and 2.7 liters for women. It covers drinks and food together, which is why it sits on the Water row rather than on Water from drinks. It's a guide, not a requirement. The figures are simply the typical (median) intakes of healthy Americans, not a measured need, and the Institute itself says intake below them may carry no added risk. European authorities, the European Food Safety Authority (EFSA), working the same way, set 2.5 and 2.0 liters[^84]. You choose whose figures NuMa uses, under **Water goals from** in Settings → 1, Your Profile; the IOM's are the default. Today's goals follow the change at once; earlier days keep theirs unless you apply your profile to them (see [Per-Day Profile Tracking](#day-profile)). Needs rise with heat, exercise, body size and illness.
 
@@ -2344,10 +2347,10 @@ Going past a water goal gains nothing, so NuMa never shows it as a success: belo
 **Gaps in the data.**{: #water-gaps} NuMa began recording water in October 2026. Foods you saved before then have no water value yet and show "no data". That makes a day's water total too low, never wrong in any other way. To fill them in:
 
 - For all your USDA foods at once, go to Foods → 9, *Missing nutrient data*, and click **Fill in water for N USDA foods from USDA**. NuMa fetches only the water value, adds it only where a food has none, and changes nothing else; a few hundred foods take well under a minute. If it stops partway (USDA busy, or no internet), click it again and it carries on from where it stopped. A food USDA has no water value for is named afterwards; that's usual for branded (packaged) foods, because food labels don't list water. For those, click **Show these foods in the list below**: it turns on the Water column in the *Missing nutrient data* list (it stays on) and takes you there, where each food has **ask AI** and **not needed** boxes.
-- For one food at a time, click **Find this data** beside it in the list of foods with no data under [Top Contributors](#top-contributors) (rank by Water), or **Fill in nutrients from another food** on its page, and copy the water value from a matching food in USDA or one of the other food tables ([which to try first](#key-sources)).
+- For one food at a time, click **Find this data** beside it in the list of foods with no data under [Top Contributors](#top-contributors) (rank by Water), or **Fill in nutrients from another food** on its page, and copy the water value from a matching food in USDA or one of the other food databases ([which to try first](#key-sources)).
 - For any other food, tick the **Water** group in that same section and ask Claude AI for the missing values (see [Checking your data](#checking-your-data)).
 
-USDA, the Canadian Nutrient File and the UK, Australian and French tables bundled with NuMa all report water (the French table for most of its foods, not all). Most Open Food Facts products don't, since food labels don't list it.
+USDA, the Canadian Nutrient File and the UK, Australian and French databases bundled with NuMa all report water (the French database for most of its foods, not all). Most Open Food Facts products don't, since food labels don't list it.
 
 #### A wet food picked for a dry one {: #water-wet-dry}
 
@@ -2355,7 +2358,21 @@ USDA, the Canadian Nutrient File and the UK, Australian and French tables bundle
 
 Water also shows when a food is the wrong record. The same food can come wet or dry, and a name doesn't always say which. [USDA](#gloss-usda)'s okara, for instance, is the wet pulp left from making soy milk, about 82% water. Okara *flour* is about 8% water, and has about five times the protein and calories. Pick the wet one for a recipe that uses flour, and every value from it is several times too low.
 
-So when a food's name, or the name you gave it in a recipe or meal, says it's dry (*flour*, *powder*, *dried*, *dehydrated*, *dry*) but the food's data is over 40% water, NuMa marks it with a yellow **"82% water — but named flour?"** next to that ingredient or meal item, explains it in a note below the list, and lists every such food on Foods → 9 under **Named dry, but mostly water**, with the recipes and meals using it. Genuinely dried fruit stays under the line (prunes and dried apricots are about 31% water), and names like "prepared with milk", "packed in oil" or "dry white wine" aren't counted as dry. Every other food in a recipe or meal shows its water in gray, "(8% water)", so you can see at a glance which version you used. A food without a water value can't be checked until it has one. 
+So when a food's name, or the name you gave it in a recipe or meal, says it's dry (*flour*, *powder*, *dried*, *dehydrated*, *dry*) but the food's data is over 40% water, NuMa marks it with a yellow **"82% water — but named flour?"** next to that ingredient or meal item, explains it in a note below the list, and lists every such food on Foods → 9 under **Named dry, but mostly water**, with the recipes and meals using it. Genuinely dried fruit stays under the line (prunes and dried apricots are about 31% water), and names like "prepared with milk", "packed in oil" or "dry white wine" aren't counted as dry. Every other food in a recipe or meal shows its water in gray, "(8% water, 2 g)", so you can see at a glance which version you used, and so does a recipe used in a meal or another recipe (its water after cooking, if you've set one; see below). A food without a water value can't be checked until it has one. 
+
+#### Cooked dishes: water after cooking {: #cooked-water}
+
+*Search terms: baking, baked, bread, moisture loss, evaporation, boiled down, reduced, simmered, yield.*
+
+A recipe's water starts out as the total of its raw ingredients' water: the 4 cups of water in a bread dough, plus the little in the flour. Baking, simmering and roasting drive some of that off, so a cooked dish holds less water than its ingredients did, and every serving you log would count too much.
+
+On a recipe's own page, under **This recipe is a drink**, the **Water after cooking** box takes the water the finished dish really holds, in grams per 100 g. Type a number, or the code of a food whose water figure to copy, such as a commercial version of the same dish (the code shown beside a food's name, like "U171477"). From then on that figure replaces the ingredients' water wherever the recipe is counted: its own page, every meal and day it's logged in, recipes built on it, Top Contributors and What-if. Each serving gets its share. Nothing else changes: cooking loses water, not protein or minerals. Click **Clear** to go back to the ingredients' water.
+
+It needs the recipe's **total weight**, what the whole cooked batch weighs, entered on its Edit page: NuMa multiplies the two to get the batch's water. Without one, the box says the figure isn't in use yet.
+
+**No commercial version to copy?** If you've weighed the batch after cooking, the box works out an estimate for you. It assumes all the weight lost in cooking was water, which it nearly always is. A bread made from 2,328 g of ingredients holding 1,062 g of water that comes out of the oven at 2,094 g has lost 234 g, leaving 828 g of water, 39.6 g per 100 g. Click **use this** to save it. The estimate only appears when every ingredient's weight is known and the cooked batch weighs less than its ingredients.
+
+Water counted this way is water from food, even when it came from a cup of tap water: water baked into a loaf is no longer something you drank. If the recipe is marked as a drink, it counts as water from drinks as before.
 
 #### Water and older people {: #water-older}
 
@@ -2374,7 +2391,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 23 minutes)*
+*(Reading time: 1 hour, 24 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2447,9 +2464,9 @@ The sections linked from analysis output are:
 
 #### Food Cache — Column Guide {: #cached}
 
-*Search terms: Food Cache columns, column meanings, food list columns.*
+*Search terms: Food Cache columns, column meanings, food list columns, usage count, where used.*
 
-The Food Cache list shows every food you have stored locally, sortable by Name, Type, [DIAAS](#gloss-diaas), or [GI](#gloss-gi) estimate. Columns:
+The Food Cache list shows every food you have stored locally, sortable by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, or Used in (most-used first). Columns:
 
 <pre>
     Fetch    Checkbox to select this food for "Fetch missing data from Claude
@@ -2498,6 +2515,12 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
              See <a href="#diaas">DIAAS</a> for details. Shown with a star when it's your
              own saved estimate rather than the built-in reference-table value.
 
+    Used in  How many recipes and logged meals use this food directly, e.g.
+             "2 recipes, 5 meals" ("not used" if none). A recipe counts once
+             however many times the food appears in it; a food reached only
+             through a sub-recipe counts for that sub-recipe, not the recipe
+             using it. Pantry entries aren't counted here.
+
     Notes    A "Notes ▸" link expands to show any saved notes and curator
              notes (curator notes are typically added by the Claude data-fetch
              workflow) — blank if neither is present.
@@ -2515,7 +2538,7 @@ See [Food Cache](#food-cache-web) in Part 3 for the available actions on each ro
 
 Archiving lets you keep a food, pantry entry, or recipe without losing it, while hiding it from everyday use: default list views, food search results, and protein complement suggestions. It's meant for things you're not currently using but don't want to delete -- a seasonal ingredient, an old recipe you might revisit, a pantry item you've used up.
 
-Archiving is reversible with the same action, one entry at a time: an **Archive/Restore** button on each row in the Food Cache, My Pantry, and Recipes pages toggles the state; a **Show archived …** / **Hide archived …** button on each of those pages toggles whether archived entries are shown at all. The button is filled in while archived entries are showing and outlined while they're hidden, and NuMa remembers your choice for each page.
+Archiving is reversible with the same action, one entry at a time: an **Archive/Restore** button on each row in the Food Cache, My Pantry, and Recipes pages toggles the state (a recipe's own page has one too, **Archive recipe** / **Restore recipe**, between **Copy recipe** and **Delete recipe**); a **Show archived …** / **Hide archived …** button on each of those pages toggles whether archived entries are shown at all. The button is filled in while archived entries are showing and outlined while they're hidden, and NuMa remembers your choice for each page.
 
 What archiving does NOT do:
 
@@ -2612,7 +2635,7 @@ Ranking by **Glycemic load (GI × carbs)** (listed under Macronutrients, below C
 
 **Foods with no data for the nutrient.** A food with no figure for the nutrient you ranked by can't be ranked, and adds nothing to the total. Under the table, **Show the N foods with no data for …** opens a second table listing them, heaviest first, with the amount used, so you can see what the total may be missing. No data is not the same as a stored zero: a food whose data says 0 counts as data, and isn't listed. When ranking by Protein (DCP), the list is the foods with protein but no amino acid data. Glycemic load already names its foods with no GI, so it has no such list. On a recipe's page the list goes down to the individual foods, even inside a sub-recipe.
 
-**Getting the missing data.**{: #contrib-find-data} Beside each food in that list, **Find this data** (for DCP, **Find amino acid data**) opens **Fill in nutrients from another food** already searching for the food's own name, in [USDA](#gloss-usda), the other food tables and your Food Cache, with a note naming the nutrient you came for. Pick a match and copy the values the food lacks (see [Refreshing a food, or filling it in from another food](#review-incoming)). A custom food profile opens on its Edit page instead, which has the same search. Under the list, **where to find it** opens that nutrient's entry in [Appendix G](#nutrient-key), which says which sources to try and in what order ([the general order](#key-sources)).
+**Getting the missing data.**{: #contrib-find-data} Beside each food in that list, **Find this data** (for DCP, **Find amino acid data**) opens **Fill in nutrients from another food** already searching for the food's own name, in [USDA](#gloss-usda), the other food databases and your Food Cache, with a note naming the nutrient you came for. Pick a match and copy the values the food lacks (see [Refreshing a food, or filling it in from another food](#review-incoming)). A custom food profile opens on its Edit page instead, which has the same search. Under the list, **where to find it** opens that nutrient's entry in [Appendix G](#nutrient-key), which says which sources to try and in what order ([the general order](#key-sources)).
 
 **When the data doesn't exist, or doesn't matter.**{: #contrib-no-data-answers} Not every gap needs filling, so each food in that list also has two one-click answers. Both apply to that food everywhere it's used, not just this meal or recipe, and each brings you back to the list:
 
@@ -3345,7 +3368,7 @@ A band (Low, Medium, High) is shown only for a complete figure, since the missin
 
 [GL](#gloss-gl) = ([GI](#gloss-gi) x grams of available carbohydrate) / 100 per ingredient, summed across all ingredients in the meal.
 
-**Which carbohydrate counts.** [GI](#gloss-gi) is measured on *available* carbohydrate, the part your body digests into glucose, so fiber is left out. [USDA](#gloss-usda) and the Canadian table give total carbohydrate, fiber included, so NuMa takes the fiber off. It does the same for Open Food Facts products and foods you entered yourself, since those mostly come from US labels, which also count fiber in. The UK, Australian and French tables already leave fiber out, so their figure is used as it is. For a high-fiber food the difference is large: beans with 60 g carbohydrate and 34 g fiber per 100 g have 26 g available. (An Open Food Facts product from Europe already leaves fiber out, and the label doesn't say which kind it is, so for such a product NuMa's figure runs low by its fiber.)
+**Which carbohydrate counts.** [GI](#gloss-gi) is measured on *available* carbohydrate, the part your body digests into glucose, so fiber is left out. [USDA](#gloss-usda) and the Canadian database give total carbohydrate, fiber included, so NuMa takes the fiber off. It does the same for Open Food Facts products and foods you entered yourself, since those mostly come from US labels, which also count fiber in. The UK, Australian and French databases already leave fiber out, so their figure is used as it is. For a high-fiber food the difference is large: beans with 60 g carbohydrate and 34 g fiber per 100 g have 26 g available. (An Open Food Facts product from Europe already leaves fiber out, and the label doesn't say which kind it is, so for such a product NuMa's figure runs low by its fiber.)
 
 Below the [GL](#gloss-gl) figure, a meal, recipe or day also gets an [estimated GI](#mixture-gi).
 
@@ -3726,7 +3749,7 @@ On the web app, [Food Search](#food-search) (and Food Cache and Pantry's own ing
 #### My Pantry Table {: #pantry}
 Shows the protein sources you have flagged as currently on hand. The Pantry drives the complement advisor -- when NuMa suggests foods to fill an amino acid gap, it checks your pantry first and shows matching foods in a "From your pantry" tier.
 
-Columns:
+A **Sort by** dropdown above the list orders it by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, Used in (most-used first) or date Added. NuMa remembers your choice. Columns:
 
 <pre>
     Compare Tick to compare pantry foods side by side.
@@ -3740,7 +3763,7 @@ Columns:
                          Use Link a food to attach real data.
     Notes   Your optional note for this pantry entry.
     Added   When you added it.
-    Type, GI est., DIAAS   Same as the matching columns in the
+    Type, GI est., DIAAS, Used in   Same as the matching columns in the
             <a href="#cached">Food Cache</a> list — see the DIAAS entry there for
             how the saved-estimate-vs-reference-table value is chosen.
     ARCH    Shown only when archived entries are visible (the show-archived
@@ -3784,7 +3807,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 48 minutes)*
+*(Reading time: 51 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -4108,13 +4131,13 @@ The food's own **Portions page** shows the same list for that one food, right af
 
 If the other copies have values the one you keep lacks or has differently, or portions it doesn't have, the button reads **Keep this one, reviewing the others' values first**, and you choose before anything is deleted. Each such nutrient lists the kept copy's value and each other copy's, with yours marked "(yours)", and you pick one. NuMa preselects the sensible choice: a blank is filled, and a value you edited on a copy being merged wins over the kept copy's, unless that one is your edit too. A value you copy over counts as your own edit, so a later [Refresh from USDA](#review-incoming) won't replace it without asking. Portions the kept copy lacks are ticked to be added.
 
-Then every recipe, logged meal and pantry entry using the others switches to it and the others are deleted. Each line keeps its own name and amount, and "what this change did" shows how totals moved. If both copies were in your pantry, you're left with one entry, not two. If two foods really are different (raw and cooked, say), click **Not duplicates** and they won't be listed together again; **Show groups marked "not duplicates"** brings them back if you change your mind. A "\* " food is part of NuMa's [starter data](#starter-data); keeping your own copy instead deletes the starter one.
+Then every recipe, logged meal and pantry entry using the others switches to it and the others are deleted. Each line keeps its own name and amount, and "what this change did" shows how totals moved. If both copies were in your pantry, you're left with one entry, not two. If two foods really are different (raw and cooked, say), click **Not duplicates** and they won't be listed together again; **Show groups marked "not duplicates"** brings them back if you change your mind. A copy nothing uses also has a **Delete** button, which removes just that copy and leaves the rest alone; on a copy that's in use it's greyed out, since deleting it would break what uses it, so keep another copy instead. A "\* " food is part of NuMa's [starter data](#starter-data); keeping your own copy instead deletes the starter one.
 
 **Foods in your pantry more than once** is the last list on the same page. Adding a food that's already in your pantry no longer adds a second entry: the existing one is used, and brought back if it was archived. Older pantries can still have doubles, which NuMa merges on its own when it starts. Any left over are listed here with a **Merge into one** button, which keeps the oldest entry you added and combines the notes.
 
 **Old USDA copies.**{: #old-copies} USDA revises its records from time to time. Foods → 9 lists USDA foods you haven't fetched or refreshed in over a year. That isn't a problem in itself; **Refresh from USDA** on the food's page shows whether anything changed and lets you choose what to take.
 
-**Vitamin K from USDA, corrected.**{: #vitamin-k-fix} Until 14 October 2026, NuMa took a USDA food's vitamin K from the wrong USDA figure: menaquinone-4, one form of vitamin K2, found mostly in meat and eggs, and in small amounts. The figure that counts is phylloquinone (vitamin K1), the form leafy greens carry and the one the daily goal for vitamin K is based on. So most USDA foods saved before then show little or no vitamin K. Raw spinach, one of the richest sources, showed none at all, and a day's vitamin K looked far short of its goal. Foods saved since then are right. For the older ones, the Home page shows a **VITAMIN K** note, and Foods → 9 has a **Correct vitamin K for N USDA foods from USDA** button. It asks USDA for each food's vitamin K alone, 20 foods at a time, and replaces the old value (or removes it, where USDA has none). Nothing else about the food changes, and a vitamin K value you entered yourself is kept. Meals and recipes using a corrected food are updated to match. A food USDA leaves out of a batch is asked for on its own. One USDA has no record of at all (a food you drafted under a USDA-style number, say) is left as it is, named in the result, and not asked about again. One that couldn't be reached (no internet, say) stays on the list, and clicking the button again tries it again. Foods from the other food tables were never affected: the UK and French tables report vitamin K1, and the Canadian table's vitamin K is the same figure.
+**Vitamin K from USDA, corrected.**{: #vitamin-k-fix} Until 14 October 2026, NuMa took a USDA food's vitamin K from the wrong USDA figure: menaquinone-4, one form of vitamin K2, found mostly in meat and eggs, and in small amounts. The figure that counts is phylloquinone (vitamin K1), the form leafy greens carry and the one the daily goal for vitamin K is based on. So most USDA foods saved before then show little or no vitamin K. Raw spinach, one of the richest sources, showed none at all, and a day's vitamin K looked far short of its goal. Foods saved since then are right. For the older ones, the Home page shows a **VITAMIN K** note, and Foods → 9 has a **Correct vitamin K for N USDA foods from USDA** button. It asks USDA for each food's vitamin K alone, 20 foods at a time, and replaces the old value (or removes it, where USDA has none). Nothing else about the food changes, and a vitamin K value you entered yourself is kept. Meals and recipes using a corrected food are updated to match. A food USDA leaves out of a batch is asked for on its own. One USDA has no record of at all (a food you drafted under a USDA-style number, say) is left as it is, named in the result, and not asked about again. One that couldn't be reached (no internet, say) stays on the list, and clicking the button again tries it again. Foods from the other food databases were never affected: the UK and French databases report vitamin K1, and the Canadian database's vitamin K is the same figure.
 
 
 ### J. Data entry: what you can type, and data errors to catch {: #data-entry}
@@ -4189,6 +4212,33 @@ Some mistakes produce a perfectly readable number, so no form can refuse them. T
 
 After saving a food, its page shows any problem NuMa can see straight away; [Checking your data](#checking-your-data) lists every check.
 
+### K. Moving foods and recipes with CSV files {: #csv-transfer}
+
+*Search terms: export, import, share recipes, share foods, spreadsheet, transfer, send to a friend, another computer.*
+
+A [CSV](#gloss-csv) file carries foods, or a recipe, from one NuMa install to another: to share with a friend, or to copy a few things to a second computer. It isn't a backup. It leaves out your meals, pantry, profile and settings; to keep or move *everything*, see [Backing up your data](#backup).
+
+#### Foods {: #csv-foods}
+
+**To export,** open **Foods → Food Cache** and click **Export CSV** (a [CSV](#gloss-csv) file is a plain spreadsheet file). The file holds exactly the foods the list is showing: type something in the filter box first to export only those foods, and click **Show archived foods** first if you want archived foods included. Each food is one row: its name, type, brand, serving size, notes, portions, and every nutrient value (per 100 g). The file opens in any spreadsheet program.
+
+**To import,** click **Import CSV** on the same page, pick the file, and click **Review**. NuMa lists the foods it understood (name, calories, protein, number of portions), plus notes about any row it had to skip: a row with no name, or with no usable nutrient values. Check the list over, then click **Import ... foods into cache**.
+
+- **Every imported food is a new food.** It gets a new code of its own and never replaces or merges with one you already have. A food with the same name as one in your cache is marked **Possible duplicate**; importing it anyway gives you two.
+- **Imported foods are your own custom foods,** even ones that came from [USDA](#gloss-usda) on the other install, so they appear under [Custom food profiles](#drafted-foods) and can't be refreshed from USDA. To get a USDA food with its link to USDA intact, search for it here instead.
+- **Only the food's data travels,** not what was added to it on the other install: its glycemic index, [DIAAS](#gloss-diaas) estimate, oxalate match, and drink or supplement setting stay behind.
+- A food arriving with protein, carbs and fat but no calories has its calories [worked out](#calorie-checks) as usual.
+
+#### Recipes {: #csv-recipes}
+
+**To export,** open the recipe's page and click **Export CSV**. You get one `.zip` file holding two [CSV](#gloss-csv) files: `recipes.csv`, with the recipe and every sub-recipe it uses, at any depth; and `foods.csv`, with the full data of every food in any of them. So the recipe arrives complete: nothing has to exist on the other install first.
+
+**To import,** unzip the download first, so you have the two files. Then open **Recipes → Import CSV**, pick `recipes.csv` and `foods.csv` in their two boxes, and click **Review**. NuMa lists the recipes it found (name, servings, number of ingredients); check them over, then click **Import ... recipes**.
+
+- **Unlike a food import, a recipe import reuses what you already have.** A recipe with the same name as one of yours is marked **Already have this** and left exactly as it is: it isn't duplicated, and its ingredients aren't changed. Likewise an ingredient food whose name matches one in your Food Cache uses your food rather than a new copy, even if the two foods' figures differ. Names match regardless of capitals.
+- **What travels:** each recipe's name, description, servings, total weight, instructions and notes, and its ingredients with their amounts and notes. Its introduction and serving-size description don't, and need re-entering.
+- After importing, each new recipe's [DCP](#gloss-dcp) is worked out from its ingredients, as for any recipe you build yourself.
+
 ---
 
 ## Part 7 — Essential resources
@@ -4256,7 +4306,7 @@ Food enters your [Food Cache](#gloss-food-cache) in four ways:
 
 1. **From [USDA](#gloss-usda)** — you search, find a match, and select it. It is instantly saved into your [Food Cache](#gloss-food-cache).
 2. **From Open Food Facts[^3]** — same process; the food is saved the moment you pick it.
-3. **By barcode** — in any food search box, type the 12-digit [UPC](#gloss-upc)-A or 13-digit [EAN](#gloss-ean) barcode printed on the product (spaces and hyphens are ignored). NuMa looks the product up on Open Food Facts by barcode and shows it as the one search result — typing the exact barcode is itself the confirmation, so there's no separate "use this?" step; click it like any other search result to add it. This is the fastest way to add packaged foods and dietary supplements — many have an Open Food Facts entry but no [USDA](#gloss-usda) record.
+3. **By barcode** — in any food search box, type the 12-digit [UPC](#gloss-upc)-A or 13-digit [EAN](#gloss-ean) barcode printed on the product (spaces and hyphens are ignored). NuMa looks the product up on Open Food Facts by barcode and shows it as the one search result — typing the exact barcode is itself the confirmation, so there's no separate "use this?" step; click it like any other search result to add it. This is the fastest way to add packaged foods and dietary supplements — many have an Open Food Facts entry but no [USDA](#gloss-usda) record. On a meal, a recipe, the Pantry, Compare, Convert or a copy-from page, a product NuMa hasn't cached yet appears a moment after the page does, when the online sources are searched, so at least one online source must be ticked there. A product already in your Food Cache appears at once on every page.
 4. **By hand** — you create a custom food profile yourself, entering nutrient values from a product label or research source. These entries go straight into your [Food Cache](#gloss-food-cache) without coming from any online source.
 
 In every case, NuMa saves the food's original ID number alongside its data. That ID is the key that allows everything else in the program to refer back to a specific food unambiguously.
@@ -4892,7 +4942,7 @@ Two of NuMa's macronutrient rows are actually parent totals with subordinate row
 
 #### ☑ CSV export and import for foods and recipes (completed 2026-08-11)
 
-Foods and recipes can now both be exported to [CSV](#gloss-csv) and imported back in — on this or another NuMa install — via **Export CSV**/**Import CSV** buttons on the [Food Cache](#food-cache-web) list and on each [recipe](#recipes)'s page. A recipe's export is self-contained: it bundles every sub-recipe and food ingredient's full data along with it, so nothing has to already exist on the receiving end for the import to work, and anything that already matches by name is reused rather than duplicated. See the August 11 entries in [Recent program updates](#updates-log) for full detail.
+Foods and recipes can now both be exported to [CSV](#gloss-csv) and imported back in — on this or another NuMa install — via **Export CSV**/**Import CSV** buttons on the [Food Cache](#food-cache-web) list and on each [recipe](#recipes)'s page. A recipe's export is self-contained: it bundles every sub-recipe and food ingredient's full data along with it, so nothing has to already exist on the receiving end for the import to work, and anything that already matches by name is reused rather than duplicated. See [Moving foods and recipes with CSV files](#csv-transfer) for how to use it, and the August 11 entries in [Recent program updates](#updates-log) for full detail. 
 
 #### ☑ Plots of individual nutrients consumed daily in relation to RDAs, user-established optimums, and maximum levels (completed 2026-09-19)
 
@@ -4904,11 +4954,10 @@ Every food's [Annotate](#gi) page can search the published glycemic index tables
 
 ## Part 10 — Appendices
 
-*(Reading time: 1 hour, 12 minutes)*
+*(Reading time: 1 hour, 14 minutes)*
 
 
 ### A. Raw protein, protein quality, and protein digestibility {: #appendix-protein-quality}
-[//]: # "develop"
 
 #### The core problems with protein
 
@@ -5762,20 +5811,20 @@ Each entry ends with the nutrient's **[data key](#gloss-data-key)**, the name Nu
 
 #### When a food has no data for a nutrient {: #key-sources}
 
-*Search terms: where to find values, data sources, nutrient data.*
+*Search terms: where to find values, data sources, nutrient data, missing data.*
 
 A food with no figure for a nutrient adds nothing to a meal's or recipe's total for it, so the total comes out too low. Under [Top Contributors](#top-contributors), the list of foods with no data shows which foods those are, with a **Find this data** button beside each; Foods → 9 lists every food you use that has [missing nutrient data](#data-completeness).
 
 **Try these sources in this order.** Each nutrient's entry below says where it differs.
 
 1. **The same food in [USDA](#gloss-usda)**, in a Foundation or [SR](#gloss-sr) Legacy record — the most complete records there are. Branded USDA records list only what's on the package label. *In NuMa:* **Find this data** (or **Fill in nutrients from another food** on the food's page) searches for the food's own name; pick a USDA match and copy the values it lacks. For a food that is already a USDA food, try **Refresh from USDA** on its page first: USDA sometimes adds values.
-2. **Another national food table**: the Canadian Nutrient File (searched online), and the UK CoFID, Australian AFCD and French CIQUAL tables bundled with NuMa. *In NuMa:* the same search covers all four; their codes say which a result came from: CNF (Canadian Nutrient File), [CoFID](#gloss-cofid), [AFCD](#gloss-afcd) and [CIQUAL](#gloss-ciqual).
+2. **Another national food database**: the Canadian Nutrient File (searched online), and the UK CoFID, Australian AFCD and French CIQUAL databases bundled with NuMa. *In NuMa:* the same search covers all four; their codes say which a result came from: CNF (Canadian Nutrient File), [CoFID](#gloss-cofid), [AFCD](#gloss-afcd) and [CIQUAL](#gloss-ciqual).
 3. **The package label**, for a packaged food: calories, fat, saturated fat, carbohydrate, sugar, fiber, protein and sodium, and on US labels also calcium, iron, potassium and vitamin D. Open Food Facts holds many labels; the same search includes it (code [OFF](#gloss-off)). A label never lists water, amino acids, carotenoids or most vitamins.
 4. **A close, similar food** — tomato purée for a tomato sauce, another bean for a bean. Same search; a value borrowed this way is marked *estimated* on the food's page. A homemade dish is usually better entered as a [recipe](#recipes-menu-web) of its ingredients, so its values come from them.
 5. **Claude AI.** On Foods → 9, tick the food's group in *Missing nutrient data* and [fetch the missing values from Claude](#fetch). Last, because the figures need checking: ask for the source and look at it. An import only fills blanks.
 6. **Nobody has it.** Some nutrients are measured for few foods anywhere (several phytonutrients, below). Then the honest answer is that the total is a minimum. Marking the gap **not needed**, from the Top Contributors list ([how](#contrib-no-data-answers)) or for its whole group in Foods → 9's *Missing nutrient data* list, stops NuMa asking about it and leaves it out of Claude prompts. The total is still a minimum. If you know the food has none, **Has none — record 0** says so instead.
 
-**Amino acids.**{: #key-sources-aa} The same order, with these differences. USDA SR Legacy has full amino acid profiles for thousands of foods, and the Canadian Nutrient File for many; the Australian table has them for about one food in eight; the UK and French tables have none, and labels never list them. When you copy amino acids from a similar food, NuMa scales them to this food's own protein rather than copying them raw (see [Fill in nutrients from another food](#review-incoming)). A food with very little protein can simply be marked **Amino acids not needed** (see [Missing Amino Acid Profiles](#missing-aa-off)).
+**Amino acids.**{: #key-sources-aa} The same order, with these differences. USDA SR Legacy has full amino acid profiles for thousands of foods, and the Canadian Nutrient File for many; the Australian database has them for about one food in eight; the UK and French databases have none, and labels never list them. When you copy amino acids from a similar food, NuMa scales them to this food's own protein rather than copying them raw (see [Fill in nutrients from another food](#review-incoming)). A food with very little protein can simply be marked **Amino acids not needed** (see [Missing Amino Acid Profiles](#missing-aa-off)).
 
 ---
 
@@ -5788,47 +5837,47 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 ##### Calories {: #key-calories}
 The energy a food provides, from protein, carbohydrate, fat, and alcohol combined. NuMa estimates your personal daily calorie target using the Mifflin-St Jeor equation and your activity level — see [Daily Nutrient Goals](#goals) for the full calculation and the [RDA](#gloss-rda)/[DRI](#gloss-dri) framework it draws on[^9].
 
-**Where to find it:** the [usual order](#key-sources); every food table and label has it. A food with protein, carbohydrate and fat but no calories doesn't need a source: NuMa works them out from those three and marks the figure *estimated* (see [food data problems](#calorie-checks)).
+**Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; every food database and label has it. A food with protein, carbohydrate and fat but no calories doesn't need a source: NuMa works them out from those three and marks the figure *estimated* (see [food data problems](#calorie-checks)).
 
 **[Data key](#gloss-data-key):** *calories*
 
 ##### Protein {: #key-protein}
-Builds and repairs every cell in the body and is the nutrient NuMa focuses on most closely, since how much of it your body can actually *use* depends on both digestibility and amino acid completeness, not just the gram total on a label. See [Digestible Complete Protein](#dcp) and [Essential Amino Acids](#aa) for how NuMa scores protein quality beyond this raw figure, and [Recommended Dietary Allowances](#rda) for how your target is set. External: MedlinePlus, *Dietary Proteins*[^17].
+Builds and repairs every cell in the body and is the nutrient NuMa focuses on most closely, since how much of it your body can actually *use* depends on both digestibility and amino acid completeness, not just the gram total on a label. See [Digestible Complete Protein](#dcp) and [Essential Amino Acids](#aa) for how NuMa scores protein quality beyond this raw figure, and [Recommended Dietary Allowances](#rda) for how your target is set. For more, see *Dietary Proteins* from MedlinePlus[^17].
 
-**Where to find it:** the [usual order](#key-sources); every food table has it.
+**Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; every food database has it.
 
 **[Data key](#gloss-data-key):** *protein_g*
 
 ##### Carbohydrates {: #key-carbs}
-The body's primary energy source. **Fiber and Sugar below are subsets of this total, not additional to it** — Fiber + Sugar + Starch + a few minor carbohydrate types add up to the Carbohydrates figure, the same relationship a Nutrition Facts label shows by indenting "Dietary Fiber" and "Total Sugars" under "Total Carbohydrate." NuMa uses carbohydrate content, alongside a food's glycemic index, to compute [Glycemic Load](#gl). External: MedlinePlus, *Carbohydrates*[^18].
+The body's primary energy source. **Fiber and Sugar below are subsets of this total, not additional to it** — Fiber + Sugar + Starch + a few minor carbohydrate types add up to the Carbohydrates figure, the same relationship a Nutrition Facts label shows by indenting "Dietary Fiber" and "Total Sugars" under "Total Carbohydrate." NuMa uses carbohydrate content, alongside a food's glycemic index, to compute [Glycemic Load](#gl). For more, see *Carbohydrates* from MedlinePlus[^18].
 
-**Where to find it:** the [usual order](#key-sources); every food table has it. **Watch the definition:** USDA's and the Canadian figure include fiber, but the UK, Australian and French tables give *available* carbohydrate, with fiber left out, so their figure runs lower by the food's fiber. Copying one from those three, add the fiber back if you want it to match USDA's.
+**Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; every food database has it. **Watch the definition:** USDA's and the Canadian figure include fiber, but the UK, Australian and French databases give *available* carbohydrate, with fiber left out, so their figure runs lower by the food's fiber. Copying one from those three, add the fiber back if you want it to match USDA's.
 
 **[Data key](#gloss-data-key):** *carbs_g*
 
-- **Fiber**{: #key-fiber} — The indigestible part of plant carbohydrate. NuMa's figure is [USDA](#gloss-usda)'s "total dietary fiber" — **soluble and insoluble combined**, not insoluble alone. The two behave differently: soluble fiber (oats, beans, apples, citrus) dissolves into a gel that slows digestion and is linked to lower cholesterol and better blood-sugar control; insoluble fiber (whole grains, vegetable skins, wheat bran) adds bulk and speeds transit, supporting digestive regularity. NuMa doesn't split the two because USDA FoodData Central only reports that breakdown for a small fraction of foods — reliably showing it would mean leaving it blank almost everywhere. Fiber is one of the few macronutrients using an Adequate Intake rather than a full [RDA](#gloss-rda) — see [Daily Nutrient Goals](#goals) for what that distinction means for your target. External: MedlinePlus, *Dietary Fiber*[^20].
-    - **Where to find it:** the [usual order](#key-sources). The UK table has it for only about half its foods; the others for nearly all.
+- **Fiber**{: #key-fiber} — The indigestible part of plant carbohydrate. NuMa's figure is [USDA](#gloss-usda)'s "total dietary fiber" — **soluble and insoluble combined**, not insoluble alone. The two behave differently: soluble fiber (oats, beans, apples, citrus) dissolves into a gel that slows digestion and is linked to lower cholesterol and better blood-sugar control; insoluble fiber (whole grains, vegetable skins, wheat bran) adds bulk and speeds transit, supporting digestive regularity. NuMa doesn't split the two because USDA FoodData Central only reports that breakdown for a small fraction of foods — reliably showing it would mean leaving it blank almost everywhere. Fiber is one of the few macronutrients using an Adequate Intake rather than a full [RDA](#gloss-rda) — see [Daily Nutrient Goals](#goals) for what that distinction means for your target. For more, see *Dietary Fiber* from MedlinePlus[^20].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed. The UK database has it for only about half its foods; the others for nearly all.
     - **[Data key](#gloss-data-key):** *fiber_g*
-- **Sugar**{: #key-sugar} — Simple carbohydrate — both naturally occurring (fruit, dairy) and added (sweeteners) — that NuMa reports as one combined total. High-sugar foods tend to raise [Glycemic Load](#gl) sharply; see that section for how NuMa weighs sugar's blood-glucose impact against a food's fiber and overall carbohydrate. External: MedlinePlus, *Sweeteners – Sugars*[^21].
-    - **Where to find it:** the [usual order](#key-sources); nearly every table and label has it.
+- **Sugar**{: #key-sugar} — Simple carbohydrate — both naturally occurring (fruit, dairy) and added (sweeteners) — that NuMa reports as one combined total. High-sugar foods tend to raise [Glycemic Load](#gl) sharply; see that section for how NuMa weighs sugar's blood-glucose impact against a food's fiber and overall carbohydrate. For more, see *Sweeteners – Sugars* from MedlinePlus[^21].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; nearly every database and label has it.
     - **[Data key](#gloss-data-key):** *sugar_g*
 - *Starch is not tracked as its own row — USDA rarely reports it as a distinct value, so it stays folded into the Carbohydrates total along with everything else that isn't Fiber or Sugar.*
 
 ##### Fat {: #key-fat}
-Total dietary fat. **Saturated, Monounsaturated, and Polyunsaturated fat below are subsets of this total, not additional to it** — the three add up to (approximately) the Fat figure. Fat itself sits at the same level as Protein and Carbohydrates above, not beneath them — it's a third independent macronutrient, not a subset of either. See [Omega-3 Fatty Acids](#omega3) for the specific unsaturated fatty acids NuMa tracks individually and gives their own goals. External: MedlinePlus, *Dietary fats explained*[^19].
+Total dietary fat. **Saturated, Monounsaturated, and Polyunsaturated fat below are subsets of this total, not additional to it** — the three add up to (approximately) the Fat figure. Fat itself sits at the same level as Protein and Carbohydrates above, not beneath them — it's a third independent macronutrient, not a subset of either. See [Omega-3 Fatty Acids](#omega3) for the specific unsaturated fatty acids NuMa tracks individually and gives their own goals. For more, see *Dietary fats explained* from MedlinePlus[^19].
 
-**Where to find it:** the [usual order](#key-sources); every food table and label has it.
+**Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; every food database and label has it.
 
 **[Data key](#gloss-data-key):** *fat_g*
 
-- **Saturated fat**{: #key-saturated-fat} — The fat subtype most consistently linked to cardiovascular risk when eaten in excess; most dietary guidance favors keeping intake low and replacing it with unsaturated fat where possible. External: Examine.com, *Saturated Fat*[^22].
-    - **Where to find it:** the [usual order](#key-sources); labels give it too.
+- **Saturated fat**{: #key-saturated-fat} — The fat subtype most consistently linked to cardiovascular risk when eaten in excess; most dietary guidance favors keeping intake low and replacing it with unsaturated fat where possible. For more, see *Saturated Fat* from Examine.com[^22].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; labels give it too.
     - **[Data key](#gloss-data-key):** *saturated_fat_g*
-- **Monounsaturated fat**{: #key-mono-fat} — Found mainly in olive oil, avocados, and many nuts; generally considered neutral-to-beneficial for cardiovascular health when it displaces saturated fat in the diet. External: MedlinePlus, *Dietary fats explained*[^19].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label; about three foods in four in the UK and French tables have it.
+- **Monounsaturated fat**{: #key-mono-fat} — Found mainly in olive oil, avocados, and many nuts; generally considered neutral-to-beneficial for cardiovascular health when it displaces saturated fat in the diet. For more, see *Dietary fats explained* from MedlinePlus[^19].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label; about three foods in four in the UK and French databases have it.
     - **[Data key](#gloss-data-key):** *mono_fat_g*
-- **Polyunsaturated fat**{: #key-poly-fat} — Includes the omega-3 and omega-6 fatty acids NuMa tracks individually — see [Omega-3 Fatty Acids](#omega3) for [ALA](#gloss-ala), [EPA](#gloss-epa), [DHA](#gloss-dha), and linoleic acid specifically, and why ALA is the only one with an official intake goal. External: MedlinePlus, *Dietary fats explained*[^19].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label; about three foods in four in the UK and French tables have it.
+- **Polyunsaturated fat**{: #key-poly-fat} — Includes the omega-3 and omega-6 fatty acids NuMa tracks individually — see [Omega-3 Fatty Acids](#omega3) for [ALA](#gloss-ala), [EPA](#gloss-epa), [DHA](#gloss-dha), and linoleic acid specifically, and why ALA is the only one with an official intake goal. For more, see *Dietary fats explained* from MedlinePlus[^19].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label; about three foods in four in the UK and French databases have it.
     - **[Data key](#gloss-data-key):** *poly_fat_g*
 
 ---
@@ -5840,7 +5889,7 @@ Total dietary fat. **Saturated, Monounsaturated, and Polyunsaturated fat below a
 ##### Water {: #key-water}
 The water a food or drink contains, measured as its moisture. NuMa adds it up from everything you log, and splits a meal's or day's total into **Water from drinks** (from foods and recipes marked as a drink) and **Water from food** (everything else); the split isn't stored with a food, so a food's own figure is just its water. See [Water: from drinks and from food](#water) for the goals and what counts as water.
 
-**Where to find it:** the [usual order](#key-sources), and almost always at step 1 or 2: [USDA](#gloss-usda), the Canadian Nutrient File and the UK and Australian tables have it for nearly every food, the French table for most. Labels never list it, so a packaged food needs a matching generic food (a jarred tomato sauce takes a USDA or [CIQUAL](#gloss-ciqual) tomato sauce's value). For all your USDA foods at once, Foods → 9 fills it in from USDA (see [Gaps in the data](#water-gaps)). Make sure the match is in the same state: a dry food (flour, powder, dried beans) has very little water, and the same food cooked or soaked a lot (see [A wet food picked for a dry one](#water-wet-dry)).
+**Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, and almost always at step 1 or 2: [USDA](#gloss-usda), the Canadian Nutrient File and the UK and Australian databases have it for nearly every food, the French database for most. Labels never list it, so a packaged food needs a matching generic food (a jarred tomato sauce takes a USDA or [CIQUAL](#gloss-ciqual) tomato sauce's value). For all your USDA foods at once, Foods → 9 fills it in from USDA (see [Gaps in the data](#water-gaps)). Make sure the match is in the same state: a dry food (flour, powder, dried beans) has very little water, and the same food cooked or soaked a lot (see [A wet food picked for a dry one](#water-wet-dry)).
 
 **[Data keys](#gloss-data-key):** *water_g*; the drinks/food split is *water_drinks_g* and *water_food_g*
 
@@ -5855,19 +5904,19 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 ##### Omega-3
 
 - **[ALA](#gloss-ala)**{: #key-ala} — Alpha-linolenic acid, the plant-based omega-3 (flaxseed, walnuts, chia, canola and soy oils). The only omega-3 with an official Adequate Intake, so it's the only one of the three with a Daily Goal.
-    - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources).
+    - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian database; the French database for about half its foods; not the UK database as bundled, and never a label. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses).
     - **[Data key](#gloss-data-key):** *omega3_ala_mg*
 - **[EPA](#gloss-epa)**{: #key-epa} — Eicosapentaenoic acid. No U.S. [DRI](#gloss-dri) exists for EPA on its own; the body makes some from ALA, inefficiently, or gets it directly from fish, algae, and other seafood. Set your own [Revised Optimal target](#optimal) if you want to track it against a number.
-    - **Where to find it:** USDA Foundation and SR Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources). A plant food missing EPA has essentially none: EPA comes from fish, seafood and algae.
+    - **Where to find it:** USDA Foundation and SR Legacy records, the Canadian Nutrient File and the Australian database; the French database for about half its foods; not the UK database as bundled, and never a label. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses). A plant food missing EPA has essentially none: EPA comes from fish, seafood and algae.
     - **[Data key](#gloss-data-key):** *omega3_epa_mg*
 - **[DHA](#gloss-dha)**{: #key-dha} — Docosahexaenoic acid, the omega-3 most concentrated in the brain and retina. Like EPA, it has no official DRI and can be tracked against a self-set [Revised Optimal target](#optimal) instead.
-    - **Where to find it:** USDA Foundation and SR Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources). A plant food missing DHA has essentially none: DHA comes from fish, seafood and algae.
+    - **Where to find it:** USDA Foundation and SR Legacy records, the Canadian Nutrient File and the Australian database; the French database for about half its foods; not the UK database as bundled, and never a label. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses). A plant food missing DHA has essentially none: DHA comes from fish, seafood and algae.
     - **[Data key](#gloss-data-key):** *omega3_dha_mg*
 
 ##### Omega-6
 
 - **Linoleic acid (LA)**{: #key-la} — The essential omega-6 fatty acid. Has a Daily Goal, its Adequate Intake (17 g men, 12 g women under 51); that figure is the typical U.S. intake, and deficiency is essentially unknown on ordinary diets — see [Omega-3 Fatty Acids](#omega3).
-    - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian table; the French table for about half its foods; not the UK table as bundled, and never a label. Then Claude, as in the [usual order](#key-sources).
+    - **Where to find it:** [USDA](#gloss-usda) Foundation and [SR](#gloss-sr) Legacy records, the Canadian Nutrient File and the Australian database; the French database for about half its foods; not the UK database as bundled, and never a label. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses).
     - **[Data key](#gloss-data-key):** *omega6_la_mg*
 
 ---
@@ -5880,45 +5929,45 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ##### Macrominerals
 
-- **Calcium**{: #key-calcium} — Builds and maintains bone, and supports nerve and muscle function. A major dietary source for many people (dairy, fortified plant milks, leafy greens) is undermined by [oxalates](#antinutrients) in some of those same leafy greens — spinach's labeled calcium is largely unabsorbed. External: Linus Pauling Institute, *Calcium*[^24].
-    - **Where to find it:** the [usual order](#key-sources); US labels give it too.
+- **Calcium**{: #key-calcium} — Builds and maintains bone, and supports nerve and muscle function. A major dietary source for many people (dairy, fortified plant milks, leafy greens) is undermined by [oxalates](#antinutrients) in some of those same leafy greens — spinach's labeled calcium is largely unabsorbed. For more, see *Calcium* from the Linus Pauling Institute[^24].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; US labels give it too.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: mainly a supplement risk, not a food risk — getting this much from food alone is difficult. [NIH](#gloss-nih) notes higher-dose calcium supplements are linked to a greater risk of kidney stones, and some research ties them to a higher risk of cardiovascular disease[^48].
     - **[Data key](#gloss-data-key):** *calcium_mg*
-- **Magnesium**{: #key-magnesium} — Involved in hundreds of enzyme reactions, including energy production and muscle/nerve function. A candidate for a future [Revised Optimal](#optimal) target above the [RDA](#gloss-rda) — see [Part 9](#expand-revised-optimal) — though the evidence for a specific above-RDA number is less settled than for vitamin D. External: Linus Pauling Institute, *Magnesium*[^25].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label.
+- **Magnesium**{: #key-magnesium} — Involved in hundreds of enzyme reactions, including energy production and muscle/nerve function. A candidate for a future [Revised Optimal](#optimal) target above the [RDA](#gloss-rda) — see [Part 9](#expand-revised-optimal) — though the evidence for a specific above-RDA number is less settled than for vitamin D. For more, see *Magnesium* from the Linus Pauling Institute[^25].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label.
     - **[Data key](#gloss-data-key):** *magnesium_mg*
-- **Phosphorus**{: #key-phosphorus} — Works alongside calcium in bone structure and is also central to cellular energy (ATP). Deficiency is rare in any diet with adequate protein, since phosphorus is present in most protein-rich foods. External: Linus Pauling Institute, *Phosphorus*[^26].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label.
+- **Phosphorus**{: #key-phosphorus} — Works alongside calcium in bone structure and is also central to cellular energy (ATP). Deficiency is rare in any diet with adequate protein, since phosphorus is present in most protein-rich foods. For more, see *Phosphorus* from the Linus Pauling Institute[^26].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: NIH notes high intakes seldom cause problems in otherwise healthy people; the real concern is chronic kidney disease, where the kidneys can't clear excess phosphorus and it builds up in the blood, worsening bone and kidney health[^49].
     - **[Data key](#gloss-data-key):** *phosphorus_mg*
-- **Potassium**{: #key-potassium} — Supports fluid balance, nerve signaling, and healthy blood pressure; typically under-consumed relative to its Adequate Intake in a typical Western diet. External: Linus Pauling Institute, *Potassium*[^27].
-    - **Where to find it:** the [usual order](#key-sources); US labels give it too.
+- **Potassium**{: #key-potassium} — Supports fluid balance, nerve signaling, and healthy blood pressure; typically under-consumed relative to its Adequate Intake in a typical Western diet. For more, see *Potassium* from the Linus Pauling Institute[^27].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; US labels give it too.
     - **[Data key](#gloss-data-key):** *potassium_mg*
-- **Sodium**{: #key-sodium} — The one nutrient in NuMa's tables with its own Maximum column entry rather than a Minimum — see [Recommended Dietary Allowances](#rda) for the Maximum-vs-UL distinction and [Maximum Nutrient Limits](#maxlimits) for how NuMa flags approaching it. External: Linus Pauling Institute, *Sodium*[^28].
-    - **Where to find it:** the [usual order](#key-sources); every table and label has it. A label that gives salt instead: sodium is salt ÷ 2.5 (1 g salt = 400 mg sodium).
+- **Sodium**{: #key-sodium} — The one nutrient in NuMa's tables with its own Maximum column entry rather than a Minimum — see [Recommended Dietary Allowances](#rda) for the Maximum-vs-UL distinction and [Maximum Nutrient Limits](#maxlimits) for how NuMa flags approaching it. For more, see *Sodium* from the Linus Pauling Institute[^28].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; every database and label has it. A label that gives salt instead: sodium is salt ÷ 2.5 (1 g salt = 400 mg sodium).
     - **[Data key](#gloss-data-key):** *sodium_mg*
 
 ##### Trace Minerals
 
-- **Iron**{: #key-iron} — Carries oxygen in red blood cells. Plant (non-heme) iron absorbs far less efficiently than animal (heme) iron and is further blocked by [phytates](#antinutrients) — NuMa raises the iron [RDA](#gloss-rda) target 1.8× on a Vegetarian or Plant-based dietary preference to reflect this; see [Diet-Aware Bioavailability Notes](#diet-bioavailability)[^4]<sup>,</sup>[^5]. External: Linus Pauling Institute, *Iron*[^29].
-    - **Where to find it:** the [usual order](#key-sources); US labels give it too.
+- **Iron**{: #key-iron} — Carries oxygen in red blood cells. Plant (non-heme) iron absorbs far less efficiently than animal (heme) iron and is further blocked by [phytates](#antinutrients) — NuMa raises the iron [RDA](#gloss-rda) target 1.8× on a Vegetarian or Plant-based dietary preference to reflect this; see [Diet-Aware Bioavailability Notes](#diet-bioavailability)[^4]<sup>,</sup>[^5]. For more, see *Iron* from the Linus Pauling Institute[^29].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; US labels give it too.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: acute overdose (often accidental, in children) can cause severe gastrointestinal damage and organ failure; chronically, people with hemochromatosis (an inherited iron-overload condition) should avoid iron and vitamin C supplements, since excess iron builds up and can damage the liver and heart[^50].
     - **[Data key](#gloss-data-key):** *iron_mg*
-- **Zinc**{: #key-zinc} — Supports immune function and wound healing; absorption is reduced by the same [phytates](#antinutrients) that affect iron. NuMa raises the zinc RDA target 1.5× on a Vegetarian or Plant-based preference — see [Diet-Aware Bioavailability Notes](#diet-bioavailability)[^4]<sup>,</sup>[^6]. External: Linus Pauling Institute, *Zinc*[^30].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label; the French table has it for about two foods in three.
+- **Zinc**{: #key-zinc} — Supports immune function and wound healing; absorption is reduced by the same [phytates](#antinutrients) that affect iron. NuMa raises the zinc RDA target 1.5× on a Vegetarian or Plant-based preference — see [Diet-Aware Bioavailability Notes](#diet-bioavailability)[^4]<sup>,</sup>[^6]. For more, see *Zinc* from the Linus Pauling Institute[^30].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label; the French database has it for about two foods in three.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: nausea, vomiting, and gastric distress in the short term. Sustained high doses interfere with copper absorption, which can itself cause neurological problems (loss of coordination, numbness, weakness) if it leads to copper deficiency[^51].
     - **[Data key](#gloss-data-key):** *zinc_mg*
-- **Iodine**{: #key-iodine} — Required for thyroid hormone production. Iodized salt is the primary dietary source in most Western diets; those avoiding it (and not eating much seafood or dairy) are the main deficiency risk group. External: Linus Pauling Institute, *Iodine*[^31].
-    - **Where to find it:** Often missing. The Australian table has it for every food, the UK table for about half and the French for about a third; USDA records rarely have it and the Canadian file doesn't. Outside NuMa, the [USDA](#gloss-usda), FDA (Food and Drug Administration) and [NIH](#gloss-nih) *Database for the Iodine Content of Common Foods* covers US foods; take a value from it to Claude or a similar food. Then the [usual order](#key-sources).
+- **Iodine**{: #key-iodine} — Required for thyroid hormone production. Iodized salt is the primary dietary source in most Western diets; those avoiding it (and not eating much seafood or dairy) are the main deficiency risk group. For more, see *Iodine* from the Linus Pauling Institute[^31].
+    - **Where to find it:** Often missing. The Australian database has it for every food, the UK database for about half and the French for about a third; USDA records rarely have it and the Canadian file doesn't. Outside NuMa, the [USDA](#gloss-usda), FDA (Food and Drug Administration) and [NIH](#gloss-nih) *Database for the Iodine Content of Common Foods* covers US foods; take a value from it to Claude or a similar food. Then try the [six data sources](#key-sources) NuMa uses, in the order listed.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: ironically similar to deficiency — high intakes can trigger goiter and thyroid gland inflammation. Very large single doses (gram-range, essentially unreachable from food) can cause burning of the mouth and throat, fever, and vomiting[^52].
     - **[Data key](#gloss-data-key):** *iodine_mcg*
-- **Selenium**{: #key-selenium} — An antioxidant-supporting trace mineral; Brazil nuts are an unusually concentrated source (a couple a day can exceed the daily target). External: Linus Pauling Institute, *Selenium*[^32].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label; the UK table has it for about three foods in five, the French for about one in three.
+- **Selenium**{: #key-selenium} — An antioxidant-supporting trace mineral; Brazil nuts are an unusually concentrated source (a couple a day can exceed the daily target). For more, see *Selenium* from the Linus Pauling Institute[^32].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label; the UK database has it for about three foods in five, the French for about one in three.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: chronic over-intake causes selenosis — hair loss, brittle nails, a garlic odor on the breath, and nausea are the classic signs; very high intakes can affect the nervous system and, rarely, the heart[^53].
     - **[Data key](#gloss-data-key):** *selenium_mcg*
@@ -5933,51 +5982,51 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ##### Fat-Soluble
 
-- **Vitamin A**{: #key-vitamin-a} — Supports vision, immune function, and cell growth. NuMa's figure is already expressed in mcg RAE (Retinol Activity Equivalents) — [USDA](#gloss-usda)'s own standardized unit that converts provitamin-A carotenoids (see Beta-carotene and Alpha-carotene under Phytonutrients below) into vitamin-A-equivalent amounts using their own conversion factors, not a simple sum. External: Linus Pauling Institute, *Vitamin A*[^33].
-    - **Where to find it:** the [usual order](#key-sources), with a caution: the Canadian and French figures in NuMa count only retinol, the animal form, so for a plant food they understate it, often to zero. For a plant food prefer USDA, the UK or the Australian table.
+- **Vitamin A**{: #key-vitamin-a} — Supports vision, immune function, and cell growth. NuMa's figure is already expressed in mcg RAE (Retinol Activity Equivalents) — [USDA](#gloss-usda)'s own standardized unit that converts provitamin-A carotenoids (see Beta-carotene and Alpha-carotene under Phytonutrients below) into vitamin-A-equivalent amounts using their own conversion factors, not a simple sum. For more, see *Vitamin A* from the Linus Pauling Institute[^33].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, with a caution: the Canadian and French figures in NuMa count only retinol, the animal form, so for a plant food they understate it, often to zero. For a plant food prefer USDA, the UK or the Australian database.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9] (that UL applies to preformed vitamin A specifically, a narrower figure than the mcg RAE total NuMa tracks — see the note there; [NIH](#gloss-nih) notes there's no established UL for beta-carotene and other provitamin-A carotenoids).
     - Risk of excess: getting too much preformed vitamin A (usually from supplements, liver, or certain medicines, rarely from food alone) can cause headache, blurred vision, nausea, dizziness, and coordination problems; long-term excess is also linked to reduced bone strength and, in pregnancy, to birth defects[^54].
     - **[Data key](#gloss-data-key):** *vitamin_a_mcg*
-- **Vitamin C**{: #key-vitamin-c} — An antioxidant vitamin also needed for collagen synthesis; notably, vitamin C consumed at the same meal significantly improves absorption of non-heme iron from plant foods — see [Antinutrients](#antinutrients). External: Linus Pauling Institute, *Vitamin C*[^34].
-    - **Where to find it:** the [usual order](#key-sources); the French table has it for about half its foods.
+- **Vitamin C**{: #key-vitamin-c} — An antioxidant vitamin also needed for collagen synthesis; notably, vitamin C consumed at the same meal significantly improves absorption of non-heme iron from plant foods — see [Antinutrients](#antinutrients). For more, see *Vitamin C* from the Linus Pauling Institute[^34].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; the French database has it for about half its foods.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: mostly mild — diarrhea, nausea, and stomach cramps at high intakes. In people with hemochromatosis (an iron-overload condition), high-dose vitamin C can worsen iron overload and tissue damage[^55].
     - **[Data key](#gloss-data-key):** *vitamin_c_mg*
-- **Vitamin D**{: #key-vitamin-d} — Supports calcium absorption and bone health. NuMa's built-in [Revised Optimal](#optimal) default goes above the standard [RDA](#gloss-rda) based on Endocrine Society guidance[^12] — see that section for why. External: Linus Pauling Institute, *Vitamin D*[^35].
-    - **Where to find it:** the [usual order](#key-sources); US labels give it too. Often missing for plant foods because there's almost none to measure; mushrooms grown under ultraviolet (UV) light are the exception, and a fortified food's label has it.
+- **Vitamin D**{: #key-vitamin-d} — Supports calcium absorption and bone health. NuMa's built-in [Revised Optimal](#optimal) default goes above the standard [RDA](#gloss-rda) based on Endocrine Society guidance[^12] — see that section for why. For more, see *Vitamin D* from the Linus Pauling Institute[^35].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; US labels give it too. Often missing for plant foods because there's almost none to measure; mushrooms grown under ultraviolet (UV) light are the exception, and a fortified food's label has it.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: essentially a supplement-only risk (sun exposure and food don't cause it). Excess vitamin D drives calcium too high in the blood (hypercalcemia) and urine, which in turn can cause nausea, weakness, and mineral deposits in soft tissue and blood vessels[^56].
     - **[Data key](#gloss-data-key):** *vitamin_d_mcg*
-- **Vitamin E**{: #key-vitamin-e} — An antioxidant vitamin that protects cell membranes from oxidative damage; found concentrated in nuts, seeds, and vegetable oils. External: Linus Pauling Institute, *Vitamin E*[^36].
-    - **Where to find it:** the [usual order](#key-sources); the French table rarely has it.
+- **Vitamin E**{: #key-vitamin-e} — An antioxidant vitamin that protects cell membranes from oxidative damage; found concentrated in nuts, seeds, and vegetable oils. For more, see *Vitamin E* from the Linus Pauling Institute[^36].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; the French database rarely has it.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: a supplement-only risk — NIH notes no adverse effects from vitamin E in food, only from high-dose supplements. The main concern is bleeding risk, since high doses reduce the blood's ability to clot; this is especially relevant alongside blood-thinning medication like warfarin[^57].
     - **[Data key](#gloss-data-key):** *vitamin_e_mg*
-- **Vitamin K**{: #key-vitamin-k} — Needed for blood clotting and bone metabolism. NuMa tracks vitamin K1 (from the RDA); vitamin K2, a distinct form with separate emerging research on cardiovascular and bone benefits, is not yet reflected in an official [DRI](#gloss-dri) — see [Part 9](#expand-revised-optimal) for that as a candidate future addition. External: Linus Pauling Institute, *Vitamin K*[^37].
-    - **Where to find it:** USDA [SR](#gloss-sr) Legacy and the Canadian Nutrient File; the French table for about a third of its foods; the UK table rarely and the Australian not at all. Then Claude, as in the [usual order](#key-sources).
+- **Vitamin K**{: #key-vitamin-k} — Needed for blood clotting and bone metabolism. NuMa tracks vitamin K1 (from the RDA); vitamin K2, a distinct form with separate emerging research on cardiovascular and bone benefits, is not yet reflected in an official [DRI](#gloss-dri) — see [Part 9](#expand-revised-optimal) for that as a candidate future addition. For more, see *Vitamin K* from the Linus Pauling Institute[^37].
+    - **Where to find it:** USDA [SR](#gloss-sr) Legacy and the Canadian Nutrient File; the French database for about a third of its foods; the UK database rarely and the Australian not at all. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses).
     - **[Data key](#gloss-data-key):** *vitamin_k_mcg*
 
 ##### Water-Soluble
 
-- **Thiamin (B1)**{: #key-thiamin} — Needed for converting food into energy and for nerve function. Deficiency (beriberi) is rare in a varied diet but historically arose in populations relying heavily on unenriched white rice. External: Linus Pauling Institute, *Thiamin*[^38].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label (except an enriched or fortified food's).
+- **Thiamin (B1)**{: #key-thiamin} — Needed for converting food into energy and for nerve function. Deficiency (beriberi) is rare in a varied diet but historically arose in populations relying heavily on unenriched white rice. For more, see *Thiamin* from the Linus Pauling Institute[^38].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label (except an enriched or fortified food's).
     - **[Data key](#gloss-data-key):** *thiamin_mg*
-- **Riboflavin (B2)**{: #key-riboflavin} — Supports energy production and functions as an antioxidant; widely available in dairy, eggs, meat, and fortified grains, so deficiency is uncommon. External: Linus Pauling Institute, *Riboflavin*[^39].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label (except an enriched or fortified food's).
+- **Riboflavin (B2)**{: #key-riboflavin} — Supports energy production and functions as an antioxidant; widely available in dairy, eggs, meat, and fortified grains, so deficiency is uncommon. For more, see *Riboflavin* from the Linus Pauling Institute[^39].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label (except an enriched or fortified food's).
     - **[Data key](#gloss-data-key):** *riboflavin_mg*
-- **Niacin (B3)**{: #key-niacin} — Involved in energy metabolism and [DNA](#gloss-dna) repair. Corn-based diets can carry a deficiency risk (pellagra) unless the corn is nixtamalized — see **Bound niacin** under [Antinutrients](#antinutrients). External: Linus Pauling Institute, *Niacin*[^40].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label (except an enriched or fortified food's).
+- **Niacin (B3)**{: #key-niacin} — Involved in energy metabolism and [DNA](#gloss-dna) repair. Corn-based diets can carry a deficiency risk (pellagra) unless the corn is nixtamalized — see **Bound niacin** under [Antinutrients](#antinutrients). For more, see *Niacin* from the Linus Pauling Institute[^40].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label (except an enriched or fortified food's).
     - **[Data key](#gloss-data-key):** *niacin_mg*
-- **Vitamin B6**{: #key-b6} — Involved in amino acid metabolism and neurotransmitter synthesis. One of the few water-soluble vitamins where very high long-term supplemental doses (not food intake) carry a real toxicity risk (nerve damage). External: Linus Pauling Institute, *Vitamin B6*[^41].
-    - **Where to find it:** the [usual order](#key-sources), but not from a label.
+- **Vitamin B6**{: #key-b6} — Involved in amino acid metabolism and neurotransmitter synthesis. One of the few water-soluble vitamins where very high long-term supplemental doses (not food intake) carry a real toxicity risk (nerve damage). For more, see *Vitamin B6* from the Linus Pauling Institute[^41].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed, but not from a label.
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: people almost never get too much B6 from food. Taking high-dose supplements for a year or longer can cause severe, sometimes irreversible nerve damage (loss of control of body movements), along with painful skin patches and extreme sun sensitivity[^58].
     - **[Data key](#gloss-data-key):** *b6_mg*
-- **Folate**{: #key-folate} — Essential for cell division and DNA synthesis; especially critical before and during early pregnancy to prevent neural tube defects. External: Linus Pauling Institute, *Folate*[^42].
-    - **Where to find it:** the [usual order](#key-sources); the French table has it for about two foods in five.
+- **Folate**{: #key-folate} — Essential for cell division and DNA synthesis; especially critical before and during early pregnancy to prevent neural tube defects. For more, see *Folate* from the Linus Pauling Institute[^42].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed; the French database has it for about two foods in five.
     - **[Data key](#gloss-data-key):** *folate_mcg*
-- **Vitamin B12**{: #key-b12} — Needed for nerve function and red blood cell formation. Almost exclusively animal-sourced[^7] — NuMa shows a specific low-intake warning on a Plant-based only dietary preference; see [Diet-Aware Bioavailability Notes](#diet-bioavailability). External: Linus Pauling Institute, *Vitamin B12*[^43].
-    - **Where to find it:** the [usual order](#key-sources). An unfortified plant food missing it has essentially none; a fortified one (plant milk, nutritional yeast, cereal) has it on its label.
+- **Vitamin B12**{: #key-b12} — Needed for nerve function and red blood cell formation. Almost exclusively animal-sourced[^7] — NuMa shows a specific low-intake warning on a Plant-based only dietary preference; see [Diet-Aware Bioavailability Notes](#diet-bioavailability). For more, see *Vitamin B12* from the Linus Pauling Institute[^43].
+    - **Where to find it:** the [six data sources](#key-sources) NuMa uses, tried in the order listed. An unfortified plant food missing it has essentially none; a fortified one (plant milk, nutritional yeast, cereal) has it on its label.
     - **[Data key](#gloss-data-key):** *b12_mcg*
 
 ---
@@ -5991,29 +6040,29 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 ##### Carotenoids
 
 - **Beta-carotene**{: #key-beta-carotene} — A provitamin-A carotenoid (orange/red pigment in carrots, sweet potatoes, squash); the body converts it to vitamin A, feeding into the Vitamin A (RAE) figure above via [USDA](#gloss-usda)'s own conversion factor rather than a simple sum.
-    - **Where to find it:** USDA, the Australian table, the UK table (whose figure is total carotene) and the French table for about half its foods. Then Claude, as in the [usual order](#key-sources). Foods that aren't orange, red or green have little.
+    - **Where to find it:** USDA, the Australian database, the UK database (whose figure is total carotene) and the French database for about half its foods. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses). Foods that aren't orange, red or green have little.
     - **[Data key](#gloss-data-key):** *beta_carotene_mcg*
 - **Alpha-carotene**{: #key-alpha-carotene} — A second provitamin-A carotenoid, generally present alongside beta-carotene in orange vegetables, converted to vitamin A less efficiently.
-    - **Where to find it:** Mostly USDA Foundation and [SR](#gloss-sr) Legacy records; the Australian table for about two foods in three; not the other tables. Often measured nowhere: step 6 of the [usual order](#key-sources) is a fair answer.
+    - **Where to find it:** Mostly USDA Foundation and [SR](#gloss-sr) Legacy records; the Australian database for about two foods in three; not the other databases. Often measured nowhere: step 6 of the [six data sources](#key-sources) NuMa uses ("Nobody has it") is a fair answer.
     - **[Data key](#gloss-data-key):** *alpha_carotene_mcg*
 - **Lycopene**{: #key-lycopene} — The red carotenoid in tomatoes and watermelon; unlike the two above, it has no vitamin A activity — it's tracked purely for its own antioxidant interest.
     - **Where to find it:** Almost only USDA Foundation and SR Legacy records. Only red foods (tomato, watermelon, pink grapefruit, guava) have much, so a missing value elsewhere is usually near zero; for a tomato product, a USDA tomato match is worth finding.
     - **[Data key](#gloss-data-key):** *lycopene_mcg*
 - **Lutein + Zeaxanthin**{: #key-lutein} — Carotenoids concentrated in the retina, where they're associated with eye health; found in leafy greens, corn, and eggs. Also no vitamin A activity. External (covers all four carotenoids above): Linus Pauling Institute, *Carotenoids*[^45].
-    - **Where to find it:** Almost only USDA Foundation and SR Legacy records. Often measured nowhere: step 6 of the [usual order](#key-sources) is a fair answer.
+    - **Where to find it:** Almost only USDA Foundation and SR Legacy records. Often measured nowhere: step 6 of the [six data sources](#key-sources) NuMa uses ("Nobody has it") is a fair answer.
     - **[Data key](#gloss-data-key):** *lutein_zeaxanthin_mcg*
 
 ##### Other Phytonutrients
 
-- **Choline**{: #key-choline} — Needed for cell membrane structure and neurotransmitter synthesis; a meaningful share of adults fall short of even its Adequate Intake — a candidate for a future [Revised Optimal](#optimal) target, see [Part 9](#expand-revised-optimal). External: Linus Pauling Institute, *Choline*[^44].
-    - **Where to find it:** [USDA](#gloss-usda) [SR](#gloss-sr) Legacy and Foundation records and the Canadian Nutrient File only; none of the other tables or labels. Then Claude, as in the [usual order](#key-sources).
+- **Choline**{: #key-choline} — Needed for cell membrane structure and neurotransmitter synthesis; a meaningful share of adults fall short of even its Adequate Intake — a candidate for a future [Revised Optimal](#optimal) target, see [Part 9](#expand-revised-optimal). For more, see *Choline* from the Linus Pauling Institute[^44].
+    - **Where to find it:** [USDA](#gloss-usda) [SR](#gloss-sr) Legacy and Foundation records and the Canadian Nutrient File only; none of the other databases or labels. Then Claude (step 5 of the [six data sources](#key-sources) NuMa uses).
     - Has a built-in Tolerable Upper Intake Level (UL) — see [Maximum Nutrient Limits](#maxlimits)[^9].
     - Risk of excess: a fishy body odor is the classic tell (from a choline metabolite excreted in sweat and urine); [NIH](#gloss-nih) also lists low blood pressure, sweating, and liver damage at high intakes, with some research linking very high intakes to cardiovascular risk[^59].
     - **[Data key](#gloss-data-key):** *choline_mg*
-- **Beta-sitosterol**{: #key-beta-sitosterol} — A plant sterol structurally similar to cholesterol; dietary intake is associated with modestly lower [LDL](#gloss-ldl) cholesterol. External: Linus Pauling Institute, *Phytosterols*[^47].
-    - **Where to find it:** USDA only, and for few foods (nuts, seeds, oils, legumes mainly). Usually measured nowhere: step 6 of the [usual order](#key-sources) is a fair answer.
+- **Beta-sitosterol**{: #key-beta-sitosterol} — A plant sterol structurally similar to cholesterol; dietary intake is associated with modestly lower [LDL](#gloss-ldl) cholesterol. For more, see *Phytosterols* from the Linus Pauling Institute[^47].
+    - **Where to find it:** USDA only, and for few foods (nuts, seeds, oils, legumes mainly). Usually measured nowhere: step 6 of the [six data sources](#key-sources) NuMa uses ("Nobody has it") is a fair answer.
     - **[Data key](#gloss-data-key):** *beta_sitosterol_mg*
-- **Isoflavones**{: #key-isoflavones} — Plant compounds with mild estrogen-like activity, found mainly in soy; frequently discussed in the context of soy's role in a plant-based diet. External: Linus Pauling Institute, *Soy Isoflavones*[^46].
+- **Isoflavones**{: #key-isoflavones} — Plant compounds with mild estrogen-like activity, found mainly in soy; frequently discussed in the context of soy's role in a plant-based diet. For more, see *Soy Isoflavones* from the Linus Pauling Institute[^46].
     - **Where to find it:** USDA, for soy foods mainly; outside NuMa, USDA's separate *Database for the Isoflavone Content of Selected Foods* is the standard source, worth giving to Claude. A food without soy or other legumes has essentially none.
     - **[Data key](#gloss-data-key):** *isoflavones_mg*
 
@@ -6021,7 +6070,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 26 minutes)*
+*(Reading time: 33 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6036,6 +6085,327 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Insert new updates below here -->
 
 #### Next release summary to this point (dated details below)
+
+Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. Many interface improvements and bug fixes.
+
+- **15.** Water in a recipe now counts as water from food unless the recipe itself is marked as a drink (tap water in a bread dough is no longer counted as a drink), with a note on the recipe page; every item in a meal, recipe, day or portion analysis now shows its grams of water beside its name.
+- **14.** A cooked recipe can now record the water it keeps after cooking, in g per 100 g (typed, copied from a food, or estimated from the weight it lost), and meals count that instead of the raw ingredients' water; recipes in a meal now show their water percentage too.
+- **13.** A recipe's own page now has an Archive recipe button (Restore recipe once archived), between Copy recipe and Delete recipe.
+- **12.** With Chrome or Chromium open, starting NuMa now opens it there instead of in your default browser.
+- **11.** On the Nutrient Plot, two goal lines that land at the same height now both show, as one line in alternating colors.
+- **10.** Reloading a food's Portions page after saving a change no longer shows "Method Not Allowed".
+- **9.** Food Cache and Pantry can be sorted by how many recipes and meals use each food, and the Pantry now shows that count too; Pantry gets a Sort by menu.
+- **8.** The Food Cache list now shows how many recipes and meals use each food.
+- **7.** Duplicate Foods now has a Delete button on each copy that nothing uses.
+- **6.** A barcode or FDC ID now works in every food search box, including on meal and recipe pages, and every search box says so underneath.
+- **5.** Starting NuMa from source with web/launch-web.sh now installs any missing packages first.
+- **4.** Settings → 11. Starter Data can now update every improved starter food and recipe with one button.
+- **3.** After a search, its section comes to the top of the window and the cursor lands on the first result, on every page with a search.
+- **2.** Alt+Shift+I now also clears the previous search's results when it puts the cursor in a search box.
+- **1.** MANUAL: A new section explains how to move foods and recipes between NuMa installs with CSV files: exporting, importing, and what does and doesn't travel.
+
+#### November 9 updates
+
+**PROGRAM: WATER IN A RECIPE COUNTS AS FOOD UNLESS THE RECIPE IS A DRINK**
+
+All the water in a recipe now counts as water from food, even from ingredients that are drinks on their own, such as the tap water in a bread dough; tick **This recipe is a drink** to count it all as drinks. A recipe with drink ingredients says so in a blue note on its page. Meals using such recipes were recalculated once. Every food and recipe in a meal's items, a recipe's ingredients, a day's list of meals and *Analyze a saved recipe portion* now shows its grams of water beside its name, "(72% water, 98 g)". [learn more...](#water-in-recipes)
+
+<!--
+
+```
+Scope: recipe_nutrients.expand_recipe_ingredients tags each leaf with the recipe's
+(or an enclosing recipe's) drink flag only, no longer `_drink or is_drink(food)`;
+leaves carry food_is_drink for drink_ingredient_water(), which feeds the recipe page's
+#drink-water-note. Meal-level foods keep their own flag (_meal_expand_for_diaas,
+whatif). db.init_db: new one_time_steps table; step 'recipe-drink-water' marks stale
+every meal logging a recipe that uses a drink food (at any depth) and logs the reason
+in meal_recalc_log. _mark_water now also sets water_amount_g (food: water x grams;
+recipe: per-serving water x servings) and is called on the day page's meal items and
+Analyze a saved recipe portion too; _water_mark.html renders "(N% water, G g)",
+"(N% water)" or "(G g water)".
+```
+
+-->
+
+**PROGRAM: WATER AFTER COOKING FOR RECIPES**
+
+A recipe's page now has a **Water after cooking** box: give the water the finished dish holds per 100 g (a number, or a food's code to copy its figure) and it replaces the water the raw ingredients add up to, in every meal, day and recipe that uses it. Weigh the batch after cooking and NuMa offers an estimate from the weight it lost. A recipe in a meal or another recipe now shows its water percentage beside its name, as foods do. [learn more...](#cooked-water)
+
+<!--
+
+```
+Scope: Recipe page (Water after cooking box, POST /recipe/{id}/cooked-water); new
+column recipes.cooked_water_per_100g (db.set_recipe_cooked_water). Applied in
+recipe_nutrients.expand_recipe_ingredients via apply_cooked_water(): needs the stated
+total_weight (cooked batch weight, not the raw ingredient sum); every leaf's water is
+scaled by target/raw so per-food breakdowns still add up, and retagged as food water
+unless the recipe or an enclosing one is a drink (so tap water baked into bread stops
+counting as drinks). No leaf with a water value -> the whole amount goes on the
+heaviest leaf. An outer recipe's own value supersedes its sub-recipes'. Setting it
+recomputes the recipe and marks meals using it stale. _mark_water now tags recipe rows
+(meal items, sub-recipe ingredients) via recipe_water_per_100g(). Recipe copy carries
+the value. Not in recipe CSV export (is_drink isn't either). Prompted by R79 (bread:
+4 c water, 2,328 g raw, 2,094 g baked -> 50.7 g/100 g counted vs ~39.6 actual).
+```
+
+-->
+
+#### November 7 updates
+
+**PROGRAM: ARCHIVE A RECIPE FROM ITS OWN PAGE**
+
+A recipe's page now has an **Archive recipe** button between **Copy recipe** and **Delete recipe**, so you can hide a recipe without going back to the Recipes list. Once archived, the page shows an "Archived" badge by the title and the button reads **Restore recipe**. [learn more...](#archive)
+
+<!--
+
+```
+Scope: web/templates/recipe_detail.html, web/backend.py (recipe_detail
+takes archived/restored/still_used flags for its notice;
+_recipe_delete_warning archive_here=True on the recipe page),
+tests/test_web.py.
+Posts to the existing /recipe/{id}/archive toggle with next=/recipe/{id};
+the Delete confirm now points at the Archive button next to it.
+```
+
+-->
+
+#### November 6 updates
+
+**PROGRAM: NUMA OPENS IN A RUNNING CHROME OR CHROMIUM**
+
+If Chrome or Chromium is the browser you have open when you start NuMa, NuMa now opens its tab there. Before, it gave up on Chrome or Chromium and opened your system's default browser (Firefox, say) instead. [learn more...](#browser-to-launch)
+
+<!--
+
+```
+Scope: web/launcher.py (_BROWSER_ALTERNATES, new _resolve_browser()),
+tests/test_launcher.py.
+A running Chrome or Chromium shows to pgrep -x as "chrome", its internal
+binary name (the Chromium snap runs /snap/chromium/.../chrome), but no
+"chrome" is on $PATH, so Popen raised OSError and _pick_and_open_browser
+fell through to webbrowser.open, the xdg default (Firefox). "chrome" now
+tries google-chrome, google-chrome-stable, chromium, chromium-browser;
+"google-chrome" also tries google-chrome-stable. _resolve_browser() is used
+both to pick the launchable name in detection and to launch.
+```
+
+-->
+
+**PROGRAM: NUTRIENT PLOT GOAL LINES NO LONGER HIDE EACH OTHER**
+
+When two nutrients' goal lines (or limit lines) land at the same height on the Nutrient Plot, they're now drawn as one line whose dashes alternate between the two nutrients' colors, so both show. Before, the later line covered the earlier one and a goal seemed to be missing. [learn more...](#nutrient-plot)
+
+<!--
+
+```
+Scope: numa_app/services/plotting.py (_draw_reference_lines(),
+_REF_PATTERNS, REF_LINE_MERGE_FRACTION), tests/test_web.py.
+Seen with Day DCP + Calories: the auto scale factor 28.5 put Calories'
+2424 kcal goal at 85.05, on the DCP goal of 85.1, so 5 goals drew as 4.
+Reference lines are now collected during the series loop and drawn after
+it; same-kind lines within 1% of the y-range are grouped and each drawn
+with the same dash period times n, offset by its index, at the group's
+mean height.
+```
+
+-->
+
+#### November 5 updates
+
+**PROGRAM: PORTIONS PAGE RELOADS AFTER A SAVE**
+
+After you add, edit, reorder or remove a portion, the Portions page now reloads normally, still showing what you just did, instead of giving a "Method Not Allowed" error. Removing a portion now also says "Portion removed." [learn more...](#food-cache-web)
+
+<!--
+
+```
+Scope: web/backend.py (food_cache_portions_add/edit/delete/move now
+POST-redirect-GET via _portions_redirect(); outcome as done=/error= keys
+looked up in _PORTION_DONE / _PORTION_ERRORS by food_cache_portions_get),
+tests/test_web.py.
+Each POST used to render the page in place, leaving the browser on
+/food/cache/{id}/portions/edit (etc.), a POST-only URL, so a reload or a
+revisit answered 405. test_nav_memory_skips_post_rendered_pages now uses
+/food/cache/claude-fetch as its POST-rendered example.
+```
+
+-->
+
+**PROGRAM: SORT BY USE, AND A SORT MENU FOR THE PANTRY**
+
+Food Cache's **Sort by** menu has a new **Used in** choice that puts the foods most recipes and meals use at the top. The Pantry list now has the same **Used in** column and its own **Sort by** menu: Name, Code, Type, DIAAS, GI estimate, Used in, or date Added. NuMa remembers the Pantry choice the way it remembers Food Cache's. [learn more...](#pantry)
+
+<!--
+
+```
+Scope: web/backend.py (_FOOD_CACHE_SORT_KEYS["used"], new _PANTRY_SORT_KEYS
+built from it plus "added"; pantry_get takes sort, pref "sort_pantry", adds
+"use" from data_quality.usage_counts), web/templates/food_cache.html (option),
+web/templates/pantry.html (Sort by select, Used in column), tests/test_web.py.
+Pantry was previously always in name order (db.pantry_list ORDER BY food_name);
+that stays the default. A name-only pantry entry counts as not used and has
+an empty code.
+```
+
+-->
+
+**PROGRAM: FOOD CACHE SHOWS WHERE EACH FOOD IS USED**
+
+The Food Cache list has a new **Used in** column giving, for each food, how many recipes and logged meals use it, such as "2 recipes, 5 meals", or "not used". [learn more...](#cached)
+
+<!--
+
+```
+Scope: web/backend.py (food_cache_get adds "use" from
+data_quality.usage_counts), web/templates/food_cache.html (Used in column;
+notes-row colspan 10 -> 11), tests/test_web.py.
+Counts are distinct recipes with the food as a direct ingredient and
+distinct meals with it as a food item; the same counts Duplicate Foods
+shows. One extra pass of three GROUP BY queries per page load.
+```
+
+-->
+
+**PROGRAM: DELETE BUTTON ON DUPLICATE FOODS**
+
+Each copy listed on Duplicate Foods (Foods → 9 → Find duplicate foods) now has a **Delete** button, so you can remove a copy you don't want without merging anything. It's greyed out on a copy that a recipe, meal or pantry entry still uses; keep another copy for those instead. [learn more...](#duplicate-foods)
+
+<!--
+
+```
+Scope: web/templates/food_duplicates.html, web/backend.py (food_cache_delete
+return_to, food_cache_duplicates deleted flag), tests/test_web.py.
+The button posts to the existing /food/cache/delete with
+return_to=/food/cache/duplicates (the only accepted value), which redirects
+back with ?deleted=1. Shown enabled only when f.use.total is 0, since that
+route refuses to delete a referenced food anyway.
+```
+
+-->
+
+#### November 3 updates
+
+**PROGRAM: BARCODE SEARCH ON EVERY FOOD SEARCH BOX**
+
+Typing a product's 12- or 13-digit barcode now finds it from any food search box: a meal's Add Food or Recipe, a recipe's Add Ingredient, the Pantry, Compare, Convert, and the copy-from searches on a food's page. Every one of those boxes also tells you, directly underneath, that it takes a name, an FDC ID or a barcode. [learn more...](#search-ranking)
+
+<!--
+
+```
+Scope: web/backend.py (_barcode_digits, _barcode_search_results, _run_food_search,
+_search_logic); web/templates/_search_hint.html (new macro) used by search.html,
+food_analyze_portion.html, meal.html, recipe_edit.html, pantry.html, compare.html,
+food_convert.html, food_fill_from.html, food_custom_edit.html (both pickers);
+search-box tooltips mention barcodes. Barcode lookup used to live only in
+_search_logic (Food Search, Analyze a Food Portion); every other box runs
+_run_food_search, which had code/FDC ID lookup but treated a barcode as a name.
+The lookup is now one helper both call. In _run_food_search a barcode never
+falls through to a name search: the instant local pass (external=False)
+checks only the cache, and the online pass also asks Open Food Facts and caches
+the product. So on those pages an uncached barcode needs an online source
+ticked (no online pass runs otherwise); Food Search still always looks it up.
+The meal-history "Meals that contain" filter is not a food search and is unchanged.
+```
+
+-->
+
+#### October 30 updates
+
+**PROGRAM: MISSING PACKAGES INSTALLED AT LAUNCH**
+
+Starting NuMa from source with `web/launch-web.sh` now installs anything in `requirements.txt` that this computer's `.venv` lacks, so a checkout synced to another laptop starts without a package error. If the install fails, you get a desktop notice and NuMa starts anyway.
+
+<!--
+
+```
+Scope: web/launch-web.sh. Runs .venv/bin/pip install -q --disable-pip-version-check -r
+requirements.txt, by full path, after the old server has stopped and just before
+launcher.py starts, so packages never change underneath a running server. About 1 second
+when nothing is missing. The if-wrapper keeps set -e from silently ending the launch on a
+pip failure (offline, say). pip output goes to web-server.log, and the server now appends
+to that log instead of truncating it, so pip errors survive. Installs the test/dev
+packages in requirements.txt too; playwright's browsers are not installed by this.
+```
+
+-->
+
+**PROGRAM: UPDATE ALL IMPROVED STARTER ITEMS AT ONCE**
+
+**Update all N items to the new version**, under "Improved in this version of NuMa" in Settings → 11, brings every improved starter food and recipe you have up to date in one step, with no need to check them one by one. It asks you to confirm first, since updating replaces any changes you made to those copies. [learn more...](#starter-data)
+
+<!--
+
+```
+Scope: Settings -> 11. Starter Data. web/templates/settings.html, web/backend.py.
+New POST /settings/starter-data/improve-all takes its list from
+demo_data.pending_changes() rather than the form, then calls the same
+apply_improvements() as the checked-items route. Covers recipes as well as
+foods, matching the list it sits under and "Keep all my copies as they are".
+```
+
+-->
+
+**PROGRAM: A SEARCH NOW TAKES YOU TO ITS RESULTS**
+
+After you run a search, its section ("Add Ingredient", "Add Food or Recipe") or, on a page without one, the search form itself comes to the top of the window, with the cursor on the first result: its amount box if it has one, otherwise its name. This works on every page with a search. Very short pages can only scroll as far as their end. [learn more...](#search-web)
+
+<!--
+
+```
+Scope: web/templates/base.html (scroll-memory script: submit of a form[data-search-form]
+with text in its box stores numa_ui_search_run instead of the submit-scroll offset; on
+load + one tick, opens the enclosing <details>, focuses firstSearchResult() and scrolls
+the section/form to the top, then the focused result into view if it fell below the
+window; scrolls are behavior:'instant' because Bootstrap's smooth scrolling let the
+second call cut the first short). numa:search-rows refocuses the first row after online
+results replace the rows, unless the cursor has moved; search.html, food_analyze_portion.html
+and meal.html now dispatch that event too. data-search-form on each page's main search
+form (plus meals.html's history search and Custom Foods' copy search, whose results table
+gained data-search-output). Other submits, and an empty box, keep the old scroll behavior.
+Tests: tests/e2e/test_search_lands_on_results_e2e.py, test_every_main_search_box_lands_on_its_results.
+```
+
+-->
+
+#### October 29 updates
+
+**PROGRAM: ALT+SHIFT+I CLEARS THE OLD SEARCH RESULTS**
+
+Pressing Alt+Shift+I to jump to a search box now also clears the previous search's results (and any "No results" or "Did you mean" line), so the page is ready for your next search. [learn more...](#web-shortcuts)
+
+<!--
+
+```
+Scope: web/templates/base.html (Alt+Shift+I branch adds .numa-search-cleared to every
+[data-search-output], .search-no-results, .search-suggestions); web/static/style.css
+(.numa-search-cleared = display:none !important, so a late online-results fetch setting
+inline display can't re-show them). data-search-output marks each page's results region:
+_search_results_block.html attrs() (fill-from, compare, convert, pantry, recipe edit),
+search.html, food_analyze_portion.html, meal.html, oxalate_link.html; filter-list pages
+(food_cache, recipes, meals_search, food_annotate) only when a query is active, so an
+unfiltered list is never hidden. Test: test_search_results_marked_for_alt_shift_i_clear.
+```
+
+-->
+
+**MANUAL: MOVING FOODS AND RECIPES WITH CSV FILES**
+
+You can now read, step by step, how to export foods and recipes to CSV files and import them on another NuMa install, including what each import does with foods and recipes you already have, and what is left behind. The Help links on both Import CSV pages now open it. [learn more...](#csv-transfer)
+
+<!--
+
+```
+Scope: user-manual.md Part 6 K (new, #csv-transfer / #csv-foods / #csv-recipes); Part 2A links;
+Backing up your data and the Part 9 CSV entry now link to it; help-link targets in
+web/templates/food_cache_import_csv.html (was #food-import) and recipe_import_csv.html (was #recipes).
+Facts checked against csv_export.py, csv_import.py (import_foods always creates new user_drafted
+foods; resolve_or_import_foods reuses by case-insensitive name), recipe_csv.py (RECIPE_COLUMNS has
+no introduction/serving_size; existing recipe names reused untouched; DCP recomputed for new ones).
+```
+
+-->
+
+#### Release v2026-10-28-1228 summary (dated details below)
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Many interface improvements and bug fixes.
 
@@ -6436,7 +6806,7 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **53.** Every food and recipe search box now takes a code, such as R21 or U171477, and shows just that food or recipe.
 - **52.** Foods → 9's missing nutrient data list has a **has none (0)** box under each gap, for a food that truly has none of that group; its Food data problems list has a **These calories are right** button; its list of foods with no amino acid data links each one to a search for a similar food's amino acids.
 - **51.** Each food in Top Contributors' list of foods with no data now has **Has none — record 0** and **Not needed for this food** buttons, and foods marked not needed leave that list, with an undo.
-- **50.** The list of foods with no data under Top Contributors now has a **Find this data** button for each food, and a link to that nutrient's entry in Appendix G, which now says, for every nutrient, which sources to try and in what order; the bundled UK, Australian and French food tables now include water.
+- **50.** The list of foods with no data under Top Contributors now has a **Find this data** button for each food, and a link to that nutrient's entry in Appendix G, which now says, for every nutrient, which sources to try and in what order; the bundled UK, Australian and French food databases now include water.
 - **49.** MANUAL: The manual's table of contents now opens one level at a time — click a ▸ arrow to see the next level down, double-click it to open everything below.
 - **48.** Top Contributors can show, in a second table beneath it, the foods with no data for the ranked nutrient.
 - **47.** A sub-recipe's amount on Edit Recipe can now be typed as servings with fractions, a weight, or a volume, like a recipe in a meal.

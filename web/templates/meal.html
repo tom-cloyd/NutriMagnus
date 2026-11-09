@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% import "_dcp_summary_line.html" as _dcpline %}
 {% import "_food_amount.html" as _famt %}
 {% import "_generic_density.html" as _gd with context %}
@@ -218,12 +219,12 @@
 <details open class="mb-3 add-food-row" id="add-food-details" data-remember="add-food">
   <summary><strong>Add Food or Recipe</strong> <span class="ak-hint">(put cursor here: Alt + Shift + I)</span></summary>
 
-  <form method="get" action="/meal/{{ meal.id }}" data-persist-search data-online-search>
+  <form method="get" action="/meal/{{ meal.id }}" data-persist-search data-online-search data-search-form>
     <input type="hidden" name="sort" value="{{ sort }}">
     <div class="add-food-search d-flex align-items-center flex-wrap gap-2 mb-2">
       <div class="input-group">
         <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
-               placeholder="Search foods or recipes…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
+               placeholder="Search foods or recipes…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" autofocus>
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </div>
@@ -233,6 +234,7 @@
             data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>
       {% if q and external_source_labels %}{{ _osn.notice("add-food-api-loading", external_source_labels) }}{% endif %}
     </div>
+    {{ _sh.hint("mb-2") }}
     <div class="mb-3">
       {% call _srcf.select(source, source_filters, source_labels, show_redo=False) %}
       <button type="submit" class="btn btn-sm btn-outline-primary"
@@ -246,6 +248,7 @@
   {% include "_food_quality_note.html" %}
 
   {% if q %}
+  <div data-search-output>
   <form method="get" action="/meal/{{ meal.id }}" class="d-flex flex-wrap gap-2 align-items-center mb-2">
     <input type="hidden" name="q" value="{{ q }}">
     {% for s in source %}<input type="hidden" name="source" value="{{ s }}">{% endfor %}
@@ -474,6 +477,7 @@
           noResults.style.display = '';
           window.numaInitSearchSuggestions(noResults);
         }
+        tbody.dispatchEvent(new CustomEvent('numa:search-rows', {bubbles: true}));
         window.scrollTo(scrollX, scrollY);
         refreshConfirmUI();
       })
@@ -482,6 +486,7 @@
       });
   })();
   </script>
+  </div>
   {% endif %}
 </details>
 

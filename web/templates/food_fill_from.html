@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% import "_source_filter_select.html" as source_filter %}
 {% import "_online_search_notice.html" as _osn %}
 {% import "_search_results_block.html" as _srb %}
@@ -29,13 +30,14 @@
 </div>
 {% endif %}
 
-<form method="get" action="/food/{{ food.fdc_id }}/fill-from" class="mb-2" data-online-search>
+<form method="get" action="/food/{{ food.fdc_id }}/fill-from" class="mb-2" data-online-search data-search-form>
   <div class="d-flex gap-2 mb-2 align-items-center">
     <input type="text" data-ak="i" class="form-control form-control-sm" name="q" value="{{ q }}"
-           placeholder="Search for a food to copy from…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" style="max-width:22rem" autofocus>
+           placeholder="Search for a food to copy from…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" style="max-width:22rem" autofocus>
     {% if want %}<input type="hidden" name="want" value="{{ want }}">{% endif %}
     <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
   </div>
+  {{ _sh.hint("mb-2") }}
   {{ source_filter.select(source, source_filters, source_labels) }}
 </form>
 {% if omitted_sources %}

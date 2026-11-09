@@ -1004,12 +1004,32 @@
       sessionStorage.removeItem(SUBMIT_KEY);
       if (st && st.path === window.location.pathname && Date.now() - st.t < 60000) submitY = st.y;
     } catch (err) {}
+    // A search just run from a form marked data-search-form takes precedence
+    // over both: the page lands with that search's section (its enclosing
+    // <details> — "Add Ingredient", "Add Food or Recipe" — or else the form)
+    // at the top of the window and focus on the first result. Only such a
+    // submit does this; adding a food from the results keeps your place.
+    var SEARCH_KEY = 'numa_ui_search_run';
+    var searchRun = null;
+    try {
+      var sr = JSON.parse(sessionStorage.getItem(SEARCH_KEY) || 'null');
+      sessionStorage.removeItem(SEARCH_KEY);
+      if (sr && sr.path === window.location.pathname && Date.now() - sr.t < 60000) searchRun = sr;
+    } catch (err) {}
     document.addEventListener('submit', function (e) {
       var f = e.target;
       // Bubble phase: an AJAX handler that called preventDefault has
       // already run, and that page never reloads.
       if (e.defaultPrevented || f.hasAttribute('data-scroll-top')) return;
       if ((f.getAttribute('target') || '_self') !== '_self') return;
+      var box = f.matches('form[data-search-form]') && f.querySelector('input[type="text"]');
+      if (box && box.value.trim()) {
+        try {
+          sessionStorage.setItem(SEARCH_KEY, JSON.stringify({
+            path: f.getAttribute('action'), field: box.name, t: Date.now()}));
+        } catch (err) {}
+        return;
+      }
       try {
         sessionStorage.setItem(SUBMIT_KEY, JSON.stringify({
           path: window.location.pathname, y: window.scrollY, t: Date.now()}));
@@ -1019,7 +1039,7 @@
                     ? performance.getEntriesByType('navigation')[0] : null);
     // A page can opt out entirely with a [data-no-scroll-restore] element
     // (the Annotate page, which must always open at its top).
-    if (!window.location.hash && navEntry && navEntry.type === 'navigate'
+    if (!window.location.hash && navEntry && navEntry.type === 'navigate' && !searchRun
         && !document.querySelector('[data-no-scroll-restore]')) {
       var y = submitY !== null ? submitY
               : parseInt(sessionStorage.getItem(SCROLL_KEY) || '0', 10);
@@ -1033,6 +1053,55 @@
           });
         });
       }
+    }
+    // The first result's amount box if it has one (a meal's or recipe's food
+    // and recipe rows, whichever comes first), else the first row's own text
+    // box, else its name link, else whatever else it offers.
+    function firstSearchResult(scope) {
+      var outputs = scope.querySelectorAll('[data-search-output]');
+      for (var i = 0; i < outputs.length; i++) {
+        var amount = outputs[i].querySelector(
+          '.add-food-form input[name="portion_str"], .add-food-form input[name="amount"]');
+        if (amount && amount.getClientRects().length) return amount;
+        var rows = outputs[i].querySelectorAll('tbody tr, .list-group-item');
+        for (var j = 0; j < rows.length; j++) {
+          var el = rows[j].querySelector('input[type="text"], input[type="number"]')
+                   || rows[j].querySelector('a[href]')
+                   || rows[j].querySelector('button:not([disabled]), input:not([type="hidden"]):not([disabled])');
+          if (el && el.getClientRects().length) return el;
+        }
+      }
+      return null;
+    }
+    if (searchRun && navEntry && navEntry.type === 'navigate') {
+      // 'load' plus one tick, so this runs after the native [autofocus],
+      // the page's own first-result focus and every scroll restore.
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          var box = document.querySelector(
+            'form[data-search-form] input[name="' + searchRun.field + '"]');
+          if (!box) return;
+          var section = box.form.closest('details');
+          if (section) section.open = true;
+          var scope = section || document;
+          var first = firstSearchResult(scope);
+          if (first) first.focus({preventScroll: true});
+          // 'instant': Bootstrap's smooth scrolling would have the second
+          // call cut the first short, measuring from the old position.
+          (section || box.form).scrollIntoView({block: 'start', behavior: 'instant'});
+          if (first) first.scrollIntoView({block: 'nearest', behavior: 'instant'});
+          // Online results replace the rows later, which drops focus from a
+          // row (or there were no rows until now). Focus the new first row,
+          // unless the cursor has since been put somewhere else.
+          var settled = document.activeElement;
+          document.addEventListener('numa:search-rows', function () {
+            var at = document.activeElement;
+            if (at && at !== document.body && at !== settled) return;
+            var el = firstSearchResult(scope);
+            if (el) { el.focus({preventScroll: true}); settled = el; }
+          });
+        }, 0);
+      });
     }
     window.addEventListener('pagehide', function () {
       try {
@@ -1093,8 +1162,14 @@
       // input itself). It may sit inside a collapsed section (the meal
       // page's "Add Food or Recipe", the recipe editor's "Add Ingredient"),
       // so open every enclosing <details> first, then focus and select the
-      // text so typing replaces the previous search.
+      // text so typing replaces the previous search. It also clears the
+      // previous search's output: each page marks its results region with
+      // data-search-output, and the "No results" / "Did you mean" lines are
+      // shared classes. A class with !important, not an inline style, so an
+      // online-results fetch still landing afterwards can't bring them back.
       if (target.tagName === 'INPUT') {
+        document.querySelectorAll('[data-search-output], .search-no-results, .search-suggestions')
+          .forEach(function (el) { el.classList.add('numa-search-cleared'); });
         for (var d = target.closest('details'); d; d = d.parentElement.closest('details')) {
           d.open = true;
         }

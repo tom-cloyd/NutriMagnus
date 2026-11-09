@@ -87,6 +87,7 @@ from numa_app.services.diet_aware import b12_deficiency_note, iron_zinc_bioavail
 from numa_app.services.recipe_nutrients import (
     atomic_recipe_ingredients, best_aa_nutrients, expand_recipe_ingredients,
     recipe_aa_indicator, recipe_serving_grams, recipe_total_nutrients,
+    cooked_water_info, cooked_water_per_100g, drink_ingredient_water, recipe_water_per_100g,
 )
 from numa_app.services.top_contributors import rank_contributors, rank_contributors_by_dcp, rank_contributors_by_gl
 from numa_app.services.top_contributors import missing_contributors as _missing_contributors
@@ -464,7 +465,7 @@ def _recipe_delete_warning(name: str, meal_use: dict | None, sub_users: list[str
     passes it through |tojson). Names every logged meal count and sub-recipe
     use the delete would break, and points at Archive, which breaks nothing.
     `archive_here` — whether an Archive button sits right next to Delete
-    (the Recipes list) or lives on the Recipes list (the recipe's own page)."""
+    (true on both the Recipes list and the recipe's own page)."""
     uses = []
     if meal_use:
         n = meal_use["meals"]
@@ -2846,6 +2847,58 @@ def _code_search_results(query: str) -> list[dict] | None:
     return rows
 
 
+def _barcode_digits(query: str) -> str | None:
+    """The 12 or 13 digits (UPC-A or EAN-13) a search box's whole query is,
+    spaces and hyphens ignored ("0 12345 67890 1" works too), else None."""
+    digits = re.sub(r"[\s\-]", "", query or "")
+    return digits if digits.isdigit() and len(digits) in (12, 13) else None
+
+
+def _barcode_search_results(digits: str, *, online: bool = True) -> tuple[list[dict] | None, str | None]:
+    """The one food a typed barcode names, as a one-row result list in the
+    usual cached-row shape, plus an error message (or None). The food cache
+    first; then, when `online`, a real Open Food Facts barcode lookup (not a
+    text search, which can't reliably match a GTIN), whose product is cached
+    so every page can use it. Typing the exact barcode is itself the
+    confirmation, so the match is the search's only result rather than going
+    through a separate confirm step. (None, None) when `online` is False and
+    the food isn't cached yet: the page's online pass looks it up."""
+    fdc_id = _off.off_id(digits)
+    fetched = False
+    with _db.get_db() as conn:
+        cached = _db.get_cached_food(conn, fdc_id)
+    if cached is None:
+        if not online:
+            return None, None
+        try:
+            detail = _off.lookup_by_barcode(digits)
+        except Exception as exc:
+            return [], f"Open Food Facts unavailable: {exc}"
+        if detail is None:
+            return [], f"Barcode {digits} not found in Open Food Facts. Try searching by product name instead."
+        with _db.get_db() as conn:
+            _db.cache_food(
+                conn, detail["fdcId"], detail["name"], detail.get("dataType", ""),
+                detail.get("brand"), detail.get("servingSize"), detail.get("servingUnit"),
+                detail.get("nutrients", {}), detail.get("portions"),
+                category=detail.get("category"),
+            )
+            _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
+        fdc_id, fetched = detail["fdcId"], True
+    with _db.get_db() as conn:
+        food = conn.execute(
+            "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
+            "portions_json, notes, nutrients_json, archived FROM foods WHERE fdc_id = ?",
+            (fdc_id,)).fetchone()
+        rows = _cached_search_rows([food], _db.annotations_for_fdcids(conn, [fdc_id]),
+                                   _pantry_id_by_fdc(conn))
+    for r in rows:
+        r["code_match"] = True
+        if fetched:
+            r["source"] = "off"
+    return rows, None
+
+
 def _search_api_query(q: str) -> str:
     """The words a meal-style search sends to the online sources: source
     names typed into the box (usda, off, ...) and prep-state words (raw,
@@ -2877,6 +2930,15 @@ def _run_food_search(query: str, source: list[str], limit: int, *, sort: str | N
     """
     if sort is None:
         sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    # A typed barcode is that one product: the cache on the instant local
+    # pass, Open Food Facts too on the online pass. A barcode never falls
+    # through to a name search — a string of digits matches nothing useful.
+    digits = _barcode_digits(query)
+    if digits is not None:
+        bc_rows, _err = _barcode_search_results(digits, online=external)
+        if bc_rows is not None:
+            return [r for r in bc_rows if r.get("fdc_id") != exclude_fdc_id]
+        return []
     # A typed code (R21, U171477, UD4 ...) is that one item, whatever the
     # Source boxes say — unless this search can't offer it.
     code_rows = _code_search_results(query)
@@ -3014,58 +3076,11 @@ async def _search_logic(request: Request, query: str, template: str, extra_ctx: 
     source = _resolve_source_filter(source, "sort_food_search_source")
     limit = _resolve_result_limit(limit)
 
-    # Barcode detection: 12 or 13 consecutive digits (UPC-A or EAN-13).
-    # Spaces and hyphens are stripped first so "0 12345 67890 1" also works.
-    # Cache first, then a real Open Food Facts barcode lookup (not a text
-    # search, which can't reliably match a GTIN). Typing the exact barcode is
-    # itself the confirmation, so the match is shown as the one search result
-    # rather than routed through a separate confirm step.
-    _bc_digits = re.sub(r"[\s\-]", "", query)
-    if _bc_digits.isdigit() and len(_bc_digits) in (12, 13):
-        bc_fdc_id = _off.off_id(_bc_digits)
-        with _db.get_db() as conn:
-            bc_cached = _db.get_cached_food(conn, bc_fdc_id)
-        if bc_cached:
-            nutrients = json.loads(bc_cached["nutrients_json"]) if bc_cached["nutrients_json"] else {}
-            results.append({
-                "fdc_id":    bc_cached["fdc_id"],
-                "name":      bc_cached["name"],
-                "data_type": bc_cached["data_type"],
-                "brand":     bc_cached["brand"] or "",
-                "source":    "cache",
-                "aa":        _usda.aa_indicator(nutrients),
-                "gi":        None,
-                "diaas":     None,
-                "has_notes": bool(bc_cached["notes"]),
-            })
-        else:
-            try:
-                detail = _off.lookup_by_barcode(_bc_digits)
-            except Exception as exc:
-                detail = None
-                error = f"Open Food Facts unavailable: {exc}"
-            if detail is not None:
-                with _db.get_db() as conn:
-                    _db.cache_food(
-                        conn, detail["fdcId"], detail["name"], detail.get("dataType", ""),
-                        detail.get("brand"), detail.get("servingSize"), detail.get("servingUnit"),
-                        detail.get("nutrients", {}), detail.get("portions"),
-                        category=detail.get("category"),
-                    )
-                    _recipe_dcp.cascade_food_change(detail["fdcId"], conn)
-                results.append({
-                    "fdc_id":    detail["fdcId"],
-                    "name":      detail["name"],
-                    "data_type": detail.get("dataType", ""),
-                    "brand":     detail.get("brand") or "",
-                    "source":    "off",
-                    "aa":        _usda.aa_indicator(detail.get("nutrients", {})),
-                    "gi":        None,
-                    "diaas":     None,
-                    "has_notes": False,
-                })
-            elif not error:
-                error = f"Barcode {_bc_digits} not found in Open Food Facts. Try searching by product name instead."
+    # A typed barcode resolves right here, online lookup included, so the
+    # page renders with its one result (see _barcode_search_results).
+    _bc_digits = _barcode_digits(query)
+    if _bc_digits is not None:
+        results, error = _barcode_search_results(_bc_digits)
         ctx = {"results": results, "query": query, "error": error, "sort": sort, "source": source,
                "limit": limit, "external_source_labels": _external_source_labels(source),
                "source_filters": _SEARCH_SOURCE_FILTERS, "source_labels": _SEARCH_SOURCE_LABELS,
@@ -3292,6 +3307,7 @@ def food_analyze_recipe_portion_post(
                 "notes":          ing["notes"] or "",
                 "fdc_id":         ing["fdc_id"],
                 "ref_recipe_id":  ing["ref_recipe_id"],
+                "amount":         ing["amount"],
             })
             if not ing["fdc_id"]:
                 continue
@@ -3304,6 +3320,7 @@ def food_analyze_recipe_portion_post(
                 "grams":          float(ing["amount"]) / recipe_servings * servings,
                 "fdc_id":         ing["fdc_id"],
             })
+        _mark_water(conn, display_ingredients)
 
         diaas_result = None
         if diaas_ingredients:
@@ -3588,7 +3605,17 @@ _FOOD_CACHE_SORT_KEYS = {
     "type":  lambda f: ((f["data_type"] or "").lower(), (f["name"] or "").lower()),
     "diaas": lambda f: (f["diaas"] is None, -(f["diaas"] or 0), (f["name"] or "").lower()),
     "gi":    lambda f: (f["gi"] is None, -(f["gi"] or 0), (f["name"] or "").lower()),
+    # Most-used first: recipes + meals using the food directly.
+    "used":  lambda f: (-(f["use"]["recipes"] + f["use"]["meals"]), (f["name"] or "").lower()),
 }
+
+# Pantry list sorts — the Food Cache's, read off a pantry row (food_name,
+# and a pantry entry not linked to a food has no code), plus date added.
+_PANTRY_SORT_KEYS = {
+    k: (lambda key: lambda i: key({**i, "name": i["food_name"], "fdc_id": i["fdc_id"] or 0}))(fn)
+    for k, fn in _FOOD_CACHE_SORT_KEYS.items()
+}
+_PANTRY_SORT_KEYS["added"] = lambda i: (i["added_at"] or "", (i["food_name"] or "").lower())
 
 
 @app.get("/food/cache", response_class=HTMLResponse)
@@ -3608,6 +3635,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
         fdc_ids = [r["fdc_id"] for r in rows]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
         pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
+        usage = _data_quality.usage_counts(conn)
 
     foods = []
     for row in rows:
@@ -3632,6 +3660,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
             "archived":       bool(row["archived"]),
             "in_pantry":      row["fdc_id"] in pantry_fdc_ids,
+            "use":            usage.get(row["fdc_id"], {"recipes": 0, "meals": 0}),
         })
     foods.sort(key=_FOOD_CACHE_SORT_KEYS[sort])
     return templates.TemplateResponse(request, "food_cache.html", {
@@ -3672,11 +3701,13 @@ def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
 
 @app.post("/food/cache/delete", response_class=RedirectResponse)
 def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form(""),
-                             sort: str = Form(""), show_archived: int = Form(0)):
+                             sort: str = Form(""), show_archived: int = Form(0),
+                             return_to: str = Form("")):
     """Delete a cached food — refused if a pantry entry, recipe, or meal still
     references it, since that would silently orphan the reference (it would
     keep pointing at an fdc_id with no data behind it, breaking that food's
-    page). Use Archive instead to hide a still-referenced food."""
+    page). Use Archive instead to hide a still-referenced food. `return_to`
+    (only the Duplicate Foods page) sends a successful delete back there."""
     params = {"q": q, "sort": sort, "show_archived": show_archived}
     ajax = _is_ajax_row_action(request)
     with _db.get_db() as conn:
@@ -3702,6 +3733,8 @@ def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form("
         _db.delete_cached_food(conn, fdc_id)
     if ajax:
         return JSONResponse({"ok": True})
+    if return_to == "/food/cache/duplicates":
+        return RedirectResponse("/food/cache/duplicates?deleted=1", status_code=303)
     return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
 
 
@@ -4272,7 +4305,7 @@ def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
 @app.get("/food/cache/duplicates", response_class=HTMLResponse)
 def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int = 0,
                                 dismissed: int = 0, impact: str = "", copied: int = 0,
-                                pantry_merged: int = 0):
+                                pantry_merged: int = 0, deleted: int = 0):
     """Duplicate foods (data_quality.duplicate_groups), run on request from
     Foods → 9: for each group keep one (the others are replaced by it
     everywhere and deleted, after a review of anything they'd take with
@@ -4292,6 +4325,7 @@ def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int
         "groups": groups, "show_dismissed": bool(show_dismissed),
         "merged": merged, "dismissed": dismissed, "impact": _impact_pop(impact),
         "copied": copied, "pantry_groups": pantry_groups, "pantry_merged": pantry_merged,
+        "deleted": deleted,
     })
 
 
@@ -4487,10 +4521,27 @@ def _portion_amounts_review(fdc_id: int) -> dict:
     return {"stale_amounts": rows}
 
 
+# Portions page changes post, then redirect back to the page itself
+# (POST-redirect-GET), so the address bar never sits on a POST-only URL —
+# reloading /portions/edit was "Method Not Allowed". The outcome travels as a
+# short key, looked up here, never as message text.
+_PORTION_DONE = {"added": "Portion saved.", "updated": "Portion updated.",
+                 "moved": "Portion order updated.", "removed": "Portion removed."}
+_PORTION_ERRORS = {"gram": "Gram weight must be a positive number.",
+                   "desc": "Description is required.",
+                   "gone": "That portion no longer exists."}
+
+
+def _portions_redirect(fdc_id: int, done: str = "", error: str | None = None) -> RedirectResponse:
+    params = {"error": error} if error else ({"done": done} if done else {})
+    return RedirectResponse(f"/food/cache/{fdc_id}/portions" + (f"?{urlencode(params)}" if params else ""),
+                            status_code=303)
+
+
 @app.get("/food/cache/{fdc_id}/portions", response_class=HTMLResponse)
 def food_cache_portions_get(request: Request, fdc_id: int, amounts_fixed: int = 0,
                                   amounts_kept: int = 0,
-                                  impact: str = ""):
+                                  impact: str = "", done: str = "", error: str = ""):
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     if not cached:
@@ -4499,8 +4550,9 @@ def food_cache_portions_get(request: Request, fdc_id: int, amounts_fixed: int = 
     return templates.TemplateResponse(request, "food_cache_portions.html", {
         "food":     {"fdc_id": cached["fdc_id"], "name": cached["name"]},
         "portions": portions,
-        "saved":    False,
-        "error":    None,
+        "saved":    done in _PORTION_DONE,
+        "flash_message": _PORTION_DONE.get(done),
+        "error":    _PORTION_ERRORS.get(error),
         "amounts_fixed": amounts_fixed,
         "amounts_kept": amounts_kept,
         "impact":   _impact_pop(impact),
@@ -4526,10 +4578,10 @@ def food_cache_portions_add(
         if gw <= 0:
             raise ValueError
     except (ValueError, TypeError):
-        error = "Gram weight must be a positive number."
+        error = "gram"
     desc = description.strip()
     if not desc:
-        error = "Description is required."
+        error = "desc"
     if not error:
         portions.append({"description": desc, "gram_weight": round(gw, 2)})
         with _db.get_db() as conn:
@@ -4537,13 +4589,7 @@ def food_cache_portions_add(
     with _db.get_db() as conn:
         cached = _db.get_cached_food(conn, fdc_id)
     portions = json.loads(cached["portions_json"] or "[]") or []
-    return templates.TemplateResponse(request, "food_cache_portions.html", {
-        "food":     {"fdc_id": fdc_id, "name": cached["name"]},
-        "portions": portions,
-        "saved":    not error,
-        "error":    error,
-        **_portion_amounts_review(fdc_id),
-    })
+    return _portions_redirect(fdc_id, done="added", error=error)
 
 
 @app.post("/food/cache/{fdc_id}/portions/edit", response_class=HTMLResponse)
@@ -4566,25 +4612,18 @@ def food_cache_portions_edit(
         if gw <= 0:
             raise ValueError
     except (ValueError, TypeError):
-        error = "Gram weight must be a positive number."
+        error = "gram"
     desc = description.strip()
     if not desc:
-        error = "Description is required."
+        error = "desc"
     if not error and not 0 <= portion_index < len(portions):
-        error = "That portion no longer exists."
+        error = "gone"
     if not error:
         portions[portion_index] = {**portions[portion_index], "description": desc,
                                    "gram_weight": round(gw, 2)}
         with _db.get_db() as conn:
             _db.update_food_portions(conn, fdc_id, portions)
-    return templates.TemplateResponse(request, "food_cache_portions.html", {
-        "food":          {"fdc_id": fdc_id, "name": cached["name"]},
-        "portions":      portions,
-        "saved":         not error,
-        "flash_message": "Portion updated.",
-        "error":         error,
-        **_portion_amounts_review(fdc_id),
-    })
+    return _portions_redirect(fdc_id, done="updated", error=error)
 
 
 @app.post("/food/cache/{fdc_id}/portions/delete", response_class=HTMLResponse)
@@ -4602,13 +4641,7 @@ def food_cache_portions_delete(
         portions.pop(portion_index)
         with _db.get_db() as conn:
             _db.update_food_portions(conn, fdc_id, portions)
-    return templates.TemplateResponse(request, "food_cache_portions.html", {
-        "food":     {"fdc_id": fdc_id, "name": cached["name"]},
-        "portions": portions,
-        "saved":    False,
-        "error":    None,
-        **_portion_amounts_review(fdc_id),
-    })
+    return _portions_redirect(fdc_id, done="removed")
 
 
 @app.post("/food/cache/{fdc_id}/portions/move", response_class=HTMLResponse)
@@ -4629,14 +4662,7 @@ def food_cache_portions_move(
         portions[portion_index], portions[swap_with] = portions[swap_with], portions[portion_index]
         with _db.get_db() as conn:
             _db.update_food_portions(conn, fdc_id, portions)
-    return templates.TemplateResponse(request, "food_cache_portions.html", {
-        "food":          {"fdc_id": fdc_id, "name": cached["name"]},
-        "portions":      portions,
-        "saved":         moved,
-        "flash_message": "Portion order updated.",
-        "error":         None,
-        **_portion_amounts_review(fdc_id),
-    })
+    return _portions_redirect(fdc_id, done="moved" if moved else "")
 
 
 @app.post("/food/cache/{fdc_id}/refresh", response_class=HTMLResponse)
@@ -4703,11 +4729,13 @@ def food_cache_refresh(request: Request, fdc_id: int):
 
 @app.get("/pantry", response_class=HTMLResponse)
 def pantry_get(request: Request, added: str = "", linked: str = "",
-                      link_id: int = 0, filter: str = "",
+                      link_id: int = 0, filter: str = "", sort: str | None = None,
                       show_archived: bool | None = None, archived: int = 0, restored: int = 0):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_pantry")
+    sort = _resolve_sort(sort, "sort_pantry", "name", set(_PANTRY_SORT_KEYS))
     with _db.get_db() as conn:
         rows = _db.pantry_list(conn, include_archived=show_archived)
+        usage = _data_quality.usage_counts(conn)
         fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
         items = []
@@ -4726,8 +4754,10 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
                 "gi_source":   _ann_source(ann),
                 "diaas":       diaas,
                 "diaas_saved": diaas_saved is not None,
+                "use":         usage.get(r["fdc_id"], {"recipes": 0, "meals": 0}),
             })
             items.append(item)
+    items.sort(key=_PANTRY_SORT_KEYS[sort])
 
     # "Filter my pantry list" narrows the list below — separate from `search`,
     # which looks for new foods to add (cache + online sources). Every word must
@@ -4761,6 +4791,7 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
         "source_filters": _SEARCH_SOURCE_FILTERS,
         "source_labels": _SEARCH_SOURCE_LABELS,
         "restored": restored,
+        "sort": sort,
     })
 
 
@@ -8134,6 +8165,7 @@ def _day_context(meal_date: str, from_meal_id: int | None = None,
                     it["recipe_deleted"] = _db.recipe_get(conn, it["recipe_id"]) is None
             _annotate_recipe_amounts(m_items, conn)
             _annotate_food_amounts(m_items, conn)
+            _mark_water(conn, m_items)
             m["meal_items"] = _sort_meal_items_display(m_items)
 
     diaas_display = _build_diaas_display(diaas_result)
@@ -8872,6 +8904,20 @@ async def settings_starter_data_improve(request: Request):
         _demo_data.apply_improvements(conn, food_fdc_ids, recipe_names)
         _mark_starter_problems_seen(conn)
     return RedirectResponse("/settings?saved=starter_data_improved#starter-data", status_code=303)
+
+
+@app.post("/settings/starter-data/improve-all", response_class=RedirectResponse)
+def settings_starter_data_improve_all():
+    """Replace the user's copies of every starter item still listed as
+    improved. The list comes from pending_changes(), not the form, so it's
+    exactly what Settings -> 11 is offering."""
+    from numa_app.services import demo_data as _demo_data
+    with _db.get_db() as conn:
+        pending = _demo_data.pending_changes(conn, silent=_is_curator())
+        _demo_data.apply_improvements(
+            conn, [f["fdc_id"] for f in pending["improved_foods"]], pending["improved_recipes"])
+        _mark_starter_problems_seen(conn)
+    return RedirectResponse("/settings?saved=starter_data_improved_all#starter-data", status_code=303)
 
 
 @app.post("/settings/starter-data/keep-mine", response_class=RedirectResponse)
@@ -9813,9 +9859,13 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         referencing_recipes = _db.recipe_referencing_subrecipe(conn, recipe_id)
         delete_warning = _recipe_delete_warning(
             recipe["name"], _db.recipe_meal_use(conn, recipe_id).get(recipe_id),
-            [r["name"] for r in referencing_recipes], archive_here=False)
+            [r["name"] for r in referencing_recipes], archive_here=True)
         per_serving = _recipe_nutrients_per_serving(recipe_id, conn)
         recipe_servings = float(recipe["servings"] or 1)
+        cooked_water = cooked_water_info(recipe_id, conn) if _track_water() else None
+        # Drink foods whose water counts as food here, since the recipe isn't
+        # a drink — named in a note by the drink checkbox (manual #water).
+        drink_water = drink_ingredient_water(recipe_id, conn) if _track_water() else []
         if servings is None:
             servings = 1.0
 
@@ -9913,6 +9963,8 @@ def _recipe_detail_context(recipe_id: int, servings: float | None,
         "oxalate":                  oxalate,
         "referencing_recipes":      referencing_recipes,
         "delete_warning":           delete_warning,
+        "cooked_water":             cooked_water,
+        "drink_water":              drink_water,
     }
 
 
@@ -9924,7 +9976,9 @@ def recipe_detail(request: Request, recipe_id: int, servings: float | None = Non
                          anchor_name: list[str] = Query(default=[]),
                          anchor_grams: list[str] = Query(default=[]),
                          uncap: list[str] = Query(default=[]),
-                         rank: str | None = None, top_n: str | None = None):
+                         rank: str | None = None, top_n: str | None = None,
+                         archived: int = 0, restored: int = 0, still_used: int = 0,
+                         cooked_water_error: str = ""):
     comp_sort = _resolve_sort(comp_sort, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = _resolve_sort(diaas_sort, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
     ctx = _recipe_detail_context(recipe_id, servings, ignore_complements, unignore,
@@ -9934,6 +9988,9 @@ def recipe_detail(request: Request, recipe_id: int, servings: float | None = Non
         return RedirectResponse("/recipes", status_code=303)
     with _db.get_db() as conn:
         ctx["translations"] = _db.recipe_translation_list(conn, recipe_id)
+    # Notice after the page's own Archive/Restore button (recipe_archive's flags).
+    ctx.update(just_archived=bool(archived), just_restored=bool(restored),
+               still_used=bool(still_used), cooked_water_error=cooked_water_error)
     return templates.TemplateResponse(request, "recipe_detail.html", ctx)
 
 
@@ -10140,16 +10197,38 @@ def _mark_generic_density(conn, ingredients: list[dict]) -> None:
 
 
 def _mark_water(conn, rows: list[dict]) -> None:
-    """Set row["water_pct"] (the food's water per 100 g, or None) and
+    """For _water_mark.html, on each row of a recipe's ingredients or a
+    meal's items: row["water_pct"] (water per 100 g, or None), row["water_amount_g"]
+    (grams of water in the row's amount, or None) and, for a food,
     row["wet_dry"] (water.wet_dry_conflict() for the food's own name and the
-    name typed for it, or None) on each food row of a recipe's ingredients or
-    a meal's items, for _water_mark.html. Skipped while water tracking is off."""
+    name typed for it, or None). A row's "amount" is grams for a food and
+    servings for a recipe, on every list this is called for. A recipe row
+    gives the water as counted — after cooking, when set. Skipped while
+    water tracking is off."""
     if not _track_water():
         return
+    per_serving: dict[int, float | None] = {}
     for row in rows:
+        amount = row.get("amount")
+        try:
+            amount = float(amount) if amount is not None else None
+        except (TypeError, ValueError):
+            amount = None
         # A recipe ingredient's recipe_id is its parent recipe, so only
         # ref_recipe_id marks a sub-recipe; a meal's recipe items have no fdc_id.
-        if row.get("ref_recipe_id") or not row.get("fdc_id"):
+        sub_id = row.get("ref_recipe_id") or (row.get("recipe_id") if row.get("item_type") == "recipe" else None)
+        if sub_id:
+            recipe = _db.recipe_get(conn, sub_id)
+            if recipe is None:
+                continue
+            row["water_pct"] = recipe_water_per_100g(sub_id, conn)
+            if sub_id not in per_serving:
+                water = recipe_total_nutrients(sub_id, conn).get(_water.WATER_KEY)
+                per_serving[sub_id] = water / float(recipe["servings"] or 1) if water is not None else None
+            if per_serving[sub_id] is not None and amount is not None:
+                row["water_amount_g"] = per_serving[sub_id] * amount
+            continue
+        if not row.get("fdc_id"):
             continue
         cached = _db.get_cached_food(conn, row["fdc_id"])
         if cached is None:
@@ -10157,6 +10236,8 @@ def _mark_water(conn, rows: list[dict]) -> None:
         nutrients = json.loads(cached["nutrients_json"] or "{}") or {}
         water = nutrients.get(_water.WATER_KEY)
         row["water_pct"] = float(water) if water is not None else None
+        if water is not None and amount is not None and not _supplements.is_supplement(cached):
+            row["water_amount_g"] = float(water) * amount / 100.0
         row["wet_dry"] = _water.wet_dry_conflict([row.get("food_name") or "", cached["name"]], nutrients)
 
 
@@ -10515,6 +10596,46 @@ def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = Form("
     return RedirectResponse(_local_next(next, f"/recipe/{recipe_id}#drink-toggle"), status_code=303)
 
 
+@app.post("/recipe/{recipe_id}/cooked-water", response_class=RedirectResponse)
+def recipe_set_cooked_water(recipe_id: int, value: str = Form(""), next: str = Form("")):
+    """Set the recipe's water once cooked, g per 100 g of the finished dish
+    (recipe_nutrients.apply_cooked_water) — typed as a number, or as a food
+    code (U123456) to copy that food's water; blank clears it. Then refresh
+    its saved nutrients and the recipes and meals built on it."""
+    back = f"/recipe/{recipe_id}"
+    text = value.strip()
+    per_100g = None
+    with _db.get_db() as conn:
+        if not _db.recipe_get(conn, recipe_id):
+            return RedirectResponse("/recipes", status_code=303)
+        if text:
+            try:
+                # "40", "40 g", "40%", "40 g/100 g" all mean 40 g per 100 g.
+                per_100g = _entry_parse.parse_number(
+                    re.sub(r"\s*(g\s*(per|/)\s*100\s*g|g|%)$", "", text, flags=re.I))
+            except _entry_parse.EntryError:
+                try:
+                    kind, fdc_id = _parse_code(text)
+                except ValueError as e:
+                    return _cooked_water_error(back, str(e))
+                cached = _db.get_cached_food(conn, fdc_id) if kind == "food" else None
+                water = (json.loads(cached["nutrients_json"] or "{}") or {}).get(_water.WATER_KEY) if cached else None
+                if water is None:
+                    return _cooked_water_error(
+                        back, f"{text.upper()} isn't a cached food with a water value." if kind == "food"
+                        else "Give a number, or a food's code (not a recipe's).")
+                per_100g = float(water)
+            if not 0 <= per_100g <= 100:
+                return _cooked_water_error(back, "Water per 100 g has to be between 0 and 100.")
+        _db.set_recipe_cooked_water(conn, recipe_id, per_100g)
+        _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+    return RedirectResponse(_local_next(next, back + "#cooked-water"), status_code=303)
+
+
+def _cooked_water_error(back: str, message: str) -> RedirectResponse:
+    return RedirectResponse(f"{back}?{urlencode({'cooked_water_error': message})}#cooked-water", status_code=303)
+
+
 @app.post("/recipe/{recipe_id}/gi-as-eaten", response_class=RedirectResponse)
 def recipe_set_gi_as_eaten(recipe_id: int, as_eaten: int = Form(0), next: str = Form("")):
     """Say this recipe's raw/dry/flour ingredients are eaten as they are, so
@@ -10572,6 +10693,7 @@ def recipe_copy_post(recipe_id: int):
                 ref_recipe_id=ing["ref_recipe_id"],
                 ref_recipe_deleted=bool(ing["ref_recipe_deleted"]),
             )
+        _db.set_recipe_cooked_water(conn, new_id, cooked_water_per_100g(src))
         _recipe_dcp.recompute_recipe_dcp(new_id, conn)
     return RedirectResponse(f"/recipe/{new_id}/edit", status_code=303)
 

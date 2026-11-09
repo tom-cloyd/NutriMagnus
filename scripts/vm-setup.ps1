@@ -2,12 +2,12 @@
 #
 # Run this ONCE manually inside the VM. It:
 #   1. Downloads your SSH public key from the Linux host (served over HTTP)
-#   2. Installs Python 3.13 via winget
+#   2. Installs Python 3.13 from python.org
 #   3. Installs Rich and PyInstaller
 #   4. Enables the OpenSSH server so Linux can SSH in for future builds
 #   5. Sets PowerShell as the default SSH shell
 #
-# How to run (inside the VM, open PowerShell and paste this one line):
+# How to run (inside the VM, open PowerShell as Administrator and paste this one line):
 #
 #   powershell -ExecutionPolicy Bypass -Command "iwr 'http://192.168.122.1:8765/scripts/vm-setup.ps1' -OutFile $env:TEMP\vm-setup.ps1; & $env:TEMP\vm-setup.ps1"
 #
@@ -33,7 +33,10 @@ try {
     Fail "Could not fetch SSH key from $KeyURL - is 'make vm-setup' still running on the Linux host?"
 }
 
-# -- 2. Install Python 3.13 via winget ----------------------------------------
+# -- 2. Install Python 3.13 from python.org ------------------------------------
+# Uses the official installer rather than winget, which does not exist on the
+# Windows 11 Enterprise Evaluation image. All-users install needs an elevated
+# PowerShell; a non-elevated run fails here with the installer's exit code.
 Info "Installing Python 3.13..."
 $pyCheck = Get-Command python.exe -ErrorAction SilentlyContinue
 $pythonWorks = $false
@@ -46,8 +49,10 @@ if ($pyCheck -and $pyCheck.Source -notlike "*WindowsApps*") {
 if ($pythonWorks) {
     OK "Python already installed: $ver"
 } else {
-    winget install --id Python.Python.3.13 --source winget --silent --accept-package-agreements --accept-source-agreements
-    if ($LASTEXITCODE -ne 0) { Fail "winget install Python failed" }
+    $PythonInstaller = "$env:TEMP\python-3.13.9-amd64.exe"
+    Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.13.9/python-3.13.9-amd64.exe" -OutFile $PythonInstaller -UseBasicParsing
+    $proc = Start-Process -FilePath $PythonInstaller -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0" -Wait -PassThru
+    if ($proc.ExitCode -ne 0) { Fail "Python installer failed (exit code $($proc.ExitCode)) - is this PowerShell running as Administrator?" }
     OK "Python 3.13 installed"
 }
 
@@ -59,7 +64,7 @@ $env:PATH = $MachinePath + ";" + $UserPath
 $pythonCmd = Get-Command python.exe -ErrorAction SilentlyContinue
 $pythonExe = if ($pythonCmd) { $pythonCmd.Source } else { $null }
 if (-not $pythonExe) {
-    $candidates = @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe", "C:\Python313\python.exe")
+    $candidates = @("$env:ProgramFiles\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe", "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe", "C:\Python313\python.exe")
     foreach ($c in $candidates) { if (Test-Path $c) { $pythonExe = $c; break } }
 }
 if (-not $pythonExe) { Fail "Cannot locate python.exe. Reopen PowerShell and re-run." }

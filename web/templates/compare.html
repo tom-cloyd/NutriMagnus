@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
 {% import "_online_search_notice.html" as _osn %}
@@ -118,19 +119,20 @@
 {% endif %}
 
 {# ── Add food/recipe search ── #}
-<form method="get" action="/compare" class="mb-2" id="compare-search-form" data-online-search>
+<form method="get" action="/compare" class="mb-2" id="compare-search-form" data-online-search data-search-form>
   <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
       <input type="text" data-ak="i" class="form-control" name="search"
              value="{{ search }}"
-             placeholder="Search for a food or recipe to add…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
+             placeholder="Search for a food or recipe to add…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
     {% if items_str %}<a class="btn btn-outline-secondary" href="/compare?return_to={{ return_to | urlencode }}" title="Remove every item from this comparison and start a new list (saved lists are not affected)">Clear the list and start over</a>{% endif %}
     {% if search %}<span id="compare-search-no-results" class="search-no-results" data-query="{{ search }}" data-field="search"{% if search_results or search_pending %} style="display:none"{% endif %}>No results for <strong>{{ search }}</strong>.</span>{% endif %}
   </div>
+  {{ _sh.hint("mb-2") }}
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   {{ _rli.input(limit) }}
 </form>

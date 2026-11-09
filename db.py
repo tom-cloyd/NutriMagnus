@@ -613,6 +613,38 @@ def init_db() -> None:
             conn.execute("ALTER TABLE recipes ADD COLUMN is_drink INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
             pass
+        # recipes.cooked_water_per_100g: the recipe's water once cooked, g per
+        # 100 g of the finished dish — replaces the water its raw ingredients
+        # add up to, since cooking/baking drives some of it off. NULL = use
+        # the ingredients' water. Applied in recipe_nutrients.py.
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN cooked_water_per_100g REAL")
+        except sqlite3.OperationalError:
+            pass
+        # one_time_steps: data fixes that must run exactly once, named.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS one_time_steps (
+                name    TEXT PRIMARY KEY,
+                done_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+        # From 2026-11-09 a drink food's water counts as drinks inside a
+        # recipe only when the recipe itself is a drink (recipe_nutrients.
+        # expand_recipe_ingredients): meals logging a recipe that uses a
+        # drink food get their stored totals recalculated, once.
+        if not conn.execute("SELECT 1 FROM one_time_steps WHERE name = 'recipe-drink-water'").fetchone():
+            conn.execute("INSERT INTO one_time_steps (name) VALUES ('recipe-drink-water')")
+            _rids: set[int] = set()
+            for (_fid,) in conn.execute("SELECT fdc_id FROM foods WHERE is_drink = 1").fetchall():
+                _rids.update(recipes_using_food(conn, _fid))
+            if _rids:
+                _ph = ",".join("?" * len(_rids))
+                _meals = [r[0] for r in conn.execute(
+                    f"SELECT DISTINCT meal_id FROM meal_items WHERE item_type = 'recipe' AND recipe_id IN ({_ph})",
+                    tuple(_rids))]
+                mark_meals_stale_for_recipes(conn, _rids)
+                log_meal_recalc(conn, _meals, "water from a drink used inside a recipe (tap water in a dough, say) "
+                                              "now counts as water from food, unless the recipe is marked as a drink")
         # foods.is_supplement: counted per unit, not a food — no food checks,
         # no weight, and its nutrients tracked as "from supplements"
         # (numa_app/services/supplements.py). Backfilled from supplement mode
@@ -1020,6 +1052,13 @@ def set_recipe_is_drink(conn: sqlite3.Connection, recipe_id: int, is_drink: bool
     """Mark a whole recipe as a drink: all of its water then counts as water
     from drinks, whatever its ingredients are."""
     conn.execute("UPDATE recipes SET is_drink = ? WHERE id = ?", (1 if is_drink else 0, recipe_id))
+
+
+def set_recipe_cooked_water(conn: sqlite3.Connection, recipe_id: int,
+                            per_100g: float | None) -> None:
+    """Set (or clear, with None) a recipe's water once cooked, in g per 100 g
+    of the finished dish — see recipe_nutrients.apply_cooked_water()."""
+    conn.execute("UPDATE recipes SET cooked_water_per_100g = ? WHERE id = ?", (per_100g, recipe_id))
 
 
 def set_recipe_gi_as_eaten(conn: sqlite3.Connection, recipe_id: int, as_eaten: bool) -> None:

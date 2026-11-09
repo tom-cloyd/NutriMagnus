@@ -127,9 +127,47 @@
   {% else %}
   <span class="badge bg-secondary">Incomplete</span>
   {% endif %}
+  {% if recipe.archived %}<span class="badge bg-secondary">Archived</span>{% endif %}
   <small class="text-muted">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %} defined{{ _sn.note(recipe.serving_size) }}</small>
 </div>
 {% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/recipe/%s/drink" % recipe.id, recipe.is_drink, "recipe") }}
+{% if drink_water %}
+<div class="alert alert-info py-2 small" id="drink-water-note" role="note">
+  <strong>Water from drink ingredients counts as water from food here.</strong>
+  This recipe isn&rsquo;t marked as a drink, so the water in
+  {% for d in drink_water %}{% if not loop.first %}{{ " and " if loop.last else ", " }}{% endif %}<em>{{ d.name }}</em> ({{ d.water_g | round | int }} g in the batch, {{ (d.water_g / (recipe.servings or 1)) | round | int }} g per serving){% endfor %}
+  counts as <em>water from food</em> in your totals, not water from drinks &mdash; water baked or cooked into a dish isn&rsquo;t something you drank.
+  If you drink this recipe (a smoothie, a coffee), tick <strong>This recipe is a drink</strong> above and all its water counts as drinks.
+  {{ manual_link("water") }}
+</div>
+{% endif %}
+{% if cooked_water %}{% set cw = cooked_water %}
+<form method="post" action="/recipe/{{ recipe.id }}/cooked-water" class="mb-3" id="cooked-water">
+  <label for="cooked_water_value" class="form-label mb-1">Water after cooking
+    <small class="muted">(g per 100 g of the finished dish &mdash; replaces the water the raw ingredients add up to; blank = use the ingredients&rsquo; water)</small>
+    {{ manual_link("cooked-water") }}</label>
+  <div class="d-flex flex-wrap gap-2 align-items-center">
+    <input type="text" name="value" id="cooked_water_value" class="form-control form-control-sm" style="max-width: 12rem"
+           value="{{ '%g' % (cw.value | round(1)) if cw.value is not none else '' }}"
+           placeholder="e.g. 38, or a food code">
+    <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+    {% if cw.value is not none %}<button type="submit" name="value" value="" class="btn btn-sm btn-outline-secondary">Clear</button>{% endif %}
+  </div>
+  {% if cooked_water_error %}<div class="text-danger small mt-1">{{ cooked_water_error }}</div>{% endif %}
+  <div class="small muted mt-1">
+    Type a number, or the code of a food whose water to copy (a commercial version of the dish, by the code beside its name).
+    {% if cw.raw_water_g is not none %}The raw ingredients hold {{ cw.raw_water_g | round | int }} g of water{% if cw.raw_g %} in {{ cw.raw_g | round | int }} g{% if not cw.raw_complete %}+ (some weights unknown){% endif %}{% endif %}.{% endif %}
+    {% if cw.estimate is not none %}Weighed after cooking at {{ cw.batch_g | round | int }} g: if all {{ (cw.raw_g - cw.batch_g) | round | int }} g lost was water, that leaves
+      <strong>{{ cw.estimate | round(1) }} g per 100 g</strong>
+      <button type="submit" name="value" value="{{ cw.estimate | round(1) }}" class="btn btn-link btn-sm p-0 align-baseline">use this</button>.{% endif %}
+  </div>
+  {% if cw.value is not none and not cw.applied %}
+  <div class="alert alert-warning py-1 px-2 small mt-1 mb-0">Not in use yet: give the recipe a total weight (what the cooked batch weighs) on its Edit page &mdash; numa needs it to turn g per 100 g into the batch&rsquo;s water.</div>
+  {% elif cw.applied %}
+  <div class="small mt-1">In use: {{ (cw.value * cw.batch_g / 100) | round | int }} g of water in the {{ cw.batch_g | round | int }} g batch, counted as water from {{ "drinks" if recipe.is_drink else "food" }}.</div>
+  {% endif %}
+</form>
+{% endif %}
 {% if slow_cooker_beans %}
 <div class="alert alert-danger py-2" id="slow-cooker-beans" role="alert">
   <strong>FOOD SAFETY:</strong> this recipe uses dried beans ({{ slow_cooker_beans | join("; ") }}) and its instructions mention a slow cooker.
@@ -161,6 +199,14 @@
 {% endif %}
 
 {# ── Actions ──────────────────────────────────────────────────────────── #}
+{% if just_archived %}
+<div class="alert alert-success">
+  Archived — hidden from default lists and search.
+  {% if still_used %}<span class="muted">It's still used as a sub-recipe or in a logged meal — those keep working as before.</span>{% endif %}
+</div>
+{% elif just_restored %}
+<div class="alert alert-success">Restored.</div>
+{% endif %}
 {# align-items-start: without it, a flex row's default stretch makes a bare
    <a class="btn"> child fill the row's full height, while a <button> nested
    inside a <form> child absorbs that same stretch invisibly on the form
@@ -176,6 +222,12 @@
   <form method="post" action="/recipe/{{ recipe.id }}/copy" style="margin:0">
     <button type="submit" class="btn btn-sm btn-outline-secondary"
             title="Create a new recipe named &quot;Copy of …&quot; with the same ingredients, servings, and text, then open it for editing. Useful for trying a variation (different ingredients or amounts) without changing the original">Copy recipe</button>
+  </form>
+  {# Archive/Restore toggle; lands back here with a notice (recipe_archive's flags). #}
+  <form method="post" action="/recipe/{{ recipe.id }}/archive" style="margin:0">
+    <input type="hidden" name="next" value="/recipe/{{ recipe.id }}">
+    <button type="submit" class="btn btn-sm btn-outline-secondary"
+            title="{% if recipe.archived %}Restore to normal use{% else %}Hide from default lists and search, without losing it — logged meals and recipes that use it keep working{% endif %}">{% if recipe.archived %}Restore recipe{% else %}Archive recipe{% endif %}</button>
   </form>
   {# delete_warning: _recipe_delete_warning() — names the meals and recipes
      a delete would break. Single-quoted attribute: |tojson escapes ' but not ". #}

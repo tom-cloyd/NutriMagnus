@@ -50,11 +50,20 @@ _BROWSER_DISPLAY_NAMES = {
     "opera": "Opera", "microsoft-edge": "Microsoft Edge", "epiphany": "GNOME Web",
 }
 
-# A Settings choice that distros install under more than one binary name —
-# tried in order, so the single "Chromium" choice works whichever one exists.
+# A browser name that may not itself be a launchable program — tried in
+# order, first one that resolves wins. Distros install Chromium under more
+# than one binary name, so the single "Chromium" Settings choice works
+# whichever exists. And a running Chrome *or* Chromium shows up to pgrep as
+# "chrome" (the internal binary name, e.g. the Chromium snap's
+# /snap/chromium/.../chrome), but nothing called "chrome" is on $PATH —
+# without these alternates the launch failed and quietly fell back to the
+# OS default browser (seen 2026-11-06: Chromium running, Firefox opened).
 _BROWSER_ALTERNATES = {
     "chromium": ("chromium", "chromium-browser"),
     "chromium-browser": ("chromium-browser", "chromium"),
+    "google-chrome": ("google-chrome", "google-chrome-stable"),
+    "chrome": ("chrome", "google-chrome", "google-chrome-stable",
+               "chromium", "chromium-browser"),
 }
 
 # A desktop-entry / application-launcher shortcut typically runs with a
@@ -84,6 +93,15 @@ def _resolve_executable(name: str) -> str | None:
     return shutil.which(name, path=search_path)
 
 
+def _resolve_browser(name: str) -> str | None:
+    """Absolute path for browser `name`, trying its _BROWSER_ALTERNATES too."""
+    return next(
+        (path for alt in _BROWSER_ALTERNATES.get(name, (name,))
+         if (path := _resolve_executable(alt))),
+        None,
+    )
+
+
 def _detect_running_browsers() -> list[str]:
     """One launchable process name per actual running browser (Linux only).
 
@@ -105,7 +123,7 @@ def _detect_running_browsers() -> list[str]:
     for name in running:
         by_label.setdefault(_BROWSER_DISPLAY_NAMES.get(name, name), []).append(name)
     return [
-        next((n for n in names if _resolve_executable(n)), names[0])
+        next((n for n in names if _resolve_browser(n)), names[0])
         for names in by_label.values()
     ]
 
@@ -193,11 +211,7 @@ def _pick_and_open_browser(url: str) -> None:
         elif running:
             binary = running[0]
     if binary:
-        target = next(
-            (path for name in _BROWSER_ALTERNATES.get(binary, (binary,))
-             if (path := _resolve_executable(name))),
-            binary,
-        )
+        target = _resolve_browser(binary) or binary
         try:
             subprocess.Popen(
                 [target, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL

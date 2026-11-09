@@ -14,7 +14,7 @@
 <p class="muted">All foods that have been loaded from USDA or Open Food Facts are stored here.</p>
 
 <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
-  <form method="get" action="/food/cache">
+  <form method="get" action="/food/cache" data-search-form>
     <input type="hidden" name="sort" value="{{ sort }}">
     <p class="muted mb-1"><small><strong>Filter this list</strong> narrows the foods already in your cache. <strong>Search online</strong> looks for these words in USDA, Open Food Facts and the other sources, on Foods&nbsp;→&nbsp;Search.</small></p>
     <div class="input-group" style="max-width:40rem">
@@ -71,6 +71,7 @@
 {% include "_food_delete_blocked.html" %}
 {% endif %}
 
+<div{% if q %} data-search-output{% endif %}>
 {% if q %}
 <p class="result-count">
   {{ foods|length }} result{% if foods|length != 1 %}s{% endif %}
@@ -108,6 +109,7 @@
       <option value="type"  {% if sort == "type"  %}selected{% endif %}>Type</option>
       <option value="diaas" {% if sort == "diaas" %}selected{% endif %}>DIAAS</option>
       <option value="gi"    {% if sort == "gi"    %}selected{% endif %}>GI estimate</option>
+      <option value="used"  {% if sort == "used"  %}selected{% endif %}>Used in (most first)</option>
     </select>
   </form>
   <button type="submit" form="claude-fetch-form" class="btn btn-sm {{ 'btn-primary' if fetchable_foods else 'btn-outline-secondary' }}" title="Builds a prompt you copy and paste into Claude AI (claude.ai), asking it for the amino acid and nutrient values the ticked foods are missing. You then paste Claude's reply back into NuMa to fill those gaps. Nothing is sent anywhere automatically.">Fetch missing data from Claude AI</button>
@@ -126,6 +128,7 @@
       <th class="text-center">AA</th>
       <th class="text-center">GI est.</th>
       <th class="text-center">DIAAS</th>
+      <th title="How many recipes and logged meals use this food directly">Used in</th>
       <th>Notes</th>
       <th>Actions</th>
     </tr>
@@ -168,6 +171,11 @@
         {% endif %}
         {% else %}—{% endif %}
       </td>
+      <td style="white-space:nowrap"><small>
+        {% if food.use.recipes or food.use.meals %}
+        {{ food.use.recipes }} recipe{{ "s" if food.use.recipes != 1 }}, {{ food.use.meals }} meal{{ "s" if food.use.meals != 1 }}
+        {% else %}<span class="muted">not used</span>{% endif %}
+      </small></td>
       <td>
         {% if food.notes or food.curator_notes %}
         <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline" onclick="toggleNotes({{ food.fdc_id }})">
@@ -239,7 +247,7 @@
     </tr>
     {% if food.notes or food.curator_notes %}
     <tr id="notes-row-{{ food.fdc_id }}" style="display:none">
-      <td colspan="10" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
+      <td colspan="11" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
         {% if food.notes %}
         <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
         {% endif %}
@@ -281,4 +289,5 @@ function toggleNotes(fdcId) {
 <p>No foods in cache{% if q %} matching that filter{% else %} yet. <a href="/settings#starter-data">Load starter data</a> to explore the app{% endif %}.</p>
 {% if q %}<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>{% endif %}
 {% endif %}
+</div>
 {% endblock %}

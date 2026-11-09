@@ -6,6 +6,8 @@ set -euo pipefail
 
 NUMA_DIR="/home/tomc/Dropbox/www/__Active/Obsidian-vault/_sync2/Python-work/numa"
 PYTHON="$NUMA_DIR/.venv/bin/python"
+PIP="$NUMA_DIR/.venv/bin/pip"
+REQUIREMENTS="$NUMA_DIR/requirements.txt"
 LAUNCHER="$NUMA_DIR/web/launcher.py"
 LOG="$NUMA_DIR/web-server.log"
 URL="http://127.0.0.1:8000"
@@ -20,8 +22,16 @@ if fuser 8000/tcp &>/dev/null 2>&1; then
     done
 fi
 
-# Start the web server in the background
-"$PYTHON" "$LAUNCHER" --no-browser >"$LOG" 2>&1 &
+# Install anything requirements.txt lists that this laptop's .venv lacks.
+# Done after the old server has stopped, so packages never change underneath
+# it. A failure (offline, say) warns but doesn't block the launch: everything
+# the server needs may already be there.
+if ! "$PIP" install -q --disable-pip-version-check -r "$REQUIREMENTS" >"$LOG" 2>&1; then
+    notify-send "NutriMagnus" "Could not install the packages NuMa needs. Starting anyway. Check $LOG" 2>/dev/null || true
+fi
+
+# Start the web server in the background (appending, to keep any pip errors)
+"$PYTHON" "$LAUNCHER" --no-browser >>"$LOG" 2>&1 &
 SERVER_PID=$!
 
 # Wait up to 30 seconds for the server to accept connections (cold starts on a

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_ul_column.html" as _ul %}
+{% import "_water_mark.html" as _wm %}
 {% import "_rda_goal_column.html" as _rdagoal %}
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
@@ -101,7 +102,7 @@
   <ul class="list-unstyled ms-2 mt-2">
     {% for ing in ingredients %}
     <li>
-      {{ ing.amount_str }} &nbsp; {{ ing.food_name }}{{ food_id_tag(ing.fdc_id, recipe_id=ing.ref_recipe_id) }}
+      {{ ing.amount_str }} &nbsp; {{ ing.food_name }}{{ food_id_tag(ing.fdc_id, recipe_id=ing.ref_recipe_id) }}{{ _wm.mark(ing) }}
       {% if ing.notes %}<small class="muted"> ({{ ing.notes }})</small>{% endif %}
     </li>
     {% endfor %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_search_hint.html" as _sh %}
 {% import "_search_result_row.html" as _sr %}
 {% import "_source_filter_select.html" as _srcf %}
 {% import "_result_limit_input.html" as _rli %}
@@ -18,20 +19,20 @@
 {% set _bc = query.replace(" ", "").replace("-", "") %}
 {% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
 
-<form method="get" action="/food/search" data-persist-search="query" data-online-search>
+<form method="get" action="/food/search" data-persist-search="query" data-online-search data-search-form>
   <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
-  <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
+  <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
     <div class="input-group" style="max-width: 40%">
       <input type="text" data-ak="i" class="form-control" name="query" value="{{ query }}"
-             placeholder="e.g. salmon, oat bran, lentils" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number) to go straight to that one food or recipe" autofocus>
+             placeholder="e.g. salmon, oat bran, lentils" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" autofocus>
       <button type="submit" class="btn btn-primary">Search</button>
     </div>
     <span id="search-no-results" class="search-no-results" {% if results or not is_barcode_query %}style="display:none"{% endif %}
           data-query="{{ query }}" data-field="query">No results for <strong>{{ query }}</strong>.</span>
   </div>
+  {{ _sh.hint("mb-2") }}
   <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
   <div class="mb-3">{{ _rli.input(limit) }}</div>
-  <p class="muted mb-2"><small>Type a food name, an <a href="/manual#gloss-fdc-id" target="_blank" rel="noopener">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
   {% if query %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
 </form>
 
@@ -40,6 +41,7 @@
 {% endif %}
 
 {% if query %}
+<div data-search-output>
 <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
   <p class="result-count mb-0" id="search-result-count">
     {{ results|length }} result{% if results|length != 1 %}s{% endif %}
@@ -215,11 +217,13 @@
       strong.textContent = {{ query | tojson }};
       countEl.appendChild(strong);
       refreshConfirmUI();
+      tbody.dispatchEvent(new CustomEvent('numa:search-rows', {bubbles: true}));
     })
     .catch(function () {
       loadingRow.textContent = 'Online search failed — reload to retry.';
     });
 })();
 </script>
+</div>
 {% endif %}
 {% endblock %}

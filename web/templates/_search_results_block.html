@@ -8,7 +8,7 @@
    page's own query string (request.url.query); `ident` the page's id.
    count(): "N result(s)", kept current by the script. #}
 {% macro attrs(screen, pending, query, empty_id, ident=none) -%}
-{% if pending %} data-search-results="/search-rows/{{ screen }}?{% if ident %}id={{ ident }}&{% endif %}{{ query }}"{% endif %} data-search-empty="{{ empty_id }}"
+{% if pending %} data-search-results="/search-rows/{{ screen }}?{% if ident %}id={{ ident }}&{% endif %}{{ query }}"{% endif %} data-search-empty="{{ empty_id }}" data-search-output
 {%- endmacro %}
 {% macro count(n) -%}
 <span class="js-result-n">{{ n }}</span> result<span class="js-result-s">{{ '' if n == 1 else 's' }}</span>
