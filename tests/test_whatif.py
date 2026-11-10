@@ -435,10 +435,29 @@ class TestRealSubstitutionCheck:
         assert _wi.real_substitution_problems(
             [Edit("replace", ("recipe", 1), ("recipe", 2), basis="servings")]) == []
 
+    @pytest.mark.parametrize("page", ["meals", "recipes"])
     @pytest.mark.parametrize("edit", [
-        Edit("remove", ("food", OATS)),
+        Edit("remove", ("recipe", 1)),
         Edit("add", ("food", OATS), amount=10.0),
         Edit("scale", ("food", OATS), amount=0.5),
+    ])
+    def test_remove_add_and_scale_are_allowed(self, edit, page):
+        assert _wi.real_substitution_problems([edit], page) == []
+
+    def test_scale_to_zero_is_refused(self):
+        assert "use Remove" in _wi.real_substitution_problems([Edit("scale", ("food", OATS), amount=0.0)])[0]
+
+    def test_added_recipe_holding_a_changed_item_is_refused(self, data, db_conn):
+        edits = [Edit("add", ("recipe", data["bowl"]), amount=1.0, unit="servings"),
+                 Edit("remove", ("food", MILK))]
+        assert _wi.real_substitution_problems(edits) == []        # no conn: not checked
+        assert "contains Almond milk" in _wi.real_substitution_problems(edits, "meals", db_conn)[0]
+
+    def test_removing_what_another_change_brings_in_is_refused(self):
+        assert _wi.real_substitution_problems(
+            [Edit("replace", ("food", OATS), ("food", MILK)), Edit("remove", ("food", MILK))])
+
+    @pytest.mark.parametrize("edit", [
         Edit("replace", ("food", OATS), ("food", LENTILS), amount=1.2, basis="factor"),
         Edit("replace", ("food", OATS), ("food", LENTILS), amount=30.0, basis="stated"),
         Edit("replace", ("food", OATS), ("recipe", 1)),
@@ -479,10 +498,10 @@ def web():
     return TestClient(backend.app)
 
 
-def _meals_query(op="replace", item=f"U{OATS}", with_=f"U{LENTILS}", basis="grams"):
+def _meals_query(op="replace", item=f"U{OATS}", with_=f"U{LENTILS}", basis="grams", amt=""):
     from urllib.parse import urlencode
     return urlencode({"mode": "range", "ranges_raw": "2026-01-01:2026-01-02", "e_op": op,
-                      "e_item": item, "e_with": with_, "e_amt": "", "e_basis": basis, "days": "all"})
+                      "e_item": item, "e_with": with_, "e_amt": amt, "e_basis": basis, "days": "all"})
 
 
 def test_saved_scenario_round_trip(data, web, db_conn):
@@ -510,9 +529,12 @@ def test_csv_routes(data, web):
 
 
 def test_apply_offered_only_for_a_matching_scenario(data, web):
-    assert "Apply these replacements for real" in web.get("/analysis/whatif?" + _meals_query()).text
-    text = web.get("/analysis/whatif?" + _meals_query(op="remove")).text
-    assert "Apply these replacements for real" not in text and "Apply for real isn't offered" in text
+    assert "Apply these changes for real" in web.get("/analysis/whatif?" + _meals_query()).text
+    assert "Apply these changes for real" in web.get("/analysis/whatif?" + _meals_query(op="remove")).text
+    text = web.get("/analysis/whatif?" + _meals_query(basis="factor", amt="1.2")).text
+    assert "Apply these changes for real" not in text and "Apply for real isn't offered" in text
+    text = web.get("/analysis/whatif?" + _meals_query() + "&applied=1").text
+    assert "Apply these changes for real" not in text and "have just been applied" in text
 
 
 def test_apply_meals_changes_direct_items_only(data, web, db_conn):
@@ -527,6 +549,35 @@ def test_apply_meals_changes_direct_items_only(data, web, db_conn):
     assert (item["fdc_id"], item["food_name"], item["amount"]) == (LENTILS, "Lentils", 100.0)
     # The oats inside the Bowl recipe are untouched.
     assert db_conn.execute("SELECT COUNT(*) FROM recipe_ingredients WHERE fdc_id=?", (OATS,)).fetchone()[0] == 2
+
+
+def test_apply_meals_remove_deletes_direct_items_only(data, web, db_conn):
+    from urllib.parse import urlencode
+    q = _meals_query(op="remove")
+    page = web.get("/analysis/whatif/apply?" + urlencode({"page": "meals", "query": q})).text
+    assert f"M{data['m2']}" in page and "1 other meal(s) have it only inside a recipe" in page
+    resp = web.post("/analysis/whatif/apply", data={"page": "meals", "query": q}, follow_redirects=False)
+    assert "applied=1" in resp.headers["location"]
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (data["m2"],)).fetchone()[0] == 0
+    assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (data["m1"],)).fetchone()[0] == 1
+
+
+def test_apply_meals_remove_recipe_logged_as_ingredients(data, web, db_conn):
+    from urllib.parse import urlencode
+    mid = _db.meal_create(db_conn, "Lunch", "2026-01-02")
+    for fdc_id, name, grams in [(OATS, "Oats", 30.0), (OATS, "Oats", 50.0),
+                                (OATS, "Oats", 100.0), (MILK, "Almond milk", 250.0)]:
+        _db.meal_add_food(db_conn, mid, fdc_id, name, grams, f"{grams:g} g")
+    db_conn.commit()
+    q = urlencode({"mode": "ids", "meal_ids": str(mid), "e_op": "remove", "e_item": f"R{data['bowl']}",
+                   "e_with": "", "e_amt": "", "e_basis": "grams", "days": "all"})
+    page = web.get("/analysis/whatif/apply?" + urlencode({"page": "meals", "query": q})).text
+    assert "logged as 3 individual ingredients, all deleted" in page
+    resp = web.post("/analysis/whatif/apply", data={"page": "meals", "query": q}, follow_redirects=False)
+    assert "applied=1" in resp.headers["location"]
+    left = db_conn.execute("SELECT fdc_id, amount FROM meal_items WHERE meal_id=?", (mid,)).fetchall()
+    assert [(r["fdc_id"], r["amount"]) for r in left] == [(OATS, 30.0)]
+    assert db_conn.execute("SELECT COUNT(*) FROM stale_meals WHERE meal_id=?", (mid,)).fetchone()[0] == 1
 
 
 def test_apply_recipes_changes_selected_recipes(data, web, db_conn):
@@ -544,7 +595,7 @@ def test_apply_recipes_changes_selected_recipes(data, web, db_conn):
 
 def test_apply_refuses_a_non_matching_scenario(data, web, db_conn):
     before = db_conn.execute("SELECT * FROM meal_items ORDER BY id").fetchall()
-    web.post("/analysis/whatif/apply", data={"page": "meals", "query": _meals_query(op="remove")})
+    web.post("/analysis/whatif/apply", data={"page": "meals", "query": _meals_query(basis="factor", amt="1.2")})
     assert [dict(r) for r in db_conn.execute("SELECT * FROM meal_items ORDER BY id")] == [dict(r) for r in before]
 
 
@@ -570,3 +621,131 @@ def test_whatif_page_shows_days_over_gl_target(data, web, db_conn):
     text = web.get("/analysis/whatif?" + _meals_query(op="remove", with_="")).text
     assert "Days over your daily glycemic load target:</strong> 1 of 2 before" in text
     assert "#gl-target" in text
+
+
+class TestRecipeLoggedAsIngredients:
+    """A recipe added to a meal "as individual ingredients" has no recipe
+    row; removing the recipe removes those ingredient rows as a set."""
+
+    def _meal(self, db_conn, rows):
+        mid = _db.meal_create(db_conn, "Lunch", "2026-01-05")
+        for fdc_id, name, grams in rows:
+            _db.meal_add_food(db_conn, mid, fdc_id, name, grams, f"{grams:g} g")
+        db_conn.commit()
+        return [dict(r) for r in db_conn.execute("SELECT * FROM meals WHERE id=?", (mid,))], mid
+
+    def test_remove_takes_out_the_set_and_keeps_an_extra(self, data, db_conn):
+        # Bowl, 1 serving, as ingredients: 50 g oats, then Oat base's half
+        # batch (100 g oats + 250 g milk); plus 30 g oats logged on its own.
+        meals, mid = self._meal(db_conn, [(OATS, "Oats", 30.0), (OATS, "Oats", 50.0),
+                                          (OATS, "Oats", 100.0), (MILK, "Almond milk", 250.0)])
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["bowl"]))], groups=GROUPS)
+        assert row(res, "calories")["after"] == pytest.approx(389.0 * 0.3)
+        rep = res["edits"][0]
+        assert rep["meals"] == 1 and rep["as_ingredients"] == 1 and rep["loose_meal_ids"] == []
+
+    def test_scaled_portion_is_matched(self, data, db_conn):
+        meals, _ = self._meal(db_conn, [(OATS, "Oats", 100.0), (OATS, "Oats", 200.0),
+                                        (MILK, "Almond milk", 500.0)])
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["bowl"]))], groups=GROUPS)
+        assert row(res, "calories")["after"] == pytest.approx(0.0)
+
+    def test_amounts_that_no_longer_match_are_flagged_not_removed(self, data, db_conn):
+        meals, mid = self._meal(db_conn, [(OATS, "Oats", 50.0), (OATS, "Oats", 100.0),
+                                          (MILK, "Almond milk", 300.0)])
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["bowl"]))], groups=GROUPS)
+        r = row(res, "calories")
+        assert r["after"] == pytest.approx(r["before"])
+        rep = res["edits"][0]
+        assert rep["meals"] == 0 and rep["loose_meal_ids"] == [mid]
+
+    def test_page_explains_both_cases(self, data, db_conn, web):
+        meals, mid = self._meal(db_conn, [(OATS, "Oats", 50.0), (OATS, "Oats", 100.0),
+                                          (MILK, "Almond milk", 250.0)])
+        q = f"/analysis/whatif?mode=ids&meal_ids={mid}&e_op=remove&e_item=r{data['bowl']}&days=all"
+        assert "as individual ingredients, which are removed together" in web.get(q).text
+        db_conn.execute("UPDATE meal_items SET amount=300 WHERE meal_id=? AND fdc_id=?", (mid, MILK))
+        db_conn.commit()
+        assert "don't match the recipe as it is now" in web.get(q).text
+
+
+def _apply(web, page, query):
+    from urllib.parse import urlencode
+    confirm = web.get("/analysis/whatif/apply?" + urlencode({"page": page, "query": query})).text
+    resp = web.post("/analysis/whatif/apply", data={"page": page, "query": query}, follow_redirects=False)
+    return confirm, resp
+
+
+def test_apply_meals_scale_direct_items(data, web, db_conn):
+    confirm, resp = _apply(web, "meals", _meals_query(op="scale", amt="50%"))
+    assert f"M{data['m2']}" in confirm and "1 other meal(s) have it only inside a recipe" in confirm
+    assert "applied=1" in resp.headers["location"]
+    item = db_conn.execute("SELECT amount, unit FROM meal_items WHERE meal_id=?", (data["m2"],)).fetchone()
+    assert (item["amount"], item["unit"]) == (50.0, "50 g")
+
+
+def test_apply_meals_scale_recipe_logged_as_ingredients(data, web, db_conn):
+    from urllib.parse import urlencode
+    mid = _db.meal_create(db_conn, "Lunch", "2026-01-02")
+    for fdc_id, name, grams in [(OATS, "Oats", 30.0), (OATS, "Oats", 50.0),
+                                (OATS, "Oats", 100.0), (MILK, "Almond milk", 250.0)]:
+        _db.meal_add_food(db_conn, mid, fdc_id, name, grams, f"{grams:g} g")
+    db_conn.commit()
+    q = urlencode({"mode": "ids", "meal_ids": str(mid), "e_op": "scale", "e_item": f"R{data['bowl']}",
+                   "e_with": "", "e_amt": "2", "e_basis": "grams", "days": "all"})
+    with _db.get_db() as conn:
+        res = _wi.evaluate_meals(conn, [{"id": mid, "meal_date": "2026-01-02"}],
+                                 [Edit("scale", ("recipe", data["bowl"]), amount=2.0)], groups=GROUPS)
+    assert row(res, "calories")["after"] == pytest.approx(389.0 * 3.3 + 15.0 * 5.0)
+    confirm, _ = _apply(web, "meals", q)
+    assert "logged as 3 individual ingredients, all changed" in confirm
+    left = db_conn.execute("SELECT amount FROM meal_items WHERE meal_id=? ORDER BY id", (mid,)).fetchall()
+    assert [r["amount"] for r in left] == [30.0, 100.0, 200.0, 500.0]
+
+
+def test_apply_meals_add_goes_into_a_new_meal_each_day(data, web, db_conn):
+    confirm, resp = _apply(web, "meals", _meals_query(op="add", item=f"U{LENTILS}", with_="", amt="40 g"))
+    assert "Adds a new meal on 2 day(s): 2026-01-01, 2026-01-02" in confirm
+    assert "applied=2" in resp.headers["location"]
+    rows = db_conn.execute("SELECT m.meal_date, i.fdc_id, i.amount FROM meals m JOIN meal_items i ON i.meal_id=m.id "
+                           "WHERE m.name='Added by what-if' ORDER BY m.meal_date").fetchall()
+    assert [tuple(r) for r in rows] == [("2026-01-01", LENTILS, 40.0), ("2026-01-02", LENTILS, 40.0)]
+
+
+def _recipes_query(recipe_ids, **edit):
+    from urllib.parse import urlencode
+    return urlencode({"mode": "ids", "recipe_ids": ",".join(map(str, recipe_ids)), "e_with": "", "e_amt": "",
+                      "e_basis": "grams", **edit})
+
+
+def test_apply_recipes_remove_and_scale(data, web, db_conn):
+    confirm, _ = _apply(web, "recipes", _recipes_query([data["sub"]], e_op="remove", e_item=f"U{MILK}"))
+    assert f"R{data['sub']}" in confirm
+    assert "logged meal(s) use these recipes" in confirm          # Bowl, built on Oat base, is logged
+    assert "total weight 700 g" in confirm
+    assert db_conn.execute("SELECT COUNT(*) FROM recipe_ingredients WHERE recipe_id=? AND fdc_id=?",
+                           (data["sub"], MILK)).fetchone()[0] == 0
+    _apply(web, "recipes", _recipes_query([data["bowl"]], e_op="scale", e_item=f"U{OATS}", e_amt="2"))
+    r = db_conn.execute("SELECT amount, unit FROM recipe_ingredients WHERE recipe_id=? AND fdc_id=?",
+                        (data["bowl"], OATS)).fetchone()
+    assert (r["amount"], r["unit"]) == (100.0, "100 g")
+    assert db_conn.execute("SELECT COUNT(*) FROM stale_meals WHERE meal_id=?", (data["m1"],)).fetchone()[0] == 1
+
+
+def test_apply_recipes_add_per_serving(data, web, db_conn):
+    _apply(web, "recipes", _recipes_query([data["soup"]], e_op="add", e_item=f"U{KELP}", e_amt="2 g",
+                                          e_per="serving"))
+    r = db_conn.execute("SELECT amount, unit FROM recipe_ingredients WHERE recipe_id=? AND fdc_id=?",
+                        (data["soup"], KELP)).fetchone()
+    assert (r["amount"], r["unit"]) == (4.0, "4 g")               # 2 g x 2 servings
+
+
+def test_apply_recipes_add_refuses_a_loop(data, web, db_conn):
+    confirm, _ = _apply(web, "recipes", _recipes_query([data["sub"]], e_op="add", e_item=f"R{data['bowl']}",
+                                                       e_amt="1"))
+    assert "is used inside it" in confirm
+    assert db_conn.execute("SELECT COUNT(*) FROM recipe_ingredients WHERE recipe_id=? AND ref_recipe_id=?",
+                           (data["sub"], data["bowl"])).fetchone()[0] == 0

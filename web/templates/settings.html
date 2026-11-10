@@ -963,13 +963,21 @@
 {# ── 13. Browser to launch (Alt+Shift+B) ──────────────────────────────── #}
 <details id="browser-preference">
   <summary data-ak="b">13. <strong><u class="ak">B</u>rowser to Launch</strong>
-    <span class="muted"> — which browser opens when NuMa starts</span>
+    <span class="muted"> — which browser opens when NuMa starts, and whether in its own window</span>
   </summary>
 
-  <p class="mt-2">By default ("Ask each time"), NuMa opens in whichever browser you already
+  <p class="mt-2">By default, NuMa opens in <strong>its own window</strong>, with no tabs or
+  address bar and its own taskbar entry, so it works like a desktop program instead of a
+  tab among your other tabs. That needs Chrome, Chromium, Brave, Edge or Vivaldi to be
+  installed. Firefox and GNOME Web can't do it, so if you choose either of those below,
+  or none of the others is installed, NuMa opens in a normal tab.</p>
+
+  <p class="mt-2">For a normal tab, "Ask each time" uses whichever browser you already
   have running. If more than one is running, a small dialog pops up asking which one to
   use for that session. Choosing a specific browser below skips that dialog entirely and
-  always uses the one you pick, starting it if it isn't already open.</p>
+  always uses the one you pick, starting it if it isn't already open. With "Ask each
+  time" and its own window on, NuMa uses a suitable browser that's running, or else any
+  installed one, without asking.</p>
 
   {% if saved == 'browser' %}
   <p class="status-met mt-2" id="browser-saved-msg"><strong>&#10003; Browser preference saved.</strong></p>
@@ -985,6 +993,14 @@
       <label class="form-check-label" for="browser-{{ key or 'auto' }}">{{ label }}</label>
     </div>
     {% endfor %}
+    <input type="hidden" name="app_window_shown" value="1">
+    <div class="form-check mt-2">
+      <input class="form-check-input" type="checkbox" name="app_window" value="1"
+             id="browser-app-window" {{ 'checked' if app_window }}
+             onchange="document.getElementById('browser-saved-msg')?.remove()">
+      <label class="form-check-label" for="browser-app-window">Open NuMa in its own window</label>
+    </div>
+    <p class="muted mt-1"><small>Takes effect the next time NuMa starts.</small></p>
     <button type="submit" class="btn btn-primary btn-sm mt-2">Save preference</button>
   </form>
 </details>

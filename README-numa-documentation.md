@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-09:0047
+UPDATED: 2026-11-09:1946
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -264,7 +264,7 @@ numa/
                                      Committed to repo; rebuilt by build_oxalate_db.py
   web/                             — Local web interface (FastAPI + Jinja2)
     backend.py                     — All routes, helpers, and template context builders
-    launcher.py                    — Starts uvicorn and opens a browser tab
+    launcher.py                    — Starts uvicorn and opens NuMa in its own window (Chromium-family --app mode, at /nutrimagnus so the desktop can give it NuMa's icon) or a browser tab
     home_body.cache                — Cached rendered HTML of the home-page about text, excerpted live from
                                      user-manual.md's Preface (invalidated when user-manual.md is newer)
     static/
@@ -419,7 +419,7 @@ Set it from **Settings → 6. USDA API Key** in the web app. It's saved to `~/.c
 python web/launcher.py
 ```
 
-This starts uvicorn and opens a browser tab at `http://127.0.0.1:8000`. Useful flags: `--host`, `--port N`, `--no-browser`, `--reload` (dev auto-restart). Alternatively, from the `web/` directory: `uvicorn backend:app --reload`.
+This starts uvicorn and opens `http://127.0.0.1:8000` in its own window (Chrome/Chromium/Brave/Edge/Vivaldi `--app=` mode, Settings → 13's `app_window` pref, on by default) or, failing that, a normal browser tab. Useful flags: `--host`, `--port N`, `--no-browser`, `--reload` (dev auto-restart). Alternatively, from the `web/` directory: `uvicorn backend:app --reload`.
 
 For first-run setup, see the [NutriMagnus User Manual](user-manual.html).
 
@@ -1635,6 +1635,8 @@ Analysis pages under the Analysis dropdown: frequency of a given food's use acro
 
 Analysis -> What-if: meals (`/analysis/whatif`). Daily nutrient averages across a set of meals (dates — ranges or single dates — or meal IDs), before and after a list of changes: remove, add (once per logged day), replace (same weight / same servings / stated amount, at every depth) and scale. Read-only by design (`numa_app/services/whatif.py`; meals keep nutrient snapshots and recipe edits trigger DCP recomputes, so nothing here may call a write helper — a test checks the DB file is byte-identical afterwards). The whole scenario lives in the query string (`e_op`/`e_item`/`e_with`/`e_amt`/`e_basis`, one entry per change row), so it can be bookmarked. Shows a calories/macros summary, per-edit "found in N meals" report, % of target before and after from each day's pinned profile (read without pinning), days target not met and days over max, and a "?" where an added item has no value for a nutrient. Glycemic load before/after (both pages) comes from the same leaf foods via `glycemic_load.gl_for_leaves()`, so edits reach it with no second expansion path; it reports carbohydrate coverage before and after and names foods with no GI after the change, since a swap to such a food would otherwise look like a GL improvement. With a daily GL target in the profile (`UserProfile.gl_day_target`, Settings → 1), `_gl_cell(targets=)` also counts days over each day's pinned target before and after (an incomplete day counts as over only when its counted GL already is). Speed, 2026-10-10, copy of the real DB: 90 days / 87 meals in 0.74 s, GL 0.04 s of it. Result rows come from `_NUTRIENT_GROUPS` plus an "Other" group for any non-AA key present, so newly tracked nutrients appear without changes here. Food Use in Meals links each row here ("try removing"). Original plan (all phases built): `Archive/WHATIF-PLAN.md`, local only.
 
+**A recipe logged as individual ingredients** (2026-11-09). Adding a recipe to a meal in "ingredients" mode writes one food row per `expand_recipe_ingredients()` leaf and no recipe row, so a recipe Remove would otherwise find nothing. Before each meal's "after" breakdown, `whatif._apply_logged_ingredient_removals()` runs `_logged_ingredient_sets()` for every remove-a-recipe edit: it anchors on the recipe's largest leaf, takes scale = row amount / leaf grams, and needs every leaf matched by its own food row of the same fdc_id within 0.5% at that scale (newest rows first, so an identical earlier row stays; repeated for several sets). Matched row ids go in `_Ctx.skip_rows`, which `meal_breakdown()` skips, and count as hits (`as_ingredients` in the edit report). With no full set but at least 60% (min 2) of the recipe's distinct foods in the meal, the meal is listed in `loose_meal_ids` and the page says the amounts no longer match. A one-leaf recipe never matches (indistinguishable from the bare food). Remove only; replace and scale still need a recipe row.
+
 #### `analysis_whatif_recipes.html`, `_whatif_changes.html`
 
 Analysis -> What-if: recipes (`/analysis/whatif-recipes`): per-serving nutrients and DCP of the selected recipes (all / by date created / IDs, as on Food Use in Recipes) before and after the same kind of change list (`whatif.evaluate_recipes()`). "Add" goes into each batch (per serving = amount / servings; the servings count never changes). Only recipes a remove/replace/scale reached are shown, at most 8 columns (largest summed relative change first; the rest listed), plus any unselected recipes that use a changed one as a sub-recipe. Recipe DCP comes from `recipe_dcp.recipe_dcp_per_serving()`, the pure half of `_recompute_single_recipe_dcp()` (which now just saves its result). `_whatif_changes.html` holds the change-row editor, its script, and the `num`/`signed` number macros shared by both What-if pages.
@@ -1642,6 +1644,8 @@ Analysis -> What-if: recipes (`/analysis/whatif-recipes`): per-serving nutrients
 #### `analysis_whatif_apply.html` — save, CSV, apply for real
 
 Both What-if pages share one computation (`_whatif_meals_compute()` / `_whatif_recipes_compute()` in web/backend.py), used by the page, its CSV export and Apply. Under a result, `_whatif_changes.html`'s `result_actions` macro offers: **Save** — the page's query string (minus the one-off `applied` flag) goes into `saved_whatif_scenarios` (`db.saved_whatif_*`, per page; `saved_panel` lists them, load = redirect to that URL); **Download CSV** — `/analysis/whatif/export.csv` and `/analysis/whatif-recipes/export.csv` (`whatif.meals_csv()` / `recipes_csv()`; the recipe CSV runs `evaluate_recipes(max_columns=None)`, so it isn't capped at 8); **Apply these replacements for real** — offered only when `whatif.real_substitution_problems()` is empty: every edit a replace, food→food at the same weight or recipe→recipe at the same servings (what `db.substitute_item_in_meals` / `substitute_item_in_recipes` do, keeping the stored amount as a number), no chains or duplicates. `GET /analysis/whatif/apply` is the confirmation page (direct targets from `db.meals_with_direct_item` / `recipes_with_direct_ingredient`, plus how many are reached only inside a recipe and so won't change); the POST re-plans from the query, substitutes in one transaction, recomputes DCP for changed recipes, and redirects back with `applied=N`. `whatif.py` itself still never writes.
+
+**Apply does all four actions** (2026-11-09). `real_substitution_problems(edits, page, conn)` accepts remove, add, scale (> 0) and the same-weight / same-servings replace on both pages; refused across edits: an item changed twice, a replacement another edit changes, and (with `conn`) an added or replacement recipe that contains an item another edit changes (the what-if rewrites inside it, Apply wouldn't). `_whatif_apply_plan()` gives per change `direct`, `ingredient_rows` (meals remove/scale of a recipe logged as individual ingredients — whatif's own match, so Apply touches exactly those rows) and `new_meal_days` (meals add); on recipes also `weighted` (changed recipes with a stored `total_weight` or `cooked_water_per_100g`, except where the only change is a food-for-food same-weight replace — those figures are left alone and listed for the user to check) and `meals_affected` (meals logging a changed recipe or an ancestor, since a meal follows its recipe), plus a refusal when an added recipe would loop. The POST runs every op in the order remove, scale, replace, add (so nothing touches a row another edit already handled) in one transaction: meals via `db.remove_item_from_meals` / `scale_item_in_meals` / `substitute_item_in_meals` / a new `WHATIF_ADDED_MEAL_NAME` meal per day; recipes via `remove_item_from_recipes` / `scale_item_in_recipes` / `substitute_item_in_recipes` / `recipe_add_ingredient`, then `recompute_recipe_dcp` per changed recipe (cascades and flags meals stale). Scaled and added amounts get unit text from `db.amount_text()` (grams or servings). With `?applied=` in the URL the Apply button is hidden, since an add or scale would otherwise apply twice.
 
 #### `summary.html`
 
@@ -1754,7 +1758,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,447 tests**, all passing (2,417 in the default run plus 30 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,477 tests**, all passing (2,445 in the default run plus 32 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1831,7 +1835,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_manual_format.py` | `user-manual.md`'s own structure: changelog entry format, hidden Scope blocks, heading conventions |
 | `tests/test_manual_search_js.py` | The manual search box's **Match case** / **Whole words only** checkboxes: runs `build_manual.JS`'s `wordRegex()` under Node with stubbed checkboxes (skipped when Node is absent) |
 | `tests/test_manual_search_terms.py` | Search terms lines in `user-manual.md`: `build_manual.py` hides each as a `.search-terms` span, leaves it out of reading time, and fails the build on a malformed one; the manual itself has none malformed; `search_terms_review.py` lists the right changed sections |
-| `tests/test_launcher.py` | Startup loading page: served on the real port at once, swapped for a failure page if the app cannot start, and the same socket then handed on to uvicorn |
+| `tests/test_launcher.py` | Startup loading page: served on the real port at once, swapped for a failure page if the app cannot start, and the same socket then handed on to uvicorn; which browser opens, and when as its own (`--app`) window |
 | `tests/test_link_integrity.py` | Internal links: every manual `#anchor` against the built HTML, and every template `href="/..."` against a registered route (weekly-sweep item 8, automated) |
 | `tests/test_ai_manual.py` | The AI edition of the manual: reading times, HTML comments and Part 11 removed; every internal link rewritten as plain text naming its destination; footnote markers plain; stays well under a Google Doc's size limit |
 | `tests/test_manual_abbreviations.py` | Every abbreviation in the manual is expanded inline or glossary-linked **within the section it appears in**, since any heading can be landed on directly (weekly-sweep item 9, automated) |

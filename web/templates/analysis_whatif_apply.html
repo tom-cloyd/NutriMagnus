@@ -10,22 +10,27 @@
   </ol>
 </nav>
 
-<h2>Apply these replacements for real {{ manual_link("whatif-apply") }}</h2>
+<h2>Apply these changes for real {{ manual_link("whatif-apply") }}</h2>
 
 {% if problems %}
   {% for p in problems %}<p class="text-danger mb-1">{{ p }}</p>{% endfor %}
   <p class="mt-3"><a href="{{ back_url }}">Back to the what-if</a></p>
 {% else %}
 <p>This changes your {{ "logged meals" if page == "meals" else "recipes" }} &mdash; it can't be undone from here.
-  {% if page == "meals" %}Each replacement keeps the amount you logged (same grams for a food, same servings for a recipe).
-  {% else %}Each replacement keeps the ingredient's amount (same grams for a food, same servings for a recipe),
-  and every recipe changed has its protein quality (DCP) worked out again.{% endif %}</p>
+  {% if page == "meals" %}A removal deletes the item from those meals; an amount change multiplies the amount logged (shown afterwards in grams, or servings for a recipe).
+  Each replacement keeps the amount you logged (same grams for a food, same servings for a recipe).
+  An addition goes into a new meal called &ldquo;{{ added_meal_name }}&rdquo; on each day, so your own meals stay as you logged them.
+  {% else %}A removal deletes the ingredient; an amount change multiplies it (shown afterwards in grams, or servings for a sub-recipe);
+  each replacement keeps the ingredient's amount (same grams for a food, same servings for a recipe); an addition becomes one more ingredient.
+  Every recipe changed has its protein quality (DCP) worked out again.{% endif %}</p>
 
 <ul class="mb-3">
   {% for ch in changes %}
   <li class="mb-2"><strong>{{ ch.text }}</strong><br>
-    {% if ch.direct %}
-      {% if page == "meals" %}Changes {{ ch.direct|length }} meal(s): {% for mid in ch.direct %}<a href="/meal/{{ mid }}">M{{ mid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.
+    {% if ch.new_meal_days %}
+      Adds a new meal on {{ ch.new_meal_days|length }} day(s){% if ch.new_meal_days|length <= 7 %}: {{ ch.new_meal_days|join(", ") }}{% else %}, {{ ch.new_meal_days[0] }} to {{ ch.new_meal_days[-1] }}{% endif %}.
+    {% elif ch.direct %}
+      {% if page == "meals" %}Changes {{ ch.direct|length }} meal(s): {% for mid in ch.direct %}<a href="/meal/{{ mid }}">M{{ mid }}</a>{% if mid in ch.ingredient_rows %} (logged as {{ ch.ingredient_rows[mid]|length }} individual ingredients, all {{ "deleted" if ch.edit.op == "remove" else "changed" }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}.
       {% else %}Changes {{ ch.direct|length }} recipe(s): {% for rid in ch.direct %}<a href="/recipe/{{ rid }}">R{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}
     {% else %}<span class="text-warning">Nothing to change: it isn't {{ "logged straight on any of these meals" if page == "meals" else "listed straight in any of these recipes" }}.</span>{% endif %}
     {% if ch.nested_only %}
@@ -39,11 +44,23 @@
   {% endfor %}
 </ul>
 
+{% if page == "recipes" and meals_affected %}
+<p class="text-warning">{{ meals_affected }} logged meal(s) use these recipes, or a recipe built on them. A meal follows its recipe, so their nutrition changes too, past days included.</p>
+{% endif %}
+{% if weighted %}
+<div class="text-warning mb-3">These recipes have a stored figure that this change doesn't update, so it may no longer fit the new ingredients. Check each one on its page afterwards:
+  <ul class="mb-0">
+    {% for r in weighted %}<li><a href="/recipe/{{ r.id }}">{{ r.name }}</a> {{ food_id_tag(none, r.id) }}:
+      {% if r.total_weight %}total weight {{ "%g"|format(r.total_weight) }} {{ r.total_weight_unit }}{% endif %}{% if r.total_weight and r.cooked_water %}; {% endif %}{% if r.cooked_water %}water once cooked{% endif %}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
 {% if total %}
 <form method="post" action="/analysis/whatif/apply" class="d-flex gap-2">
   <input type="hidden" name="page" value="{{ page }}">
   <input type="hidden" name="query" value="{{ query }}">
-  <button type="submit" class="btn btn-danger">Yes, make these replacements</button>
+  <button type="submit" class="btn btn-danger">Yes, make these changes</button>
   <a href="{{ back_url }}" class="btn btn-outline-secondary">No, go back to the what-if</a>
 </form>
 {% else %}

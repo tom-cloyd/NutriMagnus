@@ -31,6 +31,10 @@ chmod +x "$BIN_PATH"
 echo "Downloading icon..."
 curl -fL -o "$ICON_PATH" "$BASE_URL/nutrimagnus.png"
 
+# StartupWMClass is the name Chrome/Chromium gives NuMa's own window (see
+# web/launcher.py's _app_window_path), so the window shows this entry's icon
+# and groups with it when pinned. Other browsers get a matching hidden entry
+# from the launcher itself.
 cat > "$DESKTOP_PATH" <<EOF
 [Desktop Entry]
 Type=Application
@@ -41,6 +45,7 @@ Exec=$BIN_PATH
 Icon=$ICON_PATH
 Terminal=false
 Categories=Utility;Science;
+StartupWMClass=chrome-127.0.0.1__nutrimagnus-Default
 EOF
 
 if command -v update-desktop-database >/dev/null 2>&1; then

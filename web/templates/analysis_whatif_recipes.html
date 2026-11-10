@@ -212,10 +212,24 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
     rangeBlock.classList.toggle('opacity-50', !radios.range.checked);
     idsBlock.classList.toggle('opacity-50', !radios.ids.checked);
   }
-  Object.keys(radios).forEach(function (k) { radios[k].addEventListener('change', sync); });
+  // The cursor goes in the box the checked choice uses: on load (unless
+  // something already has it; no scrolling, so a page reloaded with
+  // results stays put), and whenever the choice is switched.
+  function focusBox(box) {
+    if (!box || box.disabled) return;
+    box.focus({preventScroll: true});
+    var end = box.value.length;
+    try { box.setSelectionRange(end, end); } catch (e) {}
+  }
+  // "All recipes" has no box, so nothing takes the cursor then.
+  function activeBox() { return radios.range.checked ? rangesRaw : radios.ids.checked ? recipeIds : null; }
+  Object.keys(radios).forEach(function (k) {
+    radios[k].addEventListener('change', function () { sync(); focusBox(activeBox()); });
+  });
   recipeIds.addEventListener('input', function () { if (recipeIds.value.trim()) { radios.ids.checked = true; sync(); } });
   rangesRaw.addEventListener('input', function () { if (rangesRaw.value.trim()) { radios.range.checked = true; sync(); } });
   sync();
+  if (!document.activeElement || document.activeElement === document.body) focusBox(activeBox());
   var before = document.getElementById('show-before');
   if (before) {
     before.addEventListener('change', function () {

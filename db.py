@@ -2595,6 +2595,85 @@ def meals_with_direct_item(conn: sqlite3.Connection, meal_ids: list[int],
     return [r["meal_id"] for r in rows]
 
 
+def amount_text(kind: str, qty: float) -> str:
+    """The unit text stored beside an amount NuMa worked out itself (a
+    scaled or added item): grams for a food, servings for a recipe."""
+    if kind == "food":
+        return f"{qty:.4g} g"
+    qty = round(qty, 4)
+    return f"{qty:g} serving" + ("s" if qty != 1 else "")
+
+
+def scale_item_in_meals(conn: sqlite3.Connection, meal_ids: list[int],
+                        kind: str, item_id: int, factor: float) -> int:
+    """Multiply the amount of every direct meal-item reference to
+    (kind, item_id) in meal_ids by factor — the same reach as
+    remove_item_from_meals. The unit text becomes the new amount in grams
+    (food) or servings (recipe), since a typed "2 c" no longer describes it.
+    Returns the number of rows changed; every meal changed is flagged stale."""
+    if not meal_ids or kind not in ("food", "recipe"):
+        return 0
+    col = "fdc_id" if kind == "food" else "recipe_id"
+    placeholders = ",".join("?" * len(meal_ids))
+    rows = conn.execute(
+        f"SELECT id, meal_id, amount FROM meal_items "
+        f"WHERE meal_id IN ({placeholders}) AND item_type=? AND {col}=?",
+        (*meal_ids, kind, item_id)
+    ).fetchall()
+    for r in rows:
+        scale_meal_item(conn, r["id"], r["meal_id"], factor, kind)
+    return len(rows)
+
+
+def scale_meal_item(conn: sqlite3.Connection, item_id: int, meal_id: int,
+                    factor: float, kind: str = "food") -> None:
+    """Multiply one meal item's amount by factor (see scale_item_in_meals)."""
+    row = conn.execute("SELECT amount FROM meal_items WHERE id=? AND meal_id=?", (item_id, meal_id)).fetchone()
+    if row is None:
+        return
+    amount = float(row["amount"]) * factor
+    meal_update_item(conn, item_id, meal_id, amount, amount_text(kind, amount))
+    mark_meal_stale(conn, meal_id)
+
+
+def remove_item_from_recipes(conn: sqlite3.Connection, recipe_ids: list[int],
+                             kind: str, item_id: int) -> list[int]:
+    """Delete every ingredient row of recipe_ids that is (kind, item_id)
+    itself (not inside a sub-recipe). Returns the recipe ids changed, so the
+    caller can recompute their DCP (which also flags meals stale)."""
+    changed = recipes_with_direct_ingredient(conn, recipe_ids, kind, item_id)
+    if not changed:
+        return []
+    col = "fdc_id" if kind == "food" else "ref_recipe_id"
+    placeholders = ",".join("?" * len(changed))
+    conn.execute(f"DELETE FROM recipe_ingredients WHERE recipe_id IN ({placeholders}) AND {col}=?",
+                 (*changed, item_id))
+    for rid in changed:
+        _recipe_invalidate_dcp(conn, rid)
+    return changed
+
+
+def scale_item_in_recipes(conn: sqlite3.Connection, recipe_ids: list[int],
+                          kind: str, item_id: int, factor: float) -> list[int]:
+    """Multiply every ingredient row of recipe_ids that is (kind, item_id)
+    itself by factor; the unit text becomes grams (food) or servings
+    (sub-recipe). Returns the recipe ids changed."""
+    changed = recipes_with_direct_ingredient(conn, recipe_ids, kind, item_id)
+    if not changed:
+        return []
+    col = "fdc_id" if kind == "food" else "ref_recipe_id"
+    placeholders = ",".join("?" * len(changed))
+    rows = conn.execute(f"SELECT id, amount FROM recipe_ingredients WHERE recipe_id IN ({placeholders}) AND {col}=?",
+                        (*changed, item_id)).fetchall()
+    for r in rows:
+        amount = float(r["amount"]) * factor
+        conn.execute("UPDATE recipe_ingredients SET amount=?, unit=? WHERE id=?",
+                     (amount, amount_text(kind, amount), r["id"]))
+    for rid in changed:
+        _recipe_invalidate_dcp(conn, rid)
+    return changed
+
+
 def recipes_with_direct_ingredient(conn: sqlite3.Connection, recipe_ids: list[int],
                                    kind: str, item_id: int) -> list[int]:
     """Which of recipe_ids list (kind, item_id) straight in their own

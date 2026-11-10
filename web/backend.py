@@ -1250,6 +1250,25 @@ async def _restart_needed_middleware(request: Request, call_next):
 
 
 app.mount("/static", StaticFiles(directory=_WEB_DIR / "static"), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """NuMa's icon, which a browser shows on the tab and, for NuMa opened
+    as its own window, on the window and its taskbar button (on Windows the
+    taskbar icon comes from this)."""
+    return Response((_WEB_DIR / "static" / "icon-256.png").read_bytes(), media_type="image/png")
+
+
+# The address launcher.py opens NuMa's own window at (see its
+# _app_window_path()). Chromium names such a window after the address's
+# host and path, so a path of NuMa's own gives the window a name the
+# desktop can match to NuMa's menu entry and icon (release and source
+# apart). Both just lead to the Home page.
+@app.get("/nutrimagnus", include_in_schema=False)
+@app.get("/nutrimagnus-source", include_in_schema=False)
+def app_window_start():
+    return RedirectResponse("/", status_code=302)
 templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 
 # Custom Jinja2 filters
@@ -8459,6 +8478,7 @@ def settings_get(request: Request, saved: str = "", recompute_retry: str = "", k
         # An older saved "chromium-browser" shows as the one Chromium choice.
         "preferred_browser":    (_load_prefs_file().get("preferred_browser", "") or "").replace("chromium-browser", "chromium"),
         "browser_labels":       _BROWSER_LABELS,
+        "app_window":           _load_prefs_file().get("app_window", True) is not False,
         "api_key":              api_key,
         "search_boost_page_size": search_boost_page_size,
         "diaas_overrides":      diaas_overrides,
@@ -8712,9 +8732,14 @@ def settings_data_check_reminder_post(enabled: list[str] = Form(default=[]), wee
 
 
 @app.post("/settings/browser", response_class=RedirectResponse)
-def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None)):
+def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None),
+                          app_window: str = Form(None), app_window_shown: str = Form(None)):
     if preferred_browser in _VALID_BROWSER_PREFS:
         _save_prefs_file({"preferred_browser": preferred_browser})
+    # An unticked checkbox sends nothing, so the form's hidden
+    # app_window_shown field is what says the checkbox was on the page.
+    if app_window_shown:
+        _save_prefs_file({"app_window": bool(app_window)})
     if next and next.startswith("/") and not next.startswith("//"):
         return RedirectResponse(next, status_code=303)
     return RedirectResponse("/settings?saved=browser", status_code=303)
@@ -11479,6 +11504,18 @@ def _nutrient_plot_add_limits(series: list[dict], profile) -> list[dict]:
 DEFAULT_SMOOTHING_DAYS = 3
 
 
+def _nutrient_plot_add_smoothing_note(subtitle: str, window: int) -> str:
+    """Append "Data smoothed over N days." inside the plot subtitle's
+    parentheses (or as the whole subtitle when there's no goal/limit line
+    text). A window of 0 or 1 means no smoothing, so no note."""
+    if window <= 1:
+        return subtitle
+    note = f"Data smoothed over {window} days."
+    if not subtitle:
+        return f"({note})"
+    return f"{subtitle[:-1]}. {note})"
+
+
 def _parse_smoothing_window(raw: str | None) -> int:
     """Smoothing window in days. Missing/blank/invalid falls back to the
     3-day default (the plot page always pre-fills the field with a concrete
@@ -11904,8 +11941,9 @@ def nutrient_plot_image(
         if not chosen or not dates:
             raise HTTPException(status_code=404, detail="No nutrients or days selected")
         highlight_key = _resolve_highlight(chosen, highlight)
+        smoothing_n = _parse_smoothing_window(smoothing)
         raw_series, _info = _smoothed_plot_series(conn, chosen, dates, highlight_key,
-                                                  _parse_smoothing_window(smoothing), rolling=rolling)
+                                                  smoothing_n, rolling=rolling)
         if not raw_series:
             raise HTTPException(status_code=404, detail="No days with data in range")
 
@@ -11936,6 +11974,7 @@ def nutrient_plot_image(
         plot_subtitle = _NUTRIENT_PLOT_LIMIT_SUBTITLE
     else:
         plot_subtitle = ""
+    plot_subtitle = _nutrient_plot_add_smoothing_note(plot_subtitle, smoothing_n)
 
     image_bytes = line_plot_image(series, xlabel="Date", ylabel=plot_ylabel,
                                    title=plot_title, subtitle=plot_subtitle,
@@ -12712,9 +12751,13 @@ def _whatif_page_extras(request: Request, page: str, result, edits) -> dict:
     query = _whatif_clean_query(request.url.query)
     with _db.get_db() as conn:
         saved = [dict(r) for r in _db.saved_whatif_list(conn, page)]
+        apply_problems = _whatif.real_substitution_problems(edits, page, conn) if result else []
+    if result and request.query_params.get("applied") is not None:
+        # Straight after Apply: an Add would be applied a second time.
+        apply_problems = ["these changes have just been applied."]
     return {
         "page": page, "query": query, "saved": saved,
-        "apply_problems": _whatif.real_substitution_problems(edits) if result else [],
+        "apply_problems": apply_problems,
     }
 
 
@@ -12920,13 +12963,43 @@ def analysis_whatif_saved_delete(scenario_id: int = Form(...),
     return _whatif_back(page, query)
 
 
-# Apply for real — hands a replace-only scenario to the existing destructive
-# substitute (Food use in meals / in recipes), after a confirmation page.
+# Apply for real — makes a scenario's changes to the logged meals / the
+# recipes themselves (removes, amount changes, replaces through the existing
+# Food use substitute, adds), after a confirmation page.
+
+WHATIF_ADDED_MEAL_NAME = "Added by what-if"
+
+
+def _whatif_add_qty(conn, e, target_servings: float | None = None) -> float:
+    """An add edit's amount as stored: grams of a food, servings of a
+    recipe; on the recipes page per serving times the recipe's servings."""
+    kind, item_id = e.item
+    if kind == "food" or e.unit == "servings":
+        qty = e.amount
+    else:
+        per = recipe_serving_grams(item_id, conn)
+        if not per:
+            raise _whatif.WhatIfError(f"{_whatif.item_name(conn, e.item)} has no known serving weight.")
+        qty = e.amount / per
+    if target_servings is not None and e.per == "serving":
+        qty *= target_servings
+    return qty
+
 
 def _whatif_apply_plan(conn, page: str, query: str) -> dict:
-    """What Apply for real would do: per edit, the direct occurrences the
-    real substitute will change and the ones it can't reach (inside a recipe
-    for meals; inside a sub-recipe outside the selection for recipes)."""
+    """What Apply for real would do: per edit, the direct occurrences it
+    will change and the ones it can't reach (inside a recipe for meals;
+    inside a sub-recipe outside the selection for recipes).
+
+    Meals: a remove/scale of a recipe also lists the meals holding it as
+    individual ingredients ("ingredient_rows": meal id -> meal item ids,
+    from whatif's own match, so Apply changes exactly what the what-if did);
+    an add goes into a new meal on each day the what-if added it to
+    ("new_meal_days"). Recipes: an add goes into every selected recipe;
+    "weighted" lists changed recipes with a stored total weight or water
+    once cooked (applying leaves those as they are), and "meals_affected"
+    counts the logged meals that use a changed recipe (or one built on it),
+    since a meal follows its recipe."""
     a = _whatif_args(query)
     if page == "meals":
         c = _whatif_meals_compute(conn, a["mode"] or "range", a["ranges_raw"], a["sel_ids"], a["rows"], "all")
@@ -12938,21 +13011,60 @@ def _whatif_apply_plan(conn, page: str, query: str) -> dict:
     if not problems and not c["result"]:
         problems = ["Nothing is selected."]
     if not problems:
-        problems = _whatif.real_substitution_problems(c["edits"])
+        problems = _whatif.real_substitution_problems(c["edits"], page, conn)
     changes = []
     if not problems:
-        for e, rep in zip(c["edits"], c["result"]["edits"]):
-            if page == "meals":
+        result = c["result"]
+        for n, (e, rep) in enumerate(zip(c["edits"], result["edits"]), 1):
+            ingredient_rows, new_meal_days = {}, []
+            if e.op == "add":
+                if page == "meals":
+                    direct, new_meal_days = [], list(result["dates"])
+                else:
+                    direct = list(targets)
+                    if e.item[0] == "recipe":
+                        loops = [rid for rid in direct if rid == e.item[1]
+                                 or _whatif._contains(conn, e.item[1], ("recipe", rid))]
+                        if loops:
+                            problems.append(f"Change {n}: {_whatif.item_name(conn, e.item)} can't go into "
+                                            f"{_whatif.item_name(conn, ('recipe', loops[0]))}, which is itself "
+                                            "or is used inside it; leave that recipe out of the selection.")
+                reached = len(direct)
+            elif page == "meals":
                 direct = _db.meals_with_direct_item(conn, targets, *e.item)
+                if e.op in ("remove", "scale"):
+                    ingredient_rows = rep.get("ingredient_rows", {})
+                    direct = sorted(set(direct) | set(ingredient_rows))
                 reached = rep["meals"]
             else:
                 direct = _db.recipes_with_direct_ingredient(conn, targets, *e.item)
-                if e.replacement[0] == "recipe":
+                if e.op == "replace" and e.replacement[0] == "recipe":
                     direct = [rid for rid in direct if rid != e.replacement[1]]
                 reached = rep["recipes"]
             changes.append({"edit": e, "text": _whatif.describe(rep, page),
-                            "direct": direct, "nested_only": max(reached - len(direct), 0)})
+                            "direct": direct, "ingredient_rows": ingredient_rows,
+                            "new_meal_days": new_meal_days,
+                            "nested_only": max(reached - len(direct), 0)})
+    weighted, meals_affected = [], 0
+    if not problems and page == "recipes":
+        # A same-weight food swap keeps a recipe's weight; anything else may not.
+        reweighed = {rid for ch in changes for rid in ch["direct"]
+                     if not (ch["edit"].op == "replace" and ch["edit"].item[0] == "food")}
+        for rid in sorted(reweighed):
+            r = _db.recipe_get(conn, rid)
+            if r and (r["total_weight"] or r["cooked_water_per_100g"] is not None):
+                weighted.append({"id": rid, "name": r["name"], "total_weight": r["total_weight"],
+                                 "total_weight_unit": r["total_weight_unit"] or "g",
+                                 "cooked_water": r["cooked_water_per_100g"] is not None})
+        changed = {rid for ch in changes for rid in ch["direct"]}
+        users = changed | _whatif._ancestors(conn, changed)
+        if users:
+            ph = ",".join("?" * len(users))
+            meals_affected = conn.execute(
+                f"SELECT COUNT(DISTINCT meal_id) FROM meal_items WHERE item_type='recipe' AND recipe_id IN ({ph})",
+                tuple(users)).fetchone()[0]
     return {"problems": problems, "changes": changes, "targets": targets,
+            "weighted": weighted, "meals_affected": meals_affected,
             "query": _whatif_clean_query(query), "page": page}
 
 
@@ -12964,29 +13076,87 @@ def analysis_whatif_apply_confirm(request: Request, page: str = Query("meals"), 
         plan = _whatif_apply_plan(conn, page, query)
     return templates.TemplateResponse(request, "analysis_whatif_apply.html", {
         **plan, "back_url": f"{_WHATIF_PAGES[page]}?{plan['query']}",
-        "total": sum(len(ch["direct"]) for ch in plan["changes"]),
+        "added_meal_name": WHATIF_ADDED_MEAL_NAME,
+        "total": sum(len(ch["direct"]) + len(ch["new_meal_days"]) for ch in plan["changes"]),
     })
+
+
+_WHATIF_APPLY_ORDER = ("remove", "scale", "replace", "add")
 
 
 @app.post("/analysis/whatif/apply", response_class=RedirectResponse)
 def analysis_whatif_apply(page: str = Form(...), query: str = Form("")):
-    """Do it: db.substitute_item_in_meals / substitute_item_in_recipes per
-    replace edit, all in one transaction, then (recipes) recompute DCP for
-    every recipe changed. Re-plans from the query, so it does exactly what
-    the confirmation page showed for the data as it is now."""
+    """Do it, all in one transaction: removes, then amount changes, then
+    replaces, then adds — so no change touches a row another one has
+    already dealt with (as in the what-if, where removed rows are gone and
+    added items aren't rewritten at the top level). Meals: db.remove_item_
+    from_meals / scale_item_in_meals / substitute_item_in_meals, plus the
+    rows of a recipe logged as individual ingredients, and a new meal per
+    day for adds. Recipes: remove_item_from_recipes / scale_item_in_recipes /
+    substitute_item_in_recipes / recipe_add_ingredient, then DCP recomputed
+    for every recipe changed (which cascades and flags meals stale).
+    Re-plans from the query, so it does exactly what the confirmation page
+    showed for the data as it is now."""
     page = page if page in _WHATIF_PAGES else "meals"
     with _db.get_db() as conn:
         plan = _whatif_apply_plan(conn, page, query)
         if plan["problems"]:
             return _whatif_back(page, query)
+        targets = plan["targets"]
         changed: set[int] = set()
-        for ch in plan["changes"]:
-            e = ch["edit"]
-            if page == "meals":
-                if _db.substitute_item_in_meals(conn, plan["targets"], *e.item, *e.replacement):
+        new_meals: dict[str, int] = {}
+        for op in _WHATIF_APPLY_ORDER:
+            for ch in plan["changes"]:
+                e = ch["edit"]
+                if e.op != op:
+                    continue
+                if page == "meals":
+                    for meal_id, row_ids in ch["ingredient_rows"].items():
+                        for row_id in row_ids:
+                            if op == "remove":
+                                _db.meal_remove_item(conn, row_id, meal_id)
+                            else:
+                                _db.scale_meal_item(conn, row_id, meal_id, e.amount)
+                        _db.mark_meal_stale(conn, meal_id)
+                    if op == "remove":
+                        _db.remove_item_from_meals(conn, targets, *e.item)
+                    elif op == "scale":
+                        _db.scale_item_in_meals(conn, targets, *e.item, e.amount)
+                    elif op == "replace":
+                        _db.substitute_item_in_meals(conn, targets, *e.item, *e.replacement)
+                    else:
+                        kind, item_id = e.item
+                        qty = _whatif_add_qty(conn, e)
+                        name = _whatif.item_name(conn, e.item)
+                        for day in ch["new_meal_days"]:
+                            if day not in new_meals:
+                                new_meals[day] = _db.meal_create(conn, WHATIF_ADDED_MEAL_NAME, day)
+                            mid = new_meals[day]
+                            if kind == "food":
+                                _db.meal_add_food(conn, mid, item_id, name, qty, _db.amount_text(kind, qty))
+                            else:
+                                _db.meal_add_recipe(conn, mid, item_id, name, qty, unit=_db.amount_text(kind, qty))
+                            changed.add(mid)
                     changed.update(ch["direct"])
-            else:
-                changed.update(_db.substitute_item_in_recipes(conn, plan["targets"], *e.item, *e.replacement))
+                else:
+                    if op == "remove":
+                        changed.update(_db.remove_item_from_recipes(conn, targets, *e.item))
+                    elif op == "scale":
+                        changed.update(_db.scale_item_in_recipes(conn, targets, *e.item, e.amount))
+                    elif op == "replace":
+                        changed.update(_db.substitute_item_in_recipes(conn, targets, *e.item, *e.replacement))
+                    else:
+                        kind, item_id = e.item
+                        name = _whatif.item_name(conn, e.item)
+                        for rid in ch["direct"]:
+                            servings = float((_db.recipe_get(conn, rid) or {"servings": 1})["servings"] or 1)
+                            qty = _whatif_add_qty(conn, e, servings)
+                            if kind == "food":
+                                _db.recipe_add_ingredient(conn, rid, item_id, name, qty, _db.amount_text(kind, qty))
+                            else:
+                                _db.recipe_add_ingredient(conn, rid, 0, name, qty, _db.amount_text(kind, qty),
+                                                          ref_recipe_id=item_id)
+                            changed.add(rid)
         if page == "recipes":
             for recipe_id in changed:
                 _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)

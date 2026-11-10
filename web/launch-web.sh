@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# launch-web.sh — start (or restart) the NutriMagnus web server and open a browser tab.
+# launch-web.sh — start (or restart) the NutriMagnus web server and open it in its own window (or a browser tab — see launcher.py).
 # Safe to run multiple times: kills any stale server on port 8000 first.
 
 set -euo pipefail

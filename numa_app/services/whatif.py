@@ -6,7 +6,10 @@ a scenario (a list of edits), without writing anything.
 The edits reach every depth through the optional `rewrite` hook on
 recipe_nutrients.expand_recipe_ingredients() — a food used inside a recipe
 inside a meal is removed or replaced just like one logged on the meal
-directly. "add" puts an item on every day in the selection that has at least
+directly. Removing a recipe also removes it where it was logged "as
+individual ingredients" (one meal row per ingredient, no recipe row): the
+rows whose foods and amounts match the recipe's ingredients, all at one
+scale, are taken out together (_logged_ingredient_sets). "add" puts an item on every day in the selection that has at least
 one meal logged (never on days with nothing logged, matching
 nutrient_trend.average_from_daily_totals: "didn't log" is not "ate nothing").
 
@@ -79,6 +82,10 @@ class _Ctx:
     food_nuts: dict[int, dict] = field(default_factory=dict)
     current: int | None = None      # meal or recipe being evaluated, for hits
     hits: dict[int, set[int]] = field(default_factory=dict)   # edit index -> meal/recipe ids
+    skip_rows: set[int] = field(default_factory=set)   # meal item ids removed as a recipe's logged ingredients
+    row_scale: dict[int, float] = field(default_factory=dict)   # meal item id -> factor (recipe scaled as its logged ingredients)
+    as_ingredients: dict[int, dict[int, list[int]]] = field(default_factory=dict)  # edit index -> meal id -> row ids (those removals/scales)
+    loose: dict[int, set[int]] = field(default_factory=dict)  # edit index -> meal ids with unmatched-looking ingredients
 
     def grams_per_serving(self, recipe_id: int) -> float | None:
         if recipe_id not in self.serving_g:
@@ -197,8 +204,10 @@ def meal_breakdown(meal_id: int, conn, ctx: _Ctx | None = None) -> tuple[dict[st
     total: dict[str, float] = {}
     leaves: list[dict] = []
     for row in _db.meal_get_items(conn, meal_id):
+        if row["id"] in ctx.skip_rows:
+            continue
         if row["item_type"] == "food" and row["fdc_id"]:
-            entries = [("food", row["fdc_id"], float(row["amount"]))]
+            entries = [("food", row["fdc_id"], float(row["amount"]) * ctx.row_scale.get(row["id"], 1.0))]
         elif row["item_type"] == "recipe" and row["recipe_id"]:
             entries = [("recipe", row["recipe_id"], float(row["amount"]))]
         else:
@@ -213,6 +222,93 @@ def meal_breakdown(meal_id: int, conn, ctx: _Ctx | None = None) -> tuple[dict[st
             _add(total, nuts)
             leaves.extend(item_leaves)
     return total, leaves
+
+
+# A logged ingredient's amount may differ from the recipe's (times the
+# portion scale) by this share and still count as that ingredient.
+_INGREDIENT_TOLERANCE = 0.005
+
+
+def _logged_ingredient_sets(conn, meal_rows: list, recipe_id: int,
+                            used: set[int]) -> tuple[list[int], bool]:
+    """Meal item ids that are recipe_id logged "as individual ingredients"
+    (backend meal_add_recipe, mode "ingredients": one food row per leaf
+    ingredient, amount = leaf grams x portion scale), and whether the meal
+    looks like it holds such a set that doesn't match the recipe as it now
+    is (most of its foods present, but no complete set at one scale).
+
+    Every leaf needs its own row with the same food and the same scale, so a
+    separately logged extra of one of those foods is left alone. Several
+    sets (the recipe logged that way twice) are all found. A one-ingredient
+    recipe is never matched (it can't be told from the food itself). `used` rows
+    (already claimed by another edit) are never matched again."""
+    leaves = [lf for lf in expand_recipe_ingredients(recipe_id, conn)
+              if lf.get("fdc_id") and lf["grams"] > 0]
+    if len(leaves) < 2:
+        # One ingredient logged on its own is just that food — nothing tells
+        # it apart from the recipe, so it is never taken for one.
+        return [], False
+    # Newest rows first: the ingredients were added together, after
+    # anything logged before them, so an identical older row stays put.
+    rows = sorted((r for r in meal_rows if r["item_type"] == "food" and r["fdc_id"] and r["id"] not in used),
+                  key=lambda r: -r["id"])
+    leaves.sort(key=lambda lf: -lf["grams"])
+    found: list[int] = []
+    taken: set[int] = set()
+    while True:
+        match = None
+        first = leaves[0]
+        for anchor in rows:
+            if anchor["id"] in taken or anchor["fdc_id"] != first["fdc_id"]:
+                continue
+            scale = float(anchor["amount"]) / first["grams"]
+            if scale <= 0:
+                continue
+            picked = []
+            for lf in leaves:
+                want = lf["grams"] * scale
+                row = next((r for r in rows if r["id"] not in taken and r["id"] not in picked
+                            and r["fdc_id"] == lf["fdc_id"]
+                            and abs(float(r["amount"]) - want) <= _INGREDIENT_TOLERANCE * want), None)
+                if row is None:
+                    break
+                picked.append(row["id"])
+            else:
+                match = picked
+                break
+        if match is None:
+            break
+        taken.update(match)
+        found.extend(match)
+    if found:
+        return found, False
+    wanted = {lf["fdc_id"] for lf in leaves}
+    present = wanted & {r["fdc_id"] for r in rows}
+    return [], len(present) >= max(2, -(-len(wanted) * 6 // 10))
+
+
+def _apply_logged_ingredient_removals(conn, ctx: _Ctx, meal_id: int) -> None:
+    """For each "remove a recipe" or "change a recipe's amount" edit, mark
+    this meal's rows that are that recipe logged as individual ingredients
+    (see _logged_ingredient_sets): left out, or multiplied by the edit's
+    factor (ctx.row_scale)."""
+    meal_rows = None
+    for i, e in enumerate(ctx.edits):
+        if e.op not in ("remove", "scale") or e.item[0] != "recipe":
+            continue
+        if meal_rows is None:
+            meal_rows = _db.meal_get_items(conn, meal_id)
+        claimed = ctx.skip_rows | set(ctx.row_scale)
+        ids, loose = _logged_ingredient_sets(conn, meal_rows, e.item[1], claimed)
+        if ids:
+            if e.op == "remove":
+                ctx.skip_rows.update(ids)
+            else:
+                ctx.row_scale.update(dict.fromkeys(ids, e.amount))
+            ctx.hits.setdefault(i, set()).add(meal_id)
+            ctx.as_ingredients.setdefault(i, {})[meal_id] = ids
+        elif loose:
+            ctx.loose.setdefault(i, set()).add(meal_id)
 
 
 def meal_nutrients(meal_id: int, conn, ctx: _Ctx | None = None) -> dict[str, float]:
@@ -350,6 +446,7 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
         _add(before.setdefault(d, {}), nuts)
         leaves_before.setdefault(d, []).extend(leaves)
         ctx.current = meal["id"]
+        _apply_logged_ingredient_removals(conn, ctx, meal["id"])
         nuts, leaves = meal_breakdown(meal["id"], conn, ctx)
         _add(after.setdefault(d, {}), nuts)
         leaves_after.setdefault(d, []).extend(leaves)
@@ -418,7 +515,10 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
         days = {m["meal_date"] for m in meals if m["id"] in meal_ids}
         edit_report.append({"edit": e, "item_name": item_name(conn, e.item),
                             "replacement_name": item_name(conn, e.replacement) if e.replacement else None,
-                            "meals": len(meal_ids), "days": len(days)})
+                            "meals": len(meal_ids), "days": len(days),
+                            "as_ingredients": len(ctx.as_ingredients.get(i, {})),
+                            "ingredient_rows": ctx.as_ingredients.get(i, {}),
+                            "loose_meal_ids": sorted(ctx.loose.get(i, set()) - set(meal_ids))})
 
     return {
         "dates":    dates,
@@ -817,30 +917,50 @@ def recipes_csv(result: dict) -> str:
     return buf.getvalue()
 
 
-def real_substitution_problems(edits: list[Edit]) -> list[str]:
-    """Why this scenario can't be handed to the real (destructive) substitute
-    in db.substitute_item_in_meals / substitute_item_in_recipes; empty when
-    it can. That substitute swaps the item and keeps the logged amount as a
-    number (grams for a food, servings for a recipe), so only these replace
-    edits mean the same thing there as here: food for food at the same
-    weight, recipe for recipe at the same servings. Chains (A->B plus B->C)
-    and an item replaced twice are refused: applied one after another they
-    would not match what the what-if showed."""
+def real_substitution_problems(edits: list[Edit], page: str = "meals", conn=None) -> list[str]:
+    """Why this scenario can't be applied for real (web/backend.py's
+    analysis_whatif_apply); empty when it can. Applying changes only what is
+    logged straight on the selected meals / listed straight in the selected
+    recipes, so every edit must mean the same thing there as here:
+
+    replace: food for food at the same weight, or recipe for recipe at the
+             same servings — the real substitute keeps the stored amount.
+    remove:  as is (on meals, also a recipe logged as individual ingredients).
+    scale:   a multiplier above 0 (0 is a remove: use Remove).
+    add:     as is (meals: into a new meal on each day; recipes: one more
+             ingredient in each selected recipe).
+
+    Refused across edits: an item changed twice, something replaced by an
+    item another change removes, replaces, scales or adds, and (with conn)
+    an added or replacement recipe that holds an item another change
+    changes — the what-if changes it inside that recipe too, which applying
+    doesn't. Applied one after another, these wouldn't match the what-if."""
     if not edits:
         return ["There are no changes to apply."]
     problems = []
     for n, e in enumerate(edits, 1):
-        if e.op != "replace":
-            problems.append(f"Change {n} is a {e.op}; only Replace changes can be applied for real.")
-        elif (e.item[0], e.replacement[0], e.basis) not in (("food", "food", "grams"),
-                                                           ("recipe", "recipe", "servings")):
+        if e.op == "replace" and (e.item[0], e.replacement[0], e.basis) not in (
+                ("food", "food", "grams"), ("recipe", "recipe", "servings")):
             problems.append(f"Change {n}: only a food replaced by a food at the same weight, or a recipe "
                             "by a recipe at the same servings, can be applied for real.")
-    if not problems:
-        items = [e.item for e in edits]
-        if len(set(items)) < len(items):
-            problems.append("The same item is replaced more than once.")
-        if any(e.replacement in items for e in edits):
-            problems.append("One change replaces an item with something another change replaces; "
-                            "apply them one at a time instead.")
+        elif e.op == "scale" and not (e.amount and e.amount > 0):
+            problems.append(f"Change {n}: changing an amount to 0% is a removal; use Remove to apply it.")
+    if problems:
+        return problems
+    items = [e.item for e in edits]
+    if len(set(items)) < len(items):
+        problems.append("The same item is changed more than once.")
+    if any(e.replacement in items for e in edits if e.replacement):
+        problems.append("One change replaces an item with something another change also changes; "
+                        "apply them one at a time instead.")
+    if conn is not None and not problems:
+        for n, e in enumerate(edits, 1):
+            brought = e.item if e.op == "add" else e.replacement if e.op == "replace" else None
+            if not brought or brought[0] != "recipe":
+                continue
+            inside = [o.item for o in edits if o is not e and _contains(conn, brought[1], o.item)]
+            if inside:
+                problems.append(f"Change {n}: {item_name(conn, brought)} contains {item_name(conn, inside[0])}, "
+                                "which another change also changes. The what-if changes it inside that recipe "
+                                "too, but applying it wouldn't; apply them one at a time instead.")
     return problems

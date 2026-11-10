@@ -1978,6 +1978,31 @@ def test_settings_browser_pref_set_and_render(client: TestClient) -> None:
     assert "checked" in firefox_block
 
 
+def test_settings_app_window_checkbox_saves_both_ways(client: TestClient) -> None:
+    import re
+    box = lambda: re.search(r'<input[^>]*id="browser-app-window"[^>]*>',
+                            client.get("/settings").text).group(0)
+    assert "checked" in box()  # on by default
+    client.post("/settings/browser", data={"preferred_browser": "", "app_window_shown": "1"},
+                follow_redirects=False)
+    assert json.loads(backend._PREFS_FILE.read_text())["app_window"] is False
+    assert "checked" not in box()
+    client.post("/settings/browser",
+                data={"preferred_browser": "", "app_window_shown": "1", "app_window": "1"},
+                follow_redirects=False)
+    assert json.loads(backend._PREFS_FILE.read_text())["app_window"] is True
+    assert "checked" in box()
+
+
+def test_app_window_start_paths_and_favicon(client: TestClient) -> None:
+    for path in ("/nutrimagnus", "/nutrimagnus-source"):
+        resp = client.get(path, follow_redirects=False)
+        assert resp.status_code == 302 and resp.headers["location"] == "/"
+    resp = client.get("/favicon.ico")
+    assert resp.status_code == 200 and resp.content[:4] == b"\x89PNG"
+    assert 'rel="icon"' in client.get("/").text
+
+
 def test_settings_browser_pref_rejects_unknown_value(client: TestClient) -> None:
     resp = client.post(
         "/settings/browser", data={"preferred_browser": "not-a-real-browser"},
@@ -9210,3 +9235,15 @@ def test_prefs_saved_from_many_threads_keep_every_change(monkeypatch, tmp_path):
     for th in threads:
         th.join()
     assert backend._load_prefs_file() == {f"k{i}": i for i in range(40)}
+
+
+def test_nutrient_plot_subtitle_smoothing_note() -> None:
+    """The plot's subtitle ends with "Data smoothed over N days." inside its
+    parentheses, stands alone when there are no goal/limit lines, and is left
+    off when smoothing is off (0 or 1)."""
+    from web.backend import _NUTRIENT_PLOT_GOAL_SUBTITLE, _nutrient_plot_add_smoothing_note as note
+    assert note(_NUTRIENT_PLOT_GOAL_SUBTITLE, 3) == (
+        "(Dashed lines indicate profile goal levels. Data smoothed over 3 days.)")
+    assert note("", 7) == "(Data smoothed over 7 days.)"
+    assert note(_NUTRIENT_PLOT_GOAL_SUBTITLE, 1) == _NUTRIENT_PLOT_GOAL_SUBTITLE
+    assert note("", 0) == ""

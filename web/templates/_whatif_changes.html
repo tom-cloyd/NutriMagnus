@@ -127,7 +127,7 @@
   </form>
   <a href="{{ csv_path }}?{{ query }}" class="btn btn-sm btn-outline-secondary">Download CSV</a>
   {% if not apply_problems %}
-  <a href="/analysis/whatif/apply?{{ {'page': page, 'query': query}|urlencode }}" class="btn btn-sm btn-outline-danger">Apply these replacements for real&hellip;</a>
+  <a href="/analysis/whatif/apply?{{ {'page': page, 'query': query}|urlencode }}" class="btn btn-sm btn-outline-danger">Apply these changes for real&hellip;</a>
   {% else %}
   <span class="small muted" style="max-width:30rem">Apply for real isn't offered: {{ apply_problems|join(" ") }}</span>
   {% endif %}
@@ -137,7 +137,7 @@
 {% macro applied_banner(applied, page) %}
 {% if applied is not none %}
 <div class="alert alert-success py-2">Applied for real: {{ applied }} {{ "meal(s)" if page == "meals" else "recipe(s)" }} changed.
-  The table below now starts from your data as it is now, so the replacements you applied find nothing left to replace.</div>
+  The table below now starts from your data as it is now: removals and replacements find nothing left to change, and an amount change or addition shows again on top of what you applied, so it isn't offered a second time.</div>
 {% endif %}
 {% endmacro %}
 

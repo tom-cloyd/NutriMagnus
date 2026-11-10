@@ -1,5 +1,6 @@
 """
-launcher.py — Start the numa web app and open a browser tab.
+launcher.py — Start the numa web app and open it in its own browser window
+(Chromium-family app mode) or, failing that, a browser tab.
 
 Usage:
     python web/launcher.py           # default port 8000
@@ -64,7 +65,51 @@ _BROWSER_ALTERNATES = {
     "google-chrome": ("google-chrome", "google-chrome-stable"),
     "chrome": ("chrome", "google-chrome", "google-chrome-stable",
                "chromium", "chromium-browser"),
+    "brave": ("brave", "brave-browser"),
+    "brave-browser": ("brave-browser", "brave"),
+    "microsoft-edge": ("microsoft-edge", "microsoft-edge-stable"),
 }
+
+# Chromium-family browsers can open a page as its own app window
+# (--app=URL): no tabs, no address bar, its own taskbar entry. Firefox
+# dropped its equivalent, so with the "own window" setting on, the launcher
+# reaches for one of these, and falls back to a normal tab if none is
+# installed. _APP_WINDOW_ORDER is the order tried when no browser is chosen
+# in Settings and none of these is already running.
+_APP_WINDOW_BROWSERS = frozenset({
+    "google-chrome", "chrome", "chromium", "chromium-browser",
+    "brave", "brave-browser", "vivaldi", "microsoft-edge",
+})
+_APP_WINDOW_ORDER = ("chromium", "google-chrome", "brave", "microsoft-edge", "vivaldi")
+
+# Where these browsers live on Windows and macOS, which rarely put them on
+# $PATH. Tried only after the $PATH lookup fails.
+def _platform_browser_paths(name: str) -> list[str]:
+    if sys.platform == "win32":
+        pf = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+        pf86 = os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")
+        local = os.environ.get("LOCALAPPDATA", "")
+        rel = {
+            "google-chrome": [r"Google\Chrome\Application\chrome.exe"],
+            "chrome": [r"Google\Chrome\Application\chrome.exe"],
+            "chromium": [r"Chromium\Application\chrome.exe"],
+            "brave": [r"BraveSoftware\Brave-Browser\Application\brave.exe"],
+            "brave-browser": [r"BraveSoftware\Brave-Browser\Application\brave.exe"],
+            "microsoft-edge": [r"Microsoft\Edge\Application\msedge.exe"],
+            "vivaldi": [r"Vivaldi\Application\vivaldi.exe"],
+        }.get(name, [])
+        return [str(Path(base) / r) for r in rel for base in (pf, pf86, local) if base]
+    if sys.platform == "darwin":
+        app = {
+            "google-chrome": "Google Chrome", "chrome": "Google Chrome",
+            "chromium": "Chromium", "brave": "Brave Browser",
+            "brave-browser": "Brave Browser", "microsoft-edge": "Microsoft Edge",
+            "vivaldi": "Vivaldi", "firefox": "Firefox",
+        }.get(name)
+        if app:
+            return [f"/Applications/{app}.app/Contents/MacOS/{app}",
+                    str(Path.home() / f"Applications/{app}.app/Contents/MacOS/{app}")]
+    return []
 
 # A desktop-entry / application-launcher shortcut typically runs with a
 # minimal $PATH that omits directories a browser can actually live in —
@@ -95,11 +140,14 @@ def _resolve_executable(name: str) -> str | None:
 
 def _resolve_browser(name: str) -> str | None:
     """Absolute path for browser `name`, trying its _BROWSER_ALTERNATES too."""
-    return next(
+    found = next(
         (path for alt in _BROWSER_ALTERNATES.get(name, (name,))
          if (path := _resolve_executable(alt))),
         None,
     )
+    if found:
+        return found
+    return next((p for p in _platform_browser_paths(name) if os.path.isfile(p)), None)
 
 
 def _detect_running_browsers() -> list[str]:
@@ -168,12 +216,12 @@ def _prompt_browser_choice(running: list[str]) -> str | None:
     return None
 
 
-def _preferred_browser_pref() -> str:
-    """The "preferred_browser" value from prefs.json, set on the Settings page.
+def _read_prefs() -> dict:
+    """prefs.json, the file the Settings page saves to ({} if missing/bad).
 
     Read directly from the JSON file (mirroring backend.py's _load_prefs_file)
     rather than importing backend.py, so the launcher never pulls in FastAPI/DB
-    startup cost just to check one setting.
+    startup cost just to check a setting.
     """
     import platform_utils as _platform_utils
     prefs_file = _platform_utils.get_data_dir() / "prefs.json"
@@ -181,10 +229,37 @@ def _preferred_browser_pref() -> str:
         try:
             data = json.loads(prefs_file.read_text())
             if isinstance(data, dict):
-                return data.get("preferred_browser", "") or ""
+                return data
         except (json.JSONDecodeError, OSError):
             pass
-    return ""
+    return {}
+
+
+def _preferred_browser_pref() -> str:
+    """The "preferred_browser" value from prefs.json, set on the Settings page."""
+    return _read_prefs().get("preferred_browser", "") or ""
+
+
+def _app_window_pref() -> bool:
+    """Settings' "open in its own window" choice — on unless turned off."""
+    return _read_prefs().get("app_window", True) is not False
+
+
+def _app_window_browser(preferred: str) -> str | None:
+    """Path of a browser that can open NuMa as its own window, or None.
+
+    A browser chosen in Settings is used only if it can (choosing Firefox
+    means a normal Firefox tab). With none chosen, a running Chromium-family
+    browser wins, then any installed one in _APP_WINDOW_ORDER — no "which
+    browser?" dialog, since the window doesn't sit among anyone's tabs.
+    """
+    if preferred:
+        return _resolve_browser(preferred) if preferred in _APP_WINDOW_BROWSERS else None
+    running = [b for b in _detect_running_browsers() if b in _APP_WINDOW_BROWSERS]
+    return next(
+        (path for name in (*running, *_APP_WINDOW_ORDER) if (path := _resolve_browser(name))),
+        None,
+    )
 
 if not _FROZEN:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -194,16 +269,102 @@ import uvicorn
 _WEB_DIR = _PROJECT_ROOT if _FROZEN else Path(__file__).parent
 
 
+def _app_window_path() -> str:
+    """The path NuMa's own window opens at — backend.py redirects it to Home.
+
+    Chromium names an --app window after its address's host and path
+    (http://127.0.0.1:8000/nutrimagnus → "chrome-127.0.0.1__nutrimagnus-Default";
+    the port plays no part), and that name is what a Linux desktop matches
+    to a menu entry for the window's icon. A path of NuMa's own makes the
+    name distinctive, and a different one for source keeps the two installs
+    apart, each under its own menu entry.
+    """
+    return "/nutrimagnus" if _FROZEN else "/nutrimagnus-source"
+
+
+def _app_window_id(browser_path: str, url: str) -> str:
+    """The name the browser gives NuMa's window (Linux app_id / WM_CLASS)."""
+    from urllib.parse import urlsplit
+    base = os.path.basename(browser_path).lower()
+    prefix = next((p for key, p in (("brave", "brave"), ("edge", "msedge"),
+                                    ("vivaldi", "vivaldi")) if key in base), "chrome")
+    parts = urlsplit(url)
+    return f"{prefix}-{parts.hostname}_{(parts.path or '/').replace('/', '_')}-Default"
+
+
+def _ensure_linux_window_entry(window_id: str) -> None:
+    """Give NuMa's window its icon on a Linux desktop, whichever the desktop.
+
+    KDE, GNOME and the rest pick a window's taskbar icon from the
+    applications-menu entry whose file name or StartupWMClass= matches the
+    window's name; with none, it gets a generic icon. So unless a menu entry
+    already claims the name (install-linux.sh's and deploy/'s do, for
+    Chrome and Chromium), write a hidden one named after it. Never raises:
+    a missing icon is not worth failing a launch over.
+    """
+    if sys.platform != "linux":
+        return
+    try:
+        data_home = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+        apps = data_home / "applications"
+        entry = apps / f"{window_id}.desktop"
+        claim = f"StartupWMClass={window_id}"
+        for f in apps.glob("*.desktop") if apps.is_dir() else ():
+            if f != entry and claim in f.read_text(errors="ignore").splitlines():
+                return
+        # The bundled icon of a packaged build lives in a temporary folder
+        # that's gone when it exits, so keep a copy of it.
+        icon = data_home / "icons" / "nutrimagnus-window.png"
+        src = (_WEB_DIR / "static" / "icon-256.png").read_bytes()
+        if not icon.exists() or icon.read_bytes() != src:
+            icon.parent.mkdir(parents=True, exist_ok=True)
+            icon.write_bytes(src)
+        exec_cmd = (f'"{sys.executable}"' if _FROZEN
+                    else f'"{sys.executable}" "{Path(__file__).resolve()}"')
+        text = (
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            f"Name={'NutriMagnus' if _FROZEN else 'NuMa (source)'}\n"
+            f"Exec={exec_cmd}\n"
+            f"Icon={icon}\n"
+            "NoDisplay=true\n"
+            f"{claim}\n"
+            "Comment=Matches NuMa's window to its icon; written by NuMa's launcher\n"
+        )
+        if not entry.exists() or entry.read_text(errors="ignore") != text:
+            apps.mkdir(parents=True, exist_ok=True)
+            entry.write_text(text)
+    except OSError:
+        pass
+
+
 def _pick_and_open_browser(url: str) -> None:
     """Open `url` in the preferred/detected/chosen browser, or the OS default.
 
-    Order: an explicit Settings preference wins outright; otherwise, with
+    With "own window" on (the default) and a Chromium-family browser
+    available, it opens as an app window — see _app_window_browser().
+    Otherwise, as a normal tab. Order: an explicit Settings preference wins
+    outright; otherwise, with
     zero or one browser running, use that (or the OS default if none);
     with more than one, ask via _prompt_browser_choice(), falling back to
     the first-detected one if that returns nothing (no dialog tool, user
     cancelled, or it timed out).
     """
     binary = _preferred_browser_pref()
+    if _app_window_pref():
+        app = _app_window_browser(binary)
+        if app:
+            from urllib.parse import urlsplit
+            app_url = f"{urlsplit(url).scheme}://{urlsplit(url).netloc}{_app_window_path()}"
+            _ensure_linux_window_entry(_app_window_id(app, app_url))
+            try:
+                subprocess.Popen(
+                    [app, f"--app={app_url}"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                return
+            except OSError:
+                pass  # fall through to a normal tab
     if not binary:
         running = _detect_running_browsers()
         if len(running) > 1:

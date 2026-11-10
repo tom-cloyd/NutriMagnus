@@ -116,8 +116,11 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
         ({% if e.basis == "grams" %}same weight{% elif e.basis == "factor" %}{{ "%g"|format((e.amount * 100)|round(1)) }}% of the old weight{% elif e.basis == "servings" %}same servings{% else %}{{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} each time{% endif %})
       {% else %}Add {{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} of <strong>{{ r.item_name }}</strong> per day{% endif %}
       &mdash;
-      {% if r.meals %}<span class="muted">{% if e.op == "add" %}added on {{ r.days }} day(s){% else %}found in {{ r.meals }} meal(s) on {{ r.days }} day(s){% endif %}</span>
+      {% if r.meals %}<span class="muted">{% if e.op == "add" %}added on {{ r.days }} day(s){% else %}found in {{ r.meals }} meal(s) on {{ r.days }} day(s){% if r.as_ingredients %}{% if r.as_ingredients == r.meals %}, logged there{% else %}; in {{ r.as_ingredients }} of them{% endif %} as individual ingredients, which are {{ "removed" if e.op == "remove" else "changed" }} together{% endif %}{% endif %}</span>
       {% else %}<span class="text-warning">not found in any of these meals, so it changes nothing</span>{% endif %}
+      {% if r.loose_meal_ids %}<br><span class="text-warning">Meal{{ "s" if r.loose_meal_ids|length > 1 }}
+        {% for mid in r.loose_meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{{ ", " if not loop.last }}{% endfor %}
+        {{ "seem" if r.loose_meal_ids|length > 1 else "seems" }} to have this recipe logged as individual ingredients, but they don't match the recipe as it is now (it may have changed since), so they weren't {{ "removed" if e.op == "remove" else "changed" }}. {{ "Remove" if e.op == "remove" else "Change" }} those foods one by one instead.</span>{% endif %}
     </li>
     {% endfor %}
   </ul>
@@ -253,11 +256,22 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
     rangeBlock.classList.toggle('opacity-50', !byRange);
     idsBlock.classList.toggle('opacity-50', byRange);
   }
-  rangeRadio.addEventListener('change', sync);
-  idsRadio.addEventListener('change', sync);
+  // The cursor goes in the box the checked choice uses: on load (unless
+  // something already has it; no scrolling, so a page reloaded with
+  // results stays put), and whenever the choice is switched.
+  function focusBox(box) {
+    if (!box || box.disabled) return;
+    box.focus({preventScroll: true});
+    var end = box.value.length;
+    try { box.setSelectionRange(end, end); } catch (e) {}
+  }
+  function activeBox() { return rangeRadio.checked ? rangesRaw : mealIds; }
+  rangeRadio.addEventListener('change', function () { sync(); focusBox(activeBox()); });
+  idsRadio.addEventListener('change', function () { sync(); focusBox(activeBox()); });
   mealIds.addEventListener('input', function () { if (mealIds.value.trim()) { idsRadio.checked = true; sync(); } });
   rangesRaw.addEventListener('input', function () { if (rangesRaw.value.trim()) { rangeRadio.checked = true; sync(); } });
   sync();
+  if (!document.activeElement || document.activeElement === document.body) focusBox(activeBox());
 
 })();
 </script>

@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-09:0047* / Reading time: 9 hours, 2 minutes
+*Updated 2026-11-09:1946* / Reading time: 9 hours, 7 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -251,7 +251,7 @@ Then open **Computed Daily Targets (section 2)** and glance at the targets calcu
 - **Glycemic Index Reference Table (section 7)** — only if you plan to track glycemic index (see Step 4): build the 2021 table ([how](#gi-editions)). Do this before Step 4 below, so your values come from the better table.
 - **Meals & Log columns (section 10):** choose which nutrient columns your meal lists show.
 - **Starter Data (section 11):** decide whether to keep the starter foods and recipes, or clear them.
-- **Browser to Launch (section 13):** pick a browser, if you run more than one and don't want to be asked which each time.
+- **Browser to Launch (section 13):** choose whether NuMa opens in its own window (the default) or in a normal browser tab, and pick a browser if you run more than one and don't want to be asked which each time.
 
 #### Step 3 — Set up your pantry
 
@@ -843,9 +843,11 @@ Leave this form empty and NuMa still works — you can search, log, and analyze 
 
 #### Browser to Launch
 
-*Search terms: default browser, which browser opens.*
+*Search terms: default browser, which browser opens, desktop app, standalone window, app mode, no tabs, address bar.*
 
-Starting NuMa opens a browser tab automatically. If you have more than one browser running at the time (Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web), NuMa normally asks which one to use via a small dialog. Setting a **Browser to Launch** here skips that dialog and always uses the one you pick — leave it on "Ask each time" (the default) if you're fine being asked, or don't run more than one browser at once.
+Starting NuMa opens it automatically. By default it opens in **its own window**: no tabs and no address bar, and it gets its own entry in your taskbar, so it behaves like a desktop program instead of a tab among your other tabs. This uses a browser underneath, so it needs Chrome, Chromium, Brave, Microsoft Edge or Vivaldi to be installed. You don't have to use that browser for anything else, and it doesn't need to be running already. The window carries NuMa's own icon in the taskbar and when switching windows (Alt+Tab), not the browser's. Firefox and GNOME Web can't open a page this way. To get a normal browser tab instead, untick **Open NuMa in its own window**. The change takes effect the next time NuMa starts.
+
+NuMa opens in a normal tab if the own-window setting is off, if you've chosen Firefox or GNOME Web below, or if none of the browsers listed above is installed. When it opens in a normal tab and you have more than one browser running at the time (Firefox, Chrome, Chromium, Brave, Vivaldi, Opera, Edge, or GNOME Web), NuMa asks which one to use via a small dialog. Setting a **Browser to Launch** here skips that dialog and always uses the one you pick. Leave it on "Ask each time" (the default) if you're fine being asked, or don't run more than one browser at once. With its own window on and "Ask each time" chosen, NuMa doesn't ask: it uses a suitable browser that's running, or else any installed one.
 
 #### Starter Data {: #starter-data}
 
@@ -2018,7 +2020,7 @@ If you pick nutrients with different units (e.g. Protein in g alongside Sodium i
 
 **Black & white (printer-friendly).** Check this to preview the plot the way it'll look on a printer that can't print color: every line drawn in black, with the highlighted nutrient solid and every other nutrient in its own dash pattern (dashed, dotted, dash-dot, etc.) instead of a color, so lines stay distinguishable without color at all. The on-screen plot updates the instant you check or uncheck the box — no need to click Plot — so you can compare both looks side by side before deciding.
 
-**Smoothing.** Day-to-day values can be noisy enough to obscure the underlying trend. The **Smoothing (days)** field averages each point with its preceding days — a trailing moving average — to smooth that out; it defaults to 3 days. Set it to 0 to turn smoothing off and see the original, unsmoothed data. A smoothed nutrient's own scaling (steps 1 and 2 above) is calculated from the smoothed data, since that's what's actually on the plot. **Missing days don't shrink the average.** Smoothing uses the days that have data, as if the missing ones weren't there: with 3-day smoothing, a point just after a break averages itself with the two days with data before it, however far back they are. **The first days plotted are smoothed like the rest.** Each point averages its own day with the logged days *before* it, and for the first few days plotted, some of those come from before the plot's start date: NuMa reads them for the averaging but doesn't draw them, so every point, the first included, is averaged over the same number of days. A note under the plot (here and on the Home page) says so, and from which date. If you haven't logged that many days before the plot starts (say, the plot begins with your very first logged day), the first few points are averaged over fewer days and can swing more than the rest of the line; the note then says how many points that affects, so you can read the start of the plot with that in mind.
+**Smoothing.** Day-to-day values can be noisy enough to obscure the underlying trend. The **Smoothing (days)** field averages each point with its preceding days — a trailing moving average — to smooth that out; it defaults to 3 days. Set it to 0 to turn smoothing off and see the original, unsmoothed data. While smoothing is on, the line of small text under the plot's title ends with "Data smoothed over 3 days." (or however many days you chose). A smoothed nutrient's own scaling (steps 1 and 2 above) is calculated from the smoothed data, since that's what's actually on the plot. **Missing days don't shrink the average.** Smoothing uses the days that have data, as if the missing ones weren't there: with 3-day smoothing, a point just after a break averages itself with the two days with data before it, however far back they are. **The first days plotted are smoothed like the rest.** Each point averages its own day with the logged days *before* it, and for the first few days plotted, some of those come from before the plot's start date: NuMa reads them for the averaging but doesn't draw them, so every point, the first included, is averaged over the same number of days. A note under the plot (here and on the Home page) says so, and from which date. If you haven't logged that many days before the plot starts (say, the plot begins with your very first logged day), the first few points are averaged over fewer days and can swing more than the rest of the line; the note then says how many points that affects, so you can read the start of the plot with that in mind.
 
 **Plot title.** Defaults to "Key nutrients, {start date} to {end date}" for whatever range is currently plotted, shown right on the plot itself. Edit the **Plot title** field and click Plot to use your own instead.
 
@@ -2391,7 +2393,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 24 minutes)*
+*(Reading time: 1 hour, 26 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -3133,7 +3135,7 @@ which changes nothing.
 
 #### What-if: Meals {: #whatif}
 
-*Search terms: hypothetical, simulate, try a change.*
+*Search terms: hypothetical, simulate, try a change, expanded recipe, recipe ingredients.*
 
 Analysis -> What-if: meals shows how your average daily nutrition over a set
 of days would change if you ate differently — dropped a food, added a
@@ -3178,6 +3180,20 @@ The four actions:
     Change amount   Multiplies the amount eaten everywhere it appears.
     (multiply)      Type the multiplier as a number or a percentage:
                     1.5 or 150% = half again as much; 0.5 or 50% = half.
+
+<span id="whatif-ingredients"></span>**A recipe logged as individual ingredients.** When you add a recipe to a
+meal as individual ingredients, the meal holds each ingredient as its own
+food and doesn't record the recipe. **Remove** and **Change amount** still
+find it: the foods whose amounts match the recipe's ingredients, all at the
+same portion size, are taken out or changed together. Any other copy of one of those foods in the meal
+stays, such as a scoop of protein powder you logged separately. The line for
+that change says it was found this way. If the recipe has changed since you
+logged it, the amounts won't match, so nothing is removed and a note names
+the meal; change those foods one by one instead. This works for Remove and
+Change amount (and [Apply for real](#whatif-apply) can make either), and
+for recipes with at least two ingredients (one ingredient on its own can't
+be told apart from that food); Replace still needs the recipe itself in the
+meal.
 
 To swap one food for another, you have two choices. **Replace** puts the new
 food only where the old one was. A **Remove** row plus an **Add** row drops
@@ -3295,7 +3311,7 @@ A typical use: on What-if: Meals, replace a High-[GI](#gloss-gi) staple you eat 
 
 #### Saving, downloading and applying a what-if {: #whatif-apply}
 
-*Search terms: save scenario, apply changes.*
+*Search terms: save scenario, apply changes, make it real, delete from meals.*
 
 Once a what-if is showing results, on either What-if page, a bar under the
 list of changes offers three things.
@@ -3310,24 +3326,52 @@ list of changes offers three things.
   every nutrient, including the unchanged ones. From What-if: Recipes, it
   has a column group for *every* recipe the change reaches, not only the 8
   shown on the page.
-- **Apply these replacements for real…** This changes your actual meals or
+- **Apply these changes for real…** This changes your actual meals or
   recipes, so it's only offered when doing it for real gives the same result
-  you're looking at. That means every change is a **Replace**: a food for a
-  food at the same weight, or a recipe for a recipe at the same servings,
-  and no change replaces something with an item another change is
-  replacing. If that isn't so, the bar says why instead.
+  you're looking at. Any of the four actions can be applied, with these
+  limits: a **Replace** must be a food for a food at the same weight, or a
+  recipe for a recipe at the same servings; a **Change amount** of 0% is a
+  removal, so use Remove; no item is changed twice; and nothing is replaced
+  with, or added as, something another change also changes. If that isn't
+  so, the bar says why instead. Straight after you apply, the button is
+  hidden, so an addition can't be made twice by accident.
 
 Clicking it doesn't change anything yet. A page first lists what will
-change: for each replacement, the meals or recipes it will be made in.
-It also says where the old item will stay. On What-if: Meals, a food used
-inside a recipe is left alone, because changing the recipe would change it
-in every meal that uses it; use What-if: Recipes for that. On What-if:
-Recipes, a recipe that has the old food only inside a sub-recipe changes
-only if that sub-recipe is one of the ones listed. Click **Yes, make these
-replacements** to go ahead, or go back. This is the same substitution as the
-Replace box on [Food Use in Meals](#fooduse) and
-[Food Use in Recipes](#fooduse-recipes). Every recipe changed has its
-Protein ([DCP](#gloss-dcp)) worked out again.
+change: for each change, the meals or recipes it will be made in. Then
+click **Yes, make these changes** to go ahead, or go back. What each action
+does for real:
+
+    Remove          Deletes the item from those meals, or the ingredient
+                    from those recipes.
+    Add             Meals: puts the item in a new meal called "Added by
+                    what-if" on each day, so your own meals stay as you
+                    logged them. Recipes: one more ingredient in each
+                    selected recipe (per batch or per serving, as chosen).
+    Replace         The same substitution as the Replace box on
+                    Food Use in Meals and Food Use in Recipes.
+    Change amount   Multiplies the amount. Afterwards it's shown in grams
+                    (servings for a recipe), since "2 c" no longer
+                    describes it.
+
+A recipe you [logged as individual ingredients](#whatif-ingredients) has
+exactly the foods the what-if matched deleted or changed, and the page says
+how many.
+
+The page also says where the item will stay as it is. On What-if: Meals,
+a food used inside a recipe is left alone, because changing the recipe would
+change it in every meal that uses it; use What-if: Recipes for that. On
+What-if: Recipes, a recipe that has the item only inside a sub-recipe
+changes only if that sub-recipe is one of the ones listed, and a recipe
+can't be added to itself or to a recipe it's used in.
+
+**Changing a recipe changes the meals that use it.** A logged meal follows
+its recipe, so on What-if: Recipes the page says how many logged meals use
+the recipes being changed (or a recipe built on them): their nutrition
+changes too, past days included. It also lists any recipe with a stored
+total weight or water once cooked: applying doesn't change those figures,
+so check them on the recipe's page afterwards. Every recipe changed has its
+Protein ([DCP](#gloss-dcp)) worked out again. See also
+[Food Use in Meals](#fooduse) and [Food Use in Recipes](#fooduse-recipes).
 
 
 #### Glycemic Load Output {: #glycemic}
@@ -6070,7 +6114,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 33 minutes)*
+*(Reading time: 35 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6086,8 +6130,13 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. Many interface improvements and bug fixes.
+Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. NuMa now opens in its own window, like a desktop program, when Chrome, Chromium, Brave, Edge or Vivaldi is installed. Many interface improvements and bug fixes.
 
+- **20.** NuMa now opens in its own window, with NuMa's icon and no tabs or address bar, when Chrome, Chromium, Brave, Edge or Vivaldi is installed; untick it in Settings → 13 for a normal tab.
+- **19.** What-if can now apply every kind of change for real: Remove, Add and Change amount as well as Replace, on both the Meals and Recipes pages; the Recipes confirmation says how many logged meals will change and which recipes' stored weights to check.
+- **18.** What-if: Meals can now apply a Remove for real, including a recipe logged as individual ingredients, after a confirmation page.
+- **17.** What-if: Meals can now remove a recipe that was logged as individual ingredients, and says when a meal seems to hold one it couldn't match.
+- **16.** The Nutrient Plot's note under its title now also says how many days the data is smoothed over.
 - **15.** Water in a recipe now counts as water from food unless the recipe itself is marked as a drink (tap water in a bread dough is no longer counted as a drink), with a note on the recipe page; every item in a meal, recipe, day or portion analysis now shows its grams of water beside its name.
 - **14.** A cooked recipe can now record the water it keeps after cooking, in g per 100 g (typed, copied from a food, or estimated from the weight it lost), and meals count that instead of the raw ingredients' water; recipes in a meal now show their water percentage too.
 - **13.** A recipe's own page now has an Archive recipe button (Restore recipe once archived), between Copy recipe and Delete recipe.
@@ -6105,6 +6154,88 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** MANUAL: A new section explains how to move foods and recipes between NuMa installs with CSV files: exporting, importing, and what does and doesn't travel.
 
 #### November 9 updates
+
+**PROGRAM: NUMA OPENS IN ITS OWN WINDOW**
+
+Starting NuMa now opens it in a window of its own, with no tabs and no address bar and its own taskbar entry showing NuMa's icon, like a desktop program. It needs Chrome, Chromium, Brave, Edge or Vivaldi installed (running or not). If none is installed, or you've chosen Firefox, it opens in a normal tab as before. Turn it off in **Settings → 13. Browser to Launch**. [learn more...](#browser-to-launch)
+
+<!--
+
+```
+Scope: web/launcher.py, web/backend.py (/settings/browser, settings context), settings.html section 13.
+Chromium-family "app mode": the launcher runs <browser> --app=URL. New prefs.json key
+app_window (default true). _app_window_browser(): a Settings-chosen browser is used only
+if Chromium-family; with "Ask each time", a running Chromium-family browser wins, then
+any installed one (chromium, google-chrome, brave, microsoft-edge, vivaldi), and no
+which-browser dialog. Falls back to the old normal-tab path. Also: brave/brave-browser
+and microsoft-edge(-stable) alternates, and known install paths on Windows/macOS where
+these browsers are rarely on PATH. The form's hidden app_window_shown field tells an
+unticked checkbox from an absent one.
+Window icon: the window opens at /nutrimagnus (release) or /nutrimagnus-source (source),
+which backend.py redirects to /. Chromium names an --app window from host + path (not
+port): chrome-127.0.0.1__nutrimagnus-Default. Linux desktops match that name to a menu
+entry's file name or StartupWMClass= for the taskbar icon, so install-linux.sh's and
+deploy/nutrimagnus-web.desktop's entries carry StartupWMClass; for any window name no
+entry claims (Brave, Edge...), the launcher writes a hidden matching .desktop in
+~/.local/share/applications (icon copied to ~/.local/share/icons/nutrimagnus-window.png,
+since a packaged build's bundle folder is temporary). Windows takes the taskbar icon
+from the page icon: new /favicon.ico route plus <link rel="icon"> in base.html.
+Verified on KDE Plasma Wayland with snap Chromium; Windows not yet checked.
+```
+
+-->
+
+**PROGRAM: WHAT-IF CAN APPLY ANY CHANGE FOR REAL**
+
+**Apply these changes for real…** now works for Remove, Add and Change amount as well as Replace, on What-if: Meals and What-if: Recipes. On meals, an addition goes into a new meal called "Added by what-if" on each day, and Change amount also finds a recipe logged as individual ingredients. On recipes, the confirmation page says how many logged meals will change with them and lists recipes whose stored total weight or water once cooked to check afterwards. [learn more...](#whatif-apply)
+
+<!--
+
+```
+Scope: Analysis -> What-if: meals / recipes -> Apply for real.
+whatif.py: real_substitution_problems(edits, page, conn) allows all four ops on both pages (replace basis rule unchanged; scale must be > 0); refuses an item changed twice, a replacement that another edit changes, and (with conn) an added/replacement recipe containing an item another edit changes. Scale of a recipe logged as ingredients: _apply_logged_ingredient_removals now also handles scale via _Ctx.row_scale (meal_breakdown multiplies those rows).
+db.py: amount_text(), scale_item_in_meals(), scale_meal_item(), remove_item_from_recipes(), scale_item_in_recipes().
+backend: _whatif_apply_plan() adds new_meal_days (meals add), recipe-add loop refusal, "weighted" (recipes with total_weight / cooked water among those changed other than by a food-for-food replace), meals_affected (meals logging changed recipes or ancestors). POST applies in order remove, scale, replace, add; meals add -> one "Added by what-if" meal per day (WHATIF_ADDED_MEAL_NAME); recipes add -> recipe_add_ingredient, amount per serving x servings when per=serving. _whatif_page_extras hides Apply when ?applied= is present.
+Tests: test_whatif.py apply tests.
+```
+
+-->
+
+**PROGRAM: WHAT-IF: MEALS CAN APPLY A REMOVE FOR REAL**
+
+**Apply these changes for real…** now also appears when a what-if on meals removes foods or recipes, not only when it replaces them. The confirmation page lists each meal that will change; a recipe logged as individual ingredients has just the matched foods deleted. [learn more...](#whatif-apply)
+
+<!--
+
+```
+Scope: Analysis -> What-if: meals -> Apply for real. whatif.real_substitution_problems(edits, page): remove allowed on the meals page (not recipes); refusal text says "changed more than once" / "removes or replaces". Edit report "ingredient_rows" (meal id -> meal item ids) from _logged_ingredient_sets. backend _whatif_apply_plan(): a remove's meals = meals_with_direct_item | ingredient_rows meals; POST /analysis/whatif/apply does removes first (meal_remove_item per matched row + mark_meal_stale; db.remove_item_from_meals for direct rows), then replaces, one transaction. Button/heading/confirm wording "changes" instead of "replacements". Tests: test_whatif.py apply tests.
+```
+
+-->
+
+**PROGRAM: WHAT-IF REMOVES A RECIPE LOGGED AS INDIVIDUAL INGREDIENTS**
+
+Removing a recipe in What-if: Meals now also takes it out of meals where you added it as individual ingredients: the foods matching its ingredients and amounts go together, and other copies of the same foods stay. When a meal looks like it holds the recipe's ingredients but their amounts no longer match the recipe, the page names that meal instead of saying only "not found". [learn more...](#whatif-ingredients)
+
+<!--
+
+```
+Scope: Analysis -> What-if: meals. numa_app/services/whatif.py: _logged_ingredient_sets() matches the recipe's expand_recipe_ingredients() leaves (one batch) to meal food rows with the same fdc_id at one common scale (anchor = largest leaf, tolerance 0.5%, newest rows first, repeated for several sets); _apply_logged_ingredient_removals() runs per meal before the "after" breakdown and puts matched row ids in _Ctx.skip_rows, which meal_breakdown() skips. Recipes with < 2 leaves never match. No match but >= 60% (min 2) of the recipe's distinct foods present -> edit report "loose_meal_ids". Edit report gains "as_ingredients". Template: analysis_whatif.html change list. Remove only. Tests: tests/test_whatif.py::TestRecipeLoggedAsIngredients.
+```
+
+-->
+
+**PROGRAM: NUTRIENT PLOT SAYS HOW MANY DAYS IT'S SMOOTHED OVER**
+
+The small line of text under the Nutrient Plot's title now ends with "Data smoothed over 3 days." (using the number in **Smoothing (days)**), and appears on its own when the plot has no goal or limit lines. With smoothing off it's left out. [learn more...](#nutrient-plot)
+
+<!--
+
+```
+Scope: Daily Summary -> Nutrient Plot image (and the Home page plot, same image route). web/backend.py: _nutrient_plot_add_smoothing_note() appends the note inside the subtitle's parentheses in nutrient_plot_image; window <= 1 adds nothing. Test: test_nutrient_plot_subtitle_smoothing_note.
+```
+
+-->
 
 **PROGRAM: WATER IN A RECIPE COUNTS AS FOOD UNLESS THE RECIPE IS A DRINK**
 
