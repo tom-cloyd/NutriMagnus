@@ -79,3 +79,7 @@ compass_artifact_wf-*_text_markdown.md
 
 # --- Finished plan docs, kept locally only ---------------------------------
 Archive/
+
+# Personal, machine-specific: notes, and this machine's launcher/menu entry
+todo-data.txt
+deploy/
