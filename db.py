@@ -146,7 +146,7 @@ def init_db() -> None:
             conn.execute("ALTER TABLE foods ADD COLUMN portions_json TEXT DEFAULT 'null'")
         except sqlite3.OperationalError:
             pass  # column already exists
-        # Migrate: add dcp_g / dcp_computed_at / gl_g columns if absent
+        # Migrate: add dcp_g / dcp_computed_at columns if absent
         try:
             conn.execute("ALTER TABLE recipes ADD COLUMN dcp_g REAL")
         except sqlite3.OperationalError:
@@ -155,10 +155,17 @@ def init_db() -> None:
             conn.execute("ALTER TABLE recipes ADD COLUMN dcp_computed_at TEXT")
         except sqlite3.OperationalError:
             pass  # column already exists
-        try:
-            conn.execute("ALTER TABLE recipes ADD COLUMN gl_g REAL")
-        except sqlite3.OperationalError:
-            pass  # column already exists
+        # Dropped 2026-11-10: recipes.gl_g (never written; a recipe's GL is
+        # worked out live by glycemic_load.recipe_gl()) and saved_analysis_at /
+        # saved_analysis_text (written only by a setter nothing called).
+        # DROP COLUMN needs SQLite 3.35+; on an older one they stay, unused.
+        _recipe_cols = {r[1] for r in conn.execute("PRAGMA table_info(recipes)")}
+        for _col in ("gl_g", "saved_analysis_at", "saved_analysis_text"):
+            if _col in _recipe_cols:
+                try:
+                    conn.execute(f"ALTER TABLE recipes DROP COLUMN {_col}")
+                except sqlite3.OperationalError:
+                    pass
         # Migrate: add total volume / weight columns if absent
         for _col in (
             "total_volume      REAL",
@@ -247,16 +254,6 @@ def init_db() -> None:
 
         try:
             conn.execute("ALTER TABLE recipes ADD COLUMN last_accessed_at TEXT")
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            conn.execute("ALTER TABLE recipes ADD COLUMN saved_analysis_at TEXT")
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            conn.execute("ALTER TABLE recipes ADD COLUMN saved_analysis_text TEXT")
         except sqlite3.OperationalError:
             pass
 
@@ -1597,15 +1594,6 @@ def recipe_save_nutrients(
     conn.execute(
         "UPDATE recipes SET nutrients_json = ? WHERE id = ?",
         (nutrients_json_str, recipe_id),
-    )
-
-
-def recipe_set_saved_analysis(conn: sqlite3.Connection, recipe_id: int,
-                               text: str, timestamp: str) -> None:
-    """Store a plain-text analysis snapshot with an ISO timestamp."""
-    conn.execute(
-        "UPDATE recipes SET saved_analysis_at = ?, saved_analysis_text = ? WHERE id = ?",
-        (timestamp, text, recipe_id),
     )
 
 

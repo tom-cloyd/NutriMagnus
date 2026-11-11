@@ -31,6 +31,20 @@ class TestSchema:
         _db.init_db()
         _db.init_db()
 
+    def test_init_db_drops_unused_recipe_columns(self, db_conn: sqlite3.Connection):
+        """recipes.gl_g and saved_analysis_at/_text were never used (2026-11-10):
+        an existing install that has them loses them, keeping its recipes."""
+        with _db.get_db() as conn:
+            rid = _db.recipe_create(conn, name="Old stew", description="", servings=2, instructions="")
+        for col in ("gl_g REAL", "saved_analysis_at TEXT", "saved_analysis_text TEXT"):
+            db_conn.execute(f"ALTER TABLE recipes ADD COLUMN {col}")
+        db_conn.commit()
+        _db.init_db()
+        cols = {row[1] for row in db_conn.execute("PRAGMA table_info(recipes)")}
+        assert not cols & {"gl_g", "saved_analysis_at", "saved_analysis_text"}
+        with _db.get_db() as conn:
+            assert _db.recipe_get(conn, rid)["name"] == "Old stew"
+
     def test_init_db_drops_stray_saved_mixed_comparisons_amounts_column(self, db_conn: sqlite3.Connection):
         """Some installs' saved_mixed_comparisons table was created (before the schema
         was finalized) with a NOT NULL "amounts" column that saved_mixed_comparison_save()
