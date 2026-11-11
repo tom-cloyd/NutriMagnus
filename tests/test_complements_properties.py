@@ -33,6 +33,7 @@ Run just these:
 from hypothesis import HealthCheck, assume, given, settings, strategies as st
 
 import usda_nutrients as un
+from diaas import get_digestibility
 from usda_nutrients import AA_REFERENCE_MG_PER_G_PROTEIN as REF
 
 _ESSENTIAL_AAS = list(REF.keys())
@@ -195,7 +196,15 @@ def test_pairs_cascade_closes_all_gaps_and_ranking_is_consistent(
     cand_a["aa_lysine_g"] = REF["aa_lysine_g"] / 1000.0 * a_protein * a_lys_factor
     cand_a["aa_methionine_g"] = 0.0
 
-    a_metrics = un._score_one_complement(base, gaps, 1.0, cand_a, None, "aa_lysine_g")
+    # Size A and B as suggest_complements() does: each at its own
+    # digestibility (by name; 0.82, the overall default, for these made-up
+    # foods). Sized at 1.0, B could seem to close every gap while really,
+    # counted at 0.82, it dilutes lysine back below the reference — and the
+    # real pair builder then rightly leaves the pair out.
+    a_tid = get_digestibility("Candidate A")[0]
+    b_tid = get_digestibility("Candidate B")[0]
+    a_metrics = un._score_one_complement(base, gaps, 1.0, cand_a, None, "aa_lysine_g",
+                                         cand_digestibility=a_tid)
     assume(a_metrics is not None and a_metrics["opens_new_gap"] and a_metrics["grams"] >= 10)
 
     combined_after_a = un.sum_nutrients(base, un.scale_nutrients(cand_a, a_metrics["grams"]))
@@ -207,7 +216,8 @@ def test_pairs_cascade_closes_all_gaps_and_ranking_is_consistent(
     cand_b["aa_methionine_g"] = REF["aa_methionine_g"] / 1000.0 * b_protein * b_met_factor
     cand_b["aa_lysine_g"] = REF["aa_lysine_g"] / 1000.0 * b_protein * b_lys_factor
 
-    b_metrics = un._score_one_complement(combined_after_a, gaps_after_a, 1.0, cand_b, None, target_b)
+    b_metrics = un._score_one_complement(combined_after_a, gaps_after_a, 1.0, cand_b, None, target_b,
+                                         cand_digestibility=b_tid)
     assume(
         b_metrics is not None and b_metrics["remaining_gaps"] == 0
         and not b_metrics["opens_new_gap"] and b_metrics["grams"] >= 5

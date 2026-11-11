@@ -16,7 +16,7 @@ pytestmark = pytest.mark.e2e
 def _goto(page, base, anchor, heading_words):
     """Open the manual at a section and wait until the scroll-spy has made
     it the section "Bookmark this section" would bookmark."""
-    page.goto(f"{base}/manual#{anchor}")
+    page.goto(f"{base}/manual/page#{anchor}")
     page.wait_for_function(
         "w => document.getElementById('bm-toggle').title.indexOf(w) !== -1", arg=heading_words
     )
@@ -29,7 +29,7 @@ def _goto(page, base, anchor, heading_words):
 
 
 def test_bookmark_list_toc_marks_remove_and_clear(live_server, page):
-    page.goto(f"{live_server}/manual")
+    page.goto(f"{live_server}/manual/page")
     page.evaluate("localStorage.clear()")
 
     _goto(page, live_server, "toc-howto", "Finding your way around")
@@ -79,7 +79,7 @@ def test_bookmark_list_toc_marks_remove_and_clear(live_server, page):
 
 
 def test_bookmark_of_a_vanished_section_stays_listed(live_server, page):
-    page.goto(f"{live_server}/manual")
+    page.goto(f"{live_server}/manual/page")
     page.evaluate(
         "localStorage.setItem('numa_manual_bookmarks',"
         " JSON.stringify([{id: 'no-such-section', text: 'Old section'}]))"

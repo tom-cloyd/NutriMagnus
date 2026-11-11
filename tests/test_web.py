@@ -3532,7 +3532,7 @@ def test_update_now_route_success_and_failure(client: TestClient, monkeypatch: p
     resp = client.post("/update-now", follow_redirects=True)
     assert resp.status_code == 200
     assert "UPDATED:" in resp.text
-    assert "Close this browser tab, then relaunch" in resp.text
+    assert "Close this window (or browser tab), then relaunch" in resp.text
     # The process hasn't restarted, so VERSION in memory is still the old
     # value — the stale "UPDATE AVAILABLE" banner must not linger alongside
     # the just-updated confirmation.

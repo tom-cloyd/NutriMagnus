@@ -41,10 +41,11 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Side-by-side comparison** — compare up to 8 foods and/or recipes at once, in any mix, nutrient by nutrient; jump in directly from any search or list page
 - **Food use analysis** — see how often a food shows up across your logged meals or saved recipes, and replace it, remove it, or add another food alongside it across those meals in one step, on every date or just the dates you pick
 - **Data checks** — one page lists every problem in your food data, with a fix beside each: broken references, missing nutrient groups, missing or implausible calories, impossible values, recipe and meal amounts that no longer match a food's portions, duplicate foods, and old USDA copies; after a fix, NutriMagnus shows which recipes and meals changed and by how much
-- **What-if analysis** — see how removing, adding, replacing or cutting down a food would change your daily nutrition over a set of days, or a recipe's nutrition per serving, before changing anything; save a scenario, download the results, and apply a straight swap for real when you're ready
+- **What-if analysis** — see how removing, adding, replacing or cutting down a food would change your daily nutrition over a set of days, or a recipe's nutrition per serving, before changing anything; save a scenario, download the results, and apply any of those changes for real when you're ready
 - **Printable reports** — generate a print/PDF-ready report for any food, meal, or full day, with a checkbox choice of which sections to include
 - **Recipe translation for printing** — translate a recipe's name, description, instructions, and ingredients into another language (via an AI chat tool of your choice) and print the result, with the English original kept alongside translated units
 - **Starter foods and recipes** — a new install comes with a set of starter foods and recipes to explore, and a setup checklist to walk you through first-time setup; each update says which starter items it adds or improves and lets you choose which to take; nothing is changed without your say-so
+- **Runs like a desktop program** — opens in its own window, with its own icon and no browser tabs or address bar (with Chrome, Chromium, Brave, Edge or Vivaldi installed; otherwise in a normal browser tab), and Ctrl+Q quits it
 - **Extensive built-in help** — "Learn more" links throughout the app jump straight to the relevant section of the full User Manual, built in and readable without leaving the app
 
 ---

@@ -729,6 +729,151 @@ class TestCookedWater:
             assert _db.recipe_get(conn, new_id)["cooked_water_per_100g"] == 40.0
 
 
+W50, SUPP, BLAND = 5, 6, 7
+
+
+@pytest.fixture()
+def more_foods(foods):
+    """A food that is exactly 50% water, a supplement with water in it, and a
+    second food with no water value (besides `foods`)."""
+    with _db.get_db() as conn:
+        for fdc_id, name, nuts in (
+            (W50, "Half water", {"calories": 100.0, "water_g": 50.0}),
+            (SUPP, "Fizzy tablet", {"vitamin_c_mg": 500.0, "water_g": 50.0}),
+            (BLAND, "Dry crumbs", {"calories": 380.0}),
+        ):
+            _db.cache_food(conn, fdc_id=fdc_id, name=name, data_type="SR Legacy", brand=None,
+                           serving_size=None, serving_unit=None, nutrients=nuts)
+        _db.set_food_is_supplement(conn, SUPP, True)
+
+
+def _weigh(rid, grams, unit="g", cooked=None):
+    with _db.get_db() as conn:
+        conn.execute("UPDATE recipes SET total_weight = ?, total_weight_unit = ? WHERE id = ?",
+                     (grams, unit, rid))
+        if cooked is not None:
+            _db.set_recipe_cooked_water(conn, rid, cooked)
+
+
+def _leaf_water(rid):
+    """{fdc_id: g of water} per leaf of the recipe, as counted."""
+    with _db.get_db() as conn:
+        leaves = _rn.expand_recipe_ingredients(rid, conn)
+    return {lf["fdc_id"]: lf["nutrients_100g"].get("water_g", 0) * lf["grams"] / 100 for lf in leaves}
+
+
+class TestCookedWaterEdges:
+    """Edge cases of the cooked-water and drink-water helpers, written from the
+    2026-11-10 mutation-testing round of recipe_nutrients.py (each test names
+    the slip it catches)."""
+
+    def test_stated_batch_grams_converts_units(self):
+        sbg = _rn.stated_batch_grams
+        assert sbg({"total_weight": 2, "total_weight_unit": "kg"}) == 2000.0      # x factor, not /
+        assert sbg({"total_weight": 1, "total_weight_unit": "LB"}) == pytest.approx(453.592)
+        assert sbg({"total_weight": 250, "total_weight_unit": None}) == 250.0     # no unit means g
+        assert sbg({"total_weight": 3, "total_weight_unit": "cups"}) is None      # not a weight
+        assert sbg({"total_weight": 0, "total_weight_unit": "g"}) is None
+        assert sbg(None) is None
+
+    def test_supplement_water_is_left_out_of_cooking(self, more_foods):
+        # Apple 85.6 g water + a supplement's 50 g; baked to 100 g at 40%.
+        rid = _recipe([("food", APPLE, 100.0), ("food", SUPP, 100.0)], name="Fortified")
+        _weigh(rid, 100.0, cooked=40.0)
+        water = _leaf_water(rid)
+        assert water[APPLE] == pytest.approx(40.0)
+        assert water[SUPP] == pytest.approx(50.0)       # untouched
+        with _db.get_db() as conn:
+            assert _rn.cooked_water_info(rid, conn)["raw_water_g"] == pytest.approx(85.6)
+
+    def test_tiny_raw_water_is_still_scaled_not_moved(self, more_foods):
+        # 0.428 g of raw water: below 1 g, but it's still the ingredient that has water.
+        rid = _recipe([("food", APPLE, 0.5), ("food", DRY, 100.0)], name="Crumble")
+        _weigh(rid, 100.0, cooked=10.0)
+        water = _leaf_water(rid)
+        assert water[APPLE] == pytest.approx(10.0)
+        assert water[DRY] == 0
+
+    def test_no_water_anywhere_goes_on_the_heaviest_of_several(self, more_foods):
+        rid = _recipe([("food", BLAND, 100.0), ("food", DRY, 300.0)], name="Bar")
+        _weigh(rid, 250.0, cooked=20.0)
+        water = _leaf_water(rid)
+        assert water[DRY] == pytest.approx(50.0)
+        assert water[BLAND] == 0
+
+    def test_heaviest_under_one_gram_and_zero_gram_lines(self, more_foods):
+        rid = _recipe([("food", DRY, 0.5)], name="Pinch")
+        _weigh(rid, 0.4, cooked=25.0)
+        assert _leaf_water(rid)[DRY] == pytest.approx(0.1)
+        empty = _recipe([("food", DRY, 0.0)], name="Nothing yet")
+        _weigh(empty, 100.0, cooked=25.0)
+        assert _leaf_water(empty) == {DRY: 0}          # no leaf to carry it; no crash
+
+    def test_heaviest_carries_the_drink_flag(self, more_foods):
+        rid = _recipe([("food", DRY, 300.0)], name="Broth powder drink")
+        _weigh(rid, 250.0, cooked=20.0)
+        with _db.get_db() as conn:
+            _db.set_recipe_is_drink(conn, rid, True)
+            total = recipe_total_nutrients(rid, conn)
+        assert total["water_drinks_g"] == pytest.approx(50.0)
+        assert total["water_food_g"] == 0.0
+
+    def test_recipe_water_per_100g(self, more_foods):
+        rid = _recipe([("food", TEA, 400.0), ("food", APPLE, 100.0), ("food", DRY, 100.0)],
+                      servings=5, name="Bread")
+        _weigh(rid, 500.0)
+        with _db.get_db() as conn:
+            assert _rn.recipe_water_per_100g(rid, conn) == pytest.approx(484.4 / 500 * 100)
+            _db.set_recipe_cooked_water(conn, rid, 40.0)
+            assert _rn.recipe_water_per_100g(rid, conn) == 40.0
+        sauce = _recipe([("food", APPLE, 200.0)], servings=1, name="Sauce")   # no stated weight
+        with _db.get_db() as conn:
+            assert _rn.recipe_water_per_100g(sauce, conn) == pytest.approx(85.6)
+            assert _rn.recipe_water_per_100g(999999, conn) is None
+
+    def test_info_shows_raw_water_while_cooked_value_is_in_use(self, more_foods):
+        rid = _recipe([("food", W50, 200.0)], name="Stew")
+        _weigh(rid, 150.0, cooked=30.0)
+        with _db.get_db() as conn:
+            info = _rn.cooked_water_info(rid, conn)
+        assert info == {"value": 30.0, "batch_g": 150.0, "applied": True, "raw_water_g": 100.0,
+                        "raw_g": 200.0, "raw_complete": True,
+                        "estimate": pytest.approx((100.0 - 50.0) / 150.0 * 100.0)}
+
+    @pytest.mark.parametrize("batch, estimate", [
+        (200.0, None),                          # no weight lost
+        (100.0, None),                          # every gram of water lost: nothing left
+        (101.0, 1.0 / 101.0 * 100.0),           # 1 g left
+    ])
+    def test_info_estimate_edges(self, more_foods, batch, estimate):
+        rid = _recipe([("food", W50, 200.0)], name="Stew")     # 100 g water in 200 g
+        _weigh(rid, batch)
+        with _db.get_db() as conn:
+            got = _rn.cooked_water_info(rid, conn)["estimate"]
+        assert got == (pytest.approx(estimate) if estimate is not None else None)
+
+    def test_info_needs_a_complete_raw_weight_and_ingredients(self, more_foods):
+        rid = _recipe([("food", W50, 200.0), ("food", DRY, 0.0)], name="Stew")
+        _weigh(rid, 150.0)
+        empty = _recipe([], name="Empty")
+        with _db.get_db() as conn:
+            info = _rn.cooked_water_info(rid, conn)
+            assert info["raw_complete"] is False and info["estimate"] is None
+            blank = _rn.cooked_water_info(empty, conn)
+        assert blank["raw_g"] is None and blank["raw_water_g"] is None and blank["raw_complete"] is False
+
+    def test_drink_ingredient_water_merges_and_sorts(self, more_foods):
+        with _db.get_db() as conn:
+            _db.set_food_is_drink(conn, MILK, True)
+        # Tea listed before the milk, so the heaviest-first order is the function's doing.
+        rid = _recipe([("food", APPLE, 50.0), ("food", TEA, 50.0), ("food", MILK, 100.0),
+                       ("food", MILK, 100.0)], name="Custard")
+        with _db.get_db() as conn:
+            got = _rn.drink_ingredient_water(rid, conn)
+        assert [e["name"] for e in got] == ["x", "x"]
+        assert [e["water_g"] for e in got] == [pytest.approx(176.0), pytest.approx(49.85)]
+
+
 class TestWaterAmounts:
     """Grams of water beside each item: meal items, recipe ingredients, the
     day page and Analyze a saved recipe portion (_mark_water)."""

@@ -736,6 +736,24 @@ textarea:focus,
    the Description box. */
 .portions-table .unsaved-badge { display: inline; visibility: hidden; }
 .portions-table .form-dirty .unsaved-badge { visibility: visible; }
+/* A button that keeps one size whether or not it's lit up (.btn-dirty /
+   .btn-search-ready, below): the lit look's bold text and 2px border would
+   otherwise widen it a few px and squeeze its neighbors (the Portions
+   page's Save, which sits in the Description box's row). The hidden bold
+   copy of its label (data-label) reserves the bold width from the start,
+   and one px of padding each side stands in for the thicker border. */
+.btn.btn-steady::after {
+  content: attr(data-label);
+  display: block; height: 0; overflow: hidden; visibility: hidden;
+  font-weight: 700;
+}
+.btn.btn-steady {
+  padding: calc(var(--bs-btn-padding-y) + 1px) calc(var(--bs-btn-padding-x) + 1px);
+}
+.btn.btn-steady.btn-dirty,
+.btn.btn-steady.btn-search-ready {
+  padding: var(--bs-btn-padding-y) var(--bs-btn-padding-x);
+}
 
 .rda-no-profile {
   border-left: 3px solid #bbb;

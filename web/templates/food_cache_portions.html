@@ -46,7 +46,7 @@
       <td class="text-nowrap">
         <form id="edit-{{ loop.index0 }}" data-dirty-outside method="post" action="/food/cache/{{ food.fdc_id }}/portions/edit" style="display:inline">
           <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
-          <button type="submit" class="btn btn-sm btn-outline-primary" title="Save changes to this portion's description and grams">Save</button>
+          <button type="submit" class="btn btn-sm btn-outline-primary btn-steady" data-label="Save" title="Save changes to this portion's description and grams">Save</button>
         </form>
         <form method="post" action="/food/cache/{{ food.fdc_id }}/portions/move" style="display:inline">
           <input type="hidden" name="portion_index" value="{{ loop.index0 }}">
