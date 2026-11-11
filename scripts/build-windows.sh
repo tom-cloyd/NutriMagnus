@@ -23,6 +23,10 @@
 
 set -euo pipefail
 
+# The VM lives in the system libvirt connection (virt-manager's "QEMU/KVM",
+# where make vm-setup also looks); plain virsh as a user otherwise looks in
+# the per-user session one and finds nothing.
+export LIBVIRT_DEFAULT_URI="${LIBVIRT_DEFAULT_URI:-qemu:///system}"
 VM_NAME="${NUMA_VM_NAME:-NutriMagnus-Build}"
 VM_USER="${NUMA_VM_USER:-User}"
 SSH_KEY="${NUMA_SSH_KEY:-$HOME/.ssh/numa_build_key}"

@@ -251,7 +251,7 @@ def _manual_links_ok() -> bool:
 
 def main() -> int:
     import os
-    token = os.environ.get("GITHUB_TOKEN")
+    token = "".join((os.environ.get("GITHUB_TOKEN") or "").split())   # stray \r/\n/spaces from a paste
     if not token:
         print("ERROR: GITHUB_TOKEN is not set.", file=sys.stderr)
         return 1

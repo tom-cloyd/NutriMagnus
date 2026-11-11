@@ -40,6 +40,9 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
         read -r -s -p "Paste a GitHub token with repo write access (input hidden): " GITHUB_TOKEN
         echo
     fi
+    # A paste can carry line breaks or spaces (copied with an extra line, or a
+    # terminal's bracketed paste); a header with \r in it is refused outright.
+    GITHUB_TOKEN="$(printf '%s' "$GITHUB_TOKEN" | tr -d '[:space:]')"
     [[ -n "$GITHUB_TOKEN" ]] || { echo "No token given — stopping, nothing done."; exit 1; }
     export GITHUB_TOKEN
 fi
