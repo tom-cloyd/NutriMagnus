@@ -195,9 +195,9 @@
   {% if restart_needed() %}
   <div class="alert alert-warning text-center mb-0 rounded-0" role="alert" id="restart-needed-banner">
     <strong>NuMa has been updated — please restart it.</strong>
-    The program on disk ({{ disk_version() }}) is newer than the one running ({{ running_version }}), so some pages may not work until you do.
+    {% if is_frozen %}A new version has been installed, but the one running is still the old one ({{ running_version }}), so some pages may not work until you do.{% else %}The program on disk ({{ disk_version() }}) is newer than the one running ({{ running_version }}), so some pages may not work until you do.{% endif %}
     {% set _rb = restart_button(request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) %}
-    {% if _rb %}{{ _rb }}{% else %}Quit NuMa completely, then start it again.{% endif %} Nothing you entered is lost.
+    {% if _rb %}{{ _rb }}{% else %}Quit NuMa completely (Ctrl+Q), then start it again.{% endif %} Nothing you entered is lost.
   </div>
   {% endif %}
   {# System Issues: a recalculation that failed (Settings → 15). On every page,

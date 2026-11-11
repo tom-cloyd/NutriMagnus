@@ -8400,9 +8400,30 @@ class TestRestartNeeded:
         page = client.get("/").text
         assert "restart-needed-banner" in page and "2099-01-01:0000" in page
 
-    def test_packaged_install_never_asks(self, monkeypatch) -> None:
-        monkeypatch.setattr(backend, "_disk_version", lambda: "2099-01-01:0000")
+    def test_packaged_install_asks_once_its_program_file_is_replaced(self, client: TestClient, tmp_path, monkeypatch) -> None:
+        """A packaged install ignores version.py; Update Now replacing its
+        program file (os.replace, as self_update does) is what counts."""
+        import os as _os
+        exe = tmp_path / "nutrimagnus"
+        exe.write_bytes(b"old program")
         monkeypatch.setattr(backend.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(backend.sys, "executable", str(exe))
+        monkeypatch.setattr(backend, "_disk_version", lambda: "2099-01-01:0000")
+        monkeypatch.setattr(backend, "_STARTED_EXE", backend._exe_identity())
+        monkeypatch.setitem(backend.templates.env.globals, "is_frozen", True)
+        assert backend._restart_needed() is False          # same file: nothing to say
+        assert "restart-needed-banner" not in client.get("/").text
+        new = tmp_path / ".nutrimagnus-update-1"
+        new.write_bytes(b"new program, a bit longer")
+        _os.replace(new, exe)
+        assert backend._restart_needed() is True
+        page = client.get("/").text
+        assert "restart-needed-banner" in page and "A new version has been installed" in page
+        assert "Ctrl+Q" in page and "Restart NuMa now" not in page
+
+    def test_packaged_install_without_a_readable_program_file_never_asks(self, monkeypatch) -> None:
+        monkeypatch.setattr(backend.sys, "frozen", True, raising=False)
+        monkeypatch.setattr(backend, "_STARTED_EXE", None)
         assert backend._restart_needed() is False
 
     def test_a_crash_after_an_update_shows_the_restart_page(self, client: TestClient, monkeypatch) -> None:
@@ -8421,6 +8442,18 @@ class TestRestartNeeded:
         with TestClient(backend.app, raise_server_exceptions=False) as c:
             r = c.get("/")
         assert r.status_code == 500
+
+    def test_an_error_is_written_to_the_error_log(self, monkeypatch) -> None:
+        monkeypatch.setattr(backend, "_disk_version", lambda: backend.VERSION)
+        def boom():
+            raise RuntimeError("a real bug, logged")
+        monkeypatch.setattr(backend, "_refresh_stale_meals", boom)
+        with TestClient(backend.app, raise_server_exceptions=False) as c:
+            assert c.get("/?x=1").status_code == 500
+        log = backend._error_log_path()
+        text = log.read_text(encoding="utf-8")
+        assert "GET /?x=1" in text and f"NuMa {backend.VERSION}" in text
+        assert "Traceback" in text and "RuntimeError: a real bug, logged" in text
 
     def test_disk_version_reads_version_py(self) -> None:
         backend._disk_version_cache = None

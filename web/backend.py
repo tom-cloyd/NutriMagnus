@@ -1106,7 +1106,7 @@ async def _stale_meals_middleware(request: Request, call_next):
 # this). So: compare the VERSION this process started with against
 # version.py on disk, show a banner on every page when they differ, and turn
 # a crash in that state into a plain "please restart" page. A packaged
-# install can't change underneath itself, so it never checks.
+# install checks its program file instead (see _STARTED_EXE below).
 _VERSION_FILE = Path(sys.modules["version"].__file__)  # the file this process loaded VERSION from
 _VERSION_RE = re.compile(r'^VERSION\s*=\s*"([^"]+)"', re.MULTILINE)
 _disk_version_cache: tuple[float, str | None] | None = None
@@ -1130,10 +1130,32 @@ def _disk_version() -> str | None:
     return _disk_version_cache[1]
 
 
+def _exe_identity() -> tuple[int, int, int] | None:
+    """The running program file's inode, size and change time, or None."""
+    try:
+        st = os.stat(sys.executable)
+    except OSError:
+        return None
+    return (st.st_ino, st.st_size, st.st_mtime_ns)
+
+
+# A packaged install has no version.py to compare, but Update Now
+# (self_update.perform_update) swaps a new program file in with os.replace
+# while the old one keeps running — and keeps running old code against a
+# database the new version may already have changed (2026-11-10: the owner's
+# old install, still running after Update Now, failed on Analysis pages
+# reading a column the new version had dropped). So remember the program
+# file's identity at start and treat any change to it as "restart needed".
+_STARTED_EXE = _exe_identity() if getattr(sys, "frozen", False) else None
+
+
 def _restart_needed() -> bool:
-    """True when the program on disk is newer than the one running."""
+    """True when the program on disk is newer than the one running: for a
+    packaged install, the program file has been replaced since start; from
+    source, version.py's VERSION differs from the running one."""
     if getattr(sys, "frozen", False):
-        return False
+        now = _exe_identity()
+        return _STARTED_EXE is not None and now is not None and now != _STARTED_EXE
     on_disk = _disk_version()
     return bool(on_disk) and on_disk != VERSION
 
@@ -1288,17 +1310,65 @@ def restart_status():
     return JSONResponse({"version": VERSION})
 
 
+# Every unhandled error, with its traceback, also goes to numa-errors.log in
+# the data folder. A packaged install shows no terminal, so without this an
+# "Internal Server Error" left nothing behind to say what failed (2026-11-10).
+# Kept small: rotated at 1 MB, with one older file.
+ERROR_LOG_NAME = "numa-errors.log"
+_error_logger: "logging.Logger | None" = None
+
+
+def _error_log_path() -> Path:
+    """Where the error log goes (tests redirect this, tests/conftest.py)."""
+    return _platform_utils.get_data_dir() / ERROR_LOG_NAME
+
+
+def _get_error_logger():
+    global _error_logger
+    import logging
+    from logging.handlers import RotatingFileHandler
+    path = _error_log_path()
+    if _error_logger is not None and getattr(_error_logger, "_numa_path", None) == path:
+        return _error_logger
+    log = logging.getLogger("numa.errors")
+    log.propagate = False
+    log.setLevel(logging.ERROR)
+    for h in list(log.handlers):
+        log.removeHandler(h)
+        h.close()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(path, maxBytes=1_000_000, backupCount=1, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s  %(message)s"))
+    log.addHandler(handler)
+    log._numa_path = path
+    _error_logger = log
+    return log
+
+
+def _log_error(request: Request) -> None:
+    """Write the error being handled, with its traceback, to the error log;
+    never let the logging itself fail the request further."""
+    try:
+        path = request.url.path + (f"?{request.url.query}" if request.url.query else "")
+        _get_error_logger().exception("%s %s  (NuMa %s%s)", request.method, path, VERSION,
+                                      ", restart needed" if _restart_needed() else "")
+    except Exception:
+        pass
+
+
 @app.middleware("http")
 async def _restart_needed_middleware(request: Request, call_next):
     """Turn a crash into a plain "please restart" page when the code on disk
-    has changed since this process started — otherwise let errors through."""
+    has changed since this process started — otherwise let errors through.
+    Either way the error is written to the error log (_log_error)."""
     try:
         return await call_next(request)
     except Exception:
+        _log_error(request)
         if _restart_needed():
             from markupsafe import escape
             path = request.url.path + (f"?{request.url.query}" if request.url.query else "")
-            return HTMLResponse(_RESTART_PAGE.format(disk=escape(_disk_version() or "?"),
+            return HTMLResponse(_RESTART_PAGE.format(disk=escape(_disk_version() or "a newer version"),
                                                      running=escape(VERSION),
                                                      button=_restart_button(path)), status_code=503)
         raise
@@ -1579,6 +1649,7 @@ def _supplement_unit(fdc_id) -> str | None:
 
 templates.env.globals["supplement_unit"] = _supplement_unit
 templates.env.globals["running_version"] = VERSION
+templates.env.globals["is_frozen"] = bool(getattr(sys, "frozen", False))
 templates.env.globals["disk_version"] = lambda: _disk_version()
 def _restart_button_markup(next_url: str = "/"):
     from markupsafe import Markup

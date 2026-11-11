@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-10:2056
+UPDATED: 2026-11-10:2324
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -1528,6 +1528,8 @@ Top to bottom: the not-medical-advice disclaimer box, the conditional banners, t
 
 Either way, waiting up to 6 hours without restarting works too — the cache expires on its own — but restarting is instant.
 
+**Restart-needed detection, and the error log** (`web/backend.py`, 2026-11-10). From source, `_restart_needed()` compares the running `VERSION` with `version.py` on disk. A packaged install has no `version.py`, so it records its program file's identity at start (`_STARTED_EXE`: inode, size, mtime of `sys.executable`); Update Now's `os.replace` changes it, and from then on `base.html` shows the yellow restart bar (wording for the installed case: quit with Ctrl+Q and start again; no in-place restart button) and a crash returns the 503 "please restart" page. This came from the owner's old install running on after Update Now and failing on a column the new version had dropped from the shared database. Every unhandled request error is also written, with its traceback, method, path and `VERSION`, to `numa-errors.log` in the data folder (`_error_log_path()`, `RotatingFileHandler`, 1 MB, one backup) by `_restart_needed_middleware`. `tests/conftest.py` redirects both that path and `manual_update.installed_dir()` to `tmp_path`, so tests never write the real log or read a manual downloaded into the real data folder.
+
 #### `search.html`
 
 Food search results. Shows a results table with food name, data type, brand, and source badge (`pantry` / `cache` / `recipe` / `usda` / `off`). Each row links to `/food/{fdc_id}`. Used for both the Foods → Search page and as a reusable search partial.
@@ -1789,7 +1791,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,517 tests**, all passing (2,484 in the default run plus 33 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,519 tests**, all passing (2,486 in the default run plus 33 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 

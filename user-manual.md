@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-10:2201* / Reading time: 8 hours, 55 minutes
+*Updated 2026-11-10:2324* / Reading time: 8 hours, 56 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -55,7 +55,7 @@ NuMa runs as a web app, shown through your ordinary browser, normally in a windo
 
 ## Part 1 — To get a quick start <!-- t:26-10-04 -->
 
-*(Reading time: 18 minutes)*
+*(Reading time: 19 minutes)*
 
 ### A. Download and install the program <!-- t:26-10-03 -->
 
@@ -150,6 +150,7 @@ NuMa puts only a handful of files on your computer. The program itself is one fi
 | `prefs.json` (data folder) | How you like the pages: sort orders, chosen columns, dismissed notices. |
 | `demo_data.json`, `demo_data_seed_attempted`, `starter_versions.json` (data folder) | Small notes about the [starter foods and recipes](#starter-data): which were loaded, and which version of them you have. |
 | `manual/` (data folder) | Only if you've clicked **Update manual now**: a newer User Manual than the one inside the program. |
+| `numa-errors.log` (data folder) | Only once something has gone wrong: the details of each error, for [reporting a problem](#error-log). |
 | `gi_data_local.json` (data folder) | Only if you've built it in Settings → 7: your own copy of the 2021 glycemic index tables. |
 | `config.json` (settings folder) | Your [USDA](#gloss-usda) key, if you've entered one, and the search-depth setting. |
 | `profiles/`, `active_profile.txt` (settings folder) | Your profiles (age, weight, activity level, targets) and which one is in use. |
@@ -4770,7 +4771,7 @@ Bookmarks are kept by your web browser, on this computer — a different browser
 
 ## Part 8 — Troubleshooting and feedback — reporting problems and offering ideas {: #feedback}
 
-*(Reading time: 19 minutes)*
+*(Reading time: 20 minutes)*
 
 If something seems broken or confusing, there's a good chance the answer is already below. The topics are grouped by how the problem *feels* rather than which menu it's in, since that's usually how you'll remember it later — and a few topics are listed in more than one group, since the same problem can feel different ways depending on what you were expecting. There aren't so many that you can't just skim the headings if nothing matches at first.
 
@@ -4778,11 +4779,13 @@ If something seems broken or confusing, there's a good chance the answer is alre
 
 #### The program crashes unexpectedly {: #ts-crash}
 
-*Search terms: freeze, hang, not responding.*
+*Search terms: freeze, hang, not responding, internal server error, error log, restart after update.*
 
 If NuMa crashes or freezes, nothing you'd already saved is lost — every action (adding a food, saving a recipe, logging a meal) is written to your data immediately, not held until some later "save" step. It's safe to just restart the program and pick up where you left off.
 
-**If a yellow "NuMa has been updated — please restart it" bar appears,** the program was updated while it was running, and some pages won't work until it restarts. Click **Restart NuMa now**: NuMa restarts behind the page, which reloads by itself a few seconds later, right where you were. (The button appears when you start NuMa from its source folder with `python web/launcher.py`; otherwise, quit NuMa and start it again.) A page that fails for this reason shows the same message and button instead of an error.
+**If a yellow "NuMa has been updated — please restart it" bar appears,** the program was updated while it was running, and some pages won't work until it restarts. With an installed NuMa this happens after **Update Now**: the new version is in place, but the old one keeps running until you quit NuMa (Ctrl+Q) and start it again. When you run NuMa from its source folder (`python web/launcher.py`), the bar has a **Restart NuMa now** button instead: NuMa restarts behind the page, which reloads by itself a few seconds later, right where you were. A page that fails for this reason shows the same message instead of an error.
+
+**Every error is written down.**{: #error-log} When a page fails with "Internal Server Error", NuMa records what went wrong in `numa-errors.log`, in its data folder (`%LOCALAPPDATA%\numa` on Windows, `~/.local/share/numa` on Linux). If you report a problem, send that file along: it says exactly where the program failed. It stays small: past about a megabyte it starts over, keeping one older file.
 
 If a page seems frozen or won't load, try refreshing it first. If that doesn't help, the program running in the background may need restarting — close and relaunch it the way you normally start NuMa.
 
@@ -6157,7 +6160,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 18 minutes)*
+*(Reading time: 19 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6170,6 +6173,44 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 <!-- Many entries also carry a fenced "Scope:" block underneath, with the technical detail (menu path, files touched, root cause). It is developer-facing only: the next comment explains why it is wrapped in an HTML comment and therefore never reaches a reader of the built manual. -->
 <!-- Scope blocks below are hidden from the rendered manual (and from GitHub's rendered release notes, which pull this section verbatim -- see scripts/create_release.py) for the reason above: they're developer-facing detail with no value to the average user reading the Recent program updates log. Left visible only in this markdown source for anyone editing it. -->
 <!-- Insert new updates below here -->
+
+#### Next release summary to this point (dated details below)
+
+Version overview: An installed NuMa now says when it needs restarting after Update Now, and errors are written to a log file in the data folder for reporting.
+
+- **2.** Errors are written to `numa-errors.log` in NuMa's data folder, so a failed page leaves a record to report.
+- **1.** An installed NuMa now shows the yellow "please restart it" bar after **Update Now** until you quit and start it again.
+
+#### November 10 updates
+
+**PROGRAM: INSTALLED NUMA SAYS WHEN IT NEEDS RESTARTING**
+
+After **Update Now**, every page of an installed NuMa now shows a yellow bar saying the new version is installed but the old one is still running, until you quit NuMa (Ctrl+Q) and start it again. Before, only the green message on the Home page said so, once. [learn more...](#ts-crash)
+
+<!--
+```
+Scope: web/backend.py (_exe_identity, _STARTED_EXE, _restart_needed for frozen
+installs), web/templates/base.html (banner wording when frozen), tests/test_web.py.
+Cause found 2026-11-10: the owner's old install (Sep 27 build) kept running after
+Update Now and failed on Analysis pages reading recipes.gl_g, which the new version
+had just dropped from the shared database. A packaged install now remembers its
+program file's inode/size/mtime at start; Update Now's os.replace changes them, so
+the restart bar (and the 503 restart page on a crash) apply as they do from source.
+```
+-->
+
+**PROGRAM: ERRORS ARE WRITTEN TO A LOG FILE**
+
+When a page fails with "Internal Server Error", NuMa now writes what went wrong, with the technical detail, to `numa-errors.log` in its data folder, so there's something to send when you report a problem. [learn more...](#error-log)
+
+<!--
+```
+Scope: web/backend.py (_error_log_path, _get_error_logger, _log_error in
+_restart_needed_middleware), tests/conftest.py (tests write the log, and read
+downloaded manuals, in tmp_path, never the real data folder), tests/test_web.py.
+RotatingFileHandler, 1 MB, one backup; logs method, path, VERSION and the traceback.
+```
+-->
 
 #### Release v2026-11-10-2201 summary (dated details below)
 

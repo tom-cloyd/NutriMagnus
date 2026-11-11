@@ -169,6 +169,14 @@ def use_test_prefs(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> N
     again to a pre-filled file of its own."""
     from web import backend as _backend
     monkeypatch.setattr(_backend, "_PREFS_FILE", tmp_path / "test_prefs.json")
+    # The error log too: tests that provoke a 500 must not write into the
+    # real data folder's numa-errors.log.
+    monkeypatch.setattr(_backend, "_error_log_path", lambda: tmp_path / "numa-errors.log")
+    # And the downloaded-manual folder: a manual "Update manual now" (or an
+    # update) put in the real data folder would otherwise be served to tests
+    # in place of the one they set up.
+    from numa_app.services import manual_update as _manual_update
+    monkeypatch.setattr(_manual_update, "installed_dir", lambda: tmp_path / "manual")
 
 
 @pytest.fixture(autouse=True)
