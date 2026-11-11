@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{# The User Manual inside NuMa's own window, under the main menu (see the
+   /manual route). The manual itself is /manual/page, shown in the iframe. #}
+{% block title %}Manual — NutriMagnus{% endblock %}
+{% block layout_class %}manual-frame-wrap{% endblock %}
+{% block content %}
+<div class="manual-back-note" id="manual-back-note" role="note">
+  <button type="button" class="btn btn-sm btn-primary me-2" id="manual-back-btn">&larr; Back</button>
+  <strong>To return to where you were:</strong> click <em>Back</em> or press <kbd>Alt</kbd>+<kbd>&larr;</kbd>
+  (<kbd>Alt</kbd>+<kbd>&rarr;</kbd> goes forward again). Each jump you make inside the manual is one
+  step back, so you may need it a few times. Or use the menu above to go anywhere in NuMa.
+</div>
+<iframe id="manual-frame" title="NuMa User Manual" src="/manual/page"></iframe>
+{% endblock %}
+{% block footer %}{% endblock %}
+{% block scripts %}
+<style>
+  body { overflow: hidden; }
+  .manual-frame-wrap { padding: 0; margin: 0; }
+  .manual-back-note {
+    background: #fff3cd; border-bottom: 2px solid #e0b400; color: #3d2f00;
+    padding: 0.45rem 1rem; font-size: 0.95rem;
+  }
+  #manual-frame { display: block; width: 100%; border: 0; }
+</style>
+<script>
+(function () {
+  var frame = document.getElementById('manual-frame');
+
+  // /manual#anchor → the manual's own #anchor.
+  if (location.hash) frame.src = '/manual/page' + location.hash;
+  window.addEventListener('hashchange', function () {
+    try { frame.contentWindow.location.hash = location.hash; } catch (e) {}
+  });
+
+  // The frame fills the window below the menu and note; the manual scrolls
+  // inside it, so its sidebar and "you are here" bar keep working.
+  function size() {
+    frame.style.height = Math.max(200, window.innerHeight - frame.getBoundingClientRect().top) + 'px';
+  }
+  size();
+  window.addEventListener('resize', size);
+
+  document.getElementById('manual-back-btn').addEventListener('click', function () {
+    history.back();
+  });
+
+  frame.addEventListener('load', function () {
+    var doc;
+    try { doc = frame.contentDocument; } catch (e) { return; }
+    if (!doc) return;
+    size();
+    // A link from the manual to a NuMa page (e.g. /disclaimer) opens in the
+    // whole window, not inside the frame.
+    doc.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!a || a.target) return;
+      var href = a.getAttribute('href') || '';
+      if (href.charAt(0) !== '/' || href.indexOf('/manual') === 0) return;
+      e.preventDefault();
+      window.location.href = href;
+    });
+    // NuMa's Ctrl+Q and Alt+Shift menu shortcuts listen on this page, which
+    // never sees keys typed while the manual has focus — pass those on.
+    doc.addEventListener('keydown', function (e) {
+      if (!e.ctrlKey && !e.altKey) return;
+      var copy = new KeyboardEvent('keydown', {
+        key: e.key, code: e.code, ctrlKey: e.ctrlKey, altKey: e.altKey,
+        shiftKey: e.shiftKey, metaKey: e.metaKey, bubbles: true, cancelable: true
+      });
+      document.dispatchEvent(copy);
+      if (copy.defaultPrevented) e.preventDefault();
+    });
+  });
+})();
+</script>
+{% endblock %}

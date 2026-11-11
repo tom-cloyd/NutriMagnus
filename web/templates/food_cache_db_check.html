@@ -53,7 +53,7 @@
 <p><a href="/food/cache/duplicates" class="btn btn-sm btn-outline-secondary">Find duplicate foods</a> {{ manual_link("checking-your-data", "All of NuMa’s data checks") }}</p>
 
 <h3 id="integrity" class="mt-4">Broken references {{ manual_link("db-check") }}</h3>
-<p class="muted">Looks for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the database — a food page for one of these will fail to open. This can't happen through normal use anymore (deleting a still-used food is now refused), but can be left over from before that fix, or from a manually edited database file.</p>
+<p class="muted">Looks for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the database — a food page for one of these will fail to open, and a deleted recipe's nutrients are left out of every meal and recipe that names it. This can't happen through normal use anymore (deleting a still-used food or recipe is now refused), but can be left over from before that, or from a manually edited database file.</p>
 
 {% if repaired %}
 <div class="alert alert-success">Fixed {{ repaired }} problem{% if repaired != 1 %}s{% endif %}.</div>
@@ -114,7 +114,8 @@
 
 {% if issues.orphaned_meal_items %}
 <h5 class="mt-4">Logged meal items pointing at a missing food or recipe ({{ issues.orphaned_meal_items|length }})</h5>
-<p class="muted mb-1"><small><strong>Changes your logged history:</strong> removing one of these deletes that food/recipe entry from that day's logged meal. That day's nutrient totals will be recalculated without it — this is the same as if you'd never logged it.</small></p>
+<p class="muted mb-1"><small><strong>Changes your logged history:</strong> removing one of these deletes that food/recipe entry from that day's logged meal. That day's nutrient totals will be recalculated without it — this is the same as if you'd never logged it.
+{% if issues.orphaned_meal_items | selectattr("recipe_id") | list %}<strong>A deleted recipe can be reconnected instead:</strong> create a recipe with the same name (or one sharing two or more words with it), and its edit page offers to relink these meal items to it, or to any other recipe you choose.{% endif %}</small></p>
 {% call fold_list(issues.orphaned_meal_items|length, "orphaned_meal_items", issues.orphaned_meal_items|length ~ " entries", only_when_folded=True) %}
 <div class="table-responsive mb-2">
   <table class="table table-sm" style="max-width:44rem">
@@ -158,6 +159,23 @@
     Flag {{ issues.orphaned_recipe_refs|length }} reference{% if issues.orphaned_recipe_refs|length != 1 %}s{% endif %} as deleted
   </button>
 </form>
+{% endif %}
+
+{% if issues.deleted_subrecipe_refs %}
+<h5 class="mt-4" id="deleted-recipes">Recipe ingredients naming a deleted recipe ({{ issues.deleted_subrecipe_refs|length }})</h5>
+<p class="muted mb-1"><small><strong>Needs your choice — not auto-fixed.</strong> Each recipe below used another recipe as an ingredient, and that one was deleted. The line is still there, showing the deleted recipe's name, but adds nothing to the recipe's nutrients. To <strong>reconnect</strong> it, create a recipe with the same name (or one sharing two or more words with it): its edit page offers to relink these lines to it, or to any other recipe you choose. Or open the recipe and remove the line (the &#x2715; beside it), or replace it with a different ingredient.</small></p>
+{% call fold_list(issues.deleted_subrecipe_refs|length, "deleted_subrecipe_refs", issues.deleted_subrecipe_refs|length ~ " entries", only_when_folded=True) %}
+<div class="table-responsive mb-2">
+  <table class="table table-sm" style="max-width:44rem">
+    <thead class="table-light"><tr><th>Deleted recipe's name</th><th>Used as an ingredient in</th></tr></thead>
+    <tbody>
+      {% for r in issues.deleted_subrecipe_refs %}
+      <tr><td><strong>{{ r.food_name }}</strong></td><td><a href="/recipe/{{ r.recipe_id }}/edit">{{ r.recipe_name }}</a>{{ food_id_tag(None, r.recipe_id) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endcall %}
 {% endif %}
 
 {% if issues.bad_json %}

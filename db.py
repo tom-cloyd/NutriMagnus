@@ -1158,12 +1158,20 @@ def check_db_integrity(conn: sqlite3.Connection) -> dict[str, list[dict]]:
                                       ref_recipe_deleted having been set (should
                                       be unreachable via delete_recipe(), which
                                       sets that flag itself — a backstop for drift)
+        deleted_subrecipe_refs     — recipe-ingredient lines already flagged
+                                      ref_recipe_deleted: the sub-recipe they
+                                      named was deleted (possible before the
+                                      web delete route started refusing a
+                                      still-used recipe). Not auto-repaired:
+                                      relinking (see relink_recipe_refs) or
+                                      removing the line is the user's call
         bad_json                   — foods rows whose nutrients_json/portions_json
                                       isn't valid JSON
     """
     issues: dict[str, list[dict]] = {
         "orphaned_pantry": [], "orphaned_recipe_ingredients": [],
-        "orphaned_meal_items": [], "orphaned_recipe_refs": [], "bad_json": [],
+        "orphaned_meal_items": [], "orphaned_recipe_refs": [],
+        "deleted_subrecipe_refs": [], "bad_json": [],
     }
 
     for row in conn.execute("""
@@ -1205,6 +1213,15 @@ def check_db_integrity(conn: sqlite3.Connection) -> dict[str, list[dict]]:
           AND ref_recipe_id NOT IN (SELECT id FROM recipes)
     """):
         issues["orphaned_recipe_refs"].append(dict(row))
+
+    for row in conn.execute("""
+        SELECT ri.id, ri.recipe_id, r.name AS recipe_name, ri.food_name
+        FROM recipe_ingredients ri
+        JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.ref_recipe_deleted = 1
+        ORDER BY ri.food_name, r.name
+    """):
+        issues["deleted_subrecipe_refs"].append(dict(row))
 
     for row in conn.execute("SELECT fdc_id, name, nutrients_json, portions_json FROM foods"):
         for field in ("nutrients_json", "portions_json"):
@@ -1923,7 +1940,9 @@ def recipes_missing_dcp(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 
 def recipe_delete(conn: sqlite3.Connection, recipe_id: int) -> bool:
-    """Delete a recipe. Any other recipe that used it as a sub-recipe keeps its
+    """Delete a recipe. The web route refuses this for a recipe still used in
+    a meal or another recipe (Archive instead), so the flagging below only
+    matters for older data. Any other recipe that used it as a sub-recipe keeps its
     ingredient row (food_name snapshot intact) but is flagged via
     ref_recipe_deleted so displays can show it as a broken reference instead
     of silently losing it or failing on the FK constraint."""

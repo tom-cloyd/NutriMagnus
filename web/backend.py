@@ -40,6 +40,7 @@ import openfoodfacts as _off
 import platform_utils as _platform_utils
 import profile as _profile
 import usda as _usda
+from numa_app.services import browser_quit as _browser_quit
 from numa_app.services import claude_fetch as _claude_fetch
 from numa_app.services import data_completeness as _data_completeness
 from numa_app.services import energy_check as _energy_check
@@ -201,6 +202,18 @@ def _parse_portion_str_raw(
     if not raw:
         return None, "Enter an amount."
 
+    # A weight with a note in brackets after it — "134.1 g (2/3 c)",
+    # "50 g (1 slice)": the weight is the amount, the note is kept as typed.
+    # It is the form NuMa itself shows a weighed volume in ("2/3 c 134.1 g"
+    # is stored as "134.1 g (2/3 c)"), so an Edit box showing it must save
+    # unchanged; the bracketed part used to be silently dropped.
+    m = re.fullmatch(r"([^()]*?)\s*\((.*)\)", raw)
+    if m and m.group(1).strip() and m.group(2).strip():
+        w_grams, w_label = _parse_portion_str_raw(m.group(1), portions, food_name)
+        w = re.fullmatch(r"[\d.]+ (\S+)", w_label or "")
+        if w_grams is not None and w and w.group(1).lower() in _PORTION_UNIT_TO_G:
+            return w_grams, f"{w_label} ({' '.join(m.group(2).split())})"
+
     # Normalise "6p1" → "6 p1" so number and portion code can be parsed separately
     raw = re.sub(r'(?i)(\d+)(p\d+)', r'\1 \2', raw)
 
@@ -269,6 +282,12 @@ def _parse_portion_str_raw(
     factor = _PORTION_UNIT_TO_G.get(unit.lower())
     if factor is not None:
         grams = round(number * factor, 2)
+        if len(rest) > 1:
+            # Anything after a weight used to be silently dropped ("134.1 g
+            # 2/3 c" saved as "134.1 g"). A note belongs in brackets.
+            extra = " ".join(rest[1:])
+            return None, (f'NuMa read "{number:g} {unit}" but not "{extra}" after it. To note what '
+                          f'that weight is, put it in brackets: "{number:g} {unit} ({extra.strip("()")})".')
         return grams, f"{number:g} {unit}"
 
     # Volume unit (case-sensitive for T vs t, fall back to lower)
@@ -460,34 +479,15 @@ def _is_ajax_row_action(request: Request) -> bool:
 
 
 def _recipe_delete_warning(name: str, meal_use: dict | None, sub_users: list[str],
-                           archive_here: bool) -> str:
+                           archive_here: bool = True) -> str | None:
     """The confirm() text for a recipe's Delete button: plain text (the template
-    passes it through |tojson). Names every logged meal count and sub-recipe
-    use the delete would break, and points at Archive, which breaks nothing.
-    `archive_here` — whether an Archive button sits right next to Delete
-    (true on both the Recipes list and the recipe's own page)."""
-    uses = []
-    if meal_use:
-        n = meal_use["meals"]
-        when = (f"on {meal_use['first']}" if meal_use["first"] == meal_use["last"]
-                else f"from {meal_use['first']} to {meal_use['last']}")
-        uses.append(f"logged in {n} meal{'s' if n != 1 else ''} ({when})")
-    if sub_users:
-        uses.append("used as a sub-recipe in: " + ", ".join(sub_users))
-    if not uses:
-        return f'Delete recipe "{name}"? This cannot be undone.'
-    effects = []
-    if meal_use:
-        effects.append('those meals will show it as "recipe deleted" and no longer '
-                       "count its nutrients in their totals")
-    if sub_users:
-        effects.append("those recipes will keep the ingredient line but flag it as a "
-                       "deleted sub-recipe, and drop its nutrients")
-    where = "the Archive button next to Delete" if archive_here else "Archive on the Recipes list"
-    return (f'"{name}" is ' + ", and ".join(uses) + ".\n\n"
-            "If you delete it, " + "; ".join(effects) + ". This cannot be undone.\n\n"
-            f"To hide it without breaking anything, cancel and use {where} instead.\n\n"
-            "Delete anyway?")
+    passes it through |tojson). None for a recipe still used in a meal or
+    another recipe: the delete is refused there (recipe_delete_post), and the
+    refusal itself explains why and offers Archive, so there's nothing to
+    confirm."""
+    if meal_use or sub_users:
+        return None
+    return f'Delete recipe "{name}"? This cannot be undone.'
 
 
 def _resolve_sort(sort: str | None, pref_key: str, default: str, valid: set[str]) -> str:
@@ -1227,6 +1227,61 @@ def restart_now(next: str = Form("/")):
     return HTMLResponse(_RESTARTING_PAGE.format(old=_json.dumps(VERSION), next=_json.dumps(dest)))
 
 
+def _window_path() -> str:
+    """The path NuMa's app window was opened at (launcher._window_path)."""
+    return "/nutrimagnus" if getattr(sys, "frozen", False) else "/nutrimagnus-source"
+
+
+def _stop_numa(close_window: bool = False) -> None:
+    """Stop NuMa a moment from now, so the current answer still goes out.
+    Started by launcher.py, the server stops cleanly (app.state.server); a
+    hard exit follows a few seconds later in case something holds it up. In
+    --reload (dev) mode this process is uvicorn's worker, and the reloader
+    parent would carry on without it, so that is stopped too."""
+    import signal
+
+    def _go():
+        time.sleep(0.5)
+        if close_window:
+            _browser_quit.close_app_window(_window_path())
+        server = getattr(app.state, "server", None)
+        if server is not None:
+            server.should_exit = True
+            time.sleep(5)
+        elif "--reload" in sys.argv:
+            try:
+                os.kill(os.getppid(), signal.SIGTERM)
+            except OSError:
+                pass
+        os._exit(0)
+
+    threading.Thread(target=_go, daemon=True).start()
+
+
+@app.post("/quit")
+def quit_numa():
+    """Ctrl+Q (base.html): close NuMa's window and stop NuMa."""
+    _stop_numa(close_window=True)
+    return JSONResponse({"stopping": True})
+
+
+_firefox_watch = _browser_quit.FirefoxWatch(on_quit=_stop_numa)
+
+
+def start_browser_watch() -> None:
+    """Stop NuMa when Firefox quits (Firefox keeps Ctrl+Q for itself). Called
+    by launcher.py, never under tests."""
+    _firefox_watch.start()
+
+
+@app.middleware("http")
+async def _browser_watch_middleware(request: Request, call_next):
+    """Note which browser the latest NuMa page was shown in, for FirefoxWatch."""
+    if request.method == "GET" and "text/html" in request.headers.get("accept", ""):
+        _firefox_watch.page_seen(request.headers.get("user-agent", ""))
+    return await call_next(request)
+
+
 @app.get("/restart-status")
 def restart_status():
     """Which version is answering — the restarting page polls this."""
@@ -1264,11 +1319,28 @@ def favicon():
 # _app_window_path()). Chromium names such a window after the address's
 # host and path, so a path of NuMa's own gives the window a name the
 # desktop can match to NuMa's menu entry and icon (release and source
-# apart). Both just lead to the Home page.
+# apart). Both just lead to the Home page, with ?numa_window=1 so base.html
+# can name the window (window.name, which lasts across its navigations but
+# isn't copied to tabs opened from it) — that is how the page tells NuMa's
+# own window from an ordinary browser tab (the new-tab notice).
 @app.get("/nutrimagnus", include_in_schema=False)
 @app.get("/nutrimagnus-source", include_in_schema=False)
 def app_window_start():
-    return RedirectResponse("/", status_code=302)
+    return RedirectResponse("/?numa_window=1", status_code=302)
+
+
+def _new_tab_notice_on() -> bool:
+    """Whether NuMa's own window explains, before it happens, that a
+    Ctrl/Shift/middle-clicked NuMa link opens in a browser tab outside it
+    (base.html; Settings -> 13 and the notice's own checkbox)."""
+    return _load_prefs_file().get("new_tab_notice", True) is not False
+
+
+@app.post("/prefs/new-tab-notice", include_in_schema=False)
+def new_tab_notice_post(on: str = Form("0")):
+    """The new-tab notice's "Don't show this again" box (base.html)."""
+    _save_prefs_file({"new_tab_notice": on == "1"})
+    return Response(status_code=204)
 templates = Jinja2Templates(directory=_WEB_DIR / "templates")
 
 # Custom Jinja2 filters
@@ -1307,13 +1379,15 @@ def _small_amount(value, places: int = 1) -> str:
 templates.env.filters["small_amount"] = _small_amount
 
 def _manual_link(anchor: str, text: str = "Learn more") -> str:
-    """Render an inline link to a user-manual section, opened in a new tab."""
+    """Render an inline link to a user-manual section (opens in the same window,
+    inside NuMa's menu frame — see the /manual route)."""
     from markupsafe import Markup, escape
     return Markup(
-        f'<a class="manual-link" href="/manual#{escape(anchor)}" target="_blank" rel="noopener">{escape(text)} &rarr;</a>'
+        f'<a class="manual-link" href="/manual#{escape(anchor)}">{escape(text)} &rarr;</a>'
     )
 
 templates.env.globals["manual_link"] = _manual_link
+templates.env.globals["new_tab_notice_on"] = _new_tab_notice_on
 templates.env.globals["contrib_source_anchor"] = _contrib_source_anchor
 
 # The set of user-edited food ids, loaded at most once per request (each
@@ -4154,7 +4228,7 @@ def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0,
     return templates.TemplateResponse(request, "food_cache_db_check.html", {
         "issues": issues,
         "total": total,
-        "repairable": total - len(issues["bad_json"]),
+        "repairable": total - len(issues["bad_json"]) - len(issues["deleted_subrecipe_refs"]),
         "repaired": repaired,
         "saved": saved,
         "zeroed": zeroed,
@@ -8479,6 +8553,7 @@ def settings_get(request: Request, saved: str = "", recompute_retry: str = "", k
         "preferred_browser":    (_load_prefs_file().get("preferred_browser", "") or "").replace("chromium-browser", "chromium"),
         "browser_labels":       _BROWSER_LABELS,
         "app_window":           _load_prefs_file().get("app_window", True) is not False,
+        "new_tab_notice":       _new_tab_notice_on(),
         "api_key":              api_key,
         "search_boost_page_size": search_boost_page_size,
         "diaas_overrides":      diaas_overrides,
@@ -8733,13 +8808,14 @@ def settings_data_check_reminder_post(enabled: list[str] = Form(default=[]), wee
 
 @app.post("/settings/browser", response_class=RedirectResponse)
 def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(None),
-                          app_window: str = Form(None), app_window_shown: str = Form(None)):
+                          app_window: str = Form(None), app_window_shown: str = Form(None),
+                          new_tab_notice: str = Form(None)):
     if preferred_browser in _VALID_BROWSER_PREFS:
         _save_prefs_file({"preferred_browser": preferred_browser})
     # An unticked checkbox sends nothing, so the form's hidden
-    # app_window_shown field is what says the checkbox was on the page.
+    # app_window_shown field is what says the checkboxes were on the page.
     if app_window_shown:
-        _save_prefs_file({"app_window": bool(app_window)})
+        _save_prefs_file({"app_window": bool(app_window), "new_tab_notice": bool(new_tab_notice)})
     if next and next.startswith("/") and not next.startswith("//"):
         return RedirectResponse(next, status_code=303)
     return RedirectResponse("/settings?saved=browser", status_code=303)
@@ -9077,14 +9153,11 @@ def recipes_list(request: Request, q: str = "", sort: str | None = None,
     })
 
 
-@app.get("/recipes/broken-refs", response_class=HTMLResponse)
-def recipes_broken_refs(request: Request):
-    with _db.get_db() as conn:
-        broken = _db.list_all_broken_recipe_refs(conn)
-    return templates.TemplateResponse(request, "recipe_broken_refs.html", {
-        "meals":   broken["meals"],
-        "recipes": broken["recipes"],
-    })
+@app.get("/recipes/broken-refs", response_class=RedirectResponse)
+def recipes_broken_refs():
+    """Old address of the broken-recipe-references list, now part of
+    Foods → 9 (Check database integrity and completeness)."""
+    return RedirectResponse("/food/cache/db-check#integrity", status_code=303)
 
 
 @app.get("/recipe/import-csv", response_class=HTMLResponse)
@@ -10602,9 +10675,24 @@ def recipe_edit_post(
 
 @app.post("/recipe/{recipe_id}/delete", response_class=RedirectResponse)
 def recipe_delete_post(request: Request, recipe_id: int, next: str = Form("")):
+    """Delete a recipe — refused while a logged meal or another recipe still
+    uses it, since that would leave them naming a recipe that's gone and
+    silently drop its nutrients from their totals. Archive is offered
+    instead: it hides the recipe and breaks nothing."""
+    ajax = _is_ajax_row_action(request)
     with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        used_in = [dict(r) for r in _db.recipe_referencing_subrecipe(conn, recipe_id)] if recipe else []
+        meal_use = _db.recipe_meal_use(conn, recipe_id).get(recipe_id) if recipe else None
+        if recipe and (used_in or meal_use):
+            ctx = {"recipe": dict(recipe), "used_in": used_in, "meal_use": meal_use,
+                   "next": _local_next(next, f"/recipe/{recipe_id}")}
+            if ajax:
+                html = templates.env.get_template("_recipe_delete_blocked.html").render(**ctx)
+                return JSONResponse({"ok": False, "blocked_html": html})
+            return templates.TemplateResponse(request, "recipe_delete_blocked.html", ctx)
         _db.recipe_delete(conn, recipe_id)
-    if _is_ajax_row_action(request):
+    if ajax:
         return JSONResponse({"ok": True})
     return RedirectResponse(_list_return(next, "/recipes"), status_code=303)
 
@@ -13333,6 +13421,19 @@ def analysis_food_use_recipes_substitute(
 
 @app.get("/manual", response_class=HTMLResponse)
 def manual(request: Request):
+    """The manual inside NuMa's own window, under the main menu.
+
+    The manual is a standalone page (its own sidebar, scroll-spy and search
+    all keyed to the whole browser viewport), so rather than restyle it this
+    page frames it: the normal menu, a note on getting back, and an iframe of
+    /manual/page that fills the rest of the window. A #anchor on /manual is
+    passed on to the frame by the page's script."""
+    return templates.TemplateResponse(request, "manual_frame.html", {})
+
+
+@app.get("/manual/page", response_class=HTMLResponse)
+def manual_page(request: Request):
+    """The manual's own HTML, shown in /manual's frame."""
     from numa_app.services.manual_build import rebuild_manual_if_stale
     # Rebuild only ever applies to the baked-in copy (it has a .md source
     # beside it); a downloaded manual is html-only and must never be rebuilt.

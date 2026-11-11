@@ -88,6 +88,9 @@ numa_app/
   services/
     aa_estimate.py     — estimate a food's AA profile by scaling another food's
                          AA values to its own protein content: estimate_aa(), source_note()
+    browser_quit.py     — Ctrl+Q / browser-quit shutdown: FirefoxWatch (stops NuMa
+                         when Firefox quits, since Firefox keeps Ctrl+Q for itself),
+                         close_app_window() (KWin closes NuMa's app window)
     claude_fetch.py     — prompt-building and response-parsing for the Claude AI
                          amino-acid/nutrient fetch workflow behind Food Cache pages
     data_completeness.py — which nutrient groups a cached food is missing

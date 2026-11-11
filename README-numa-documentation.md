@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-09:1946
+UPDATED: 2026-11-10:1949
 
 Last monthly accuracy check: 2026-10-09.
 
@@ -333,7 +333,7 @@ numa/
       recipe_detail.html           — Recipe view: ingredients, DCP, protein quality, print/export links
       recipe_edit.html             — Recipe edit: ingredients, instructions, servings, weight/volume
       recipe_import_csv.html       — Import a recipes.csv + foods.csv bundle
-      recipe_broken_refs.html      — List recipes whose ingredient references are broken; relink/substitute
+      recipe_delete_blocked.html   — A refused recipe delete (still used): where it's used, Archive instead
       compare.html                 — Unified side-by-side comparison (up to 8 foods and/or recipes, mixed; save/load)
       analysis_food_use.html       — Analysis: frequency of a food's use across meals/date ranges
       analysis_food_use_recipes.html — Analysis: frequency of a food's use across recipes
@@ -674,9 +674,9 @@ The program will display a tip automatically when most of your search results ar
 
 ### Analyzing a portion
 
-See [Appendix E of the User Manual](user-manual.html#portion-formats) for the full list of accepted portion formats.
+See [Entering amounts in meals and recipes](user-manual.html#amount-formats) (User Manual, Part 6 K) for every accepted amount format.
 
-**Pieces vs. weight (implementation note):** A bare number (e.g. `2`) is treated as pieces/count — no gram weight is recorded and the ingredient's nutritional contribution is zero in recipe/meal totals. To store a gram weight, the user must always include a unit. This distinction is enforced in `_parse_portion_input()` in `numa_app/services/portions.py`.
+**Implementation note:** every amount box goes through `_parse_portion_str()` in `web/backend.py`: a bare number is grams (or tablets, for a per-tablet supplement); a weight followed by a bracketed note ("134.1 g (2/3 c)", the form a weighed volume "2/3 c 134.1 g" is stored in) keeps the note verbatim; any other text after a weight is refused (before 2026-11-10 it was silently dropped). `portions._parse_portion_input()` is an older parser kept only for reading stored entries back (`data_quality.stale_amounts()`, the recipe page's `pN` labels); it reads a bare number as a count with no weight, which never reaches an amount box.
 
 Nutrient values are stored per 100 g in the cache; all displayed values are scaled proportionally from that reference.
 
@@ -1402,7 +1402,7 @@ individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the ex
 |---|---|---|
 | POST | `/recipes/compute-bcp` | Recompute DCP for every complete recipe |
 | GET | `/recipes` | Recipe browse/search list |
-| GET | `/recipes/broken-refs` | List recipes with broken ingredient references |
+| GET | `/recipes/broken-refs` | Old address; redirects to Foods → 9 (`/food/cache/db-check#integrity`), which lists meals and recipes naming a deleted recipe |
 | GET/POST | `/recipe/import-csv` | Import a recipes.csv + foods.csv bundle |
 | GET/POST | `/recipe/new` | Create a new recipe |
 | GET | `/recipe/{recipe_id}` | Recipe detail (ingredients, DCP, protein quality) |
@@ -1583,7 +1583,7 @@ Meal history search. Query param `q=` searches food names across all logged meal
 
 #### `recipes.html`
 
-Recipe browse/search list. Fully implemented — no longer a stub. Recent recipes (via `recipe_list_recent()`), complete/incomplete status, a link to `recipes/broken-refs`, and links into `recipe_new.html`, `compare.html`, and `recipe_import_csv.html`.
+Recipe browse/search list. Fully implemented — no longer a stub. Recent recipes (via `recipe_list_recent()`), complete/incomplete status, and links into `recipe_new.html`, `compare.html`, and `recipe_import_csv.html`.
 
 #### `recipe_new.html`
 
@@ -1607,9 +1607,9 @@ Import a `recipes.csv` + `foods.csv` bundle (`numa_app/services/recipe_csv.py`),
 
 Unified side-by-side comparison — up to 8 foods and/or recipes, mixed in any combination. By default every comparison is per 100g of each item; a recipe's 100g is of the finished dish, by `recipe_serving_grams()` × servings (its stated total weight, else a complete ingredient sum — the weight a meal uses), falling back to the possibly incomplete `db.recipe_compute_weight()` sum, marked "(estimate)". The `basis` choice (`_COMPARE_BASES`, remembered as `compare_basis`) also offers each recipe per serving or whole, as written, and "amounts": each item at its own amount, carried in the `items` string as an `@n` suffix (`f174@150` grams of a food, `r12@2` servings or `r12@150g` grams of a recipe; `_parse_compare_amounts()`), set via `POST /compare/amounts` and kept by add/remove/save/load. Searching again with results ticked adds them first (`add-multiple`'s `then_search`). Three tables when 2+ items are present: an ingredient-union table (a food entry appears as its own single "100 g" ingredient; a recipe's raw ingredient amounts are rescaled by the same 100/batch-grams factor used for its nutrients), a DIAAS-based protein-quality table (built the same way for a food or a recipe — `diaas.meal_level_diaas()` takes a generic `{food_name, nutrients_100g, grams}` list either way, with a recipe's ingredients pre-scaled via `atomic_recipe_ingredients(portion_factor=...)`), and the full nutrient table with highest-value-per-row highlighting, sortable by checked nutrients, plus Print and CSV-export buttons. Search (inline on the same page) returns both foods (USDA/OFF/etc.) and recipes. Saved comparison lists can be named, saved, loaded, and deleted.
 
-#### `recipe_broken_refs.html`
+#### `recipe_delete_blocked.html`, `_recipe_delete_blocked.html`
 
-Lists recipes whose ingredient references point at a deleted/missing food or recipe; offers relink and substitute actions.
+Why a recipe delete was refused: `POST /recipe/{id}/delete` won't delete a recipe still logged in a meal or used as a sub-recipe, and shows these instead (the partial as a row note on the Recipes list, via the `blocked_html` reply), with an Archive button. Meals and recipes left naming a recipe deleted before that rule are listed in Foods → 9 (`check_db_integrity`'s `orphaned_meal_items` and `deleted_subrecipe_refs`).
 
 #### `food_cache_prune.html`, `food_cache_portions.html`, `food_cache_import_csv.html`, `food_cache_db_check.html`
 
@@ -1758,7 +1758,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,477 tests**, all passing (2,445 in the default run plus 32 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,502 tests**, all passing (2,470 in the default run plus 32 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1835,6 +1835,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_manual_format.py` | `user-manual.md`'s own structure: changelog entry format, hidden Scope blocks, heading conventions |
 | `tests/test_manual_search_js.py` | The manual search box's **Match case** / **Whole words only** checkboxes: runs `build_manual.JS`'s `wordRegex()` under Node with stubbed checkboxes (skipped when Node is absent) |
 | `tests/test_manual_search_terms.py` | Search terms lines in `user-manual.md`: `build_manual.py` hides each as a `.search-terms` span, leaves it out of reading time, and fails the build on a malformed one; the manual itself has none malformed; `search_terms_review.py` lists the right changed sections |
+| `tests/test_browser_quit.py` | NuMa stops when Firefox quits (Firefox keeps Ctrl+Q): FirefoxWatch needs the latest page in Firefox, Firefox seen running, then two missed checks; KWin closing NuMa's own app window |
 | `tests/test_launcher.py` | Startup loading page: served on the real port at once, swapped for a failure page if the app cannot start, and the same socket then handed on to uvicorn; which browser opens, and when as its own (`--app`) window |
 | `tests/test_link_integrity.py` | Internal links: every manual `#anchor` against the built HTML, and every template `href="/..."` against a registered route (weekly-sweep item 8, automated) |
 | `tests/test_ai_manual.py` | The AI edition of the manual: reading times, HTML comments and Part 11 removed; every internal link rewritten as plain text naming its destination; footnote markers plain; stays well under a Google Doc's size limit |

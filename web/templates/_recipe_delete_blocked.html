@@ -1,0 +1,25 @@
+{# Why a recipe delete was refused (recipe_delete_post): the meals and recipes
+   still using it, and Archive as the way to put it away. Shown as its own
+   page after a full-page delete, or inserted under the Recipes list row by
+   base.html's js-row-remove script (returned as `blocked_html`). #}
+<div class="alert alert-warning" id="recipe-delete-blocked">
+  <strong>&ldquo;{{ recipe.name }}&rdquo;{{ food_id_tag(None, recipe.id) }} can&rsquo;t be deleted while it&rsquo;s in use.</strong>
+  It is
+  {%- if meal_use %} logged in {{ meal_use.meals }} meal{{ 's' if meal_use.meals != 1 }}
+    ({% if meal_use.first == meal_use.last %}on {{ meal_use.first }}{% else %}from {{ meal_use.first }} to {{ meal_use.last }}{% endif %}){% endif %}
+  {%- if meal_use and used_in %} and{% endif %}
+  {%- if used_in %} used as a sub-recipe in
+    {% for r in used_in %}<a href="/recipe/{{ r.id }}">{{ r.name }}</a>{{ food_id_tag(None, r.id) }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.
+  Deleting it would leave those naming a recipe that no longer exists, and drop its nutrients from their totals.
+  <div class="mt-2">
+    {% if recipe.archived %}
+    It&rsquo;s already archived, which hides it from lists and searches. Nothing more is needed.
+    {% else %}
+    <form method="post" action="/recipe/{{ recipe.id }}/archive" class="d-inline">
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="btn btn-sm btn-primary">Archive it instead</button>
+    </form>
+    <small class="muted ms-2">Archiving hides it from lists and searches; every meal and recipe using it keeps working. Restore it any time.</small>
+    {% endif %}
+  </div>
+</div>

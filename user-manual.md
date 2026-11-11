@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-09:1946* / Reading time: 9 hours, 7 minutes
+*Updated 2026-11-10:1949* / Reading time: 9 hours, 14 minutes
 
 *Last full audit: 2026-10-09* / [Disclaimer](/disclaimer)
 
@@ -81,7 +81,7 @@ d. **Run it.** Double-click `nutrimagnus.exe`. A black window full of text opens
 
 e. **Make it easy to start next time.** Right-click `nutrimagnus.exe` and choose **Pin to Start**. For a desktop icon instead: right-click → **Show more options** → **Send to** → **Desktop (create shortcut)**.
 
-f. **Quit it properly.** Close the browser tab *and* the black window. Closing only the tab leaves NuMa running in the background.
+f. **Quit it properly.** Press **Ctrl+Q** on any NuMa page, or close the browser tab *and* the black window. Closing only the tab leaves NuMa running in the background. [More about Ctrl+Q](#quit-numa)
 
 g. **Updating it later.**{: #update-windows} Windows won't let a running program replace itself, so updating NuMa means swapping the program file yourself. There are five steps:
 
@@ -475,7 +475,7 @@ In addition, the following internal data sources are used:
 
 *Search terms: check the math, verify, reproduce, proof.*
 
-**Appendix F has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
+**Appendix E has a fully worked out validation example.** You can do this yourself, if you like. Data are brought in from outside the program and run through the official correct computation process. Full source references are given. You can run the same computation in [NuMa](#gloss-numa) and compare the result.
 
 #### Reasonable expectations: bugs remain
 <!-- t:26-10-28 -->
@@ -498,7 +498,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 50 minutes)*
+*(Reading time: 53 minutes)*
 
 NuMa's web app runs in your ordinary browser. This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -530,6 +530,13 @@ Every page has the same navigation bar across the top: **NuMa** (takes you home)
 
 If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Shift** and press the item's first letter (`F` for Foods, `R` for Recipes, `C` for Compare, `M` for Meals & Log, `N` for Analysis, `S` for Settings, `A` for Manual), using the underlined letter shown in each menu item and Settings section heading (e.g. `Alt+Shift+3` jumps to Dietary Preferences within Settings; section 10, Meals & Log columns, is `Alt+Shift+0`; sections 11 to 15 use an underlined letter of their name: `T` for Starter Data, `K` for Keyboard Shortcuts, `B` for Browser to Launch, `D` for Data Quality Reminder, and `Y` for System Issues, since `S` already belongs to Settings). This works the same way in any desktop browser (Firefox, Chrome, Brave, Edge, and the rest) — it's NuMa's own page script listening for the key combination, not a browser-specific feature, so it isn't limited to whichever browser you happen to be using. For a dropdown menu item (Foods, Recipes, Analysis), the shortcut also moves keyboard focus straight to the first item in the menu that opens — from there, ArrowUp/ArrowDown moves between items, Enter or Space picks one, and Escape closes the menu, all without touching the mouse. On any page with a search box (a meal's or a recipe's add search, Foods: Search, Pantry, Food Cache, Compare, and the rest), `Alt+Shift+I` puts the cursor in that search box with its text selected, ready to type a new search — opening the section it sits in first if that's closed — and clears the previous search's results from the page. Likewise, on a page with an Items section (a meal, Compare, Analyze a recipe portion, and a recipe's Edit page, where it's the Ingredients section), `Alt+Shift+Y` moves keyboard focus to that section, opening it first if it's closed. It's unrelated to, and does not affect, anything stored in your NuMa data. Turn it on or off in **Settings → Keyboard Shortcuts**; the setting is stored in your browser (not synced across devices) and takes effect immediately, with no page reload needed.
 
+<span id="quit-numa"></span>
+**To quit NuMa from the keyboard, press `Ctrl+Q`** on any NuMa page. NuMa stops, and its window closes. If the page has changes you haven't saved, it asks first. This works whether or not the Alt+Shift shortcuts are turned on.
+
+- **In Firefox,** `Ctrl+Q` is Firefox's own key: it quits Firefox (all its windows, not just NuMa's tab), and NuMa notices within a few seconds and stops too. Firefox gets no chance to ask about unsaved changes on a NuMa page, so save first. NuMa stops this way only when the last NuMa page you looked at was in Firefox, and only once Firefox has quit entirely; closing just NuMa's tab leaves NuMa running.
+- **In NuMa's own window** (Chrome, Chromium, Brave, Edge or Vivaldi), NuMa closes the window itself on the KDE desktop. Elsewhere the browser may not let a page close its own window; then the page says "NuMa has stopped" and you close it.
+- **On a Mac,** use `Ctrl+Q`, not `Cmd+Q`, which quits the browser.
+
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes light up their Save button — solid blue, bold white text, red border, the same as a Search button with something typed in it — with "Unsaved changes" beside it, so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
 #### Search boxes remember your last search {: #search-memory}
@@ -545,6 +552,20 @@ There's no time limit on this — it holds for as long as your browser tab stays
 The main navigation bar goes further than any one page: clicking **Recipes**, **Meals & Log**, **Compare**, **Settings**, or **Manual** returns you to the exact page you were last on in that section — e.g. the specific recipe you were editing, or the exact set of items you had lined up on Compare — instead of always landing on its list/default page. That only happens when you arrive from a *different* section: click **Meals & Log** (or press `Alt+Shift+M`) while you're already working on a meal, and you go to the Meals & Log list itself. When that memory is what brought you back, the page's breadcrumb is highlighted, with a one-click "All recipes" / "All meals" link in case you actually wanted the plain list. **Foods** and **Analysis** are drop-downs of separate destinations (Search, Pantry, Daily summary, and more), so they work a little differently: a small "↩" quick-return link appears next to the drop-down whenever there's a page you've viewed in it, showing that page's name, so you can jump back to it in one click after wandering off elsewhere — the drop-down itself always opens normally. Following a breadcrumb link (e.g. **Recipes** at the top of a recipe page) back to the list always starts fresh, clearing any remembered search or position.
 
 **Long pages also come back the way you left them.** On the Daily Summary, a meal, a recipe, and a food's own page, NuMa remembers how far down you had scrolled and which collapsible sections you had open, and puts both back when you return to that page. Like the search memory above, this lasts as long as the browser tab stays open. Two things are deliberately left out of it: inline **Edit** panels never reopen by themselves, since closing one is how you discard what you typed in it, and a link that points at a specific spot on a page (any link ending in `#something`) still takes you to that spot rather than to where you last were.
+
+#### Working in two windows {: #two-windows}
+
+*Search terms: new tab, second window, side by side, ctrl click, middle click, browser tab.*
+
+NuMa's own window has no tabs, but you can still have two NuMa pages open at once, for example a recipe next to the Food Cache, or two days to compare. **Hold `Ctrl` and click any NuMa link** (or click it with the middle mouse button, or `Shift`+click it). That page opens in an ordinary browser tab, outside NuMa's window, while NuMa's window stays where it was.
+
+- **Both show the same data.** Whatever you save in one is saved for both, but a page already on screen doesn't change by itself: reload it to see what you changed in the other one.
+- **To get back,** switch to the NuMa window with `Alt+Tab` or its taskbar button. The browser tab stays open until you close it.
+- **Closing the tab doesn't stop NuMa.** Quit NuMa from its own window, with `Ctrl+Q` (see [quitting NuMa](#quit-numa)).
+
+The first time you do this, NuMa's window explains what is about to happen before opening the tab. Click **Open it** to go ahead, or **Cancel** to stay put. Tick **Don't show this again** to skip the explanation from then on. To bring it back, use the **In NuMa's own window, explain before a Ctrl+click opens a page in a browser tab** box in **Settings → 13, Browser to Launch**.
+
+If NuMa opens in a normal browser tab instead of its own window (Firefox, or with **Open NuMa in its own window** turned off), Ctrl+click just opens another tab in that browser, as usual, with no explanation.
 
 ### C. Sample Workflows {: #sample-workflows-web}
 
@@ -684,12 +705,13 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 
 Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, or **Used in** (the foods most recipes and meals use come first). A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. The box at the top has two buttons: **Filter this list** narrows the foods already in your cache, and **Search online** opens [Foods → Search](#food-search) with the same words, to look in USDA, Open Food Facts and the other sources. After filtering, a **Not here? Search online** link next to the count does the same. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
 
-**Check [database](#gloss-database) integrity.**{: #db-check} *(This page — Foods → 9 — runs several checks: broken references, below; [missing nutrient data](#data-completeness); [food data problems](#calorie-checks); [amounts that no longer match](#stale-amounts); [amounts converted with a generic density](#generic-density); foods you use with no amino acid data or no portion weights; [duplicate foods](#duplicate-foods); and [old USDA copies](#old-copies). [Checking your data](#checking-your-data) lists every data check NuMa makes.)* The first scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to five kinds, **each with its own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
+**Check [database](#gloss-database) integrity.**{: #db-check} *(This page — Foods → 9 — runs several checks: broken references, below; [missing nutrient data](#data-completeness); [food data problems](#calorie-checks); [amounts that no longer match](#stale-amounts); [amounts converted with a generic density](#generic-density); foods you use with no amino acid data or no portion weights; [duplicate foods](#duplicate-foods); and [old USDA copies](#old-copies). [Checking your data](#checking-your-data) lists every data check NuMa makes.)* The first scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods and recipes, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to six kinds, **most with their own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
 - **Pantry entries** — low impact; removing one only takes it off your pantry list.
 - **Recipe ingredients** — removing one deletes that ingredient line from its recipe; the recipe's nutrient totals recalculate without it.
-- **Logged meal items** — removing one deletes that food/recipe from a day's logged meal history; that day's totals recalculate without it, same as if it had never been logged.
+- **Logged meal items** — removing one deletes that food/recipe from a day's logged meal history; that day's totals recalculate without it, same as if it had never been logged. A deleted *recipe* can be reconnected instead: see [relinking](#relink-recipe).
 - **Sub-recipe references** — non-destructive; nothing is deleted, the ingredient is just flagged "recipe (deleted)" (the same label used everywhere else a referenced recipe is gone) instead of erroring.
+- **Recipe ingredients naming a deleted recipe** — a recipe that used another recipe as an ingredient, which was then deleted. The line keeps the deleted recipe's name but adds nothing to the totals. Not auto-fixed: [relink](#relink-recipe) it to a recipe, or open the recipe and remove or replace the line.
 - **Unreadable nutrient/portion data** — never auto-repaired; each food gets its own **Refresh** (re-fetch from USDA) and **Delete** buttons so you decide.
 
 **Check for missing nutrient data.**{: #data-completeness} The same page (Foods → 9) has a section, **Missing nutrient data**, listing every cached food that has *no* values at all for one of six nutrient groups — the five blocks of a Nutritional Analysis table (Macronutrients, Omega Fatty Acids, Minerals, Vitamins, Phytonutrients) plus Amino Acids. Macronutrients count as missing if even one of calories, protein, carbohydrate, or fat is absent; amino acids only for a food that has protein. A group with *some* values is normal for real data and isn't listed.
@@ -780,7 +802,7 @@ Right below the title, every food's page also has a **Copy as custom-food draft*
 
 *Search terms: recipe list, edit recipe, copy recipe, archive recipe.*
 
-The **Recipes** page lists every recipe, with filter/sort options and a **Show archived recipes** / **Hide archived recipes** button. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute [DCP](#gloss-dcp) for all recipes** refreshes every recipe's protein score at once, and **Broken recipe references** finds any recipe whose sub-recipe ingredient was since deleted — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes.
+The **Recipes** page lists every recipe, with filter/sort options and a **Show archived recipes** / **Hide archived recipes** button. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute [DCP](#gloss-dcp) for all recipes** refreshes every recipe's protein score at once. A recipe still used in a meal or another recipe can't be deleted, only archived — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes.
 
 Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 6. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
@@ -1277,7 +1299,7 @@ These are the nine numbers every protein-quality figure in NuMa is measured agai
 | Tryptophan | 6.6 |
 | Valine | 40 |
 
-**How to read it.** A protein meets the reference for leucine if each gram of it supplies at least 61 mg of leucine — after [digestibility](#gloss-tid) is taken into account. Divide what a food actually supplies by these figures and you get the score for each amino acid; the lowest score is the food's [DIAAS](#gloss-diaas), and that amino acid is its [limiting amino acid](#gloss-limiting-amino-acid). [Appendix F](#appendix-diaas-validation) works a real meal through every step.
+**How to read it.** A protein meets the reference for leucine if each gram of it supplies at least 61 mg of leucine — after [digestibility](#gloss-tid) is taken into account. Divide what a food actually supplies by these figures and you get the score for each amino acid; the lowest score is the food's [DIAAS](#gloss-diaas), and that amino acid is its [limiting amino acid](#gloss-limiting-amino-acid). [Appendix E](#appendix-diaas-validation) works a real meal through every step.
 
 **Why pairs.** Methionine and cysteine are scored together, as are phenylalanine and tyrosine, because the body makes cysteine from methionine and tyrosine from phenylalanine — what matters is the pair's total.
 
@@ -3532,7 +3554,7 @@ Columns:
     Complete    Checkmark if you have marked the recipe finished.
     Created     Date the recipe was first saved.
 
-Each row has **Edit**, **Copy**, **Archive/Restore**, and **Delete** buttons. A filter box narrows the list by name; a **Sort by** dropdown switches between Last accessed, Name, and DCP/serving; a **Show archived recipes** button (beside **Show broken recipe references**) reveals archived recipes (shown grayed out with an "Archived" badge — see [archiving](#archive)). A **Broken recipe references** link finds ingredients pointing at a food or recipe no longer in your cache.
+Each row has **Edit**, **Copy**, **Archive/Restore**, and **Delete** buttons. A filter box narrows the list by name; a **Sort by** dropdown switches between Last accessed, Name, and DCP/serving; a **Show archived recipes** button reveals archived recipes (shown grayed out with an "Archived" badge — see [archiving](#archive)). Meals and recipes still naming a deleted recipe are listed in [Foods → 9](#db-check).
 
 See [digestible complete protein](#dcp) for a full explanation of digestible [complete protein](#gloss-complete-protein).
 
@@ -3851,7 +3873,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 51 minutes)*
+*(Reading time: 59 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -3926,7 +3948,7 @@ This means you can deliberately front-load your most important search word when 
 | **A recipe's ingredients or amounts** | That recipe recalculated, and every recipe built on it | Recalculated by the next page you open | [Changing a recipe…](#recipe-dcp-cascade) |
 | **A recipe's servings count or Total weight** | Per-serving figures change, and cascade as above | A meal logs servings, so "1 serving" now means the new serving; the meal page flags the item and asks whether to keep the grams you ate | [How a meal records a recipe](#recipe-servings-grams) |
 | **A recipe's name** | The new name replaces the old one everywhere | Same | [Editing or changing a food](#food-edit-consequences) |
-| **Deleting a recipe** | Its sub-recipe lines stay, flagged "recipe (deleted)" | Its meal items stay, flagged the same way | [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) |
+| **Deleting a recipe** | Refused while any recipe or meal uses it; Archive instead | Refused | [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) |
 | **Substituting** one food or recipe for another everywhere | Ingredients switched and recalculated, cascading up; amounts kept as typed | Items switched; amounts kept as typed | [Replace a Food or Recipe Everywhere](#fooduse-substitute) |
 | **A what-if** | Nothing, unless you click Apply | Nothing, unless you click Apply | [Saving, downloading and applying a what-if](#whatif-apply) |
 | **Your profile** (weight, targets) | — | Past days keep the profile they were pinned to | [Per-Day Profile Tracking](#day-profile) |
@@ -3987,7 +4009,7 @@ If a portion's gram weight turns out to have been wrong, fix the portion; Foods 
 
 **Renaming a food renames it everywhere you've used it.**{: #food-rename} When you save a new name on a food's Edit page, the new name replaces the old one on every recipe ingredient line, every logged meal item (past days included) and every pantry entry that uses that food, the same way renaming a recipe always has; the page tells you how many places it changed. Nutrients don't change, because they always come from the food a line is *linked* to, whatever name it shows. One thing can change: NuMa estimates protein digestibility from a food's name (see [Protein digestibility](#digestibility-by-name)), so a name that drops a telling word ("tofu", "lentil") can change the food's DCP figures, and a digestibility you set yourself moves to the new name with it. A name you typed into an ingredient line's own **Edit** popup on the Edit Recipe page is replaced too. That popup changes only the name the line shows, never which food it's linked to. So if a recipe's nutrients look wrong, check that each ingredient is linked to the food its name says; to link one to a different food, remove the line and add the right food.
 
-**A food still used somewhere can't be deleted.** NuMa refuses to delete a food that a recipe, a logged meal or your pantry still uses, so nothing is ever left pointing at a food that no longer exists. Recipes are different — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere).
+**A food still used somewhere can't be deleted.** NuMa refuses to delete a food that a recipe, a logged meal or your pantry still uses, so nothing is ever left pointing at a food that no longer exists. Recipes work the same way — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere).
 
 #### Meals and days {: #meal-edit-consequences}
 
@@ -4055,15 +4077,13 @@ To convert an existing custom food to supplement mode, edit it and change the se
 
 ### F. Deleting a recipe that's used elsewhere {: #delete-recipe-elsewhere}
 
-*Search terms: remove recipe, recipe in use.*
+*Search terms: remove recipe, recipe in use, can't delete, broken recipe references, relink, reconnect.*
 
-If the recipe you're deleting has been logged in a meal, or another recipe uses it as a sub-recipe (an ingredient that is itself a recipe), NuMa warns you before deleting — whether you click **Delete** on the Recipes list or **Delete recipe** on the recipe's own page. The warning says how many meals it's logged in (and between which dates) and which recipes use it, and suggests **Archive** instead: an archived recipe drops out of lists and search but keeps working everywhere it's used. If you delete it anyway:
+A recipe that's logged in a meal, or that another recipe uses as a sub-recipe (an ingredient that is itself a recipe), can't be deleted. Click **Delete** on the Recipes list or **Delete recipe** on the recipe's own page and NuMa says how many meals it's logged in (and between which dates) and which recipes use it, and offers to **Archive** it instead. An archived recipe drops out of lists and searches but keeps working everywhere it's used, and you can restore it at any time. A recipe nothing uses is deleted as before, after you confirm.
 
-1. Every meal it's logged in keeps the line, flagged "recipe (deleted)", but no longer counts its nutrients in that meal's totals.
-2. In a recipe that used it as a sub-recipe, that ingredient line is not removed. It stays in place, but is now flagged "recipe (deleted)" wherever it appears — in ingredient lists, meal history, and Food Use in Meals. This is expected, not a bug: NuMa can't know whether you meant to also cascade-delete every recipe that depended on it, so it leaves the reference intact and visible instead.
-3. If you later create a new recipe whose name shares at least one word with the deleted recipe's name (for example, re-creating "Beef Stew" as "Chicken Stew," or under the exact same name as before), NuMa offers to relink those broken references to your new recipe — the offer appears as a banner on the new recipe's edit page.
-4. If more than one deleted recipe matches by name, you're offered each one separately, and only the ones you confirm get relinked. Declining leaves the old references flagged as before.
-5. To see every currently-broken reference in your data, regardless of what you're about to create, use the "Broken recipe references" button on the Recipes list.
+Deleting a meal, or removing the recipe from every meal and recipe that uses it, makes it deletable again.
+
+<span id="relink-recipe"></span>**Meals and recipes that still name a deleted recipe.** Before this rule, a used recipe could be deleted. Where that happened, the meal or recipe kept its line, showing the deleted recipe's name flagged "recipe (deleted)", but no longer counts its nutrients. [Foods → 9](#db-check) lists every one of these. To reconnect them, create a recipe with the same name, or one sharing at least two words with it (re-creating "Beef Noodle Stew" as "Chicken Noodle Stew," say). Its edit page then offers to relink those lines to it, or to any other recipe you pick. If more than one deleted recipe matches by name, you're offered each one separately, and only the ones you confirm get relinked.
 
 ### G. Ignoring a complement suggestion {: #ignore-complement}
 
@@ -4131,7 +4151,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 | [Missing portion weights](#ts-no-volume-portion) | A food with no cup, spoon or piece weight, so a volume or count can't become grams | Foods → 9 (foods you use, most-used first); recipe pages ("No portion/weight data exists"); when you type an amount | Add the weight once on the food's Portions page; or tick "not needed" if you always weigh it |
 | [Duplicate foods](#duplicate-foods) | Two or more foods with the same name, so a fix to one doesn't reach what uses the other | Foods → 9 → **Find duplicate foods** (on request) | Compare them, keep one (the rest are replaced by it everywhere), or mark "not duplicates" |
 | [Recipe weight unknown](#recipe-servings-grams) | A logged recipe whose serving weight can't be worked out; a recipe whose serving size changed after you logged it | Meal pages | Enter the recipe's total weight; review the meal as the page suggests |
-| [Deleted sub-recipes](#ts-deleted-recipe) | A recipe ingredient or meal item pointing at a recipe that was deleted | Recipes → Broken recipe references; Edit Recipe (offers to relink) | Relink it or remove it |
+| [Deleted sub-recipes](#ts-deleted-recipe) | A recipe ingredient or meal item pointing at a recipe that was deleted | Foods → 9; Edit Recipe (offers to relink) | Relink it or remove it |
 | [Failed recalculations](#system-issues-howto) | A recipe or meal whose automatic recalculation broke after a change | Settings → 15; a red alert at the top of every page | **Retry** |
 | [Import checks](#fetch) | Claude AI replies, [CSV](#gloss-csv) files and recipe imports: missing names, non-numbers, unknown nutrients; imports fill only empty values | The import page's "Notes from validation" | Fix the source and import again |
 | [Estimates](#filling-gaps) | Where NuMa used an estimate (calories, amino acids, protein digestibility) instead of measured data | Labeled where the figure appears | Replace with real data where you can |
@@ -4194,30 +4214,7 @@ Then every recipe, logged meal and pantry entry using the others switches to it 
 
 #### Amounts — in meals, recipes, a food's page, Convert and Compare
 
-*Search terms: units, fractions, ounces, how to type an amount.*
-
-| You type | NuMa reads it as |
-|---|---|
-| `150` or `150 g` | 150 g (a number on its own is grams) |
-| `150g`, `3oz`, `2T` | the same as with a space |
-| `3 oz`, `0.5 lb`, `1 kg` | converted to grams |
-| `1/4 cup`, `1 1/2 c`, `2 T`, `1 tsp`, `100 ml`, `1 fl oz` | converted to grams with the food's own cup or spoon weight (or a [generic density](#gloss-generic-density), marked **≈ generic**) |
-| `½ cup`, `1½ c`, `¾ tsp` | the same as `1/2 cup`, `1 1/2 c`, `3/4 tsp` |
-| `1,000 g` | 1000 g; `12,5 g` (a decimal comma) is 12.5 g |
-| `2 tbsp.`, `3 oz.`, `2 tbs`, `1 fl. oz` | trailing periods and common spellings are understood |
-| `2 T 15 g`, `1/4 c 60` | your weight wins: 15 g, shown as "15 g (2 T)" — use this when you've weighed it |
-| `p1`, `2 p1`, `1.5 p2` | the food's 1st portion, twice its 1st, one and a half times its 2nd (see [Portion Input Formats](#portion-formats)) |
-| `1 large egg`, `2 eggs`, `3 slices`, `2 tablets` | a count of one of the food's own portions, matched by name |
-| `1 serving`, `2` (for a recipe) | servings; or switch the box to grams |
-
-**Writing the weight in the amount and the volume in the note** (amount `16 g`, note `2 T`) is safe: the grams you typed are what's used. It's no longer necessary — `2 T 16 g` records both in one box — and better still is to give the food its real cup or spoon weight once (Food Cache → **Portions**), so `2 T` comes out right by itself.
-
-**Refused, with the reason:**
-
-- `2 bananas` for a food with no portion called banana — the message lists the food's portions (`p1 = 1 medium banana`…) so you can pick one.
-- `2 eggs` when the food has both "1 large egg" and "1 small egg" — NuMa won't guess; type `2 large eggs` or `2 p1`.
-- `2 cups` for a food with no cup weight and no generic density — weigh it, or give the food a cup portion.
-- `2 T 15 bananas` — whatever follows a volume must be a weight.
+Amounts have a section of their own, with every form NuMa accepts, what it does with each, and what it refuses: [Entering amounts in meals and recipes](#amount-formats).
 
 #### Nutrient values — custom food profiles, and Settings → 5. Nutrient Targets - Researched
 
@@ -4256,7 +4253,136 @@ Some mistakes produce a perfectly readable number, so no form can refuse them. T
 
 After saving a food, its page shows any problem NuMa can see straight away; [Checking your data](#checking-your-data) lists every check.
 
-### K. Moving foods and recipes with CSV files {: #csv-transfer}
+### K. Entering amounts in meals and recipes {: #amount-formats}
+
+*Search terms: portion formats, how to type an amount, quantity, measurements, units, ounces, cups, tablespoons, teaspoons, fractions, weighed, grams and cups together.*
+
+Every box that asks how much of a food or recipe — the **Amount** box on a meal page, an ingredient's amount on Edit Recipe, a food's **Convert** box, Compare, What-if, and **Add to every meal** on the Food Use pages — reads amounts the same way, so what you learn here works everywhere.
+
+**What NuMa does with what you type.** It works out one number from it: grams for a food, servings for a recipe. That number is what every total, analysis and check uses. NuMa also keeps the text you typed, tidied slightly ("2T" becomes "2 T", "2 T 15 g" becomes "15 g (2 T)"), and shows it wherever the amount appears. When you open an amount's **Edit** box, that same text is in it, and saving the box unchanged leaves the amount exactly as it was. If NuMa can't read something, it refuses the whole amount and says why. It never quietly uses part of what you typed and drops the rest.
+
+#### At a glance {: #amounts-at-a-glance}
+
+| You type | NuMa reads it as | Shown as |
+|---|---|---|
+| `150` or `150 g` | 150 g (a number on its own is grams) | 150 g |
+| `150g`, `3oz`, `2T` | the same as with a space | 150 g, 3 oz, 2 T |
+| `3 oz`, `0.5 lb`, `1 kg` | converted to grams | as typed |
+| `1/4 cup`, `1 1/2 c`, `2 T`, `1 tsp`, `100 ml`, `1 fl oz` | converted to grams with the food's own cup or spoon weight, or a [generic density](#gloss-generic-density) (marked **≈ generic**) | as typed |
+| `½ cup`, `1½ c`, `¾ tsp` | the same as `1/2 cup`, `1 1/2 c`, `3/4 tsp` | |
+| `1,000 g`, `12,5 g` | 1000 g; 12.5 g (a decimal comma is read as a point) | |
+| `2 tbsp.`, `3 oz.`, `2 tbs`, `1 fl. oz` | trailing periods and common spellings are understood | |
+| `2/3 c 134.1 g`, `2 T 15`, `1 c 2 oz` | a measure you weighed: the weight counts, the volume is kept as a label | 134.1 g (2/3 c) |
+| `134.1 g (2/3 c)`, `50 g (1 slice)` | a weight with a note in brackets: the weight counts, the note is kept as typed | as typed |
+| `p1`, `2 p1`, `1.5 p2` | the food's 1st portion, twice its 1st, one and a half times its 2nd | 1 large egg, 2 × 1 large egg |
+| `1 large egg`, `2 eggs`, `3 slices`, `2 tablets` | a count of one of the food's own portions, matched by name | 2 × 1 large egg |
+| `1 serving`, `1 1/8 srv` (a recipe) | servings of the recipe | 1.125 servings |
+| `200 g`, `200`, `3/4 c` (a recipe) | turned into servings through the recipe's serving weight or volume — see [Recipes](#portions-vs-servings) | servings |
+
+#### Numbers
+
+Plain numbers, decimals, fractions and mixed numbers all work, as do the fraction characters ½ ¼ ¾ ⅓ ⅔ ⅛ and the rest:
+
+    150        plain number
+    0.5        decimal
+    1/4        fraction
+    1 1/2      mixed number (whole number, a space, then a fraction)
+    1½         the same as 1 1/2
+
+A number on its own is grams, for a recipe as well as a food. The one exception is a [supplement](#supplements) stored per tablet, where a number on its own counts tablets: `2` is two tablets.
+
+#### Weights
+
+    g  gr  gram  grams          grams
+    oz  ounce  ounces           ounces     (1 oz = 28.35 g)
+    lb  lbs  pound  pounds      pounds     (1 lb = 453.6 g)
+    kg  kilogram  kilograms     kilograms  (1 kg = 1000 g)
+
+A weight is the most accurate way to enter anything. It's used exactly as typed, it's never marked as an estimate, and changing a food's portions later never changes it.
+
+#### Volumes (cups and spoons)
+
+    c  cup  cups                       cups          (1 c = 236.6 ml)
+    T  tbsp  tablespoon  tablespoons   tablespoons   (1 T = 14.8 ml)
+    t  tsp  teaspoon  teaspoons        teaspoons     (1 t = 4.9 ml)
+    ml  milliliter  milliliters  cc    milliliters
+    floz  fl oz                        fluid ounces  (1 floz = 29.6 ml)
+    l  liter  liters                   liters        (1 l = 1000 ml)
+
+`T` (capital) is a tablespoon and `t` (small) is a teaspoon. Those two are the only units where capitals matter.
+
+A volume has no weight of its own, so NuMa converts it to grams, in this order:
+
+1. **The food's own cup or spoon portion**, if it has one, including one you've added on its Portions page. This is a fact about that food, so it's the figure to trust.
+2. **A generic density for that kind of food**: flours, protein powders, seeds, dried herbs and spices, and so on.
+3. **A general figure of 0.45 g per milliliter**, typical of a dried ground spice, when nothing better is known. A volume is never refused, because herbs and spices are often only ever measured by the spoon.
+
+Amounts converted the second or third way are a guess, so they're marked **≈ generic** wherever they're shown (see [Amounts converted with a generic density](#generic-density)). For a teaspoon of spice the guess hardly matters; for a cup of flour it can be well off. The fix is to weigh one cup or spoonful of the food once and add it as a portion (Food Cache → **Portions**). Every later volume of that food then comes out right, and amounts already entered show up under [Amounts that no longer match](#stale-amounts), ready to correct.
+
+#### A weight and a volume together {: #weight-and-volume}
+
+When you've weighed something you also measured — 2/3 cup of flour that came to 134.1 g on the scale — you can record both in one box. The weight is what counts; the volume is kept beside it so you can still see what you measured. There are two ways to type it:
+
+- **The volume, then the weight:** `2/3 c 134.1 g`. A number on its own after the volume is grams too: `2/3 c 134.1`. NuMa shows and stores this as `134.1 g (2/3 c)`.
+- **The weight, then a note in brackets:** `134.1 g (2/3 c)`. This is the same form NuMa shows, so you can type it directly, and an Edit box showing it saves unchanged. The note is kept exactly as you type it and isn't converted or checked, so it can be anything that helps you: `50 g (1 slice)`, `235 g (1 c + 4 1/3 T)`, `120 g (1 cup, packed)`.
+
+Two near-misses are refused rather than guessed at:
+
+- `134.1 g 2/3 c`, with no brackets. NuMa can't tell whether the extra words are a note or a typing mistake, so it asks you to put them in brackets: `134.1 g (2/3 c)`.
+- `2/3 c (134.1 g)`, with the weight in the brackets. Older versions of NuMa wrote their own estimate that way, so a weight in brackets after a volume doesn't count as one you weighed. Type `2/3 c 134.1 g` instead.
+
+An amount entered with its own weight is never marked **≈ generic** and never listed under [Amounts that no longer match](#stale-amounts): it's taken to be what you weighed.
+
+Putting the weight in the amount and the volume in the item's **Notes** box (amount `16 g`, note `2 T`) works too, and is just as accurate. It's simply no longer necessary.
+
+#### A food's own portions: `pN` and counting by name {: #portion-shortcuts}
+
+Many foods come with named portions (from [USDA](#gloss-usda), or ones you add yourself): "1 large egg", "1 cup, sliced", "1 tablet". Every page where you type an amount lists the food's portions, each with its shortcut:
+
+    p1         the food's 1st portion
+    2 p1       twice its 1st portion (also 2p1)
+    1.5 p2     one and a half times its 2nd portion
+
+You can also type a portion's description (`1 large egg`), a count of it (`3 large eggs`), or just its main word (`2 eggs`) when only one portion has that word. NuMa shows the result as, say, `2 × 1 large egg`, and reads that back unchanged if you save it again.
+
+**`p1`, `p2`, … mean "the food's 1st portion, 2nd portion, …": the position in its list, never the portion's own name.** If you add a custom portion and happen to *name* it `p1`, that name has no effect: if it's fourth in the list, its shortcut is `p4`. Check the list beside the box before typing a `pN`, rather than guessing. Adding, removing or reordering a food's portions renumbers every `pN` after the changed spot, so check again after any portion edit (see [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering)).
+
+There is no general count unit: `2 pc` or `2 pieces` isn't recognized, since NuMa can't know what one piece weighs. Give the food a portion for one of it ("1 slice", 28 g) and you can count it by name.
+
+#### Recipes: servings instead of `pN` {: #portions-vs-servings}
+
+*Search terms: recipe servings, servings not pN, sub-recipe amount.*
+
+Every `pN` shortcut above belongs to *foods*. Recipes never have a `p1`, `p2`, … list, and that isn't a missing feature — it's because recipes don't need one.
+
+A food is measured in grams, and `pN` exists purely to hide that gram math: `p1` means "don't make me weigh out 1 medium egg myself, just use the preset." A recipe's native unit, by contrast, is already **servings** — so wherever you enter an amount of a recipe (adding it to a meal, or adding it as a nested ingredient inside another recipe), typing `1 serving` (or `1 srv`) already means exactly that. There's no gram math to shortcut, so there's no `pN` to shortcut it with.
+
+**You can also type a recipe's amount as a weight or a volume** — on a meal page, and when adding a sub-recipe on Edit Recipe. The **Amount** box there (and the Edit box of a recipe already in the meal or recipe) takes servings, with the word — `1.125 srv`, `1 1/8 servings`, `1⅛ srv` — or a weight (`200 g`, `8 oz`, or just `200`: a number on its own is grams, the same as for a food), or a volume (`3/4 c`, `2 T`, `250 ml`), and turns it into servings for you: a weight through what one serving weighs; a volume through the recipe's **Total yield volume**, or, if that's blank, through its **Serving description** when that is a measure such as `2/3 cup` (so `3/4 c` of a sauce whose serving is 2/3 cup logs 1.125 servings). The hint under the box says which of these that recipe can take. If NuMa can't convert what you typed, it says why and adds nothing; a plain number for a recipe whose serving weight NuMa doesn't know is refused that way, with a reminder to type servings. The meal or recipe still records servings, and a recipe already in it shows its amount as, say, `1.5 servings`, so saving the box unchanged keeps it.
+
+That doesn't mean a recipe's per-serving weight is undefined — it's derived automatically from two fields on the Edit Recipe page's Recipe details section: **Number of servings** and **Total yield weight**. Divide one by the other and you get grams per serving, live, the moment both are filled in — nothing extra to set. A recipe with `servings = 21` and `total yield weight = 1942.5 g`, for example, already means "1 serving = 92.5 g" everywhere that recipe is used, without you ever typing 92.5 anywhere.
+
+The one place the literal text `p1` *does* work for a recipe is the Convert tool — type `p1` there for a recipe and it resolves to that same auto-derived "1 serving" weight. That isn't a general recipe feature, though: Convert happens to reuse the same portion-parsing code that handles foods' `pN`, and it treats a recipe's one implicit "1 serving" as if it were portion #1. Everywhere else in the app, just use the Servings field directly.
+
+92.5 g is accurate, but it doesn't say what you're actually holding. If a recipe's serving has a natural real-world name — 1 muffin, 1 cookie, 1 slice — set it in the **Serving description** field, right next to Number of servings on the Edit Recipe page. It's a label, not a unit conversion — with one exception: when it is a measure (`2/3 cup`, `250 ml`), a meal page uses it to turn a volume you type into servings (see above). Once set, it shows up as "(1 serving = 1 muffin)" wherever the recipe's serving count is already shown — the recipe's own page, the Recipes list, Convert's named portion, and next to the Servings field anywhere the recipe is added as an ingredient or meal item.
+
+**Where you see that weight.** Anywhere an amount is given in servings — a recipe added to a meal, or a recipe used as an ingredient inside another recipe (a [sub-recipe](#gloss-sub-recipe)) — NuMa prints the gram weight beside it, as in "2 servings (500 g)", on screen and on a printed recipe alike. It uses the recipe's stated Total yield weight where you have set one, and otherwise the sum of the ingredients, but only when every ingredient has a usable weight: a partial sum would understate the serving by an unknown amount, so nothing is shown at all in that case.
+
+See also [Recipe Ingredient List](#recipe-ingredients) for where these Servings fields appear, and for the Recipe details fields — including Total yield weight and Total yield volume — on the Edit Recipe page.
+
+#### Refused, with the reason
+
+When an amount can't be read, nothing is added or changed, what you typed stays in the box, and the message says what NuMa couldn't read:
+
+- `2 bananas` for a food with no portion called banana — the message lists the food's portions (`p1 = 1 medium banana`…) so you can pick one.
+- `2 eggs` when the food has both "1 large egg" and "1 small egg" — NuMa won't guess; type `2 large eggs` or `2 p1`.
+- `2 pc`, `3 pieces` — there's no general count unit; see above.
+- `2 T 15 bananas` — whatever follows a volume must be a weight.
+- `134.1 g 2/3 c`, `134.1 g banana` — whatever follows a weight must be a note in brackets: `134.1 g (2/3 c)`.
+- `2/3 c (134.1 g)` — type it as `2/3 c 134.1 g` (see [A weight and a volume together](#weight-and-volume)).
+- `p7` for a food with only three portions — "No preset p7 for this food."
+- `200` for a recipe whose serving weight NuMa doesn't know — give it a Total yield weight, or type servings.
+
+### L. Moving foods and recipes with CSV files {: #csv-transfer}
 
 *Search terms: export, import, share recipes, share foods, spreadsheet, transfer, send to a friend, another computer.*
 
@@ -4606,7 +4732,7 @@ Use the sidebar search box near the top of the table of contents.
 
 ### E. Finding your way around the table of contents {: #toc-howto}
 
-*Search terms: outline, navigation, open all, close all.*
+*Search terms: outline, navigation, open all, close all, go back, return, back button, previous page, forward.*
 
 The table of contents in the sidebar opens one level at a time, so even the biggest Parts stay easy to get into.
 
@@ -4615,6 +4741,8 @@ The table of contents in the sidebar opens one level at a time, so even the bigg
 - **Click the ▾ arrow** of an open title to close it again; double-clicking ▾ closes it along with everything below it.
 - **Click a title itself** (not the arrow) to jump to that part of the manual.
 - **Expand all** and **Collapse all**, the two small buttons to the right of the "Contents" heading, open or close every level in one go. **Collapse all** takes the list back to just its main titles (Preface, Part 1, Part 2 and so on), a short list to browse.
+
+<span id="manual-back"></span>**Getting back to where you were.** The manual opens inside NuMa's own window, under NuMa's menu, so the menu is always there to take you anywhere in the program. To return to the page you came from, click the **← Back** button in the yellow bar above the manual, or press **Alt+←** (Alt and the Left arrow key). **Alt+→** goes forward again. Every jump you make inside the manual (a table of contents entry, a "learn more" link) counts as one step, so after a few jumps you may need to go back a few times.
 
 The list starts closed. As you read, it opens just far enough to show where you are, with the current section highlighted.
 
@@ -4687,7 +4815,7 @@ Setting a recipe's **Servings** field to 0 is a deliberate mode switch, not an e
 Without a personal [USDA API key](#food-data), NuMa shares a demonstration key (`DEMO_KEY`) with every other NuMa user, and its rate limit is tight enough that heavy use by anyone can exhaust it, causing searches to fail temporarily for everyone. A free personal key removes this ceiling and takes about a minute to get — see [Food data — where it comes from and how it is stored](#food-data) for the sign-up steps and where to enter it (Settings → 6. USDA API Key).
 
 #### A deleted recipe shows up as "(deleted)" somewhere {: #ts-deleted-recipe}
-This is expected, not a bug: deleting a recipe that's used as an ingredient in another recipe doesn't remove that ingredient line — it stays in place, flagged "recipe (deleted)" wherever it appears (ingredient lists, meal history, Food Use in Meals). If you later create a new recipe with a similar or identical name, NuMa offers to relink the old references to it automatically. See [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) for the full behavior and how to browse every currently-broken reference.
+A recipe still used in a meal or another recipe can no longer be deleted, but one deleted before that rule leaves its lines in place, flagged "recipe (deleted)" wherever they appear (ingredient lists, meal history, Food Use in Meals), and their nutrients aren't counted. [Foods → 9](#db-check) lists every one. Create a recipe with the same or a similar name and NuMa offers to relink them to it. See [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere).
 
 *See also:* [I searched for a food I know exists and got nothing](#ts-search-empty), [The food I wanted wasn't at the top of the search results](#ts-search-order), [A meal's DCP isn't showing](#ts-meal-dcp), [A past day's numbers changed after I updated my profile](#ts-day-profile).
 
@@ -4844,7 +4972,7 @@ Two fixes: weigh the item once on a kitchen scale and enter that weight directly
 
 *Search terms: no cup measure, volume missing, seasoning.*
 
-NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Portion Input Formats](#portion-formats)). And when even that table doesn't know the food, NuMa still takes the amount — a volume is never refused, since herbs and spices are often only ever measured by the spoon — using a general figure of 0.45 g per milliliter, typical of a dried ground spice. Every amount converted with a table figure or that general one is marked **≈ generic** where it's shown, and listed under Foods → 9, so you can see which numbers are guesses. For a teaspoon of spice the guess hardly matters; for a cup of something it can be well off.
+NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Entering amounts](#amount-formats)). And when even that table doesn't know the food, NuMa still takes the amount — a volume is never refused, since herbs and spices are often only ever measured by the spoon — using a general figure of 0.45 g per milliliter, typical of a dried ground spice. Every amount converted with a table figure or that general one is marked **≈ generic** where it's shown, and listed under Foods → 9, so you can see which numbers are guesses. For a teaspoon of spice the guess hardly matters; for a cup of something it can be well off.
 
 If you'll be entering this food by volume repeatedly, teach NuMa the conversion once: weigh a level cup (or tablespoon) of it, then use the same Portions editor as above — the [Food Cache](#food-cache-web) entry's **Portions** action. From then on, cup and tablespoon amounts for that food convert automatically.
 
@@ -4856,7 +4984,7 @@ Occasionally a [USDA](#gloss-usda) record's portion weight is simply implausible
 
 If a portion weight doesn't match what you measure: weigh your actual amount and enter the gram figure directly for that one use, and — if you'll use this food again — replace the bad portion with a corrected one via the same Portions editor (the [Food Cache](#food-cache-web) entry's **Portions** action). Custom portions you add there are yours — they aren't overwritten by a later **Refresh** of the food's nutrient data. If you're confident the USDA source itself is wrong (not just unusual), [let us know](#feedback) — it's worth tracking so other users hit it less often, even though NuMa can't correct USDA's [database](#gloss-database) directly.
 
-*See also:* [Enter food portions as weights, not volume measures, whenever possible](#portion-formats).
+*See also:* [Enter amounts as weights, not volumes, whenever possible](#amount-formats).
 
 #### A food's portion "pN" shortcut points to the wrong portion {: #ts-portion-numbering}
 
@@ -4869,7 +4997,7 @@ Two ways to avoid this:
 1. **Check the portion list shown right where you type the amount** — Foods, Recipes, and Meals all display the food's full portion set with its real shortcut number next to each entry (e.g. `p1 oz (14.2 g) · p2 1.75" square (3.0 g) · p3 …`) immediately above or below the amount field. Match against that list, not against a portion's name.
 2. **Re-check after any portion edit.** Adding, removing, or reordering a food's portions renumbers every `pN` from that point on — so typing `p1` today can give a different weight than it did last week, if you've since added or removed an earlier portion. (Amounts you've already entered are safe: they were saved as grams — see [Editing or changing a food](#food-edit-consequences).) If a `pN` amount doesn't come out the way you expect, re-open that food's [Manage Portions](#food-cache-web) page and count down the list before assuming something's broken.
 
-*See also:* [USDA standard portions and the `pN` shortcut](#portion-formats). A custom food profile copied from an existing food starts with that food's portions carried over unchanged — see [Editing the p1, p2, … portion shortcuts](#custom-foods) — so the same renumbering rule applies there too.
+*See also:* [A food's own portions and the `pN` shortcut](#portion-shortcuts). A custom food profile copied from an existing food starts with that food's portions carried over unchanged — see [Editing the p1, p2, … portion shortcuts](#custom-foods) — so the same renumbering rule applies there too.
 
 ### G. Getting more help {: #quickhelp}
 
@@ -4998,7 +5126,7 @@ Every food's [Annotate](#gi) page can search the published glycemic index tables
 
 ## Part 10 — Appendices
 
-*(Reading time: 1 hour, 14 minutes)*
+*(Reading time: 1 hour, 8 minutes)*
 
 
 ### A. Raw protein, protein quality, and protein digestibility {: #appendix-protein-quality}
@@ -5436,99 +5564,7 @@ The small differences (1-3 mg/g) reflect different published [FAO](#gloss-fao) t
 
 (For technically skilled users: in NuMa's source code these two tables are `usda_api.AA_REFERENCE_MG_PER_G_PROTEIN` and `diaas.FAO_REFERENCE`, respectively.)
 
-### E. Portion Input Formats {: #portion-formats}
-
-*Search terms: portion formats, how to type amounts.*
-
-Every prompt that asks for a portion amount — in Foods, Recipes, Meals, and the Convert tool — accepts the same input formats.
-
-NUMBERS
-
-Plain decimals, fractions, and mixed numbers are all accepted:
-
-    150        plain number
-    0.5        decimal
-    1/4        fraction
-    1 1/2      mixed number (whole + fraction, separated by a space)
-
-WEIGHT UNITS
-
-    g  gr  gram  grams          grams  (1 g = 1 g)
-    oz  ounce  ounces           ounces  (1 oz = 28.35 g)
-    lb  lbs  pound  pounds      pounds  (1 lb = 453.6 g)
-    kg  kilogram  kilograms     kilograms  (1 kg = 1000 g)
-
-VOLUME UNITS
-
-NuMa converts volume to grams via the food's recorded density. If density is unknown for a food, it asks you to supply the weight manually. Common dried herbs and spices (pepper flakes, cinnamon, cumin, oregano, garlic powder, and dozens more) have built-in density estimates, since these are almost always measured by the teaspoon or tablespoon rather than weighed — including a generic fallback for any USDA "Spices, ..." entry not individually itemized.
-
-    c  cup  cups                cups  (1 c = 236.6 ml)
-    T  tbsp  tablespoon  tablespoons    tablespoons  (1 T = 14.8 ml)
-    t  tsp  teaspoon  teaspoons     teaspoons  (1 t = 4.9 ml)
-    ml  milliliter  milliliters  cc   milliliters
-    floz                         fluid ounces  (1 floz = 29.6 ml)
-    l  liter  liters             liters  (1 l = 1000 ml)
-
-Note: T (uppercase) means tablespoon; t (lowercase) means teaspoon. These two are case-sensitive. All other units are case-insensitive.
-
-PIECE COUNT (eggs, slices, tablets)
-
-There is no general count unit (`2 pc` isn't recognized), since NuMa can't know what one weighs. But once a food has a portion for one of it (Food Cache → **Portions**, e.g. "1 large egg", 50 g), you can count it by name — `2 eggs`, `2 large eggs` — or with its shortcut, `2 p1`. If two portions share the name ("1 large egg", "1 small egg"), name the one you mean. See [Data entry](#data-entry) for every form NuMa accepts.
-
-[USDA](#gloss-usda) STANDARD PORTIONS
-
-Many [USDA](#gloss-usda) foods include pre-defined portion sizes (e.g. "1 medium egg", "1 cup sliced"). These are listed at the portion prompt and can be selected by number:
-
-    p1         select USDA portion #1
-    p2         select USDA portion #2
-    1.5 p1     one-and-a-half times USDA portion #1
-
-You can also type a portion's description (`1 large egg`), a count of it (`3 large eggs`), or just its main word (`2 eggs`) when only one portion has that word.
-
-**`p1`, `p2`, … mean "the food's 1st portion, 2nd portion, …" — position in the list, never the portion's own text.** This trips people up specifically when you add a custom portion (via [Food Cache](#food-cache-web) → **Portions**) and happen to *name* it something like `p1`: that name has no effect on its shortcut number. If it's the fourth portion in the list, its shortcut is `p4`, no matter what you called it. Every screen where you type a `pN` shortcut — Foods, Recipes, Meals — also lists that food's full portion set with the real shortcut number next to each one; check that list before typing `pN`, don't guess from a portion's name. Adding, removing, or reordering portions on a food also renumbers every `pN` that follows the changed spot, so re-check the list after any portion edit, too — see [A food's portion "pN" shortcut points to the wrong portion](#ts-portion-numbering) if a `pN` amount doesn't come out the way you expected.
-
-#### Recipes: Servings Instead of `pN` {: #portions-vs-servings}
-
-*Search terms: recipe servings, servings not pN.*
-
-Every `pN` shortcut above belongs to *foods*. Recipes never have a `p1`, `p2`, … list, and that isn't a missing feature — it's because recipes don't need one.
-
-A food is measured in grams, and `pN` exists purely to hide that gram math: `p1` means "don't make me weigh out 1 medium egg myself, just use the preset." A recipe's native unit, by contrast, is already **servings** — so wherever you enter an amount of a recipe (adding it to a meal, or adding it as a nested ingredient inside another recipe), typing `1 serving` (or `1 srv`) already means exactly that. There's no gram math to shortcut, so there's no `pN` to shortcut it with.
-
-**You can also type a recipe's amount as a weight or a volume** — on a meal page, and when adding a sub-recipe on Edit Recipe. The **Amount** box there (and the Edit box of a recipe already in the meal or recipe) takes servings, with the word — `1.125 srv`, `1 1/8 servings`, `1⅛ srv` — or a weight (`200 g`, `8 oz`, or just `200`: a number on its own is grams, the same as for a food), or a volume (`3/4 c`, `2 T`, `250 ml`), and turns it into servings for you: a weight through what one serving weighs; a volume through the recipe's **Total yield volume**, or, if that's blank, through its **Serving description** when that is a measure such as `2/3 cup` (so `3/4 c` of a sauce whose serving is 2/3 cup logs 1.125 servings). The hint under the box says which of these that recipe can take. If NuMa can't convert what you typed, it says why and adds nothing; a plain number for a recipe whose serving weight NuMa doesn't know is refused that way, with a reminder to type servings. The meal or recipe still records servings, and a recipe already in it shows its amount as, say, `1.5 servings`, so saving the box unchanged keeps it.
-
-That doesn't mean a recipe's per-serving weight is undefined — it's derived automatically from two fields on the Edit Recipe page's Recipe details section: **Number of servings** and **Total yield weight**. Divide one by the other and you get grams per serving, live, the moment both are filled in — nothing extra to set. A recipe with `servings = 21` and `total yield weight = 1942.5 g`, for example, already means "1 serving = 92.5 g" everywhere that recipe is used, without you ever typing 92.5 anywhere.
-
-The one place the literal text `p1` *does* work for a recipe is the [Convert](#convert) tool — type `p1` there for a recipe and it resolves to that same auto-derived "1 serving" weight. That isn't a general recipe feature, though: Convert happens to reuse the same portion-parsing code that handles foods' `pN`, and it treats a recipe's one implicit "1 serving" as if it were portion #1. Everywhere else in the app, just use the Servings field directly.
-
-92.5 g is accurate, but it doesn't say what you're actually holding. If a recipe's serving has a natural real-world name — 1 muffin, 1 cookie, 1 slice — set it in the **Serving description** field, right next to Number of servings on the Edit Recipe page. It's a label, not a unit conversion — with one exception: when it is a measure (`2/3 cup`, `250 ml`), a meal page uses it to turn a volume you type into servings (see above). Once set, it shows up as "(1 serving = 1 muffin)" wherever the recipe's serving count is already shown — the recipe's own page, the Recipes list, Convert's named portion, and next to the Servings field anywhere the recipe is added as an ingredient or meal item.
-
-**Where you see that weight.** Anywhere an amount is given in servings — a recipe added to a meal, or a recipe used as an ingredient inside another recipe (a [sub-recipe](#gloss-sub-recipe)) — NuMa now prints the gram weight beside it, as in "2 servings (500 g)", on screen and on a printed recipe alike. It uses the recipe's stated Total yield weight where you have set one, and otherwise the sum of the ingredients, but only when every ingredient has a usable weight: a partial sum would understate the serving by an unknown amount, so nothing is shown at all in that case.
-
-See also [Recipe Ingredient List](#recipe-ingredients) for where these Servings fields appear, and for the Recipe details fields — including Total yield weight and Total yield volume — on the Edit Recipe page.
-
-OMITTING THE SPACE
-
-For all weight and volume units, the space between the number and unit is optional. These pairs are identical:
-
-    2 T    =   2T
-    0.25 c =   0.25c
-    150 g  =   150g
-    3 oz   =   3oz
-    1/4 c  =   1/4c
-
-VOLUME WITH EXPLICIT WEIGHT
-
-When you know both the volume measure and the exact gram weight, you can supply both on one line. NuMa records the weight and labels the entry with the volume for readability:
-
-    2 T 30g         →  30 g  (labeled "30 g (2 T)")
-    1/4 c 60 g      →  60 g  (labeled "60 g (1/4 c)")
-
-BARE NUMBER
-
-A bare number with no unit is assumed to be grams; each amount field's example text says so directly.
-
-### F. Worked validation example — meal-level DIAAS for pinto beans + quinoa {: #appendix-diaas-validation}
+### E. Worked validation example — meal-level DIAAS for pinto beans + quinoa {: #appendix-diaas-validation}
 
 *Search terms: check the math, verify DIAAS, worked example.*
 
@@ -6114,7 +6150,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 35 minutes)*
+*(Reading time: 38 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6130,8 +6166,14 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. NuMa now opens in its own window, like a desktop program, when Chrome, Chromium, Brave, Edge or Vivaldi is installed. Many interface improvements and bug fixes.
+Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. NuMa now opens in its own window, like a desktop program, when Chrome, Chromium, Brave, Edge or Vivaldi is installed, with the manual inside it under the menu, and Ctrl+Q quits it; a Ctrl+click there first explains that the page will open in a browser tab. Many interface improvements and bug fixes.
 
+- **26.** In NuMa's own window, a Ctrl+click (or middle-click) on a NuMa link now first explains that the page will open in a browser tab and how to get back, until you turn that off; the manual has a new "Working in two windows" section.
+- **25.** A recipe used in a meal or another recipe can no longer be deleted; Delete offers to archive it instead.
+- **24.** Meals and recipes that still name a deleted recipe are now listed in Foods → 9, with how to reconnect them, instead of behind a button on the Recipes list.
+- **23.** The manual now opens in NuMa's own window under NuMa's menu, with a bar explaining how to get back (a Back button, or Alt+←).
+- **22.** An amount typed as a weight with a note in brackets, such as `134.1 g (2/3 c)`, now keeps the note, and other text after a weight is refused instead of dropped; amounts now have their own manual section (Part 6 K).
+- **21.** **Ctrl+Q** now quits NuMa and closes its window; in Firefox it quits Firefox and NuMa stops with it.
 - **20.** NuMa now opens in its own window, with NuMa's icon and no tabs or address bar, when Chrome, Chromium, Brave, Edge or Vivaldi is installed; untick it in Settings → 13 for a normal tab.
 - **19.** What-if can now apply every kind of change for real: Remove, Add and Change amount as well as Replace, on both the Meals and Recipes pages; the Recipes confirmation says how many logged meals will change and which recipes' stored weights to check.
 - **18.** What-if: Meals can now apply a Remove for real, including a recipe logged as individual ingredients, after a confirmation page.
@@ -6153,7 +6195,150 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **2.** Alt+Shift+I now also clears the previous search's results when it puts the cursor in a search box.
 - **1.** MANUAL: A new section explains how to move foods and recipes between NuMa installs with CSV files: exporting, importing, and what does and doesn't travel.
 
+#### November 10 updates
+
+**PROGRAM: CTRL+CLICK EXPLAINS ITS BROWSER TAB FIRST**
+
+In NuMa's own window, Ctrl+click, Shift+click or middle-click on a NuMa link opens that page in an ordinary browser tab, which is useful for two pages side by side but surprising the first time. NuMa's window now says so before the tab opens, and how to get back, until you tick "Don't show this again" (or untick it in Settings → 13). [learn more...](#two-windows)
+
+<!--
+```
+Scope: web/templates/base.html, web/backend.py, web/templates/settings.html,
+tests/test_web.py; manual Part 3 B "Working in two windows" (#two-windows).
+
+The app window is recognised by window.name: /nutrimagnus(-source) now redirects
+to /?numa_window=1, and base.html sets window.name = "numa-app-window" and strips
+the parameter. window.name survives the window's same-origin navigations and is
+not copied to tabs opened from it, so ordinary tabs never show the notice. A
+capture-phase click/auxclick listener catches modified or middle clicks on
+same-origin links (not target=_blank, download, # or javascript:), shows a
+<dialog>, and on "Open it" calls window.open(url, "_blank") with opener nulled.
+Pref: prefs.json new_tab_notice (default on); POST /prefs/new-tab-notice turns it
+off; Settings -> 13's form sets it (shares the app_window_shown flag). Also: the
+leave guard's unsaved-changes prompt no longer fires on a Ctrl/Shift/Cmd- or
+middle-click, since that opens another tab and leaves the edits in place.
+```
+-->
+
+**PROGRAM: A RECIPE IN USE CAN BE ARCHIVED, NOT DELETED**
+
+A recipe that's logged in a meal or used inside another recipe can no longer be deleted. Clicking Delete says where it's used and offers to archive it instead, which hides it from lists and searches while everything using it keeps working. A recipe nothing uses deletes as before. [learn more...](#delete-recipe-elsewhere)
+
+<!--
+
+```
+Scope: web/backend.py recipe_delete_post (refuses when recipe_referencing_subrecipe
+or recipe_meal_use finds a use; ajax → blocked_html row note, else
+recipe_delete_blocked.html), _recipe_delete_warning (None for a used recipe, so
+no confirm), new _recipe_delete_blocked.html / recipe_delete_blocked.html,
+recipes.html / recipe_detail.html (onsubmit only when there's a warning).
+db.recipe_delete itself is unchanged (still flags sub-recipe lines) for
+older data and tests that simulate it.
+```
+
+-->
+
+**PROGRAM: FOODS → 9 LISTS MEALS AND RECIPES NAMING A DELETED RECIPE**
+
+The meals and recipes that still name a deleted recipe, formerly behind a button on the Recipes list, are now in Foods → 9, Check database integrity and completeness, with how to reconnect each one. [learn more...](#relink-recipe)
+
+<!--
+
+```
+Scope: db.check_db_integrity gains deleted_subrecipe_refs (recipe_ingredients
+with ref_recipe_deleted = 1; not auto-repaired, so excluded from "repairable");
+meal items pointing at a deleted recipe were already in orphaned_meal_items and
+now carry a relink hint. food_cache_db_check.html new #deleted-recipes section.
+/recipes/broken-refs now redirects to /food/cache/db-check#integrity;
+recipe_broken_refs.html and the Recipes-list button removed. These also now
+count toward the Home page's data-check reminder.
+```
+
+-->
+
+**PROGRAM: THE MANUAL OPENS IN NUMA'S OWN WINDOW**
+
+The manual now opens in NuMa's window, under NuMa's menu, instead of in a separate browser tab. A yellow bar above it explains how to get back: its **← Back** button, or **Alt+←** (with **Alt+→** to go forward again). [learn more...](#manual-back)
+
+<!--
+
+```
+Scope: web/backend.py (/manual now renders manual_frame.html; the manual's own
+HTML moved to /manual/page), web/templates/manual_frame.html (new), base.html
+(footer block; Manual nav link no longer target=_blank), home.html,
+_search_hint.html, _manual_link(). The manual is framed rather than restyled:
+its sidebar, scroll-spy and search are all keyed to the whole viewport. The
+frame page forwards a /manual#anchor to the iframe, sends manual links to NuMa
+pages to the whole window, and passes Ctrl/Alt keystrokes typed in the manual
+to the outer page so Ctrl+Q and the Alt+Shift menu shortcuts still work.
+```
+
+-->
+
+**PROGRAM: A WEIGHT WITH A NOTE IN BRACKETS KEEPS THE NOTE**
+
+You can type an amount as a weight with a note in brackets, such as `134.1 g (2/3 c)` or `50 g (1 slice)`: the weight is what counts, and the note is kept and shown as you typed it. That's the same form NuMa shows a weighed volume in, so an amount's Edit box can now be saved unchanged without losing its volume. Anything else after a weight (`134.1 g 2/3 c`) is refused with a message saying to put it in brackets. Amounts now have their own section in the manual, covering every form NuMa accepts, how each is read, and what's refused. [learn more...](#weight-and-volume)
+
+<!--
+
+```
+Scope: web/backend.py _parse_portion_str_raw(); tests/test_web.py
+TestParsePortionStrWeightWithNote; user-manual.md Part 6 K (new, "Entering
+amounts in meals and recipes", #amount-formats), Part 6 J, Part 10.
+
+Root cause: the weight-unit branch returned "<number> <unit>" as soon as it
+saw a weight unit, ignoring every token after it. So "134.1 g (2/3 c)" was
+stored as "134.1 g" (volume lost), and "134.1 g banana" was accepted. Since
+"2/3 c 134.1 g" and Keep as entered both store "<weight> (<volume>)",
+re-saving such an amount unchanged from its Edit box silently lost the
+volume label (grams were always right).
+
+Now: "<weight> (<note>)" (bare number = grams) returns the weight, label
+"<weight label> (<note>)" with the note verbatim (whitespace collapsed);
+unbracketed text after a weight returns an error naming it.
+"2/3 c (134.1 g)" stays refused (older NuMa's own density-estimate form,
+which data_quality treats as "bracketed", not user-weighed). Checked
+against every stored meal/recipe unit in the live DB: no stored label's
+parse result changes.
+
+Manual: Appendix E "Portion Input Formats" (stale: said an unknown-density
+volume asks for a weight) and Part 6 J's Amounts table merged into the new
+Part 6 K (anchor renamed #portion-formats -> #amount-formats: a portion
+is a food's named measure with its weight, an amount is anything typed;
+the pN subsection is #portion-shortcuts), keeping #portions-vs-servings;
+CSV section K -> L; Appendix F -> E (two "Appendix F" references updated).
+J's table row "2 (for a recipe) = servings" and refusal "2 cups with no
+density" were wrong and are gone.
+```
+
+-->
+
 #### November 9 updates
+
+**PROGRAM: CTRL+Q QUITS NUMA**
+
+Press **Ctrl+Q** on any NuMa page to stop NuMa and close its window (it asks first if the page has unsaved changes). In Firefox, Ctrl+Q quits Firefox, and NuMa now stops along with it. [learn more...](#quit-numa)
+
+<!--
+
+```
+Scope: numa_app/services/browser_quit.py (new), web/backend.py (POST /quit,
+_stop_numa, Firefox-watch middleware, start_browser_watch), web/launcher.py,
+web/templates/base.html (Ctrl+Q handler; numaDirtyGuard.anyDirty and
+numaLeaveGuard.anyDirty for its unsaved-changes check), settings.html section 12,
+tests/test_browser_quit.py, tests/test_web.py.
+Modelled on cmgr's Ctrl+Q. /quit answers, then a thread waits 0.5 s, asks KWin (qdbus
+loadScript) to close the window whose resourceClass ends "__nutrimagnus[-source]-Default",
+and sets the launcher's uvicorn server.should_exit (app.state.server), with os._exit 5 s
+later as a backstop; in --reload mode it SIGTERMs the reloader parent instead.
+Firefox reserves Ctrl+Q (never dispatched to content), so FirefoxWatch: a middleware
+records whether the latest HTML GET came from a Firefox UA; a daemon thread checks every
+2 s for a Firefox main process (/proc cmdline basename firefox/firefox-bin/..., not
+-contentproc; tasklist on Windows; pgrep elsewhere) and stops NuMa after 2 consecutive
+misses following a sighting. Not started under tests. Tab close alone doesn't trigger it.
+```
+
+-->
 
 **PROGRAM: NUMA OPENS IN ITS OWN WINDOW**
 

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Can't Delete Recipe{% endblock %}
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item"><a href="/recipe/{{ recipe.id }}">{{ recipe.name }}</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Delete</li>
+  </ol>
+</nav>
+<h2>Can&rsquo;t delete this recipe {{ manual_link("delete-recipe-elsewhere") }}</h2>
+{% include "_recipe_delete_blocked.html" %}
+<p><a href="/recipe/{{ recipe.id }}">&larr; Back to the recipe</a></p>
+{% endblock %}

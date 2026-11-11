@@ -229,10 +229,11 @@
     <button type="submit" class="btn btn-sm btn-outline-secondary"
             title="{% if recipe.archived %}Restore to normal use{% else %}Hide from default lists and search, without losing it — logged meals and recipes that use it keep working{% endif %}">{% if recipe.archived %}Restore recipe{% else %}Archive recipe{% endif %}</button>
   </form>
-  {# delete_warning: _recipe_delete_warning() — names the meals and recipes
-     a delete would break. Single-quoted attribute: |tojson escapes ' but not ". #}
+  {# delete_warning: _recipe_delete_warning() — None for a recipe still in
+     use, whose delete is refused with an offer to archive instead.
+     Single-quoted attribute: |tojson escapes ' but not ". #}
   <form method="post" action="/recipe/{{ recipe.id }}/delete" style="margin:0"
-        onsubmit='return confirm({{ delete_warning | tojson }})'>
+        {% if delete_warning %}onsubmit='return confirm({{ delete_warning | tojson }})'{% endif %}>
     <button type="submit" class="btn btn-sm btn-outline-danger">Delete recipe</button>
   </form>
 </div>

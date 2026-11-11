@@ -1997,10 +1997,26 @@ def test_settings_app_window_checkbox_saves_both_ways(client: TestClient) -> Non
 def test_app_window_start_paths_and_favicon(client: TestClient) -> None:
     for path in ("/nutrimagnus", "/nutrimagnus-source"):
         resp = client.get(path, follow_redirects=False)
-        assert resp.status_code == 302 and resp.headers["location"] == "/"
+        assert resp.status_code == 302 and resp.headers["location"] == "/?numa_window=1"
     resp = client.get("/favicon.ico")
     assert resp.status_code == 200 and resp.content[:4] == b"\x89PNG"
     assert 'rel="icon"' in client.get("/").text
+
+
+def test_new_tab_notice_pref(client: TestClient) -> None:
+    """The new-tab notice (base.html) is on by default, its "Don't show this
+    again" box turns it off, and Settings -> 13 turns it back on."""
+    assert "var noticeOn = true;" in client.get("/").text
+    assert client.post("/prefs/new-tab-notice", data={"on": "0"}).status_code == 204
+    assert json.loads(backend._PREFS_FILE.read_text())["new_tab_notice"] is False
+    assert "var noticeOn = false;" in client.get("/").text
+    box = lambda: client.get("/settings").text.split('id="browser-new-tab-notice"')[1].split(">")[0]
+    assert "checked" not in box()
+    client.post("/settings/browser",
+                data={"preferred_browser": "", "app_window_shown": "1", "new_tab_notice": "1"},
+                follow_redirects=False)
+    assert json.loads(backend._PREFS_FILE.read_text())["new_tab_notice"] is True
+    assert "checked" in box()
 
 
 def test_settings_browser_pref_rejects_unknown_value(client: TestClient) -> None:
@@ -2645,10 +2661,10 @@ def test_recipe_delete_and_copy(client: TestClient, cached_food, db_conn) -> Non
     assert db_conn.execute("SELECT * FROM recipes WHERE id = ?", (recipe_id,)).fetchone() is None
 
 
-def test_recipe_delete_warns_about_meals_and_sub_recipe_use(client: TestClient, db_conn) -> None:
-    """Both Delete buttons (Recipes list, recipe page) name the logged meals
-    and recipes a delete would break, and point at Archive instead."""
-    import db as _db
+def test_recipe_delete_refused_while_used_offers_archive(client: TestClient, db_conn) -> None:
+    """A recipe logged in a meal or used as a sub-recipe can't be deleted:
+    the Delete button skips the confirm, and the server refuses, names the
+    uses, and offers Archive — on its own page, or as a row note (ajax)."""
     used = _db.recipe_create(db_conn, "Tom's Chili", "", 4, "")
     unused = _db.recipe_create(db_conn, "Plain Rice", "", 2, "")
     parent = _db.recipe_create(db_conn, "Chili Bowl", "", 1, "")
@@ -2657,18 +2673,28 @@ def test_recipe_delete_warns_about_meals_and_sub_recipe_use(client: TestClient, 
         _db.meal_add_recipe(db_conn, _db.meal_create(db_conn, "Lunch", d), used, "Tom's Chili", 1)
     db_conn.commit()
 
-    detail = client.get(f"/recipe/{used}").text
-    assert "logged in 2 meals (from 2026-10-01 to 2026-10-05)" in detail
-    assert "used as a sub-recipe in: Chili Bowl" in detail
-    assert "the Archive button next to Delete" in detail
-    # The apostrophe must not end the single-quoted onsubmit attribute.
-    assert "Tom\\u0027s Chili" in detail
-
     listing = client.get("/recipes").text
-    assert "logged in 2 meals" in listing
-    assert "the Archive button next to Delete" in listing
     assert 'Delete recipe \\"Plain Rice\\"? This cannot be undone.' in listing
-    assert "Plain Rice\\\" is logged" not in listing
+    assert "Tom\\u0027s Chili" not in listing          # no confirm for a used recipe
+
+    page = client.post(f"/recipe/{used}/delete").text
+    assert "can&rsquo;t be deleted while it&rsquo;s in use" in page
+    assert "logged in 2 meals" in page and "from 2026-10-01 to 2026-10-05" in page
+    assert ">Chili Bowl</a>" in page and f"R{used}" in page
+    assert f'action="/recipe/{used}/archive"' in page
+    assert _db.recipe_get(db_conn, used) is not None
+
+    resp = client.post(f"/recipe/{used}/delete", headers={"X-Numa-Ajax": "1"},
+                       data={"next": "/recipes?q=chili"})
+    data = resp.json()
+    assert data["ok"] is False and "Archive" in data["blocked_html"]
+    assert 'value="/recipes?q=chili"' in data["blocked_html"]
+    assert _db.recipe_get(db_conn, used) is not None
+
+    # A parent nothing uses deletes normally.
+    client.post(f"/recipe/{parent}/delete", follow_redirects=False)
+    assert _db.recipe_get(db_conn, parent) is None
+    assert client.post(f"/recipe/{unused}/delete", follow_redirects=False).status_code == 303
 
 
 def test_recipe_archive_hides_and_restore_reveals(client: TestClient, db_conn) -> None:
@@ -2991,7 +3017,10 @@ def test_recreated_recipe_offers_relink_to_broken_refs(client: TestClient, db_co
         data={"recipe_id": recipe_id, "recipe_name": "Beef Noodle Stew", "servings": 1, "mode": "recipe"},
         follow_redirects=False,
     )
-    client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+    # A used recipe can no longer be deleted through the app; this stands in
+    # for one deleted before that rule.
+    with _db.get_db() as _c:
+        _db.recipe_delete(_c, recipe_id)
 
     unrelated_id = int(
         client.post("/recipe/new", data={"name": "Chicken Stew", "servings": 2}, follow_redirects=False)
@@ -3045,7 +3074,10 @@ def test_relink_offers_alternative_target_recipe(client: TestClient, db_conn) ->
         data={"recipe_id": recipe_id, "recipe_name": "Beef Noodle Stew", "servings": 1, "mode": "recipe"},
         follow_redirects=False,
     )
-    client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+    # A used recipe can no longer be deleted through the app; this stands in
+    # for one deleted before that rule.
+    with _db.get_db() as _c:
+        _db.recipe_delete(_c, recipe_id)
 
     # A second, unrelated-by-name recipe is the one the user actually meant
     # to relink to.
@@ -3513,28 +3545,26 @@ def test_update_now_route_success_and_failure(client: TestClient, monkeypatch: p
     assert "Download failed: offline" in resp.text
 
 
-def test_broken_recipe_refs_listing_page(client: TestClient) -> None:
-    """/recipes/broken-refs lists every dangling reference for browsing,
-    independent of any specific recipe being (re-)created."""
-    recipe_id = int(
-        client.post("/recipe/new", data={"name": "Chili", "servings": 3}, follow_redirects=False)
-        .headers["location"].split("/recipe/")[1].split("/")[0]
-    )
-    meal_id = int(
-        client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-15"}, follow_redirects=False)
-        .headers["location"].rsplit("/", 1)[-1]
-    )
-    client.post(
-        f"/meal/{meal_id}/add-recipe",
-        data={"recipe_id": recipe_id, "recipe_name": "Chili", "servings": 1, "mode": "recipe"},
-        follow_redirects=False,
-    )
-    client.post(f"/recipe/{recipe_id}/delete", follow_redirects=False)
+def test_broken_recipe_refs_listed_in_foods_9(client: TestClient, db_conn) -> None:
+    """Meals and recipes still naming a deleted recipe (left from before
+    deleting a used recipe was refused) are listed in Foods → 9; the old
+    /recipes/broken-refs address redirects there."""
+    sub = _db.recipe_create(db_conn, "Chili", "", 3, "")
+    parent = _db.recipe_create(db_conn, "Chili Bowl", "", 1, "")
+    _db.recipe_add_ingredient(db_conn, parent, 0, "Chili", 1, "servings", ref_recipe_id=sub)
+    _db.meal_add_recipe(db_conn, _db.meal_create(db_conn, "Lunch", "2026-07-15"), sub, "Chili", 1)
+    _db.recipe_delete(db_conn, sub)
+    db_conn.commit()
 
-    resp = client.get("/recipes/broken-refs")
-    assert resp.status_code == 200
-    assert "Chili" in resp.text
-    assert "Lunch" in resp.text
+    resp = client.get("/recipes/broken-refs", follow_redirects=False)
+    assert resp.headers["location"] == "/food/cache/db-check#integrity"
+
+    page = client.get("/food/cache/db-check").text
+    assert 'id="deleted-recipes"' in page
+    assert "Recipe ingredients naming a deleted recipe (1)" in page
+    assert f'href="/recipe/{parent}/edit">Chili Bowl</a>' in page
+    assert "A deleted recipe can be reconnected instead" in page   # the meal item
+    assert "Show broken recipe references" not in client.get("/recipes").text
 
 
 def test_meal_add_recipe_rename_merge_refresh_aa(client: TestClient, cached_food, db_conn) -> None:
@@ -6630,7 +6660,7 @@ def test_manual_route_serves_verified_downloaded_manual(
     fake.write_text("<html>DOWNLOADED MANUAL</html>", encoding="utf-8")
     monkeypatch.setattr(_mu, "get_active_manual", lambda baked: {"path": fake, "stamp": "2099-01-01:0000",
                                                                "source": "downloaded", "requires_program": "x"})
-    assert "DOWNLOADED MANUAL" in client.get("/manual").text
+    assert "DOWNLOADED MANUAL" in client.get("/manual/page").text
 
 
 def test_meal_add_recipe_mode_ingredients_expands_server_side(client, cached_food, db_conn) -> None:
@@ -8243,6 +8273,43 @@ class TestParsePortionStrExplicitWeight:
         assert g is None
 
 
+class TestParsePortionStrWeightWithNote:
+    """A weight with a note in brackets ("134.1 g (2/3 c)") — the form NuMa
+    itself shows a weighed volume in — keeps the note. Until 2026-11-10
+    everything after a weight was silently dropped, so re-saving such an
+    amount unchanged lost its volume, and "134.1 g banana" was accepted."""
+
+    _CUP = [{"description": "cup", "gram_weight": 240.0}]
+
+    @pytest.mark.parametrize("raw,grams,label", [
+        ("134.1 g (2/3 c)", 134.1, "134.1 g (2/3 c)"),
+        ("134.1g (2/3 c)", 134.1, "134.1 g (2/3 c)"),
+        ("134.1 (2/3 c)", 134.1, "134.1 g (2/3 c)"),
+        ("2 oz (4/5 c)", 56.7, "2 oz (4/5 c)"),
+        ("235 g (1 c + 4 1/3 T)", 235.0, "235 g (1 c + 4 1/3 T)"),
+        ("50 g (1 slice)", 50.0, "50 g (1 slice)"),
+    ])
+    def test_weight_counts_and_note_is_kept(self, raw, grams, label):
+        g, lab = backend._parse_portion_str(raw, self._CUP, "Milk")
+        assert g == pytest.approx(grams, abs=0.01)
+        assert lab == label
+
+    def test_shown_form_saves_unchanged(self):
+        g, shown = backend._parse_portion_str("2/3 c 134.1 g", self._CUP, "Milk")
+        assert backend._parse_portion_str(shown, self._CUP, "Milk") == (g, shown)
+
+    @pytest.mark.parametrize("raw", ["134.1 g 2/3 c", "134.1 g banana", "134.1 g (2/3 c"])
+    def test_unbracketed_text_after_a_weight_is_an_error(self, raw):
+        g, msg = backend._parse_portion_str(raw, self._CUP, "Milk")
+        assert g is None
+        assert "in brackets" in msg
+
+    def test_volume_with_bracketed_weight_still_refused(self):
+        """"2/3 c (134.1 g)" is the form older NuMa versions wrote their own
+        density estimate in, so it isn't read as a weighed amount."""
+        assert backend._parse_portion_str("2/3 c (134.1 g)", self._CUP, "Milk")[0] is None
+
+
 class TestParsePortionStrTolerant:
     """Amount boxes accept the everyday ways people write an amount
     (added 2026-10-09): fraction characters, thousands and decimal commas,
@@ -8401,6 +8468,48 @@ class TestRestartNeeded:
         assert cmd[0] == backend.sys.executable and cmd[1].endswith("launcher.py")
         assert cmd[2:] == ["--port", "8001", "--no-browser"]
 
+
+    def test_quit_stops_the_server_after_answering(self, client: TestClient, monkeypatch) -> None:
+        import threading, time, signal
+        threads, exits, kills, closed = [], [], [], []
+        monkeypatch.setattr(threading, "Thread", lambda target, daemon: threads.append(target) or type("T", (), {"start": lambda self: None})())
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        monkeypatch.setattr(backend.os, "_exit", lambda code: exits.append(code))
+        monkeypatch.setattr(backend.os, "kill", lambda pid, sig: kills.append((pid, sig)))
+        monkeypatch.setattr(backend._browser_quit, "close_app_window", lambda path: closed.append(path))
+        monkeypatch.setattr(backend.sys, "argv", ["/x/web/launcher.py"])
+        assert client.post("/quit").json() == {"stopping": True}
+        assert exits == [] and closed == []     # nothing happens until the answer is out
+        threads[0]()
+        assert exits == [0] and kills == [] and closed == ["/nutrimagnus-source"]
+        monkeypatch.setattr(backend.sys, "argv", ["/x/web/launcher.py", "--reload"])
+        client.post("/quit")
+        threads[1]()
+        assert kills == [(backend.os.getppid(), signal.SIGTERM)]
+
+    def test_quit_stops_the_launchers_server_cleanly(self, client: TestClient, monkeypatch) -> None:
+        import threading, time
+        threads = []
+        monkeypatch.setattr(threading, "Thread", lambda target, daemon: threads.append(target) or type("T", (), {"start": lambda self: None})())
+        monkeypatch.setattr(time, "sleep", lambda s: None)
+        monkeypatch.setattr(backend.os, "_exit", lambda code: None)
+        monkeypatch.setattr(backend._browser_quit, "close_app_window", lambda path: None)
+        server = type("S", (), {"should_exit": False})()
+        monkeypatch.setattr(backend.app.state, "server", server, raising=False)
+        client.post("/quit")
+        threads[0]()
+        assert server.should_exit is True
+
+    def test_pages_tell_the_firefox_watch_which_browser(self, client: TestClient) -> None:
+        ff = "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0"
+        client.get("/", headers={"user-agent": ff, "accept": "text/html"})
+        assert backend._firefox_watch.last_page_firefox is True
+        client.get("/", headers={"user-agent": "Mozilla/5.0 Chrome/140.0 Safari/537.36", "accept": "text/html"})
+        assert backend._firefox_watch.last_page_firefox is False
+
+    def test_ctrl_q_handler_on_every_page(self, client: TestClient) -> None:
+        html = client.get("/").text
+        assert "fetch('/quit'" in html and "NuMa has stopped" in html
 
 class TestNutrientTableNoData:
     """Every tracked nutrient gets a row: a recorded 0 shows 0, a value never
@@ -9247,3 +9356,17 @@ def test_nutrient_plot_subtitle_smoothing_note() -> None:
     assert note("", 7) == "(Data smoothed over 7 days.)"
     assert note(_NUTRIENT_PLOT_GOAL_SUBTITLE, 1) == _NUTRIENT_PLOT_GOAL_SUBTITLE
     assert note("", 0) == ""
+
+
+def test_manual_opens_in_numa_window_under_menu(client):
+    """The manual is framed under NuMa's own menu, with a conspicuous note on
+    getting back; no link to it opens a new tab."""
+    page = client.get("/manual").text
+    assert 'id="manual-frame"' in page and 'src="/manual/page"' in page
+    assert 'id="manual-back-note"' in page and "Alt</kbd>+<kbd>&larr;" in page
+    assert 'data-section="manual"' in page            # the main menu is there
+    assert client.get("/manual/page").status_code == 200
+    home = client.get("/").text
+    import re
+    for tag in re.findall(r'<a\b[^>]*href="/manual[^"]*"[^>]*>', home):
+        assert "_blank" not in tag, tag

@@ -184,7 +184,7 @@
   <form method="post" action="/manual-update-now" class="mt-2 mb-0 d-inline">
     <button type="submit" class="btn btn-sm btn-primary">Try again</button>
   </form>
-  <a href="/manual#quickhelp" target="_blank" rel="noopener" class="ms-2">Getting more help</a>
+  <a href="/manual#quickhelp" class="ms-2">Getting more help</a>
 </div>
 {% endif %}
 {# A program update brings its own manual, so a separate manual-update
@@ -216,7 +216,7 @@
     <li class="muted"><strong>Dietary preferences:</strong> {{ diet_label }} /
       <strong>Active profile:</strong> {% if profile_label %}{{ profile_label }} — <a href="/settings">change both via Settings</a>{% else %}not set — <a href="/settings">configure both via Settings</a>{% endif %}</li>
     <li class="muted"><strong>Current manual version:</strong> {{ manual_stamp or 'unknown' }} /
-      <strong>Current program version date:</strong> {{ version_date }} — <a href="/manual#{{ changelog_anchor }}" target="_blank" rel="noopener">see what changed</a>
+      <strong>Current program version date:</strong> {{ version_date }} — <a href="/manual#{{ changelog_anchor }}">see what changed</a>
       {% if not update_available and not manual_update_available %}
       — <form method="post" action="/check-for-updates" class="d-inline">
         <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline">Check for updates now</button>

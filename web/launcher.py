@@ -561,6 +561,8 @@ def main() -> None:
         time.sleep(5)
         raise
     server = uvicorn.Server(uvicorn.Config(backend.app, host=args.host, port=args.port))
+    backend.app.state.server = server     # lets Ctrl+Q (/quit) stop it cleanly
+    backend.start_browser_watch()         # and Firefox quitting, which keeps Ctrl+Q
     loading.stop()
     server.run(sockets=[sock])
 

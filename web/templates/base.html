@@ -185,7 +185,7 @@
           </li>
           <li class="nav-item">
             <a class="nav-link {% if path.startswith('/manual') %}active{% endif %}"
-               href="/manual" target="_blank" rel="noopener" data-ak="a" data-section="manual">M<u class="ak">a</u>nual</a>
+               href="/manual" data-ak="a" data-section="manual">M<u class="ak">a</u>nual</a>
           </li>
         </ul>
       </div>
@@ -227,6 +227,7 @@
     </main>
   </div>
 
+  {% block footer %}
   <footer class="container mt-4 py-2 border-top">
     <small class="text-secondary d-block">NuMa — local nutritional analysis &middot; data per 100 g unless noted
       &middot; <a href="/disclaimer">Disclaimer</a></small>
@@ -235,6 +236,7 @@
       <a href="/settings">Can turn off in Settings.</a>
     </small>
   </footer>
+  {% endblock %}
 
   <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -407,6 +409,9 @@
       if (!link) return;
       var href = link.getAttribute('href');
       if (!href || href.charAt(0) === '#' || link.target === '_blank') return;
+      // Ctrl/Shift/Cmd+click opens the link in another tab or window and
+      // leaves this page, with its unsaved edits, where it is.
+      if (e.ctrlKey || e.shiftKey || e.metaKey || e.button !== 0) return;
       e.preventDefault();
       var wantsSave = confirm(
         'You have unsaved changes in ' + guard.label + ' above.\n\n' +
@@ -444,6 +449,7 @@
     });
 
     window.numaLeaveGuard = {
+      anyDirty: function () { return !!dirtyGuard(); },
       isDirty: function (form) {
         for (var i = 0; i < guards.length; i++) {
           if (guards[i].form === form) return guards[i].dirty;
@@ -1433,7 +1439,8 @@
       tracked.forEach(function (t) { if (t.form === form) t.reset(); });
     }
 
-    window.numaDirtyGuard = {track: trackAll, recheck: recheck, prune: prune, markClean: markClean};
+    window.numaDirtyGuard = {track: trackAll, recheck: recheck, prune: prune, markClean: markClean,
+                             anyDirty: function () { prune(); return dirtyForms.size > 0; }};
 
     // The same goes for submitting an UNtracked form (a Delete/Copy button
     // form with no editable fields): stray text left in some other small form
@@ -1699,6 +1706,123 @@
       form.addEventListener('input', sync);
       form.addEventListener('change', sync);
       sync();
+    });
+  })();
+  </script>
+  <script>
+  // NuMa's own window (a Chromium-family --app window, launcher.py) has no
+  // tabs, so a Ctrl/Shift/Cmd+click or middle-click on a NuMa link opens
+  // the page in an ordinary browser tab or window, outside NuMa's window —
+  // handy for two views at once, puzzling the first time. Until switched
+  // off ("Don't show this again", or Settings -> 13), NuMa's window says
+  // what is about to happen and how to get back, then opens the tab.
+  // The window is recognised by window.name, set when it arrives from its
+  // start address (/nutrimagnus?... -> /?numa_window=1, backend.py): the
+  // name lasts across this window's navigations and isn't copied to tabs
+  // opened from it, so an ordinary tab never shows the notice.
+  (function () {
+    var NAME = 'numa-app-window';
+    try {
+      var params = new URLSearchParams(location.search);
+      if (params.has('numa_window')) {
+        window.name = NAME;
+        params.delete('numa_window');
+        var q = params.toString();
+        history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + location.hash);
+      }
+    } catch (err) { /* old browser: no notice, links still work */ }
+    if (window.name !== NAME) return;
+    var noticeOn = {{ 'true' if new_tab_notice_on() else 'false' }};
+    var dialog = null, pending = null;
+
+    function build() {
+      dialog = document.createElement('dialog');
+      dialog.id = 'new-tab-notice';
+      dialog.style.maxWidth = '32rem';
+      dialog.innerHTML =
+        '<h5 class="mt-0">Opening in a browser tab</h5>' +
+        '<p>This page will open in a browser tab, <strong>outside NuMa\'s own window</strong>. ' +
+        'Both show the same data; reload one to see a change made in the other.</p>' +
+        '<p>To get back, switch to the NuMa window (Alt+Tab, or its taskbar button). ' +
+        'Close the tab whenever you like: that doesn\'t stop NuMa.</p>' +
+        '<div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="new-tab-notice-off">' +
+        '<label class="form-check-label" for="new-tab-notice-off">Don\'t show this again</label></div>' +
+        '<div class="d-flex gap-2 align-items-center">' +
+        '<button type="button" class="btn btn-primary btn-sm" data-act="open">Open it</button>' +
+        '<button type="button" class="btn btn-outline-secondary btn-sm" data-act="cancel">Cancel</button>' +
+        '<a class="manual-link ms-auto" href="/manual#two-windows">Working in two windows &rarr;</a></div>';
+      document.body.appendChild(dialog);
+      dialog.addEventListener('click', function (e) {
+        var act = e.target.getAttribute && e.target.getAttribute('data-act');
+        if (!act) return;
+        if (act === 'open' && pending) {
+          if (document.getElementById('new-tab-notice-off').checked) {
+            noticeOn = false;
+            var body = new FormData();
+            body.append('on', '0');
+            fetch('/prefs/new-tab-notice', {method: 'POST', body: body}).catch(function () {});
+          }
+          var w = window.open(pending, '_blank');
+          if (w) w.opener = null;
+        }
+        pending = null;
+        dialog.close();
+      });
+    }
+
+    function onClick(e) {
+      if (!noticeOn || e.defaultPrevented) return;
+      var middle = e.type === 'auxclick' && e.button === 1;
+      var modified = e.type === 'click' && e.button === 0 && (e.ctrlKey || e.shiftKey || e.metaKey);
+      if (!middle && !modified) return;
+      var link = e.target.closest ? e.target.closest('a[href]') : null;
+      if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
+      var href = link.getAttribute('href') || '';
+      if (!href || href.charAt(0) === '#' || /^javascript:/i.test(href)) return;
+      var url;
+      try { url = new URL(link.href, location.href); } catch (err) { return; }
+      if (url.origin !== location.origin) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (!dialog) build();
+      pending = url.href;
+      document.getElementById('new-tab-notice-off').checked = false;
+      dialog.showModal();
+      dialog.querySelector('[data-act="open"]').focus();
+    }
+    window.addEventListener('click', onClick, true);
+    window.addEventListener('auxclick', onClick, true);
+  })();
+  </script>
+  <script>
+  // Ctrl+Q quits NuMa: asks first only if something is unsaved, then stops
+  // the server (POST /quit) and closes the window — or, where the browser
+  // won't let a page close its own window, says NuMa has stopped. Ctrl only,
+  // not Cmd: on macOS Cmd+Q belongs to the browser. On KDE the server closes
+  // a Chromium-family app window itself (browser_quit.close_app_window).
+  // Firefox keeps Ctrl+Q for itself and never shows it to the page: it quits
+  // Firefox, and the server's FirefoxWatch then stops NuMa.
+  (function () {
+    var quitting = false;
+    document.addEventListener('keydown', function (e) {
+      if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      if ((e.key || '').toLowerCase() !== 'q' && e.code !== 'KeyQ') return;
+      e.preventDefault();
+      if (quitting) return;
+      var dg = window.numaDirtyGuard, lg = window.numaLeaveGuard;
+      var unsaved = (dg && dg.anyDirty && dg.anyDirty()) ||
+                    (lg && lg.anyDirty && lg.anyDirty());
+      if (unsaved && !confirm('You have unsaved changes on this page.\n\n' +
+                              'Quit NuMa anyway? Those changes will be lost.')) return;
+      quitting = true;
+      fetch('/quit', {method: 'POST'}).catch(function () {}).then(function () {
+        document.title = 'NutriMagnus — stopped';
+        document.body.innerHTML =
+          '<div style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;' +
+          'padding:0 1rem;line-height:1.5"><h2>NuMa has stopped</h2>' +
+          '<p>You can close this window. Start NuMa again the way you usually do.</p></div>';
+        window.close();
+      });
     });
   })();
   </script>

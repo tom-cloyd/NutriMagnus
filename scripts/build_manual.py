@@ -1204,9 +1204,9 @@ JS = """\
     }
 
     // Remembers the last section read so the next time this page is opened
-    // (always a fresh tab — see the nav link's target="_blank") it can
-    // return there instead of restarting at the top. localStorage, not
-    // sessionStorage, since a new tab gets a fresh session.
+    // (freshly loaded into NuMa's /manual frame each visit) it can return
+    // there instead of restarting at the top. localStorage, not
+    // sessionStorage, so it also survives restarting NuMa.
     var LAST_SECTION_KEY = 'numa_manual_last_section';
 
     function activate(id) {

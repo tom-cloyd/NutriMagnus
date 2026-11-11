@@ -952,6 +952,7 @@
       </ul>
     </div>
   </div>
+  <p class="mb-0 mt-2"><strong>Quit NuMa:</strong> <kbd>Ctrl+Q</kbd> on any page stops NuMa and closes its window (it asks first if you have unsaved changes). Always on, whatever the box below says. In Firefox, Ctrl+Q quits Firefox, and NuMa stops a few seconds later.</p>
   <p class="mb-0 mt-2"><strong>Inside a Foods/Recipes/Analysis menu:</strong> once it's open, press its plain number key (no Alt/Shift) to jump straight to that item — e.g. <kbd>5</kbd> for "5. Food Cache" in the Foods menu.</p>
   <div class="form-check mt-3">
     <input class="form-check-input" type="checkbox" id="shortcuts-toggle">
@@ -1001,6 +1002,14 @@
       <label class="form-check-label" for="browser-app-window">Open NuMa in its own window</label>
     </div>
     <p class="muted mt-1"><small>Takes effect the next time NuMa starts.</small></p>
+    <div class="form-check mt-2">
+      <input class="form-check-input" type="checkbox" name="new_tab_notice" value="1"
+             id="browser-new-tab-notice" {{ 'checked' if new_tab_notice }}
+             onchange="document.getElementById('browser-saved-msg')?.remove()">
+      <label class="form-check-label" for="browser-new-tab-notice">In NuMa's own window,
+        explain before a Ctrl+click opens a page in a browser tab</label>
+    </div>
+    <p class="muted mt-1"><small>{{ manual_link('two-windows', 'Working in two windows') }}</small></p>
     <button type="submit" class="btn btn-primary btn-sm mt-2">Save preference</button>
   </form>
 </details>
