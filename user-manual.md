@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-10:2043* / Reading time: 8 hours, 55 minutes
+*Updated 2026-11-10:2201* / Reading time: 8 hours, 55 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -6157,7 +6157,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 17 minutes)*
+*(Reading time: 18 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6175,6 +6175,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 Version overview: GI processing and GL (glycemic load) calculation and analysis fully implemented, including an estimated GI for meals and recipes. Water intake from drinks and food now fully tracked. Daily Summary can add up every nutrient for any date range or chosen meals, and show days in blocks. Vitamin K from USDA corrected: it had been read from the wrong USDA figure, so most foods showed little or none, and Foods 9 now fixes foods saved earlier in one click. Protein complement suggestions reworked to count each food at its own digestibility and stay within a sensible amount per meal, and meal and day pages now check each meal against the amount of protein per meal that research recommends for building and keeping muscle, based on your weight and age. Online food searches are faster, and the app no longer freezes while one runs. Cooked recipes can record the water they keep after cooking, so meals no longer count the water that baked or boiled off, and water in a recipe counts as a drink only when the recipe is one; every item in a meal or recipe shows its grams of water. NuMa now opens in its own window, like a desktop program, when Chrome, Chromium, Brave, Edge or Vivaldi is installed, with the manual inside it under the menu, and Ctrl+Q quits it; a Ctrl+click there first explains that the page will open in a browser tab. Many interface improvements and bug fixes.
 
+- **29.** New starter foods and recipes: raisins, ground flax seeds, soy protein isolate powder, deglet noor dates and Chinese five spice powder, with three recipes (walnut milk, a Mexican coffee made with it, and a black bean and quinoa meal); granulated sugar, almonds and graham crackers improved.
 - **28.** MANUAL: Monthly full read-through of the manual against the program: about 40 corrections, mostly to sections that still described NuMa in a browser tab or older screens; the post-update message now mentions NuMa's own window.
 - **27.** MANUAL: Weekly sweep: updates log trimmed to the last two weeks, CIQUAL's food count corrected, a few search words added; a Portions page Save button no longer squeezes the Description box when it lights up.
 - **26.** In NuMa's own window, a Ctrl+click (or middle-click) on a NuMa link now first explains that the page will open in a browser tab and how to get back, until you turn that off; the manual has a new "Working in two windows" section.
@@ -6205,6 +6206,21 @@ Version overview: GI processing and GL (glycemic load) calculation and analysis 
 - **1.** MANUAL: A new section explains how to move foods and recipes between NuMa installs with CSV files: exporting, importing, and what does and doesn't travel.
 
 #### November 10 updates
+
+**PROGRAM: NEW STARTER FOODS AND RECIPES**
+
+Five starter foods are new: dark seedless raisins, ground flax seeds, soy protein isolate powder, deglet noor dates and Chinese five spice powder. So are three starter recipes: walnut milk, a Mexican coffee made with it, and a black bean and quinoa meal without hemp. The starter granulated sugar, almonds and graham crackers are improved. After updating, NuMa lists what's new and improved in Settings → 11, where you choose what to take. [learn more...](#starter-data)
+
+<!--
+```
+Scope: numa_app/services/starter_data.json (scripts/export_starter_data.py from the
+curator DB): 49 -> 54 foods (five spice auto-included as an ingredient of a starred
+recipe), 8 -> 11 recipes; portions changed on sugar, almonds, graham crackers,
+nutrients on sugar. Three data problems the shipped-clean test caught were fixed in the
+curator DB first: raisins' amino acids and five spice's vitamins marked not needed,
+Walnut milk's vanilla amount updated.
+```
+-->
 
 **MANUAL: MONTHLY FULL MANUAL AUDIT**
 

@@ -310,8 +310,8 @@
       },
       "portions": [
         {
-          "description": "2 crackers,  sqs., 8 rectangles",
-          "gram_weight": 30.0
+          "description": "1 crackers,  2 sqs., 4 rectangles",
+          "gram_weight": 15.0
         }
       ]
     },
@@ -718,7 +718,12 @@
         "calories": 583.6,
         "water_g": 4.26
       },
-      "portions": null,
+      "portions": [
+        {
+          "description": "1 cup",
+          "gram_weight": 104.0
+        }
+      ],
       "ignores": [
         "portions"
       ]
@@ -853,6 +858,57 @@
           "description": "2 T",
           "gram_weight": 32.0
         }
+      ]
+    },
+    {
+      "fdc_id": 2758980,
+      "name": "* Raisins, dark, seedless",
+      "data_type": "Foundation",
+      "nutrients": {
+        "fiber_g": 3.679,
+        "sugar_g": 66.04,
+        "calcium_mg": 51.49,
+        "iron_mg": 1.844,
+        "magnesium_mg": 35.54,
+        "phosphorus_mg": 115.8,
+        "potassium_mg": 936.0,
+        "sodium_mg": 13.17,
+        "zinc_mg": 0.176,
+        "vitamin_c_mg": 5.4,
+        "thiamin_mg": 0.06445,
+        "riboflavin_mg": 0.1038,
+        "niacin_mg": 0.6529,
+        "b6_mg": 0.2336,
+        "water_g": 15.6,
+        "calories": 332.7,
+        "protein_g": 3.3,
+        "carbs_g": 79.32,
+        "fat_g": 0.25,
+        "saturated_fat_g": 0.094,
+        "mono_fat_g": 0.024,
+        "poly_fat_g": 0.053,
+        "omega3_ala_mg": 14.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "omega6_la_mg": 39.0,
+        "selenium_mcg": 0.6,
+        "vitamin_a_mcg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "vitamin_e_mg": 0.12,
+        "folate_mcg": 5.0,
+        "b12_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "choline_mg": 11.1,
+        "iodine_mcg": 3.0,
+        "vitamin_k_mcg": 3.7
+      },
+      "portions": null,
+      "ignores": [
+        "aa",
+        "portions"
       ]
     },
     {
@@ -1397,17 +1453,40 @@
       "nutrients": {
         "calories": 385.0,
         "protein_g": 0.0,
-        "fat_g": 0.32,
+        "fat_g": 0.0,
         "carbs_g": 99.6,
         "sugar_g": 99.8,
         "calcium_mg": 1.0,
         "iron_mg": 0.05,
-        "magnesium_mg": 0.3,
+        "magnesium_mg": 0.0,
         "phosphorus_mg": 0.0,
         "potassium_mg": 2.0,
         "sodium_mg": 1.0,
         "zinc_mg": 0.01,
-        "water_g": 0.02
+        "water_g": 0.02,
+        "fiber_g": 0.0,
+        "saturated_fat_g": 0.0,
+        "mono_fat_g": 0.0,
+        "poly_fat_g": 0.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "omega6_la_mg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "vitamin_c_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_k_mcg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.019,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "b12_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "choline_mg": 0.0
       },
       "portions": [
         {
@@ -1421,6 +1500,22 @@
         {
           "description": "1 cup",
           "gram_weight": 208.0
+        },
+        {
+          "description": "cup",
+          "gram_weight": 200.0
+        },
+        {
+          "description": "serving 1 cube",
+          "gram_weight": 2.3
+        },
+        {
+          "description": "tsp",
+          "gram_weight": 4.2
+        },
+        {
+          "description": "serving packet",
+          "gram_weight": 2.8
         }
       ],
       "ignores": [
@@ -2214,6 +2309,121 @@
       ]
     },
     {
+      "fdc_id": 1868897,
+      "name": "* Flax Seeds, ground",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 534.0,
+        "protein_g": 18.3,
+        "carbs_g": 28.9,
+        "fat_g": 42.2,
+        "fiber_g": 27.3,
+        "sugar_g": 1.55,
+        "saturated_fat_g": 3.66,
+        "mono_fat_g": 7.53,
+        "poly_fat_g": 28.73,
+        "calcium_mg": 255.0,
+        "iron_mg": 5.7,
+        "magnesium_mg": 392.0,
+        "phosphorus_mg": 642.0,
+        "potassium_mg": 813.0,
+        "sodium_mg": 30.0,
+        "zinc_mg": 4.3,
+        "vitamin_c_mg": 0.6,
+        "vitamin_e_mg": 0.31,
+        "vitamin_k_mcg": 4.3,
+        "thiamin_mg": 1.64,
+        "riboflavin_mg": 0.16,
+        "niacin_mg": 3.08,
+        "b6_mg": 0.47,
+        "folate_mcg": 87.0,
+        "b12_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 651.0,
+        "choline_mg": 78.7,
+        "beta_sitosterol_mg": 92.0,
+        "aa_tryptophan_g": 0.297,
+        "aa_threonine_g": 0.766,
+        "aa_isoleucine_g": 0.896,
+        "aa_leucine_g": 1.235,
+        "aa_lysine_g": 0.862,
+        "aa_methionine_g": 0.37,
+        "aa_cystine_g": 0.34,
+        "aa_phenylalanine_g": 0.957,
+        "aa_tyrosine_g": 0.493,
+        "aa_valine_g": 1.072,
+        "aa_histidine_g": 0.472
+      },
+      "portions": [
+        {
+          "description": "1 cup",
+          "gram_weight": 110.0
+        }
+      ],
+      "ignores": [
+        "portions"
+      ]
+    },
+    {
+      "fdc_id": 174276,
+      "name": "* Soy protein isolate powder",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 335.0,
+        "protein_g": 88.32,
+        "fat_g": 3.39,
+        "carbs_g": 0.0,
+        "fiber_g": 0.0,
+        "calcium_mg": 178.0,
+        "iron_mg": 14.5,
+        "magnesium_mg": 39.0,
+        "phosphorus_mg": 776.0,
+        "potassium_mg": 81.0,
+        "sodium_mg": 1005.0,
+        "zinc_mg": 4.03,
+        "vitamin_c_mg": 0.0,
+        "thiamin_mg": 0.176,
+        "riboflavin_mg": 0.1,
+        "niacin_mg": 1.438,
+        "b6_mg": 0.1,
+        "folate_mcg": 176.0,
+        "choline_mg": 190.9,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 0.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.422,
+        "mono_fat_g": 0.645,
+        "poly_fat_g": 1.648,
+        "omega6_la_mg": 1453.0,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "aa_tryptophan_g": 1.116,
+        "aa_threonine_g": 3.137,
+        "aa_isoleucine_g": 4.253,
+        "aa_leucine_g": 6.783,
+        "aa_lysine_g": 5.327,
+        "aa_methionine_g": 1.13,
+        "aa_cystine_g": 1.046,
+        "aa_phenylalanine_g": 4.593,
+        "aa_tyrosine_g": 3.222,
+        "aa_valine_g": 4.098,
+        "aa_histidine_g": 2.303,
+        "water_g": 4.98,
+        "vitamin_k_mcg": 0.0
+      },
+      "portions": [
+        {
+          "description": "oz",
+          "gram_weight": 28.35
+        }
+      ]
+    },
+    {
       "fdc_id": 170272,
       "name": "* Chocolate, dark, 60-69% cacao solids",
       "data_type": "SR Legacy",
@@ -2327,6 +2537,112 @@
       ]
     },
     {
+      "fdc_id": 1868726,
+      "name": "* ORGANIC GROUND CAYENNE PEPPER",
+      "data_type": "Branded",
+      "nutrients": {
+        "fat_g": 0.0,
+        "protein_g": 0.0,
+        "sodium_mg": 0.0,
+        "carbs_g": 0.0,
+        "calories": 0.0,
+        "water_g": 0.0
+      },
+      "portions": null,
+      "ignores": [
+        "portions",
+        "vitamins"
+      ]
+    },
+    {
+      "fdc_id": 171726,
+      "name": "* Dates, deglet noor",
+      "data_type": "SR Legacy",
+      "nutrients": {
+        "calories": 282.0,
+        "protein_g": 2.45,
+        "fat_g": 0.39,
+        "carbs_g": 75.03,
+        "fiber_g": 8.0,
+        "calcium_mg": 39.0,
+        "iron_mg": 1.02,
+        "magnesium_mg": 43.0,
+        "phosphorus_mg": 62.0,
+        "potassium_mg": 656.0,
+        "sodium_mg": 2.0,
+        "zinc_mg": 0.29,
+        "vitamin_c_mg": 0.4,
+        "thiamin_mg": 0.052,
+        "riboflavin_mg": 0.066,
+        "niacin_mg": 1.274,
+        "b6_mg": 0.165,
+        "folate_mcg": 19.0,
+        "choline_mg": 6.3,
+        "b12_mcg": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "beta_carotene_mcg": 6.0,
+        "alpha_carotene_mcg": 0.0,
+        "lycopene_mcg": 0.0,
+        "lutein_zeaxanthin_mcg": 75.0,
+        "vitamin_e_mg": 0.05,
+        "vitamin_d_mcg": 0.0,
+        "saturated_fat_g": 0.032,
+        "mono_fat_g": 0.036,
+        "poly_fat_g": 0.019,
+        "aa_tryptophan_g": 0.012,
+        "aa_threonine_g": 0.043,
+        "aa_isoleucine_g": 0.049,
+        "aa_leucine_g": 0.084,
+        "aa_lysine_g": 0.066,
+        "aa_methionine_g": 0.022,
+        "aa_cystine_g": 0.067,
+        "aa_phenylalanine_g": 0.05,
+        "aa_tyrosine_g": 0.015,
+        "aa_valine_g": 0.071,
+        "aa_histidine_g": 0.032,
+        "omega3_epa_mg": 0.0,
+        "omega3_dha_mg": 0.0,
+        "water_g": 20.5,
+        "vitamin_k_mcg": 2.7
+      },
+      "portions": [
+        {
+          "description": "date, pitted",
+          "gram_weight": 7.1
+        }
+      ]
+    },
+    {
+      "fdc_id": 2271119,
+      "name": "* CHINESE FIVE SPICE POWDER",
+      "data_type": "Branded",
+      "nutrients": {
+        "fat_g": 0.0,
+        "carbs_g": 0.0,
+        "protein_g": 0.0,
+        "sodium_mg": 0.0,
+        "calories": 0.0,
+        "water_g": 0.0,
+        "vitamin_a_mcg": 0.0,
+        "vitamin_c_mg": 0.0,
+        "vitamin_d_mcg": 0.0,
+        "vitamin_e_mg": 0.0,
+        "vitamin_k_mcg": 0.0,
+        "thiamin_mg": 0.0,
+        "riboflavin_mg": 0.0,
+        "niacin_mg": 0.0,
+        "b6_mg": 0.0,
+        "folate_mcg": 0.0,
+        "b12_mcg": 0.0
+      },
+      "portions": null,
+      "ignores": [
+        "portions",
+        "vitamins",
+        "water"
+      ]
+    },
+    {
       "fdc_id": 2281233,
       "name": "* BAKING SODA",
       "data_type": "Branded",
@@ -2343,24 +2659,6 @@
         "portions",
         "vitamins",
         "water"
-      ]
-    },
-    {
-      "fdc_id": 1868726,
-      "name": "* ORGANIC GROUND CAYENNE PEPPER",
-      "data_type": "Branded",
-      "nutrients": {
-        "fat_g": 0.0,
-        "protein_g": 0.0,
-        "sodium_mg": 0.0,
-        "carbs_g": 0.0,
-        "calories": 0.0,
-        "water_g": 0.0
-      },
-      "portions": null,
-      "ignores": [
-        "portions",
-        "vitamins"
       ]
     }
   ],
@@ -2664,6 +2962,69 @@
       ]
     },
     {
+      "uid": "fd5238fa59194e66a0b2379159398d34",
+      "name": "* Black-bean-quinoa meal - no hemp",
+      "description": "quick to make, very nutritious",
+      "servings": 1,
+      "instructions": "Put quinoa, flax, yeast, and beans into large heat-proof bowl. Stir together all other ingredients, pour over bowl and stir in well. Heat well in microwave. Stir well again before eating",
+      "ingredients": [
+        [
+          "* Beans, black, mature seeds, cooked, boiled, with salt",
+          172.0,
+          "cup",
+          "food"
+        ],
+        [
+          "* Quinoa, cooked",
+          185.0,
+          "cup",
+          "food"
+        ],
+        [
+          "* Nutritional Yeast Flakes (FDC 2411476)",
+          18.0,
+          "g",
+          "food"
+        ],
+        [
+          "* Flax Seeds, ground",
+          13.76,
+          "2 T",
+          "food"
+        ],
+        [
+          "* Soy protein isolate powder",
+          7.4,
+          "1 T",
+          "food"
+        ],
+        [
+          "* Water, tap, drinking",
+          62.5,
+          "g",
+          "food"
+        ],
+        [
+          "* SALSA",
+          61.95,
+          "g",
+          "food"
+        ],
+        [
+          "* Vinegar, red wine",
+          4.95,
+          "4.95 g",
+          "food"
+        ],
+        [
+          "* Soy sauce made from soy (tamari)",
+          6.0,
+          "6 g",
+          "food"
+        ]
+      ]
+    },
+    {
       "uid": "78ee6f2a1d8b442297d455c6b4531698",
       "name": "* Chickpea-quinoa meal",
       "description": "quick to make, very nutritious",
@@ -2717,6 +3078,102 @@
           6.0,
           "6 g",
           "food"
+        ]
+      ]
+    },
+    {
+      "uid": "d7b64f2bd81047c5ad77f4dc0f50b0b2",
+      "name": "* Walnut milk",
+      "description": "sweetened nut milk for coffee",
+      "servings": 5,
+      "instructions": "Soak nuts in hot water for 2-5 hours, or cold water overnight. \r\n \r\nIn a separate container, similarly soak the dried fruit. \r\n \r\nWhen soaked, discard nut water, rinse nuts and set aside. Pour dried fruit water into blender, set fruit aside. \r\n\r\nAdd to water to make a total of 4 cups. Add nuts, fruit, and other ingredients and blend at hight speed for about 1.5 minutes. \r\n\r\nStir foam in blender slowly with the blade of a rubber scraper, to reduce bubbles. \r\n\r\nPour milk into 1 quart container. Pour remainder into 1/2 pint container. \r\n\r\nRefrigerate until used. Keeps for at least 5 days.",
+      "ingredients": [
+        [
+          "* Nuts, walnuts, English, halves, raw",
+          104.0,
+          "104 g",
+          "food"
+        ],
+        [
+          "* Dates, deglet noor",
+          21.3,
+          "3 \u00d7 date, pitted",
+          "food"
+        ],
+        [
+          "* Vanilla extract",
+          4.9,
+          "1 t",
+          "food"
+        ],
+        [
+          "* CHINESE FIVE SPICE POWDER",
+          0.0,
+          "1/2 T (weight not known)",
+          "food"
+        ],
+        [
+          "* Water, tap, drinking",
+          946.4,
+          "4 c (946 gr)",
+          "food"
+        ],
+        [
+          "* Raisins, dark, seedless",
+          37.26,
+          "0.25 c",
+          "food"
+        ]
+      ]
+    },
+    {
+      "uid": "9b132dfd43bf47bb80c7b90c5f32d12c",
+      "name": "* Mexican coffee (walnut milk) - Tom's - 1 serving",
+      "description": "the best! uses walnut milk",
+      "servings": 1,
+      "instructions": "Add all dry ingredients to a 1 qt. canning bottle. If using homemade soymilk, add a scant 1/8 t baking soda. Stir together. Add liquids; stir again. (It won't mix well.) After heating, give it a final vigorous stir and it'll be ready.",
+      "ingredients": [
+        [
+          "* Chocolate, dark, 60-69% cacao solids",
+          13.0,
+          "13 g",
+          "food"
+        ],
+        [
+          "* Sugars, granulated",
+          19.0,
+          "19 g",
+          "food"
+        ],
+        [
+          "* Spices, cinnamon, ground",
+          5.200000000000001,
+          "2 t (5 gr)",
+          "food"
+        ],
+        [
+          "* Spices, nutmeg, ground",
+          0.29,
+          "0.125 t",
+          "food"
+        ],
+        [
+          "* ORGANIC GROUND CAYENNE PEPPER",
+          0.28,
+          "0.125 t",
+          "food"
+        ],
+        [
+          "* Water, tap, drinking",
+          236.6,
+          "1 c",
+          "food"
+        ],
+        [
+          "* Walnut milk",
+          1.0008,
+          "1.0008 servings",
+          "recipe"
         ]
       ]
     },
