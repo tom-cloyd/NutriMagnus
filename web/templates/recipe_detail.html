@@ -703,10 +703,10 @@
   {% include "_complement_target_note.html" %}
   {% include "_complement_limit.html" %}
   {% if s.aa_effects %}
-  <p class="mb-1 muted"><small>Effect:
+  <p class="mb-1 muted"><small>Amino acid score, now &rarr; after:
     {% for e in s.aa_effects %}
       {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
-    {% endfor %}
+    {% endfor %} {{ manual_link("gap", "What's this?") }}
   </small></p>
   {% endif %}
   <p class="mb-1 muted"><small>Adds: <strong>{{ s.dig_protein_added }}&thinsp;g</strong> digestible protein at {% if s.capped %}the per-meal limit{% else %}full serving{% endif %} (from {{ s.protein_added }}&thinsp;g raw protein in this addition)</small></p>
@@ -805,10 +805,10 @@
     </p>
     {% endfor %}
     {% if p.aa_effects %}
-    <p class="mb-1 muted"><small>Effect:
+    <p class="mb-1 muted"><small>Amino acid score, now &rarr; after:
       {% for e in p.aa_effects %}
         {{ e.label }}: {{ "%.2f"|format(e.before) }}&rarr;<span class="{% if e.met %}status-met{% else %}rda-near{% endif %}">{{ "%.2f"|format(e.after) }}</span>{% if not loop.last %} &middot; {% endif %}
-      {% endfor %}
+      {% endfor %} {{ manual_link("gap", "What's this?") }}
     </small></p>
     {% endif %}
     <p class="mb-1 muted"><small>Combined: <strong>{{ p.total_grams }}&thinsp;g</strong> total &middot; <strong>{{ p.total_dig_added }}&thinsp;g</strong> digestible protein added (from {{ p.total_protein_added }}&thinsp;g raw protein combined)</small></p>

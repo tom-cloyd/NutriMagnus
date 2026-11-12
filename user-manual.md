@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-10:2324* / Reading time: 8 hours, 56 minutes
+*Updated 2026-11-11:1337* / Reading time: 8 hours, 57 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -935,7 +935,7 @@ New foods are cached automatically the first time they turn up in a search, comp
 
 ## Part 4 — Core nutrition concepts {: #coreNutrition}
 
-*(Reading time: 2 hours, 3 minutes)*
+*(Reading time: 2 hours, 4 minutes)*
 
 ### A. Essential Amino Acids {: #aa}
 
@@ -1313,6 +1313,8 @@ These are the nine numbers every protein-quality figure in NuMa is measured agai
 *Search terms: shortfall, deficiency, low amino acid score.*
 
 An amino acid gap means one or more essential amino acids are below the [FAO](#gloss-fao) 2013 reference level after digestibility adjustment. The gap is expressed as a score: 0.70 means the food supplies 70% of what is needed for that amino acid.
+
+Each [complement suggestion](#comp) shows these scores as **Amino acid score, now → after** — for example "Lysine: 0.86→0.96" means lysine is at 86% of the reference now, and would be at 96% after adding the suggested amount. An "after" figure shown in green has reached 1.00, fully meeting the reference.
 
 Gaps are sorted from most-limiting to least:
 
@@ -5887,7 +5889,7 @@ This confirms NuMa's Tier 1 result exactly: `gaps_closed: 2`, `new_complete: Tru
 
 The scale factor is capped at 1.0 because a food can never be "more than 100% complete" for DCP purposes — once the combination's weakest amino acid clears the reference, NuMa credits the *entire* combined raw protein pool as digestible and complete. This is a looser approximation than the exact pooled calculation in Steps 1–7 (which applies each food's own digestibility to each amino acid individually, then takes the true minimum ratio) — `numa_app/services/complements.py` documents this trade-off explicitly, noting it can differ from the exact figure by 15–20 g on a real meal. It is used here only because a plain food page has nothing more granular to pool from; meal, recipe, and daily-summary contexts (which do have a real ingredient list) use the exact method instead.
 
-**Reproduce this in NuMa:** open a food page for quinoa, cooked ([FDC](#gloss-fdc) 168917), and look at its [Protein Complement Suggestions](#comp) section. Black beans, cooked should appear in the "General" tier at 133 g, showing "Leucine: 0.83→1.00" and "Valine: 0.89→1.03" under Effect, "Adds: 8.8 g digestible protein (from 11.8 g raw protein in this addition)", and "Total digestible complete protein: 16.2 g" — matching every figure derived above.
+**Reproduce this in NuMa:** open a food page for quinoa, cooked ([FDC](#gloss-fdc) 168917), and look at its [Protein Complement Suggestions](#comp) section. Black beans, cooked should appear in the "General" tier at 133 g, showing "Leucine: 0.83→1.00" and "Valine: 0.89→1.03" under "Amino acid score, now → after", "Adds: 8.8 g digestible protein (from 11.8 g raw protein in this addition)", and "Total digestible complete protein: 16.2 g" — matching every figure derived above.
 
 ### G. Full Nutrient Key {: #nutrient-key}
 
@@ -6176,7 +6178,7 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-Version overview: An installed NuMa now says when it needs restarting after Update Now, and errors are written to a log file in the data folder for reporting.
+Version overview: Complement suggestions now label their before/after amino acid figures as amino acid scores (1.00 = fully meets the FAO reference) instead of the unclear "Effect".
 
 - **2.** Errors are written to `numa-errors.log` in NuMa's data folder, so a failed page leaves a record to report.
 - **1.** An installed NuMa now shows the yellow "please restart it" bar after **Update Now** until you quit and start it again.

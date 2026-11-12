@@ -1,4 +1,4 @@
-VERSION = "2026-11-10:2324"
+VERSION = "2026-11-11:1337"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.29"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "An installed NuMa now says when it needs restarting after Update Now, and errors are written to a log file in the data folder for reporting."
+NEW_VERSION_NOTE = "Complement suggestions now label their before/after amino acid figures as amino acid scores (1.00 = fully meets the FAO reference) instead of the unclear \"Effect\"."
