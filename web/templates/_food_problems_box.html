@@ -1,0 +1,33 @@
+{# A food's own page: everything Foods → 9's checks found on this food, in one
+   place with the fix for each (data_quality.problems_by_food, via
+   _food_problems() in backend.py). Expects `food`, `food_problems` (the one
+   entry, or None), `calories_ok`, and `fixed_food` / `fix_stale` after a
+   one-click fix made here. #}
+{% import "_food_problem_items.html" as _pi %}
+{% if fixed_food %}
+<p class="status-met" style="max-width:48rem"><strong>&#10003; Corrected.</strong>
+  {% for c in fixed_food.corrections %}{{ c.reason[:1]|upper }}{{ c.reason[1:] }}.{% endfor %}
+  Every recipe and meal using this food has been recalculated.</p>
+{% elif fix_stale %}
+<p class="text-warning-emphasis" style="max-width:48rem"><strong>Nothing changed:</strong> that problem had already been fixed or changed.</p>
+{% endif %}
+{% if food_problems %}
+{% set f = food_problems %}
+<details class="alert {{ 'alert-warning' if f.problem_count else 'alert-light border' }} py-2" id="food-problems"
+         style="max-width:48rem"{% if f.problem_count %} open{% endif %}>
+  <summary><strong>Everything to check on this food</strong>:
+    {% if f.problem_count %}{{ f.problem_count }} problem{{ "s" if f.problem_count != 1 }}{% endif %}{% set _rest = f["items"] | length - f.problem_count %}{% if _rest %}{{ ", " if f.problem_count }}{{ _rest }} suggestion{{ "s" if _rest != 1 }} or note{{ "s" if _rest != 1 }}{% endif %}</summary>
+  <div class="mt-2">
+    {{ _pi.borrow_form(f) }}
+    {{ _pi.problem_items(f, "/food/" ~ food.fdc_id ~ "#food-problems") }}
+    <small>Every food at once: <a href="/food/cache/problems">Problems by food</a> &middot; {{ manual_link("problems-by-food", "What this means and how to fix it") }}</small>
+  </div>
+</details>
+{% endif %}
+{% if calories_ok %}
+<form method="post" action="/food/{{ food.fdc_id }}/data-ignore" class="mb-2">
+  <input type="hidden" name="group" value="calories_ok"><input type="hidden" name="ignored" value="0">
+  <small class="muted">You confirmed this food&rsquo;s calories are right, so they aren&rsquo;t checked against its protein, carbs and fat.</small>
+  <button type="submit" class="btn btn-outline-secondary btn-sm py-0 align-baseline">Check them again</button>
+</form>
+{% endif %}

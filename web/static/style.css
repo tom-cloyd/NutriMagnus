@@ -290,6 +290,19 @@ table {
   text-align: left;
 }
 
+/* Meal page Items list: full width; every column marked .fit shrinks to its
+   content (width:1% + nowrap is the standard shrink-to-fit trick in an
+   auto-layout table), so the one unmarked column, Notes, absorbs the rest. */
+.nutrient-table.meal-items-table {
+  width: 100%;
+}
+
+.nutrient-table.meal-items-table th.fit,
+.nutrient-table.meal-items-table td.fit {
+  width: 1%;
+  white-space: nowrap;
+}
+
 .nutrient-table.list-table td.num-col:not(:first-child),
 .nutrient-table.list-table th.num-col:not(:first-child) {
   text-align: right;
@@ -1314,3 +1327,20 @@ td.compare-val-col {
   .add-food-search > .add-food-tip { flex: 1 1 0; min-width: 0; }
   .add-food-search > :not(.input-group):not(.add-food-tip) { flex-basis: 100%; }
 }
+
+/* Problems by food (Foods → 9) and a food page's "Everything to check on
+   this food" box (_food_problem_items.html): one line per problem, tagged
+   by severity — the tag's color carries it, the text stays plain. */
+.problem-items { list-style: none; padding-left: 0; }
+.problem-item { padding: 0.35rem 0 0.35rem 0.6rem; border-left: 3px solid #ccc; margin-bottom: 0.35rem; }
+.problem-item.problem-problem { border-left-color: #c77700; }
+.problem-item.problem-improvement { border-left-color: #6c8ebf; }
+.problem-tag { display: inline-block; font-size: 0.75em; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.03em; padding: 0.05em 0.4em; border-radius: 3px; margin-right: 0.3em;
+  background: #eee; color: #444; vertical-align: 0.1em; }
+.problem-problem .problem-tag { background: #fff0d6; color: #7a4800; }
+.problem-improvement .problem-tag { background: #e6eef9; color: #2c4f7c; }
+.problem-food { border-bottom: 1px solid #e5e5e5; padding: 0.75rem 0; }
+.problem-food h3 { font-size: 1.05rem; margin-bottom: 0.15rem; }
+.problem-ignore-sep { margin-left: 0.4rem; color: #555; }
+.problem-ignore { border-style: dashed; }

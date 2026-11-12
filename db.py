@@ -10,6 +10,7 @@ import pathlib
 import re as _re
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime as _datetime
 from typing import Generator
 
 import platform_utils as _platform_utils
@@ -244,6 +245,14 @@ def init_db() -> None:
         # filled lazily by web/backend.py's _annotate_recipe_amounts().
         try:
             conn.execute("ALTER TABLE meal_items ADD COLUMN serving_grams REAL")
+        except sqlite3.OperationalError:
+            pass
+
+        # Time of day ("HH:MM", the computer's local clock) the item was
+        # entered into the meal — see _now_hhmm(). NULL for items logged
+        # before this column existed; shown in the meal page's Items list.
+        try:
+            conn.execute("ALTER TABLE meal_items ADD COLUMN added_time TEXT")
         except sqlite3.OperationalError:
             pass
 
@@ -2070,22 +2079,29 @@ def meal_create(conn: sqlite3.Connection, name: str, meal_date: str) -> int:
     return cur.lastrowid
 
 
+def _now_hhmm() -> str:
+    """The time of day now, "HH:MM", from the computer's own clock. NuMa's
+    server runs on the user's machine, so this is the user's local time."""
+    return _datetime.now().strftime("%H:%M")
+
+
 def meal_add_food(conn: sqlite3.Connection, meal_id: int, fdc_id: int,
                   food_name: str, amount: float, unit: str,
-                  notes: str | None = None) -> None:
+                  notes: str | None = None, added_time: str | None = None) -> None:
     conn.execute("""
-        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit, notes)
-        VALUES (?, 'food', ?, ?, ?, ?, ?)
-    """, (meal_id, fdc_id, food_name, amount, unit, notes or None))
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit, notes, added_time)
+        VALUES (?, 'food', ?, ?, ?, ?, ?, ?)
+    """, (meal_id, fdc_id, food_name, amount, unit, notes or None, added_time or _now_hhmm()))
 
 
 def meal_add_recipe(conn: sqlite3.Connection, meal_id: int, recipe_id: int,
-                    recipe_name: str, servings: float, unit: str = "servings") -> None:
+                    recipe_name: str, servings: float, unit: str = "servings",
+                    added_time: str | None = None) -> None:
     conn.execute("""
         INSERT INTO meal_items
-            (meal_id, item_type, recipe_id, food_name, amount, unit)
-        VALUES (?, 'recipe', ?, ?, ?, ?)
-    """, (meal_id, recipe_id, recipe_name, servings, unit))
+            (meal_id, item_type, recipe_id, food_name, amount, unit, added_time)
+        VALUES (?, 'recipe', ?, ?, ?, ?, ?)
+    """, (meal_id, recipe_id, recipe_name, servings, unit, added_time or _now_hhmm()))
 
 
 def meal_list_by_date(conn: sqlite3.Connection, meal_date: str) -> list[sqlite3.Row]:
@@ -3017,12 +3033,13 @@ def meal_set_day_pct_goal(conn: sqlite3.Connection, meal_id: int, pct: float | N
 
 
 def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int) -> int:
-    """Copy all items from one meal to another. Returns count of items copied."""
+    """Copy all items from one meal to another. Returns count of items copied.
+    The copies are stamped with the time now — they were entered now."""
     cur = conn.execute("""
-        INSERT INTO meal_items (meal_id, item_type, fdc_id, recipe_id, food_name, amount, unit, notes)
-        SELECT ?, item_type, fdc_id, recipe_id, food_name, amount, unit, notes
-        FROM meal_items WHERE meal_id = ?
-    """, (to_meal_id, from_meal_id))
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, recipe_id, food_name, amount, unit, notes, added_time)
+        SELECT ?, item_type, fdc_id, recipe_id, food_name, amount, unit, notes, ?
+        FROM meal_items WHERE meal_id = ? ORDER BY id
+    """, (to_meal_id, _now_hhmm(), from_meal_id))
     return cur.rowcount
 
 

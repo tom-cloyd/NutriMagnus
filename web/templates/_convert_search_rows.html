@@ -1,11 +1,15 @@
 {# Convert's result rows — rendered by /food/convert (local matches) and by
    /search-rows/convert (full merged set, replacing the tbody). #}
-    {% set ns = namespace(seen_local=false, divider_shown=false) %}
+    {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
     {% for food in search_results %}
       {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
       {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
     <tr class="search-group-divider"><td colspan="4"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
       {% set ns.divider_shown = true %}
+      {% endif %}
+      {% if is_local_source(food.source) and ns.divider_shown and not ns.partial_shown %}
+    <tr class="search-group-divider"><td colspan="4"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
+      {% set ns.partial_shown = true %}
       {% endif %}
     <tr data-row-key="{{ 'recipe:%s' % food.recipe_id if food._type == 'recipe' else 'food:%s' % food.fdc_id }}">
       <td><a href="{{ food.convert_url }}"><strong>{{ food.name }}</strong></a>{{ food_id_tag(None, food.recipe_id) if food._type == "recipe" else food_id_tag(food.fdc_id | default(none)) }}</td>

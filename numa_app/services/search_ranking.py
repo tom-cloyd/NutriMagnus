@@ -40,12 +40,36 @@ def _query_words(query: str) -> list[str]:
     return query.lower().split()
 
 
+def _word_forms(word: str) -> list[str]:
+    """`word` plus its plausible singular forms ("onions" -> "onion",
+    "tomatoes" -> "tomato", "berries" -> "berry"), each kept to 3+
+    characters so a short word ("as") can't shrink into a one-letter
+    prefix that matches nearly everything — and, for a word ending in a
+    consonant + "y", its "-ies" plural ("berry" -> "berries"), the one
+    plural a singular word isn't already a prefix of ("onion" already
+    begins "onions")."""
+    forms = [word]
+    if len(word) >= 3 and word.endswith("y") and word[-2] not in "aeiou":
+        forms.append(word[:-1] + "ies")
+    for suffix, repl in (("ies", "y"), ("es", ""), ("s", "")):
+        if word.endswith(suffix):
+            stem = word[: -len(suffix)] + repl
+            if len(stem) >= 3 and stem not in forms:
+                forms.append(stem)
+    return forms
+
+
 def word_in_name(word: str, name_lower: str) -> bool:
-    """True if `word` (lowercase) begins a word in `name_lower`: found with no
-    letter or digit just before it. A prefix match, so plurals and longer
-    forms still count ("orange" in "oranges"), but a fragment inside another
-    word does not ("raw" in "strawberry", "sauce" in "applesauce")."""
-    return re.search(r"(?<![a-z0-9])" + re.escape(word), name_lower) is not None
+    """True if `word` (lowercase), or a singular form of it, begins a word in
+    `name_lower`: found with no letter or digit just before it. A prefix
+    match, so plurals and longer forms still count ("orange" in "oranges"),
+    and a plural query word finds the singular name ("onions" in "Green
+    onion" — added 2026-11-11, when a recipe matching only "green" tied
+    with, and so outranked, that food for "green onions"), but a fragment
+    inside another word does not ("raw" in "strawberry", "sauce" in
+    "applesauce")."""
+    return any(re.search(r"(?<![a-z0-9])" + re.escape(f), name_lower) is not None
+               for f in _word_forms(word))
 
 
 def _match_count_and_mask(name_lower: str, words: list[str]) -> tuple[int, int]:

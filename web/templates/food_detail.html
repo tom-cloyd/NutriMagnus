@@ -200,7 +200,7 @@
   </div>
   {% endif %}
   {% include "_impact_note.html" %}
-  {% include "_food_quality_note.html" %}
+  {% include "_food_problems_box.html" %}
   {% set has_annotation = gi_estimate is not none or diaas_estimate is not none %}
   <div class="d-flex flex-wrap gap-2 mb-2">
     {% if food.user_drafted %}
@@ -215,6 +215,10 @@
     <a href="/food/{{ food.fdc_id }}/review-incoming?source=usda" class="btn btn-sm btn-outline-secondary"
        title="Fetch USDA's current copy and choose which changed values to take">Refresh from USDA &rarr;</a>
     {% endif %}
+  </div>
+  {# Second row: annotate, copy, and delete — kept off the end of the
+     long first row, where Delete was easy to miss or hit by accident. #}
+  <div class="d-flex flex-wrap gap-2 mb-2">
     {% if not has_annotation %}
     <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}" class="btn btn-sm btn-outline-secondary">Add or edit GI / DIAAS estimates &rarr;</a>
     {% endif %}
@@ -227,6 +231,13 @@
       <button type="submit" class="btn btn-sm btn-outline-secondary" title="Create an editable custom-food copy of this food, leaving this cached original untouched">Copy as custom-food draft</button>
     </form>
     {% endif %}
+    <form method="post" action="/food/cache/delete" style="display:inline">
+      <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+      <input type="hidden" name="return_to" value="food-page">
+      <button type="submit" class="btn btn-sm btn-outline-danger"
+              title="Remove this food from your Food Cache. Refused, with the reason, if a pantry entry, recipe or meal still uses it."
+              onclick="return confirm('Delete {{ food.name | replace("'", "\\'") }} from your Food Cache? This cannot be undone.')">Delete this food</button>
+    </form>
   </div>
   {# Once a GI or DIAAS value exists, the Annotate button moves to its own
      row beside the current values, so returning here after the Annotate

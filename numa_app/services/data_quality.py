@@ -869,3 +869,209 @@ def merge_review(conn, keep_id: int, drop_ids: list[int], groups) -> dict:
                              "portion": p, "mine": _db.PORTION_KEY_PREFIX + desc in o["mine"]})
     return {"groups": out_groups, "portions": portions}
 
+
+
+# ── Problems by food ────────────────────────────────────────────────────────
+# Every check above lists by problem; problems_by_food() turns that around so
+# one food's problems are read in one place: Foods → 9's "Problems by food"
+# page (all foods) and the "Everything to check on this food" box on a food's
+# own page (one food). Severity:
+#   problem     — gives wrong figures now (the Home page reminder's kind)
+#   improvement — leaves a result incomplete or approximate (no AA, GI, portions)
+#   note        — for information (an estimate, an old USDA copy)
+SEVERITY_ORDER = {"problem": 0, "improvement": 1, "note": 2}
+# Items another food's values can put right (Fill in nutrients from another food).
+BORROW_KINDS = frozenset({"gaps", "calories_missing", "calories_mismatch", "impossible", "missing_aa",
+                          "calories_estimated", "wet_dry"})
+
+
+def _link(label: str, url: str, title: str = "") -> dict:
+    return {"label": label, "url": url, "title": title}
+
+
+def problems_by_food(conn, *, checked_groups=None, gi_opt_out: bool = False,
+                     track_water: bool = True, fdc_id: int | None = None) -> list[dict]:
+    """Every check's findings regrouped by food:
+    [{"fdc_id", "name", "use", "is_usda", "custom", "problem_count", "refresh_url", "borrow",
+      "items": [{"kind", "severity", "text", "section", "links", "fixes",
+                 "gap_groups", "ignores"}]}],
+    foods with the most problems first, then most used, then by name.
+    `section` is the Foods → 9 anchor where that check is listed in full;
+    `links` the pages where it is fixed; `fixes` the one-click fixes of
+    food_issues(); `gap_groups` the nutrient groups a "gaps" item names;
+    `ignores` the ways to stop it being listed — [{"label", "group"}] for
+    POST /food/{id}/data-ignore (a food_data_ignores key, CALORIES_OK_KEY,
+    or "gi" for the GI "don't prompt me" flag), or [{"label",
+    "dismiss_key"}] for a duplicate group's "not duplicates".
+    `checked_groups` limits missing-nutrient groups as Foods → 9's group
+    picker does (default: data_completeness.DEFAULT_CHECKED). With `fdc_id`,
+    only that food (an empty list when it has nothing to check)."""
+    from urllib.parse import urlencode
+    from numa_app.services.food_ids import classify_food_id
+    from numa_app.services.top_contributors import fill_url
+    checked = set(checked_groups if checked_groups is not None else _completeness.DEFAULT_CHECKED)
+    usage = usage_counts(conn)
+    ignores = _db.food_data_ignores(conn)
+    estimated = {r[0]: set(json.loads(r[1])) for r in conn.execute(
+        "SELECT fdc_id, estimated_keys_json FROM foods WHERE estimated_keys_json IS NOT NULL")}
+    sql = ("SELECT fdc_id, name, nutrients_json, serving_size, serving_unit, user_drafted, is_supplement "
+           "FROM foods WHERE archived = 0")
+    foods = {r["fdc_id"]: r for r in (conn.execute(sql + " AND fdc_id = ?", (fdc_id,)) if fdc_id is not None
+                                      else conn.execute(sql))}
+    out: dict[int, dict] = {}
+
+    def entry(fid: int) -> dict | None:
+        row = foods.get(fid)
+        if row is None:
+            return None
+        if fid not in out:
+            try:
+                usda = (classify_food_id(fid) or ("", ""))[1] == "USDA" and not row["user_drafted"]
+            except Exception:
+                usda = False
+            out[fid] = {"fdc_id": fid, "name": row["name"], "is_usda": usda,
+                        "custom": bool(row["user_drafted"]) and fid < 0,
+                        "use": usage.get(fid, {"recipes": 0, "meals": 0, "pantry": 0, "total": 0}),
+                        "items": []}
+        return out[fid]
+
+    def add(fid: int, kind: str, severity: str, text: str, section: str,
+            links=(), fixes=(), gap_groups=(), ignores=()) -> None:
+        e = entry(fid)
+        if e is not None:
+            e["items"].append({"kind": kind, "severity": severity, "text": text, "section": section,
+                               "links": list(links), "fixes": list(fixes), "gap_groups": list(gap_groups),
+                               "ignores": list(ignores)})
+
+    def not_needed(group: str, label: str) -> dict:
+        return {"label": label, "group": group}
+
+    def bare(name: str) -> str:
+        return name.lstrip("* ").strip()
+
+    # Unreadable stored data (the integrity check's one per-food finding).
+    for r in _db.check_db_integrity(conn).get("bad_json", []):
+        add(r["fdc_id"], "bad_json", "problem",
+            f"its stored {r['field'].replace('_json', '')} data can’t be read", "integrity")
+
+    # Values that can't be right, calories missing or off; missing nutrient groups.
+    aa_users = {r["fdc_id"]: r for r in missing_aa_in_use(conn) if not r["ignored"]}
+    for fid, row in foods.items():
+        try:
+            n = json.loads(row["nutrients_json"] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(n, dict):
+            continue
+        ign = ignores.get(fid, set())
+        if row["is_supplement"]:
+            ign = ign | SUPPLEMENT_SKIPS
+        custom = bool(row["user_drafted"]) and fid < 0
+        name = bare(row["name"])
+        # Borrowing from another food is offered once per food (BORROW_KINDS);
+        # a custom food can also be edited by hand.
+        hand = [_link("Edit values", f"/food/custom-profiles/{fid}/edit")] if custom else []
+        for i in food_issues(n, estimated=estimated.get(fid, set()), ignored=ign,
+                             serving_g=serving_grams(row["serving_size"], row["serving_unit"])):
+            ign_opts = {"calories_missing": [not_needed("macros", "Macronutrients not needed (stops calorie checks)")],
+                        "calories_mismatch": [not_needed(CALORIES_OK_KEY, "These calories are right")]}
+            add(fid, i["kind"], i["severity"], i["text"], "calories",
+                links=hand if i["severity"] == "problem" else (), fixes=i["fixes"],
+                ignores=ign_opts.get(i["kind"], ()))
+        gaps = [g for g in _completeness.active_gaps(n, ign, checked)
+                if not (g == "aa" and fid in aa_users)]   # listed below, with where it's used
+        if gaps:
+            labels = ", ".join(_completeness.GROUP_LABELS[g].lower() for g in gaps)
+            add(fid, "gaps", "problem", f"no data for its {labels}", "completeness", gap_groups=gaps,
+                ignores=[not_needed(g, f"{_completeness.GROUP_LABELS[g]} not needed") for g in gaps])
+
+    # Foods you use that leave a result incomplete.
+    for fid, r in aa_users.items():
+        add(fid, "missing_aa", "improvement",
+            f"has protein ({r['protein']:.1f} g per 100 g) but no amino acid data, so it adds nothing to any protein-quality score",
+            "missing-aa",
+            links=[_link("Find amino acid data",
+                         fill_url({"food_name": r["name"], "fdc_id": fid}, "protein_g", is_dcp=True,
+                                  custom_profile=bool(foods.get(fid) and foods[fid]["user_drafted"] and fid < 0)) or
+                         f"/food/{fid}/fill-from")],
+            ignores=[not_needed("aa", "Amino acids not needed")])
+    for r in missing_portions_in_use(conn):
+        if not r["ignored"]:
+            add(fid := r["fdc_id"], "missing_portions", "improvement",
+                "no portion weights (cup, spoon, piece…), so amounts can only be typed as a weight",
+                "missing-portions", links=[_link("Add a portion", f"/food/cache/{fid}/portions")],
+                ignores=[not_needed(PORTIONS_IGNORE_KEY, "Portions not needed (I weigh it)")])
+    if not gi_opt_out:
+        for r in missing_gi_in_use(conn):
+            if not r["ignored"]:
+                add(fid := r["fdc_id"], "missing_gi", "improvement",
+                    f"has carbohydrate ({r['carbs']:.0f} g per 100 g) but no GI, so glycemic load comes out incomplete",
+                    "missing-gi", links=[_link("Look up a GI", f"/food/annotate/{fid}")],
+                    ignores=[not_needed("gi", "GI not needed")])
+    for r in generic_density_in_use(conn):
+        n_uses = r["uses_count"]
+        add(fid := r["fdc_id"], "generic_density", "improvement",
+            f"{n_uses} amount{'s' if n_uses != 1 else ''} typed as a volume converted with a generic density "
+            "(it has no cup or spoon weight of its own)",
+            "generic-density", links=[_link("Add its cup or spoon weight", f"/food/cache/{fid}/portions")])
+
+    # Amounts that no longer match the food's portions.
+    stale: dict[int, list[dict]] = {}
+    for a in stale_amounts(conn, fdc_id=fdc_id, include_bracketed=True):
+        stale.setdefault(a["fdc_id"], []).append(a)
+    for fid, rows in stale.items():
+        n_r = sum(1 for a in rows if a["where"] == "recipe")
+        n_m = len(rows) - n_r
+        parts = ([f"{n_r} recipe amount{'s' if n_r != 1 else ''}"] if n_r else []) + \
+                ([f"{n_m} logged meal amount{'s' if n_m != 1 else ''}"] if n_m else [])
+        add(fid, "stale_amounts", "problem",
+            f"{' and '.join(parts)} no longer match{'es' if len(rows) == 1 else ''} what {'it works' if len(rows) == 1 else 'they work'} out to with its portions now",
+            "stale-amounts", links=[_link("Review the amounts", f"/food/cache/{fid}/portions",
+                                          "Its Portions page lists them, to update or keep as entered")])
+
+    # Named dry but mostly water.
+    if track_water:
+        for r in wet_dry_in_use(conn):
+            where = len(r["recipes"]) + len(r["meals"])
+            add(r["fdc_id"], "wet_dry", "problem",
+                f"named dry (“{r['flagged_name']}”) but its data is {r['water']:.0f} g water per 100 g — "
+                "probably the wet food picked for the dry one" +
+                (f"; used that way in {where} recipe{'s' if where != 1 else ''} or meal{'s' if where != 1 else ''}"
+                 if where else ""),
+                "wet-dry")
+
+    # Possible duplicates.
+    for g in duplicate_groups(conn):
+        for f in g["foods"]:
+            others = len(g["foods"]) - 1
+            add(f["fdc_id"], "duplicate", "improvement",
+                f"has the same name as {others} other food{'s' if others != 1 else ''} — merging keeps "
+                "recipes and meals on one copy", "duplicates",
+                links=[_link("Compare and merge", "/food/cache/duplicates")],
+                ignores=[{"label": "Not duplicates", "dismiss_key": g["key"]}])
+
+    # Old USDA copies.
+    for r in old_usda_copies(conn):
+        add(fid := r["fdc_id"], "old_copy", "note",
+            f"its USDA copy was last fetched {r['cached_at'][:10]}, over {OLD_COPY_DAYS} days ago",
+            "old-copies", links=[_link("Refresh from USDA", f"/food/{fid}/review-incoming?source=usda",
+                                       "Compare USDA's current figures with this food's, value by value, before taking any")])
+
+    rows = []
+    for e in out.values():
+        if not e["items"]:
+            continue
+        e["items"].sort(key=lambda i: SEVERITY_ORDER[i["severity"]])
+        e["problem_count"] = sum(1 for i in e["items"] if i["severity"] == "problem")
+        e["refresh_url"] = f"/food/{e['fdc_id']}/review-incoming?source=usda" if e["is_usda"] else None
+        # "Borrow values from [another food]": for a food whose values are
+        # missing or wrong, a search (pre-filled with its name, to edit) that
+        # leads to the review screen where the values to copy are ticked.
+        e["borrow"] = None
+        if any(i["kind"] in BORROW_KINDS for i in e["items"]):
+            e["borrow"] = ({"action": f"/food/custom-profiles/{e['fdc_id']}/edit", "field": "nutrient_source_q"}
+                           if e["custom"] else {"action": f"/food/{e['fdc_id']}/fill-from", "field": "q"})
+            e["borrow"]["q"] = bare(e["name"])
+        rows.append(e)
+    rows.sort(key=lambda e: (-e["problem_count"], -len(e["items"]), -e["use"]["total"], e["name"].lower()))
+    return rows

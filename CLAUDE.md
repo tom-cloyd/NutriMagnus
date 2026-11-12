@@ -139,7 +139,8 @@ numa_app/
     data_quality.py     — every data-quality check in one place: food_issues(),
                          stale_amounts() ("Amounts that no longer match"),
                          generic_density_in_use(), duplicate_groups(),
-                         old_usda_copies(), merge_review(), scan(); feeds
+                         old_usda_copies(), merge_review(), scan(),
+                         problems_by_food() (all of it regrouped by food); feeds
                          Foods → 9, the Home page reminder, and the
                          just-added-food note
     entry_parse.py      — tolerant reading of what people type: numbers,
@@ -452,3 +453,9 @@ section that says "65 and over"), give it a search-terms line:
 - `_mock_api(monkeypatch)` (in `tests/conftest.py`) — stubs USDA API; use for any test that touches food search.
 - Autouse fixtures handle DB, profile, web prefs.json and OFF stub — don't set these up manually.
 - `tests/test_web.py` has its own `use_test_web_prefs` fixture and `client` (FastAPI `TestClient`) fixture.
+- **Adding or removing tests? Update the README's test count first.** The count line under
+  `## Test Suite` in `README-numa-documentation.md` (total, and the default-run figure;
+  the browser figure only if e2e tests changed) must be adjusted in the same pass, BEFORE
+  the first full `pytest` run — `test_readme_test_count_matches_the_suite` fails otherwise,
+  forcing a costly second run. Parametrized tests count once per case; if unsure, get the
+  exact figure from `pytest --collect-only -q | tail -1` (collects only, runs nothing).

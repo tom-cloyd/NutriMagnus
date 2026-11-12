@@ -1,0 +1,66 @@
+{# One food's problems from data_quality.problems_by_food(), as a list with
+   the fix for each: shared by the Problems by food page (Foods → 9) and the
+   "Everything to check on this food" box on a food's own page. `f` is one
+   entry; `next_url` is where a fix button returns to. `show_section` adds a
+   link to the full list on Foods → 9 that each item comes from. #}
+{% set _sections = {
+  "integrity": ("broken references", "/food/cache/db-check#integrity"),
+  "completeness": ("missing nutrient data", "/food/cache/db-check#completeness"),
+  "calories": ("food data problems", "/food/cache/db-check#calories"),
+  "missing-aa": ("no amino acid data", "/food/cache/db-check#missing-aa"),
+  "missing-portions": ("no portion weights", "/food/cache/db-check#missing-portions"),
+  "missing-gi": ("no GI", "/food/cache/db-check#missing-gi"),
+  "generic-density": ("generic density", "/food/cache/db-check#generic-density"),
+  "stale-amounts": ("amounts that no longer match", "/food/cache/db-check#stale-amounts"),
+  "wet-dry": ("named dry, but mostly water", "/food/cache/db-check#wet-dry"),
+  "duplicates": ("duplicate foods", "/food/cache/duplicates"),
+  "old-copies": ("old USDA copies", "/food/cache/db-check#old-copies"),
+} %}
+{% macro problem_items(f, next_url, show_section=True) %}
+<ul class="problem-items mb-1">
+  {% for i in f["items"] %}
+  <li class="problem-item problem-{{ i.severity }}">
+    <span class="problem-tag">{{ {"problem": "Problem", "improvement": "Suggestion", "note": "Note"}[i.severity] }}</span>
+    <span>{{ i.text[:1] | upper }}{{ i.text[1:] }}.</span>{% for x in i.fixes if x.hint %}<span class="muted"> &mdash; {{ x.hint }}</span>{% endfor %}
+    {% if i.fixes or i.links or i.ignores or i.kind == "gaps" or show_section %}
+    <div class="d-flex flex-wrap align-items-center gap-1 mt-1">
+      {% for x in i.fixes %}<form method="post" action="/food/{{ f.fdc_id }}/data-fix" class="d-inline">
+        <input type="hidden" name="fix" value="{{ x.id }}"><input type="hidden" name="next" value="{{ next_url }}">
+        <button type="submit" class="btn btn-sm {{ 'btn-outline-primary' if loop.first else 'btn-outline-secondary' }} py-0" title="Changes this food&rsquo;s value and notes why on its page. {{ x.reason[:1]|upper }}{{ x.reason[1:] }}.">{{ x.label }}</button>
+      </form>{% endfor %}
+      {% if i.kind == "gaps" %}<form method="post" action="/food/cache/claude-fetch" class="d-inline">
+        <input type="hidden" name="fdc_id" value="{{ f.fdc_id }}">
+        <button type="submit" class="btn btn-sm btn-outline-primary py-0" title="Builds a prompt asking Claude AI for only the values this food is missing; nothing it already has is touched">Ask Claude AI for the missing data</button>
+      </form>{% endif %}
+      {% for l in i.links %}<a href="{{ l.url }}" class="btn btn-sm btn-outline-secondary py-0"{% if l.title %} title="{{ l.title }}"{% endif %}>{{ l.label }}</a>{% endfor %}
+      {% if i.ignores %}<span class="problem-ignore-sep small">or stop flagging it:</span>{% endif %}
+      {% for g in i.ignores %}{% if g.dismiss_key %}<form method="post" action="/food/cache/duplicates/dismiss" class="d-inline">
+        <input type="hidden" name="group_key" value="{{ g.dismiss_key }}">
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <button type="submit" class="btn btn-sm btn-outline-dark py-0 problem-ignore" title="Stops listing these foods as duplicates. A new food with the same name raises them again; Find duplicate foods can show dismissed groups.">{{ g.label }}</button>
+      </form>{% else %}<form method="post" action="/food/{{ f.fdc_id }}/data-ignore" class="d-inline">
+        <input type="hidden" name="group" value="{{ g.group }}"><input type="hidden" name="next" value="{{ next_url }}">
+        <button type="submit" class="btn btn-sm btn-outline-dark py-0 problem-ignore" title="{% if g.group == 'calories_ok' %}For calories that come from something protein, carbs and fat don&rsquo;t cover, such as the alcohol in vanilla extract. Undo it with Check them again on the food&rsquo;s own page.{% else %}Stops listing this for this food (a spice needs no macronutrients, a supplement no amino acids). To undo it: a nutrient group on the food&rsquo;s own page (&ldquo;Marked not needed for this food&rdquo;); anything on Foods &rarr; 9 by ticking its &ldquo;also list &hellip; marked not needed&rdquo; box.{% endif %}">{{ g.label }}</button>
+      </form>{% endif %}{% endfor %}
+      {% if show_section and i.section in _sections %}<a href="{{ _sections[i.section][1] }}" class="small ms-1 link-secondary" title="The full list of foods with this, on Foods &rarr; 9, where it can also be marked not needed">all foods: {{ _sections[i.section][0] }}</a>{% endif %}
+    </div>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endmacro %}
+
+{# "Borrow values from [another food]": a search, pre-filled with the food's
+   own name to edit ("onions, raw" for a green onion), opening Fill in
+   nutrients from another food (or a custom food's Edit page), where the
+   values to copy are compared and ticked before anything is written. #}
+{% macro borrow_form(f) %}{% if f.borrow %}
+<form method="get" action="{{ f.borrow.action }}" class="d-flex flex-wrap align-items-center gap-1 my-1 borrow-form">
+  <label for="borrow-{{ f.fdc_id }}" class="small m-0" title="Search for a similar food, compare it with this one, then tick which of its values to copy: some or all, only blanks or replacing figures. Nothing is written until you confirm.">Borrow values from</label>
+  <input type="search" id="borrow-{{ f.fdc_id }}" name="{{ f.borrow.field }}" value="{{ f.borrow.q }}"
+         class="form-control form-control-sm" style="max-width:20rem" aria-label="Food to borrow values from">
+  <button type="submit" class="btn btn-sm btn-outline-primary py-0">Find it &rarr;</button>
+</form>
+{% endif %}{% endmacro %}
+
+{% macro uses_text(u) %}{% set parts = [] %}{% if u.recipes %}{% set _ = parts.append(u.recipes ~ " recipe" ~ ("s" if u.recipes != 1 else "")) %}{% endif %}{% if u.meals %}{% set _ = parts.append(u.meals ~ " meal" ~ ("s" if u.meals != 1 else "")) %}{% endif %}{% if u.pantry %}{% set _ = parts.append("pantry") %}{% endif %}{% if parts %}used in {{ parts | join(", ") }}{% else %}not used yet{% endif %}{% endmacro %}

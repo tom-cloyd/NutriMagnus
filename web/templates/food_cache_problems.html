@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}NutriMagnus — Problems by Food{% endblock %}
+
+{% block content %}
+{% import "_food_problem_items.html" as _pi %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
+    <li class="breadcrumb-item"><a href="/food/cache/db-check">Check database</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Problems by food</li>
+  </ol>
+</nav>
+
+<h2>Problems by food {{ manual_link("problems-by-food") }}</h2>
+<p class="muted" style="max-width:48rem">Every check on the <a href="/food/cache/db-check">Check database</a> page (Foods &rarr; 9),
+turned around: one entry per food, with everything NuMa found on it and the way to fix each one, so a food can be
+put right in one visit. <strong>Problems</strong> give wrong figures now; <strong>suggestions</strong> leave a result
+incomplete or approximate (no amino acid data, no GI, no portion weights); <strong>notes</strong> are for information.
+Anything marked &ldquo;not needed&rdquo; isn&rsquo;t listed.</p>
+
+{% if fixed_food %}
+<p class="status-met" style="max-width:48rem"><strong>&#10003; Corrected <a href="/food/{{ fixed_food.fdc_id }}">{{ fixed_food.name }}</a>{{ food_id_tag(fixed_food.fdc_id) }}.</strong>
+  {% for c in fixed_food.corrections %}{{ c.reason[:1]|upper }}{{ c.reason[1:] }}.{% endfor %}
+  The food&rsquo;s page lists the change, and every recipe and meal using it has been recalculated.</p>
+{% elif fix_stale %}
+<p class="text-warning-emphasis" style="max-width:48rem"><strong>Nothing changed:</strong> that problem had already been fixed or changed since this page was opened. The list below is up to date.</p>
+{% endif %}
+
+<form method="get" action="/food/cache/problems" class="d-flex flex-wrap align-items-center gap-3 mb-2">
+  <div class="form-check m-0">
+    <input type="hidden" name="show_all" value="false">
+    <input class="form-check-input" type="checkbox" name="show_all" value="true" id="show-all"
+           {% if show_all %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="show-all">Also list foods with only suggestions or notes{% if improvement_only %} ({{ improvement_only }}){% endif %}</label>
+  </div>
+  <label class="d-flex align-items-center gap-1 m-0">Sort:
+    <select name="sort" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="problems" {% if sort == "problems" %}selected{% endif %}>most problems first</option>
+      <option value="used" {% if sort == "used" %}selected{% endif %}>most used first</option>
+      <option value="name" {% if sort == "name" %}selected{% endif %}>by name</option>
+    </select>
+  </label>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Show</button></noscript>
+</form>
+
+<p><strong>{{ with_problems }}</strong> food{{ "s" if with_problems != 1 }} with a problem{% if show_all %}, and
+  <strong>{{ improvement_only }}</strong> with only suggestions or notes{% endif %}.</p>
+
+{% if not rows %}
+<p class="muted"><strong>Nothing to fix.</strong>{% if not show_all and improvement_only %} Tick the box above to see the suggestions.{% endif %}</p>
+{% endif %}
+
+{% set _next = "/food/cache/problems" %}
+{% for f in rows %}
+<section class="problem-food" id="food-{{ f.fdc_id }}">
+  <h3><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }}</h3>
+  <div class="small mb-1">
+    <span class="muted">{{ _pi.uses_text(f.use) }}</span>
+    {% if f.problem_count and (f.refresh_url or f.custom) %} &middot;
+    {% if f.refresh_url %}<a href="{{ f.refresh_url }}" title="Fetch USDA&rsquo;s current figures and compare them with this food&rsquo;s, value by value, before taking any">Refresh from USDA</a>{% if f.custom %} &middot; {% endif %}{% endif %}
+    {% if f.custom %}<a href="/food/custom-profiles/{{ f.fdc_id }}/edit">Edit values</a>{% endif %}
+    {% endif %}
+  </div>
+  {{ _pi.borrow_form(f) }}
+  {{ _pi.problem_items(f, _next ~ "#food-" ~ f.fdc_id) }}
+</section>
+{% endfor %}
+{% if rows %}{% include "_code_key.html" %}{% endif %}
+{% endblock %}

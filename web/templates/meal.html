@@ -298,12 +298,16 @@
       </tr>
     </thead>
     <tbody id="add-food-tbody">
-      {% set ns = namespace(seen_local=false, divider_shown=false) %}
+      {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
       {% for food in search_results %}
         {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
         {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
       <tr class="search-group-divider"><td colspan="7"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
         {% set ns.divider_shown = true %}
+        {% endif %}
+        {% if is_local_source(food.source) and ns.divider_shown and not ns.partial_shown %}
+      <tr class="search-group-divider"><td colspan="7"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
+        {% set ns.partial_shown = true %}
         {% endif %}
         {{ _sr.add_food_row(meal.id, food, q) }}
       {% endfor %}
@@ -554,12 +558,11 @@
 {# ── Items list ───────────────────────────────────────────────────────── #}
 {% if items %}
 <section id="sec-items" class="analysis-section">
-  <div class="d-inline-block" style="max-width:100%">
-  {# Inner box shrinks to the table alone (the footnotes below are wider);
-     width:0 + min-width:100% lets the heading row take that width without
-     widening it, so Sort by ends at the table's right edge. #}
-  <div class="d-inline-block" style="max-width:100%">
-  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2" style="width:0;min-width:100%">
+  {# The table is full width: every column shrinks to its content (.fit)
+     except Notes, which takes the rest — see .meal-items-table in style.css. #}
+  <div>
+  <div>
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
     <h3 class="section-heading mb-0" data-ak="y" data-ak-focus tabindex="-1">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
     <form method="get" action="/meal/{{ meal.id }}" class="d-flex align-items-center gap-1">
       <label class="muted me-1" for="item_sort"><small>Sort by</small></label>
@@ -570,20 +573,22 @@
       </select>
     </form>
   </div>
-  <table class="nutrient-table mt-2">
+  <table class="nutrient-table list-table meal-items-table mt-2">
     <thead>
       <tr>
-        <th>Food / Recipe</th>
-        <th class="num-col">Amount</th>
+        <th class="fit" title="Time of day the item was entered (your computer's clock)">Time</th>
+        <th class="fit">Food / Recipe</th>
+        <th class="fit num-col">Amount</th>
         <th>Notes</th>
-        <th></th>
-        <th></th>
+        <th class="fit"></th>
+        <th class="fit"></th>
       </tr>
     </thead>
     <tbody>
       {% for item in items %}
       <tr>
-        <td>
+        <td class="fit muted"><small>{{ item.added_time or "—" }}</small></td>
+        <td class="fit">
           {% if item.recipe_deleted %}
             {{ item.food_name }}{{ food_id_tag(item.fdc_id, recipe_id=item.recipe_id) }} <span class="text-danger">(recipe deleted)</span>
           {% elif item.fdc_id %}
@@ -594,13 +599,13 @@
             {{ item.food_name }}
           {% endif %}{{ _wm.mark(item) }}
         </td>
-        <td class="num-col" style="white-space:nowrap">
+        <td class="fit num-col">
           {% if item.recipe_id %}{{ _ramt.amount(item) }}{% else %}{{ _famt.amount(item) }}{{ _gd.mark(item) }}{% endif %}
         </td>
         <td>
           {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
         </td>
-        <td>
+        <td class="fit">
           <details class="popup-edit">
             <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
             <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
@@ -646,7 +651,7 @@
             </div>
           </details>
         </td>
-        <td>
+        <td class="fit">
           <form method="post" action="/meal/{{ meal.id }}/remove/{{ item.id }}" style="margin:0">
             <button type="submit" class="btn btn-outline-danger btn-sm"
                     aria-label="Remove">&#x2715;</button>
@@ -656,7 +661,7 @@
       {% if item.serving_changed %}
       {% set sc = item.serving_changed %}
       <tr class="table-warning">
-        <td colspan="4">
+        <td colspan="6">
           <small>
             <strong>This recipe&rsquo;s serving size has changed since you logged it.</strong>
             One serving weighed {{ sc.logged | round | int }}&thinsp;g then; it weighs {{ sc.now | round | int }}&thinsp;g now,

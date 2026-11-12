@@ -664,3 +664,122 @@ def test_estimate_fix_marks_calories_estimated():
         assert dq.apply_fix(conn, 997203, "use_estimate")
         assert "calories" in _db.estimated_keys(conn, 997203)
         assert [i["kind"] for i in dq.issues_for_food(conn, 997203)] == ["calories_estimated"]
+
+
+# ── Problems by food ─────────────────────────────────────────────────────────
+
+def test_problems_by_food_gathers_every_check_under_its_food(client):
+    n = {"calories": 1550.0, "protein_g": 10.0, "carbs_g": 60.0, "fat_g": 15.0}   # kJ as kcal, no AA, no GI
+    with _db.get_db() as conn:
+        _food(conn, 997301, "Many problems test", n, [{"description": "1 cup", "gram_weight": 125.4}])
+        _food(conn, 997302, "Clean test", {**GOOD, **{k: 1.0 for k in _AA_KEYS}})
+        rid = _db.recipe_create(conn, "Uses many", "", 1, "")
+        _db.recipe_add_ingredient(conn, rid, 997301, "Many problems test", 41.8, "1/3 c")
+        _db.update_food_fields(conn, 997301, portions=[{"description": "1 cup", "gram_weight": 99.0}])
+        rows = {r["fdc_id"]: r for r in dq.problems_by_food(conn)}
+        one = dq.problems_by_food(conn, fdc_id=997301)
+    kinds = [i["kind"] for i in rows[997301]["items"]]
+    assert {"calories_mismatch", "stale_amounts", "missing_aa", "missing_gi"} <= set(kinds)
+    # The amino acid gap is told once, with where it's used, not twice.
+    assert not any(i["kind"] == "gaps" and "aa" in i["gap_groups"] for i in rows[997301]["items"])
+    # Problems first, then suggestions.
+    sev = [i["severity"] for i in rows[997301]["items"]]
+    assert sev == sorted(sev, key=dq.SEVERITY_ORDER.get)
+    assert rows[997301]["problem_count"] >= 2 and rows[997301]["use"]["recipes"] == 1
+    assert 997302 not in rows
+    assert [r["fdc_id"] for r in one] == [997301] and one[0]["items"] == rows[997301]["items"]
+
+
+_AA_KEYS = ["aa_tryptophan_g", "aa_threonine_g", "aa_isoleucine_g", "aa_leucine_g", "aa_lysine_g",
+            "aa_methionine_g", "aa_cystine_g", "aa_phenylalanine_g", "aa_tyrosine_g", "aa_valine_g",
+            "aa_histidine_g"]
+
+
+def test_problems_by_food_page_and_food_box_fix_and_return(client):
+    n = {"calories": 1550.0, "protein_g": 10.0, "carbs_g": 60.0, "fat_g": 15.0}
+    with _db.get_db() as conn:
+        _food(conn, 997303, "Kilojoule box test", n)
+    page = client.get("/food/cache/problems").text
+    assert 'id="food-997303"' in page and "Convert from kilojoules" in page
+    assert 'value="/food/cache/problems#food-997303"' in page
+    detail = client.get("/food/997303").text
+    assert 'id="food-problems"' in detail and "Everything to check on this food" in detail
+    # A fix made from the food's own page comes back there, saying what changed.
+    resp = client.post("/food/997303/data-fix", data={"fix": "kj_to_kcal", "next": "/food/997303#food-problems"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/food/997303?fixed=997303#food-problems"
+    detail = client.get(resp.headers["location"]).text
+    assert "Corrected." in detail and "divided by 4.184" in detail
+    # From the Problems by food page: back there; an outside next is refused.
+    resp = client.post("/food/997303/data-fix", data={"fix": "kj_to_kcal", "next": "/food/cache/problems#food-997303"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/food/cache/problems?fix_stale=1#food-997303"
+    resp = client.post("/food/997303/data-fix", data={"fix": "kj_to_kcal", "next": "//evil.example"},
+                       follow_redirects=False)
+    assert resp.headers["location"].startswith("/food/cache/db-check?fix_stale=1")
+
+
+def test_problems_by_food_hides_suggestion_only_foods_until_asked(client):
+    with _db.get_db() as conn:
+        _food(conn, 997304, "Suggestion only test", {**GOOD, "carbs_g": 30.0, "calories": 289.0})
+        _used_in_recipe(conn, 997304, "Suggestion only test")    # used: no AA / GI / portions = suggestions
+        assert all(i["severity"] != "problem" for r in dq.problems_by_food(conn, fdc_id=997304)
+                   for i in r["items"] if i["kind"] != "gaps")
+    with _db.get_db() as conn:
+        _db.set_food_data_ignore(conn, 997304, "vitamins", True)
+        _db.set_food_data_ignore(conn, 997304, "minerals", True)
+        [row] = dq.problems_by_food(conn, fdc_id=997304)
+    assert row["problem_count"] == 0
+    assert 'id="food-997304"' not in client.get("/food/cache/problems").text
+    assert 'id="food-997304"' in client.get("/food/cache/problems?show_all=true").text
+    assert 'id="food-997304"' in client.get("/food/cache/problems").text      # remembered
+    assert 'id="food-997304"' not in client.get("/food/cache/problems?show_all=false").text
+
+
+def test_problems_by_food_not_needed_buttons_stop_each_item(client):
+    with _db.get_db() as conn:
+        _food(conn, 997305, "Yeast not needed test", {"fiber_g": 2.0})           # no calories, no macros
+        _used_in_recipe(conn, 997305, "Yeast not needed test")
+        _food(conn, 997306, "Used carbs test", {**GOOD, "carbs_g": 30.0, "calories": 289.0})
+        _used_in_recipe(conn, 997306, "Used carbs test")
+        _food(conn, 997307, "Twin test", {**GOOD})
+        _food(conn, 997308, "twin test", {**GOOD})
+
+    def items(fid):
+        with _db.get_db() as conn:
+            return {i["kind"]: i for r in dq.problems_by_food(conn, fdc_id=fid) for i in r["items"]}
+
+    page = client.get("/food/cache/problems").text
+    assert "Macronutrients not needed (stops calorie checks)" in page and "or stop flagging it" in page
+    nxt = "/food/cache/problems#food-997305"
+    r = client.post("/food/997305/data-ignore", data={"group": "macros", "next": nxt}, follow_redirects=False)
+    assert r.headers["location"] == nxt
+    got = items(997305)
+    assert "calories_missing" not in got and "macros" not in got.get("gaps", {}).get("gap_groups", [])
+
+    assert {"missing_gi", "missing_portions"} <= set(items(997306))
+    client.post("/food/997306/data-ignore", data={"group": "gi"})
+    client.post("/food/997306/data-ignore", data={"group": "portions"})
+    assert not {"missing_gi", "missing_portions"} & set(items(997306))
+    with _db.get_db() as conn:
+        assert _db.get_food_annotation(conn, 997306)["gi_no_prompt"] == 1
+
+    [dup] = [i for i in items(997307).values() if i["kind"] == "duplicate"]
+    key = dup["ignores"][0]["dismiss_key"]
+    r = client.post("/food/cache/duplicates/dismiss", data={"group_key": key, "next": "/food/997307"},
+                    follow_redirects=False)
+    assert r.headers["location"] == "/food/997307"
+    assert "duplicate" not in items(997307)
+
+
+def test_problems_by_food_offers_borrowing_values_from_another_food(client):
+    with _db.get_db() as conn:
+        _food(conn, 997309, "* Green onion test, raw", {"fiber_g": 2.0})          # values missing
+        [row] = dq.problems_by_food(conn, fdc_id=997309)
+    assert row["borrow"] == {"action": "/food/997309/fill-from", "field": "q", "q": "Green onion test, raw"}
+    page = client.get("/food/cache/problems").text
+    assert 'action="/food/997309/fill-from"' in page and 'value="Green onion test, raw"' in page
+    assert 'action="/food/997309/fill-from"' in client.get("/food/997309").text
+    # The search lands on Fill in nutrients from another food with what was typed.
+    r = client.get("/food/997309/fill-from", params={"q": "onions, raw"})
+    assert r.status_code == 200 and 'value="onions, raw"' in r.text

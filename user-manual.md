@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-11:1337* / Reading time: 8 hours, 57 minutes
+*Updated 2026-11-12:0501* / Reading time: 9 hours, 2 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -2920,12 +2920,15 @@ letting more columns fit on screen at once.
 
 #### Meal Items Table {: #meal-detail}
 
-*Search terms: foods in a meal, edit meal, comment, memo.*
+*Search terms: foods in a meal, edit meal, comment, memo, timestamp, clock, when eaten.*
 
 Shows the foods and recipes logged in a single meal.
 
 Columns:
 
+    Time      Time of day (HH:MM, from your computer's clock) the item
+              was entered into the meal. Items logged before NuMa began
+              recording this show a dash.
     Food /    Name of the food or recipe, linked to its own analysis page.
     Recipe    Each shows its source-database ID tag; a deleted-but-still-
               referenced recipe is flagged "(recipe deleted)".
@@ -3875,7 +3878,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 59 minutes)*
+*(Reading time: 1 hour, 2 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -3918,7 +3921,7 @@ The setting is saved between sessions and applies to both the interactive comple
 The boxes that *filter a list* take a code too: the Recipes list (**R21**), the Food Cache and Annotate lists, My Pantry's **Filter my pantry list** (**U171477**, **UD4** …), Food Use in Recipes' name filter, the Food Use in Meals "Replace it with" box, and [Search meal history](#meal-history), where **U171477** or **R21** lists every meal that food or recipe was logged in. A code there narrows the list to just that one item, archived or not; anything else filters by name as before.
 When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
 
-**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. A word counts only where a word in the name starts with it: "orange" matches "Oranges", and "raw" matches "raw", but "raw" inside "st**raw**berry" doesn't count, nor "sauce" inside "applesauce" (type "applesauce" for that). Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Your own matches keep that best-match order among themselves too: a recipe comes before a Pantry or Food Cache food only when the two match your words equally well, so a recipe matching one of your words never sits above a food matching all of them. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
+**The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. A word counts only where a word in the name starts with it: "orange" matches "Oranges", "onions" matches "Green onion" and "berry" matches "Berries" (singular and plural find each other), and "raw" matches "raw", but "raw" inside "st**raw**berry" doesn't count, nor "sauce" inside "applesauce" (type "applesauce" for that). Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Your own matches keep that best-match order among themselves too: a recipe comes before a Pantry or Food Cache food only when the two match your words equally well, so a recipe matching one of your words never sits above a food matching all of them. When one of your own items matches every word you typed, your items matching only some of the words move below the online results, under a "Partial matches from your recipes, pantry, and food cache" heading. They are still listed, but your exact match and the online foods matching every word come first. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
 
 **Word order matters, too.** If you type more than one search word, NuMa treats the order you typed them in as a signal of what matters most to you. Suppose you search `milk dry instant` because there are two kinds of dry milk — instant and non-instant — and you specifically want the instant kind, but you've put "dry" before "instant" because that's the more important distinguishing word to you. If nothing in your data matches all three words, NuMa prefers a match on `milk` + `dry` over a match on `milk` + `instant`, precisely because you typed "dry" first. In effect, the words you type earlier act as your stated priorities — a partial match that preserves your earlier words beats one that preserves only a later one, even when both partial matches contain the same number of words.
 
@@ -4014,7 +4017,7 @@ If a portion's gram weight turns out to have been wrong, fix the portion; Foods 
 
 **Renaming a food renames it everywhere you've used it.**{: #food-rename} When you save a new name on a food's Edit page, the new name replaces the old one on every recipe ingredient line, every logged meal item (past days included) and every pantry entry that uses that food, the same way renaming a recipe always has; the page tells you how many places it changed. Nutrients don't change, because they always come from the food a line is *linked* to, whatever name it shows. One thing can change: NuMa estimates protein digestibility from a food's name (see [Protein digestibility](#digestibility-by-name)), so a name that drops a telling word ("tofu", "lentil") can change the food's DCP figures, and a digestibility you set yourself moves to the new name with it. A name you typed into an ingredient line's own **Edit** popup on the Edit Recipe page is replaced too. That popup changes only the name the line shows, never which food it's linked to. So if a recipe's nutrients look wrong, check that each ingredient is linked to the food its name says; to link one to a different food, remove the line and add the right food.
 
-**A food still used somewhere can't be deleted.** NuMa refuses to delete a food that a recipe, a logged meal or your pantry still uses, so nothing is ever left pointing at a food that no longer exists. Recipes work the same way — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere).
+**Deleting a food.**{: #delete-food} A food's own page has a **Delete this food** button on its second row of buttons, beside the copy button; a Food Search result, the Food Cache list and Foods → 9 offer **Delete** on each row too. After a delete from the food's page you land on the Food Cache list, which names the food deleted. **A food still used somewhere can't be deleted.** NuMa refuses to delete a food that a recipe, a logged meal or your pantry still uses, so nothing is ever left pointing at a food that no longer exists. Recipes work the same way — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere).
 
 #### Meals and days {: #meal-edit-consequences}
 
@@ -4136,7 +4139,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 
 - **When data comes in.** Each food is checked the moment it's saved, by whatever route — a [USDA](#gloss-usda) fetch, Open Food Facts, a [CSV](#gloss-csv) or Claude [AI](#gloss-artificial-intelligence) import, or your own typing. Missing calories are filled in as an estimate, and right after you add a food with a problem to a meal or recipe, a note on that page says what's wrong with it.
 - **Where you use data.** Food, meal, recipe and daily-summary pages flag what affects the figures you're looking at.
-- **In one place, on demand.** **Foods → 9 (Database Integrity and Data Completeness Check)** lists every problem across all your data. The Home page tells you when new problems turn up (see [the reminder](#data-check-reminder) below).
+- **In one place, on demand.** **Foods → 9 (Database Integrity and Data Completeness Check)** lists every problem across all your data, grouped by kind of problem; its **Problems by food** button lists the same findings grouped by food (see [Problems by food](#problems-by-food) below). The Home page tells you when new problems turn up (see [the reminder](#data-check-reminder) below).
 
 #### Every check, and what to do about it {: #data-checks-list}
 
@@ -4164,6 +4167,22 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 **Right after you add a food.** If a food you've just added to a meal or recipe has a problem from the table above (not merely an estimate), the page you're returned to says so straight away, with a link to the food. That is the cheapest moment to fix it: one food, while you remember what it is.
 
 **The Home page reminder.**{: #data-check-reminder} When new problems appear since you last opened Foods → 9, the Home page says how many, with a link. Opening the check counts as reviewing them, and the note goes away; it comes back only for problems that are new after that. Problems in the starter foods and recipes NuMa comes with never set it off (they're listed on Foods → 9 all the same), so a new install doesn't open with a warning about data you haven't touched. In **Settings → 14 (Data Quality Reminder)** you can turn it off, or ask for a reminder every so many weeks even when nothing is new, as a routine. A monthly look is a sensible habit if you log most days.
+
+#### Problems by food {: #problems-by-food}
+
+*Search terms: everything wrong with a food, all problems for one food, fix a food, food checklist, ignore a problem, dismiss, borrow, copy values.*
+
+Foods → 9 lists by kind of problem, so a food with three things wrong turns up in three places on that page. **Problems by food** (the button at the top of Foods → 9) turns it around: one entry per food, with everything NuMa found on it and a button for each fix, so you can put a food right in one visit. Each item is tagged:
+
+- **Problem**: gives wrong figures now (no calories, impossible values, a nutrient group with no data, amounts that no longer match, a wet food picked for a dry one).
+- **Suggestion**: leaves a result incomplete or approximate (no amino acid data, no [GI](#gloss-gi), no portion weights, a generic density, a possible duplicate).
+- **Note**: for information (calories estimated, a [USDA](#gloss-usda) copy over a year old).
+
+**Borrowing values from another food.** A food with missing or wrong values has a **Borrow values from** box, filled in with its own name. Change it to the food to borrow from (*onions, raw* for a green onion) and click **Find it**. That opens [Fill in nutrients from another food](#review-incoming) with that search, where you compare and tick which values to copy, some or all, before anything is written.
+
+Only foods with at least one problem are listed until you tick **Also list foods with only suggestions or notes**. Sort them by most problems, most used, or name. Anything you've marked "not needed" isn't listed, and most items carry buttons after **or stop flagging it:** to mark them so right there: a missing nutrient group (one button per group), **Macronutrients not needed** for a food with no calories (a spice, yeast; it also stops the calorie checks), **These calories are right**, **Amino acids not needed**, **Portions not needed** (you always weigh it), **GI not needed**, and **Not duplicates**. To undo one, use the food's own page (a nutrient group, under "Marked not needed for this food"; calories, with **Check them again**) or the matching list on Foods → 9 with its "also list … marked not needed" box ticked. Missing nutrient data covers the groups ticked under **Groups to check** on Foods → 9. Each item's **all foods** link opens the full list for that kind of problem on Foods → 9, where it can be marked "not needed".
+
+The same list shows on each food's own page, as **Everything to check on this food**: open when the food has a problem, folded when there are only suggestions or notes. A one-click fix made there brings you back to the food.
 
 #### Seeing what a fix changed {: #data-effects}
 
@@ -6162,7 +6181,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 19 minutes)*
+*(Reading time: 21 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6178,10 +6197,116 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-Version overview: Complement suggestions now label their before/after amino acid figures as amino acid scores (1.00 = fully meets the FAO reference) instead of the unclear "Effect".
+Version overview: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered.
 
+- **7.** Each item you add to a meal now records the time of day you entered it, shown in a new **Time** column of the meal's Items list.
+- **6.** A food's own page now has a **Delete this food** button.
+- **5.** Searches match singular and plural both ways ("onions" finds "Green onion", "berry" finds "Berries"), so that food is no longer outranked by a recipe that matches fewer of your words.
+- **4.** In food and recipe searches, when one of your own foods or recipes matches every word you typed, your items that match only some of the words now come after the online results, under their own heading.
+- **3.** **Problems by food** (a button at the top of Foods → 9) lists everything wrong with each food in one place, with its fixes, a "Borrow values from" search and "not needed" buttons; each food's page shows the same list.
 - **2.** Errors are written to `numa-errors.log` in NuMa's data folder, so a failed page leaves a record to report.
 - **1.** An installed NuMa now shows the yellow "please restart it" bar after **Update Now** until you quit and start it again.
+
+#### November 12 updates
+
+**PROGRAM: MEAL ITEMS SHOW THE TIME THEY WERE ENTERED**
+
+Each food or recipe you add to a meal now records the time of day you entered it (hours and minutes, from your computer's clock), and the meal's Items list shows it in a new **Time** column. Items logged before this change show a dash. [learn more...](#meal-detail)
+
+<!--
+
+```
+Scope: db.py (meal_items.added_time TEXT column + migration; _now_hhmm();
+meal_add_food/meal_add_recipe stamp it, meal_copy_items stamps copies with
+the copy time); web/backend.py _meal_expand_for_diaas carries added_time
+into the item dicts; web/templates/meal.html Items table gets a Time column
+(serving-changed warning row colspan 4 -> 6). Every add path (search add,
+add recipe / as ingredients, bulk add to selected meals, What-if apply,
+copy meal) goes through those db functions. Editing an item keeps its time.
+NuMa's server runs on the user's machine, so the server clock is theirs.
+```
+
+-->
+
+#### November 11 updates
+
+**PROGRAM: DELETE A FOOD FROM ITS OWN PAGE**
+
+A food's page now has a **Delete this food** button, so you no longer have to find the food in a list to delete it. As everywhere else, a food still used by a recipe, meal or your pantry can't be deleted, and the page tells you what is using it. [learn more...](#delete-food)
+
+<!--
+
+```
+Scope: web/templates/food_detail.html (second button row, with Annotate and Copy);
+web/backend.py food_cache_delete() takes return_to="food-page" and redirects to
+/food/cache?deleted=<name> (food_cache_get gains `deleted`, food_cache.html shows
+"Deleted <name>."). Refusal for a referenced food is the route's existing
+redirect to the Food Cache list with the blocked explanation. Reported for UD12,
+deletable only from the far-right column of its Food Search row.
+```
+
+-->
+
+**PROGRAM: PLURAL SEARCH WORDS MATCH SINGULAR NAMES**
+
+A plural word in a search now also matches its singular form in a food or recipe name (and "berry" now finds "berries"), so "green onions" ranks "Green onion, (scallion) ..." as matching both of your words. [learn more...](#search-ranking)
+
+<!--
+
+```
+Scope: numa_app/services/search_ranking.py word_in_name() also tries singular
+stems (_word_forms: -ies→y, -es, -s; stems of 3+ chars), which feeds relevance
+ranking, recipe name matching and the full-local-match check in
+_cap_results_preserving_local(). The cached-food SQL search already did this
+(db._singular_variant); the ranking did not, so for "green onions" recipe R51
+"Hummus, green pea" and cached U2727585 "Green onion ..." both scored one word
+and the recipe won the source tiebreak.
+```
+
+-->
+
+**PROGRAM: PARTIAL MATCHES NO LONGER CROWD THE TOP OF A SEARCH**
+
+When one of your own foods or recipes matches every word you search for, it now comes first, followed by the online foods that also match every word. Your items that match only some of the words come after those, under a "Partial matches from your recipes, pantry, and food cache" heading. They are still listed. [learn more...](#search-ranking)
+
+<!--
+
+```
+Scope: every food/recipe search screen (meal add-food panel, Foods → Search, recipe
+ingredient search, Compare, Convert, Pantry, source pickers). web/backend.py
+_cap_results_preserving_local() takes the query; when a local row matches every query
+word (search_ranking.word_in_name), only those rows lead, then the capped external
+block, then the remaining (partial) local rows — never dropped. With no full local
+match the old local-first grouping is unchanged (the "vitamins daily" case). The 11
+row templates gained a third divider. Reported: "jam cherry black" on a meal page put
+four recipes matching only "black" (recipes match on any word) above USDA's Black
+Cherry Jam foods, even though the cached Black Cherry Jam matched all three words.
+```
+
+-->
+
+**PROGRAM: PROBLEMS BY FOOD**
+
+You can now see everything wrong with a food in one place, with a fix button for each item, a box to borrow values from another food you name, and, where it applies, a button to mark an item not needed. The new **Problems by food** page (top of Foods → 9) has one entry per food, covering every check that page makes. Each food's own page shows the same list as **Everything to check on this food**. [learn more...](#problems-by-food)
+
+<!--
+```
+Scope: numa_app/services/data_quality.py (problems_by_food(), SEVERITY_ORDER),
+web/backend.py (/food/cache/problems, _food_problems(), _fixed_food(); data-fix takes
+`next`; the food page uses food_problems in place of quality_issues),
+templates food_cache_problems.html, _food_problem_items.html, _food_problems_box.html,
+food_detail.html, food_cache_db_check.html; style.css; tests/test_data_quality.py.
+problems_by_food() runs the existing checks (food_issues, completeness gaps, in-use
+AA/portions/GI lists, generic density, stale amounts, wet/dry, duplicate groups, old
+USDA copies, bad_json) and regroups them by fdc_id. Nothing is computed twice: the
+same functions feed Foods -> 9. Whole-DB run is ~70 ms on 284 foods, so the food page
+calls it and filters. A food's AA gap is told once (as the in-use item, with its fill
+link) when both apply. Missing-group checks follow Foods -> 9's saved group picker.
+Items carry `ignores` (data-ignore groups incl. calories_ok, portions, and "gi" ->
+food_annotations.gi_no_prompt, newly accepted by POST /food/{id}/data-ignore; or a
+duplicate group's dismiss key, POST /food/cache/duplicates/dismiss now takes `next`).
+```
+-->
 
 #### November 10 updates
 

@@ -63,6 +63,9 @@
 {% if restored %}
 <div class="alert alert-success">Restored.</div>
 {% endif %}
+{% if deleted %}
+<div class="alert alert-success">Deleted {{ deleted }}.</div>
+{% endif %}
 
 {% if refresh_error is defined and refresh_error %}
 <div class="alert alert-danger">{{ refresh_error }}</div>

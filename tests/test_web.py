@@ -860,6 +860,33 @@ def test_meal_create_add_food_complete_delete(client: TestClient, cached_food, d
     assert db_conn.execute("SELECT * FROM meals WHERE id = ?", (meal_id,)).fetchone() is None
 
 
+def test_meal_item_records_and_shows_time_entered(client: TestClient, cached_food, db_conn,
+                                                 monkeypatch) -> None:
+    """An added meal item is stamped with the computer's clock (HH:MM) and the
+    meal page's Items list shows it; items from before the column show a dash."""
+    import db as _db
+    monkeypatch.setattr(_db, "_now_hhmm", lambda: "07:42")
+    resp = client.post("/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
+                       follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add",
+                data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+                follow_redirects=False)
+    row = db_conn.execute("SELECT added_time FROM meal_items WHERE meal_id = ?", (meal_id,)).fetchone()
+    assert row["added_time"] == "07:42"
+    html = client.get(f"/meal/{meal_id}").text
+    assert ">Time</th>" in html and "07:42" in html
+
+    db_conn.execute("UPDATE meal_items SET added_time = NULL WHERE meal_id = ?", (meal_id,))
+    db_conn.commit()
+    assert "07:42" not in client.get(f"/meal/{meal_id}").text
+
+
+def test_now_hhmm_format() -> None:
+    import re, db as _db
+    assert re.fullmatch(r"\d\d:\d\d", _db._now_hhmm())
+
+
 def test_meal_update_item_to_zero_grams(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post(
         "/meals/create", data={"name": "Breakfast", "meal_date": "2026-07-11"},
@@ -2053,6 +2080,19 @@ def test_food_cache_delete_and_prune(client: TestClient, cached_food, db_conn) -
         "SELECT * FROM foods WHERE fdc_id = ?", (cached_food["fdcId"],)
     ).fetchone() is None
 
+
+def test_food_page_delete_button(client: TestClient, cached_food, db_conn) -> None:
+    """A food's own page offers Delete (reported 2026-11-11: UD12 could only
+    be deleted from a list). It lands on the Food Cache list naming the
+    deleted food; a still-used food is refused there as from any list."""
+    fid = cached_food["fdcId"]
+    page = client.get(f"/food/{fid}").text
+    assert "Delete this food" in page and 'name="return_to" value="food-page"' in page
+    resp = client.post("/food/cache/delete", data={"fdc_id": fid, "return_to": "food-page"},
+                       follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"].startswith("/food/cache?deleted=")
+    assert db_conn.execute("SELECT 1 FROM foods WHERE fdc_id = ?", (fid,)).fetchone() is None
+    assert f"Deleted {cached_food['name']}." in client.get(resp.headers["location"]).text
 
 def test_food_cache_add_to_pantry_button(client: TestClient, cached_food, db_conn) -> None:
     """Each Food Cache row offers "Add to pantry" until the food is in the
@@ -5262,6 +5302,51 @@ class TestCapResultsPreservingLocal:
         assert [r["name"] for r in capped] == [
             "cache 0", "cache 1", "P", "recipe 0", "recipe 1", "usda 0"]
 
+    def test_full_local_match_sends_partial_local_matches_after_external(self):
+        """Reported 2026-11-11: "jam cherry black" listed four recipes
+        matching only "black" above USDA's Black Cherry Jam foods. With a
+        local food matching every word, partial local matches go after the
+        external block (never dropped); without one, the old grouping holds."""
+        results = [{"source": "cache", "name": "Black Cherry Jam"},
+                   {"source": "recipe", "name": "Black bean meal"},
+                   {"source": "usda", "name": "BLACK CHERRY JAM"},
+                   {"source": "usda", "name": "Jams and preserves"}]
+        capped = backend._cap_results_preserving_local(results, 3, "jam cherry black")
+        assert [r["name"] for r in capped] == [
+            "Black Cherry Jam", "BLACK CHERRY JAM", "Black bean meal"]
+        weak_only = [results[1], results[2]]
+        assert [r["name"] for r in backend._cap_results_preserving_local(weak_only, 25, "jam cherry black")] == [
+            "Black bean meal", "BLACK CHERRY JAM"]
+
+    def test_meal_page_labels_partial_local_block(self, client, monkeypatch):
+        monkeypatch.setattr(backend, "_run_food_search", lambda *a, **k: [
+            {"source": "cache", "name": "Black Cherry Jam", "fdc_id": 1, "_type": "food"},
+            {"source": "usda", "name": "BLACK CHERRY JAM", "fdc_id": 2, "_type": "food"},
+            {"source": "cache", "name": "Black bean meal", "fdc_id": 3, "_type": "food"}])
+        with _db.get_db() as conn:
+            mid = _db.meal_create(conn, "all day", "2026-11-11")
+        resp = client.get(f"/meal/{mid}/search-api-results?q=jam+cherry+black")
+        assert resp.status_code == 200, resp.text[:500]
+        t = resp.text
+        assert t.index("From USDA") < t.index("Partial matches from your") < t.index("Black bean meal")
+
+
+def test_search_ranking_plural_query_word_matches_singular_name():
+    """Reported 2026-11-11: for "green onions", recipe "Hummus, green pea"
+    (matching "green") outranked cached "Green onion, (scallion) ..." because
+    "onions" didn't count as present in "onion" — both scored one word."""
+    from numa_app.services import search_ranking
+    wis = search_ranking.word_in_name
+    assert wis("onions", "green onion, (scallion), raw")
+    assert wis("tomatoes", "tomato, red") and wis("berries", "berry blend") and wis("pies", "pie, apple")
+    assert not wis("as", "apple")      # no one-letter stems
+    # and the other way: a singular word finds the plural name
+    assert wis("onion", "green onions") and wis("tomato", "tomatoes, raw")
+    assert wis("berry", "berries, mixed") and wis("cherry", "cherries, sweet")
+    q = "green onions"
+    food = search_ranking.relevance_key("Green onion, (scallion), bulb and greens, raw", q)
+    recipe = search_ranking.relevance_key("Hummus, green pea", q, "recipe")
+    assert food < recipe
 
 def test_search_ranking_matches_word_starts_not_fragments():
     """"raw" inside "strawberry" is not a match; "orange" starting "Oranges"

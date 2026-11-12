@@ -758,7 +758,7 @@ def _filter_search_results_by_source(results: list[dict], sources: list[str] | N
 _LOCAL_SEARCH_SOURCES = {"pantry", "cache", "recipe"}
 
 
-def _cap_results_preserving_local(results: list[dict], limit: int) -> list[dict]:
+def _cap_results_preserving_local(results: list[dict], limit: int, query: str = "") -> list[dict]:
     """Cap a sorted, already-source-filtered result list to `limit`, and group
     it into blocks — every local match first (recipes, pantry and Food Cache
     foods together), then external (USDA/OFF/CNF) matches — each block keeping
@@ -778,8 +778,24 @@ def _cap_results_preserving_local(results: list[dict], limit: int) -> list[dict]
     (a weak text match — no literal "daily" in the name) used to bury it,
     or drop it entirely, under dozens of branded USDA/OFF products literally
     named "Daily Vitamins".
+
+    When `query` is given and some local result matches every query word,
+    only those full local matches lead; the weaker local matches move to
+    a third block after the external results (still never dropped by the
+    cap; templates label it "Partial matches from your ..."). Reported
+    2026-11-11: "jam cherry black" put four recipes matching only "black"
+    above USDA's "Black Cherry Jam" foods, though the cached Black Cherry
+    Jam already answered the search.
     """
+    words = query.lower().split()
     local = [r for r in results if r.get("source") in _LOCAL_SEARCH_SOURCES]
+    full = [r for r in local
+            if words and all(_search_ranking.word_in_name(w, (r.get("name") or "").lower()) for w in words)]
+    if full:
+        pinned = {id(r) for r in full}
+        partial = [r for r in local if id(r) not in pinned]
+        external = [r for r in results if r.get("source") not in _LOCAL_SEARCH_SOURCES]
+        return full + external[:max(0, limit - len(local))] + partial
     if len(results) <= limit:
         return local + [r for r in results if r.get("source") not in _LOCAL_SEARCH_SOURCES]
     if not local:
@@ -3130,7 +3146,8 @@ def _run_food_search(query: str, source: list[str], limit: int, *, sort: str | N
     results = _sort_search_results(results, query, sort)
     if aa_first:
         results.sort(key=lambda r: r.get("aa") not in ("✓", "~✓"))   # stable: keeps relevance order
-    return _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit)
+    return _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit,
+                                         _strip_meta_words(query) if clean_query else query)
 
 
 # ── Search screens whose online results fill in after the page renders ──
@@ -3788,7 +3805,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
                           still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
                           blocked_fdc_id: int | None = None,
                           blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = "",
-                          impact: str = ""):
+                          impact: str = "", deleted: str = ""):
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
@@ -3835,6 +3852,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
         "show_archived": show_archived,
         "archived":      archived,
         "restored":      restored,
+        "deleted":       deleted,
         "still_used":    still_used,
         "imported":      imported,
         "impact":        _impact_pop(impact),
@@ -3871,7 +3889,9 @@ def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form("
     references it, since that would silently orphan the reference (it would
     keep pointing at an fdc_id with no data behind it, breaking that food's
     page). Use Archive instead to hide a still-referenced food. `return_to`
-    (only the Duplicate Foods page) sends a successful delete back there."""
+    (only the Duplicate Foods page) sends a successful delete back there;
+    "food-page" (the food's own page) lands on the Food Cache list with a
+    "Deleted <name>" note, since the page it came from no longer exists."""
     params = {"q": q, "sort": sort, "show_archived": show_archived}
     ajax = _is_ajax_row_action(request)
     with _db.get_db() as conn:
@@ -3894,9 +3914,13 @@ def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form("
             if refs["meals"]:
                 params["blocked_meals"] = ",".join(str(i) for i in refs["meals"])
             return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
+        deleted_row = _db.get_cached_food(conn, fdc_id)
         _db.delete_cached_food(conn, fdc_id)
     if ajax:
         return JSONResponse({"ok": True})
+    if return_to == "food-page":
+        name = deleted_row["name"] if deleted_row else ""
+        return RedirectResponse(f"/food/cache?{urlencode({'deleted': name or str(fdc_id)})}", status_code=303)
     if return_to == "/food/cache/duplicates":
         return RedirectResponse("/food/cache/duplicates?deleted=1", status_code=303)
     return RedirectResponse(f"/food/cache?{urlencode(params)}", status_code=303)
@@ -4259,12 +4283,7 @@ def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0,
             r["edit_url"] = f"/food/custom-profiles/{r['fdc_id']}/edit" if custom else None
             r["fill_url"] = (f"/food/custom-profiles/{r['fdc_id']}/edit?" + urlencode({"nutrient_source_q": name})
                              if custom else f"/food/{r['fdc_id']}/fill-from?" + urlencode({"q": name}))
-        fixed_food = None
-        if fixed:
-            _f = _db.get_cached_food(conn, fixed)
-            if _f:
-                fixed_food = {"fdc_id": fixed, "name": _f["name"],
-                              "corrections": _db.food_corrections(conn, fixed)[:1]}
+        fixed_food = _fixed_food(conn, fixed)
         missing_portions = _data_quality.missing_portions_in_use(conn)
         missing_gi = [] if _gi_opt_out() else _data_quality.missing_gi_in_use(conn)
         gi_not_needed = [] if _gi_opt_out() else _data_quality.gi_not_needed(conn)
@@ -4466,6 +4485,56 @@ def food_cache_fix_stale_amounts(item: list[str] = Form(default=[]),
                             status_code=303)
 
 
+def _food_problems(conn, fdc_id: int | None = None) -> list[dict]:
+    """data_quality.problems_by_food() with this install's settings: Foods →
+    9's chosen nutrient groups, GI opt-out, water tracking."""
+    return _data_quality.problems_by_food(
+        conn, checked_groups=_load_prefs_file().get("data_check_groups", _data_completeness.DEFAULT_CHECKED),
+        gi_opt_out=_gi_opt_out(), track_water=_track_water(), fdc_id=fdc_id)
+
+
+_PROBLEM_SORTS = {"problems", "used", "name"}
+
+
+def _fixed_food(conn, fdc_id: int) -> dict | None:
+    """The just-corrected food and its newest correction, for the
+    "Corrected …" note after a one-click fix (data-fix)."""
+    if not fdc_id:
+        return None
+    food = _db.get_cached_food(conn, fdc_id)
+    if not food:
+        return None
+    return {"fdc_id": fdc_id, "name": food["name"], "corrections": _db.food_corrections(conn, fdc_id)[:1]}
+
+
+@app.get("/food/cache/problems", response_class=HTMLResponse)
+def food_cache_problems_get(request: Request, show_all: bool | None = None, sort: str = "",
+                            fixed: int = 0, fix_stale: int = 0):
+    """Problems by food: every Foods → 9 check's findings, one entry per
+    food (data_quality.problems_by_food). By default only foods with at
+    least one problem; show_all adds foods with only suggestions or notes.
+    fixed / fix_stale: the outcome of a one-click fix made here (data-fix)."""
+    show_all = _resolve_bool_pref(show_all, "problems_by_food_show_all")
+    sort = _resolve_sort(sort or None, "sort_problems_by_food", "problems", _PROBLEM_SORTS)
+    with _db.get_db() as conn:
+        rows = _food_problems(conn)
+        fixed_food = _fixed_food(conn, fixed)
+    total_foods = len(rows)
+    with_problems = sum(1 for r in rows if r["problem_count"])
+    if not show_all:
+        rows = [r for r in rows if r["problem_count"]]
+    if sort == "used":
+        rows.sort(key=lambda r: (-r["use"]["total"], -r["problem_count"], r["name"].lower()))
+    elif sort == "name":
+        rows.sort(key=lambda r: r["name"].lstrip("* ").lower())
+    return templates.TemplateResponse(request, "food_cache_problems.html", {
+        "rows": rows, "show_all": show_all, "sort": sort,
+        "total_foods": total_foods, "with_problems": with_problems,
+        "improvement_only": total_foods - with_problems,
+        "fixed_food": fixed_food, "fix_stale": fix_stale,
+    })
+
+
 @app.get("/food/cache/duplicates", response_class=HTMLResponse)
 def food_cache_duplicates(request: Request, show_dismissed: int = 0, merged: int = 0,
                                 dismissed: int = 0, impact: str = "", copied: int = 0,
@@ -4590,10 +4659,12 @@ def food_cache_duplicates_pantry(fdc_id: int = Form(...)):
 
 
 @app.post("/food/cache/duplicates/dismiss", response_class=RedirectResponse)
-def food_cache_duplicates_dismiss(group_key: str = Form(...)):
+def food_cache_duplicates_dismiss(group_key: str = Form(...), next: str = Form(default="")):
+    """Mark a duplicate group "not duplicates". `next` (a local path) returns
+    elsewhere — the Problems by food page or a food's own page."""
     with _db.get_db() as conn:
         _db.dismiss_duplicate_group(conn, group_key)
-    return RedirectResponse("/food/cache/duplicates?dismissed=1", status_code=303)
+    return RedirectResponse(_local_next(next, "/food/cache/duplicates?dismissed=1"), status_code=303)
 
 
 @app.post("/food/{fdc_id}/data-ignore", response_class=RedirectResponse)
@@ -4601,12 +4672,17 @@ def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1)
                            next: str = Form(default="")):
     """Mark (or unmark) one nutrient group not needed for this food, from
     its own page. Also takes data_quality.CALORIES_OK_KEY, "these calories
-    are right", from the food's data-problem note. `next` (a local path)
-    returns to the page the button was on — a meal's or recipe's Missing
-    Amino Acid Profiles section."""
-    if group in _data_completeness.GROUP_LABELS or group == _data_quality.CALORIES_OK_KEY:
-        with _db.get_db() as conn:
-            if _db.get_cached_food(conn, fdc_id):
+    are right", from the food's data-problem note; PORTIONS_IGNORE_KEY (no
+    portion weights needed); and "gi", the food's GI "don't prompt me" flag,
+    as the Foods → 9 lists save them — all three from Problems by food.
+    `next` (a local path) returns to the page the button was on — a meal's
+    or recipe's Missing Amino Acid Profiles section, Problems by food."""
+    with _db.get_db() as conn:
+        if _db.get_cached_food(conn, fdc_id):
+            if group == "gi":
+                _db.upsert_food_annotation(conn, fdc_id, gi_no_prompt=1 if ignored else 0)
+            elif (group in _data_completeness.GROUP_LABELS or group == _data_quality.CALORIES_OK_KEY
+                  or group == _data_quality.PORTIONS_IGNORE_KEY):
                 _db.set_food_data_ignore(conn, fdc_id, group, bool(ignored))
     if next.startswith("/") and not next.startswith("//") and "\\" not in next:
         return RedirectResponse(next, status_code=303)
@@ -4614,17 +4690,24 @@ def food_data_ignore(fdc_id: int, group: str = Form(...), ignored: int = Form(1)
 
 
 @app.post("/food/{fdc_id}/data-fix", response_class=RedirectResponse)
-def food_data_fix(fdc_id: int, fix: str = Form(...)):
+def food_data_fix(fdc_id: int, fix: str = Form(...), next: str = Form(default="")):
     """Apply one of Foods → 9's one-click fixes for a food data problem
     (data_quality.apply_fix: worked out again from the food as it is now,
     logged with its reason), then recalculate whatever uses the food.
     Returns to the list with a note saying what changed; fix_stale=1 when
-    the problem had already gone or changed, so nothing was written."""
+    the problem had already gone or changed, so nothing was written.
+    `next` (a local path, with any #anchor) returns somewhere else — the
+    Problems by food page or the food's own page — with the same query."""
     with _db.get_db() as conn:
         applied = _data_quality.apply_fix(conn, fdc_id, fix)
         if applied:
             _recipe_dcp.cascade_food_change(fdc_id, conn)
     query = f"fixed={fdc_id}" if applied else "fix_stale=1"
+    target = _local_next(next, "")
+    if target:
+        path, _, anchor = target.partition("#")
+        return RedirectResponse(f"{path}{'&' if '?' in path else '?'}{query}" + (f"#{anchor}" if anchor else ""),
+                                status_code=303)
     return RedirectResponse(f"/food/cache/db-check?{query}#calories", status_code=303)
 
 
@@ -5945,7 +6028,9 @@ def food_detail(
     ctx["incoming_applied"] = request.query_params.get("incoming_applied", "")
     ctx["impact"] = _impact_pop(request.query_params.get("impact", ""))
     with _db.get_db() as conn:
-        ctx["quality_issues"] = _data_quality.issues_for_food(conn, fdc_id)
+        ctx["food_problems"] = next(iter(_food_problems(conn, fdc_id)), None)
+        ctx["fixed_food"] = _fixed_food(conn, fdc_id) if request.query_params.get("fixed") == str(fdc_id) else None
+        ctx["fix_stale"] = request.query_params.get("fix_stale") == "1"
         ctx["calories_ok"] = _data_quality.CALORIES_OK_KEY in _db.food_data_ignores(conn).get(fdc_id, set())
         ctx["your_changes"] = _your_changes(conn, fdc_id)
         ctx["corrections"] = _db.food_corrections(conn, fdc_id)
@@ -7100,6 +7185,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "unit":      "g",
                 "typed_unit": row["unit"],
                 "notes":     row["notes"] or "",
+                "added_time": row["added_time"] or "",
                 "has_nuts":  bool(nuts_100g),
                 "portions":  portions,
             })
@@ -7142,6 +7228,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 # "grams"/"serving_g"/"serving_changed" are filled in by
                 # _annotate_recipe_amounts() below.
                 "notes":          row["notes"] or "",
+                "added_time":     row["added_time"] or "",
                 "has_nuts":       bool(per_serving),
                 "recipe_deleted": recipe is None,
                 "item_type":      "recipe",

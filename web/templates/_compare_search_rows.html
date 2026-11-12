@@ -1,11 +1,15 @@
 {# Compare's "add a food or recipe" result rows — rendered by /compare (local
    matches) and by /search-rows/compare (full merged set, replacing the tbody). #}
-      {% set ns = namespace(seen_local=false, divider_shown=false) %}
+      {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
       {% for r in search_results %}
         {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
         {% if not is_local_source(r.source) and ns.seen_local and not ns.divider_shown %}
       <tr class="search-group-divider"><td colspan="6"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
         {% set ns.divider_shown = true %}
+        {% endif %}
+        {% if is_local_source(r.source) and ns.divider_shown and not ns.partial_shown %}
+      <tr class="search-group-divider"><td colspan="6"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
+        {% set ns.partial_shown = true %}
         {% endif %}
       <tr data-row-key="{{ 'recipe:%s' % r.recipe_id if r._type == 'recipe' else 'food:%s' % r.fdc_id }}">
         {% if r._type == "recipe" %}
