@@ -1,0 +1,35 @@
+{# A list row's own Complete / Drink checkbox (Recipes list, Foods search):
+   saved in place by base.html's js-row-toggle script — the box simply stays
+   as ticked. Without the script a plain submit returns to the list (`next`,
+   filled in by that script, else the item's own page). #}
+{# text: a visible label beside the box (the add-ingredient / meal / pantry
+   searches, which have no Complete/Drink columns). #}
+{% macro box(action, field, checked, label, title, text="") %}
+<form method="post" action="{{ action }}" class="js-row-toggle {% if text %}d-inline-block me-2{% else %}m-0{% endif %}">
+  <input type="hidden" name="next" value="">
+  {% if text %}<label class="row-toggle-label" title="{{ title }}">{% endif %}
+  <input type="checkbox" class="form-check-input" name="{{ field }}" value="1"
+         {% if checked %}checked{% endif %} onchange="this.form.requestSubmit()"
+         aria-label="{{ label }}" title="{{ title }}">
+  {% if text %} {{ text }}</label>{% endif %}
+</form>
+{% endmacro %}
+
+{% macro complete_box(recipe_id, checked, name, text="") %}{{ box("/recipe/%s/complete" % recipe_id, "complete", checked,
+  name ~ " is complete",
+  "Complete (same as Edit Recipe's \"Mark recipe as complete\"): tick or untick to change; saved at once", text) }}{% endmacro %}
+
+{% macro drink_box(action, checked, name, text="") %}{{ box(action, "is_drink", checked,
+  name ~ " is a drink",
+  "A drink: its water counts as water from drinks in your totals. Tick or untick to change; saved at once", text) }}{% endmacro %}
+
+{# The labeled boxes under a search result's name: a recipe gets Complete and
+   Drink, a food of your own Drink; an online result not saved yet, none. #}
+{% macro labeled(food) %}
+{%- if food._type == "recipe" -%}
+<div class="row-toggles">{{ complete_box(food.recipe_id, food.complete, food.name, "Complete") }}
+  {%- if track_water() %}{{ drink_box("/recipe/%s/drink" % food.recipe_id, food.is_drink, food.name, "Drink") }}{% endif %}</div>
+{%- elif track_water() and food.is_drink is defined and food.fdc_id -%}
+<div class="row-toggles">{{ drink_box("/food/%s/drink" % food.fdc_id, food.is_drink, food.name, "Drink") }}</div>
+{%- endif -%}
+{% endmacro %}

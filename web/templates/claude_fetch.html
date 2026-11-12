@@ -45,6 +45,7 @@
 If all you want is the number, read it (and where it came from) in Claude&rsquo;s reply and type it into the
 food&rsquo;s Annotate page yourself. Or import the reply as below, which saves it there for you
 (an import only fills a blank GI unless you tell it to replace the one saved).</p>
+<p><a href="/food/annotate/{{ selected[0][0] }}" class="btn btn-sm btn-outline-secondary">&larr; Back to this food&rsquo;s Annotate page</a></p>
 {% else %}
 <p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below. It asks only
 for the values each food is missing, so importing the reply fills gaps without touching values you already have:</p>

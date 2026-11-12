@@ -214,7 +214,7 @@
    markup shape. flex-start makes every child size to its own content. #}
 <div class="d-flex flex-wrap align-items-start gap-2 mb-3">
   <a href="/recipe/{{ recipe.id }}/edit" class="btn btn-sm btn-outline-primary">Edit recipe</a>
-  <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / save recipe</a>
+  <a href="/recipe/{{ recipe.id }}/print" class="btn btn-sm btn-outline-secondary">Print / save recipe</a>
   <a href="/recipe/{{ recipe.id }}/export.csv" class="btn btn-sm btn-outline-secondary"
      title="Download this recipe as a CSV bundle — includes every sub-recipe and food ingredient's full data, ready to hand to someone else">Export CSV</a>
   <a href="/recipe/{{ recipe.id }}/translate" class="btn btn-sm btn-outline-secondary"
@@ -250,7 +250,7 @@
   Translations:
   {% for t in translations %}
   <span data-row>{{ t.language }}
-  (<a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print" target="_blank">Print</a>,
+  (<a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print">Print</a>,
   <form method="post" action="/recipe/{{ recipe.id }}/translation/{{ t.id }}/delete"
         class="d-inline js-row-remove" onsubmit="return confirm('Remove this translation?')">
     <button type="submit" class="btn btn-outline-danger btn-sm py-0 align-baseline">Remove</button>

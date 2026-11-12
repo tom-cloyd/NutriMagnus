@@ -56,7 +56,7 @@ def check_adjacent_footnotes(raw: str) -> list[tuple[int, str]]:
     ]
 
 # "Search terms" lines: extra words a reader might search for that a section
-# doesn't itself use (see CLAUDE.md, "Search terms lines"). One per line,
+# doesn't itself use (see docs/claude/manual-search-terms.md). One per line,
 # exactly "*Search terms: a, b, c.*". The build turns each into a hidden
 # <span class="search-terms">: invisible on the page, still in the section's
 # textContent, which is what the sidebar search indexes. A line that starts
@@ -588,6 +588,15 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
     font-size: 12.5px;
 }
 #search-results a:hover { background: var(--accent-light); color: var(--accent); }
+/* Keyboard focus drawn INSIDE the link: the list scrolls (overflow), which
+   clips a normal outside focus ring — on the first result it was cut off
+   almost entirely, so tabbing seemed to skip it. */
+#search-results a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+    background: var(--accent-light);
+    color: var(--accent);
+}
 #search-nav {
     display: flex;
     align-items: center;
@@ -798,11 +807,23 @@ JS = """\
     });
   }
 
-  function scrollToMark(i) {
+  function scrollToMark(i, keepHeading) {
     sectionMatches.forEach(function (m, j) {
       m.className = j === i ? 'search-hit search-current' : 'search-hit';
     });
-    if (sectionMatches[i]) sectionMatches[i].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    /* keepHeading: just opened a result. If the match fits on screen with
+       the section heading at the top, leave the heading there, so the
+       breadcrumb and sidebar name the section that was picked. (Centering
+       the match pushed the heading mid-screen, and both named the section
+       above it instead.) */
+    var m = sectionMatches[i];
+    if (m && keepHeading && openSection) {
+      var gap = m.getBoundingClientRect().top - openSection.el.getBoundingClientRect().top;
+      if (gap < window.innerHeight * 0.7) m = null;
+    }
+    /* Jumps, never smooth scrolls: a long smooth glide could still be under
+       way, or be cut short, when the reader looks. */
+    if (m) m.scrollIntoView({ behavior: 'auto', block: 'center' });
     setCount(sectionMatches.length ? (i + 1) + ' / ' + sectionMatches.length + ' in this section' : 'no matches in this section');
   }
 
@@ -817,9 +838,9 @@ JS = """\
       var pos = a.compareDocumentPosition(b);
       return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
     });
-    openSection.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    openSection.el.scrollIntoView({ behavior: 'auto', block: 'start' });
     idx = 0;
-    if (sectionMatches.length) scrollToMark(0);
+    if (sectionMatches.length) scrollToMark(0, true);
     else if (openSection.el.parentNode && roots.some(function (r) { return r.querySelector && r.querySelector('.search-terms'); }))
       setCount('this section is listed under that search');
     else setCount('no matches in this section');
@@ -1228,7 +1249,11 @@ JS = """\
     function update() {
       var activeId = headings[0].id;
       for (var i = 0; i < headings.length; i++) {
-        if (headings[i].getBoundingClientRect().top <= OFFSET) {
+        /* A jump parks a heading at its own scroll-margin-top, which is
+           over OFFSET when its breadcrumb trail wraps — so the line is
+           whichever is lower, or the heading jumped to wouldn't count. */
+        var line = Math.max(OFFSET, (parseFloat(headings[i].style.scrollMarginTop) || 0) + 4);
+        if (headings[i].getBoundingClientRect().top <= line) {
           activeId = headings[i].id;
         } else {
           break;
@@ -1498,7 +1523,9 @@ HTML_TEMPLATE = """\
       <input type="checkbox" id="search-word-mode">
       Whole words only
     </label>
-    <ul id="search-results"></ul>
+    <!-- tabindex=-1: Firefox makes a scrolling box a Tab stop of its own, so
+         Tab landed on the list (not its first result) and Enter did nothing. -->
+    <ul id="search-results" tabindex="-1"></ul>
     <div id="search-nav">
       <span id="search-count"></span>
       <button class="search-btn" id="btn-prev" title="Previous match in open section (Shift+Enter)">&#x25B2;</button>

@@ -111,7 +111,7 @@
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <h2 class="mb-0">Full Day — {{ meal_date }}{% if meal_date == today %} <small class="muted">(today)</small>{% endif %}</h2>
   {% if meals %}
-  <a href="{{ day_url }}/print" class="btn btn-sm btn-outline-secondary" target="_blank">Print / Save as PDF</a>
+  <a href="{{ day_url }}/print" class="btn btn-sm btn-outline-secondary">Print / Save as PDF</a>
   <form method="post" action="/meals/delete-day" style="margin:0"
         onsubmit="return confirm('Delete every meal on {{ meal_date }}? This cannot be undone.')">
     <input type="hidden" name="meal_date" value="{{ meal_date }}">

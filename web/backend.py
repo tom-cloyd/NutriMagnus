@@ -1608,9 +1608,10 @@ templates.env.globals["food_id_tag"] = _food_id_tag
 
 
 def _item_link(name: str, fdc_id: int | None = None, recipe_id: int | None = None) -> str:
-    """A suggested food's or recipe's name, linked to its page (opened in a
-    new tab, so the analysis it was suggested in stays as it was). A generic
-    estimate from the built-in complement table has no page: plain name."""
+    """A suggested food's or recipe's name, linked to its page — in NuMa's
+    own window (Back returns to the analysis; a new tab from NuMa's app
+    window would open in the system browser). A generic estimate from the
+    built-in complement table has no page: plain name."""
     from markupsafe import Markup, escape
     if recipe_id:
         href = f"/recipe/{int(recipe_id)}"
@@ -1618,8 +1619,7 @@ def _item_link(name: str, fdc_id: int | None = None, recipe_id: int | None = Non
         href = f"/food/{int(fdc_id)}"
     else:
         return escape(name)
-    return Markup(f'<a href="{href}" target="_blank" rel="noopener" '
-                  f'title="Open in a new tab">{escape(name)}</a>')
+    return Markup(f'<a href="{href}">{escape(name)}</a>')
 
 
 templates.env.globals["item_link"] = _item_link
@@ -2949,6 +2949,9 @@ def _recipe_search_rows(recipes: list) -> list[dict]:
             "diaas":             None,
             "notes":             r["notes"] or "",
             "has_notes":         bool(r["notes"]),
+            # The Foods search's Complete / Drink boxes (recipe rows have both).
+            "complete":          bool(r["complete"]),
+            "is_drink":          bool(r["is_drink"]),
         })
     return results
 
@@ -2974,6 +2977,7 @@ def _cached_search_rows(cached: list, annotations: dict, pantry_id_by_fdc: dict)
             "diaas":     f"{ann['diaas_estimate']:.2f}" if ann and ann["diaas_estimate"] is not None else "",
             "notes":     row["notes"] or "",
             "has_notes": bool(row["notes"]),
+            "is_drink":  bool(row["is_drink"]),   # the Foods search's Drink box
         })
     return results
 
@@ -3016,7 +3020,7 @@ def _code_search_results(query: str) -> list[dict] | None:
         else:
             food = conn.execute(
                 "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-                "portions_json, notes, nutrients_json, archived FROM foods WHERE fdc_id = ?",
+                "portions_json, notes, nutrients_json, archived, is_drink FROM foods WHERE fdc_id = ?",
                 (item_id,)).fetchone()
             if food is None:
                 return None
@@ -3068,7 +3072,7 @@ def _barcode_search_results(digits: str, *, online: bool = True) -> tuple[list[d
     with _db.get_db() as conn:
         food = conn.execute(
             "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-            "portions_json, notes, nutrients_json, archived FROM foods WHERE fdc_id = ?",
+            "portions_json, notes, nutrients_json, archived, is_drink FROM foods WHERE fdc_id = ?",
             (fdc_id,)).fetchone()
         rows = _cached_search_rows([food], _db.annotations_for_fdcids(conn, [fdc_id]),
                                    _pantry_id_by_fdc(conn))
@@ -4123,7 +4127,7 @@ async def food_cache_import_csv_post(request: Request,
 
 
 @app.post("/food/{fdc_id}/drink", response_class=RedirectResponse)
-def food_set_drink(fdc_id: int, is_drink: int = Form(0), next: str = Form("")):
+def food_set_drink(request: Request, fdc_id: int, is_drink: int = Form(0), next: str = Form("")):
     """Mark a food as a drink or not — moves its water between "from drinks"
     and "from food" in every recipe and meal that uses it. From the food's
     page, or a row of Analysis → Food use in meals (`next`)."""
@@ -4138,6 +4142,8 @@ def food_set_drink(fdc_id: int, is_drink: int = Form(0), next: str = Form("")):
             if est is not None and _db.fill_source_nutrient(conn, fdc_id, _water.WATER_KEY, est):
                 _db.update_estimated_keys(conn, fdc_id, add={_water.WATER_KEY})
             _recipe_dcp.cascade_food_change(fdc_id, conn)
+    if _is_ajax_row_action(request):   # the Foods search's Drink box, saved in place
+        return JSONResponse({"ok": bool(row)})
     return RedirectResponse(_local_next(next, f"/food/{fdc_id}#drink-toggle"), status_code=303)
 
 
@@ -10856,15 +10862,33 @@ def recipe_delete_post(request: Request, recipe_id: int, next: str = Form("")):
 
 
 @app.post("/recipe/{recipe_id}/drink", response_class=RedirectResponse)
-def recipe_set_drink(recipe_id: int, is_drink: int = Form(0), next: str = Form("")):
+def recipe_set_drink(request: Request, recipe_id: int, is_drink: int = Form(0), next: str = Form("")):
     """Mark a whole recipe as a drink or not (all its water counts as water
     from drinks) — then refresh its saved nutrients and the recipes and
-    meals built on it."""
+    meals built on it. Also the Recipes list's Drink box (in place, JSON)."""
+    found = False
     with _db.get_db() as conn:
         if _db.recipe_get(conn, recipe_id):
+            found = True
             _db.set_recipe_is_drink(conn, recipe_id, bool(is_drink))
             _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": found})
     return RedirectResponse(_local_next(next, f"/recipe/{recipe_id}#drink-toggle"), status_code=303)
+
+
+@app.post("/recipe/{recipe_id}/complete", response_class=RedirectResponse)
+def recipe_set_complete(request: Request, recipe_id: int, complete: str = Form(""), next: str = Form("")):
+    """The Recipes list's Complete box: the same flag as Edit Recipe's "Mark
+    recipe as complete". Saved in place (JSON) from the list."""
+    found = False
+    with _db.get_db() as conn:
+        if _db.recipe_get(conn, recipe_id):
+            found = True
+            _db.set_recipe_complete(conn, recipe_id, bool(complete))
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": found})
+    return RedirectResponse(_list_return(next, "/recipes"), status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/cooked-water", response_class=RedirectResponse)

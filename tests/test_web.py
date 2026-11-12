@@ -5227,6 +5227,45 @@ def test_recipes_list_has_compare_checkbox_and_form(client: TestClient, db_conn)
     assert "Compare nutrition of selected (up to 8)" in resp.text
 
 
+def test_recipes_list_complete_and_drink_boxes_show_and_save_in_place(
+    client: TestClient, db_conn
+) -> None:
+    """Every row of the Recipes list (a filtered list too) has a Complete
+    and a Drink checkbox showing the recipe's state; ticking one saves at
+    once through base.html's js-row-toggle fetch (X-Numa-Ajax -> JSON)."""
+    db_conn.execute("INSERT INTO recipes (name, servings, complete, is_drink) VALUES ('Cocoa', 1, 1, 1)")
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Stew', 1)")
+    db_conn.commit()
+    cocoa, stew = (db_conn.execute("SELECT id FROM recipes WHERE name = ?", (n,)).fetchone()["id"]
+                   for n in ("Cocoa", "Stew"))
+
+    page = client.get("/recipes", params={"q": "cocoa"}).text
+    for action, field in (("complete", "complete"), ("drink", "is_drink")):
+        assert f'action="/recipe/{cocoa}/{action}" class="js-row-toggle' in page
+        box = page.split(f'action="/recipe/{cocoa}/{action}"')[1].split("</form>")[0]
+        assert f'name="{field}"' in box and "checked" in box
+
+    resp = client.post(f"/recipe/{stew}/complete", data={"complete": "1"}, headers={"X-Numa-Ajax": "1"})
+    assert resp.json() == {"ok": True}
+    resp = client.post(f"/recipe/{stew}/drink", data={"is_drink": "1"}, headers={"X-Numa-Ajax": "1"})
+    assert resp.json() == {"ok": True}
+    row = db_conn.execute("SELECT complete, is_drink FROM recipes WHERE id = ?", (stew,)).fetchone()
+    assert (row["complete"], row["is_drink"]) == (1, 1)
+
+    # An unticked box sends nothing for its field: that clears it.
+    client.post(f"/recipe/{cocoa}/complete", data={}, headers={"X-Numa-Ajax": "1"})
+    client.post(f"/recipe/{cocoa}/drink", data={}, headers={"X-Numa-Ajax": "1"})
+    row = db_conn.execute("SELECT complete, is_drink FROM recipes WHERE id = ?", (cocoa,)).fetchone()
+    assert (row["complete"], row["is_drink"]) == (0, 0)
+
+    # Without the script, a plain submit returns to the same filtered list.
+    resp = client.post(f"/recipe/{cocoa}/complete",
+                       data={"complete": "1", "next": "/recipes?q=cocoa"}, follow_redirects=False)
+    assert resp.headers["location"] == "/recipes?q=cocoa"
+    assert client.post("/recipe/999999/complete", data={"complete": "1"},
+                       headers={"X-Numa-Ajax": "1"}).json() == {"ok": False}
+
+
 def test_food_search_has_compare_checkboxes_for_foods_and_recipes(
     client: TestClient, cached_food, db_conn
 ) -> None:
@@ -5240,6 +5279,82 @@ def test_food_search_has_compare_checkboxes_for_foods_and_recipes(
     assert 'id="compare-form"' in resp.text
     assert f'form="compare-form" name="fdc_id" value="{cached_food["fdcId"]}"' in resp.text
     assert 'form="compare-form" name="recipe_id"' in resp.text
+
+
+def test_food_search_complete_and_drink_boxes(client: TestClient, cached_food, db_conn) -> None:
+    """Foods search: a recipe row has a Complete and a Drink box, a food of
+    your own a Drink box only (foods are never "complete"); both show the
+    current setting, and a food's box saves in place (X-Numa-Ajax -> JSON)."""
+    fid, name = cached_food["fdcId"], cached_food["name"]
+    db_conn.execute("INSERT INTO recipes (name, servings, complete, is_drink) VALUES (?, 1, 1, 0)", (name,))
+    db_conn.commit()
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = ?", (name,)).fetchone()["id"]
+
+    page = client.get("/food/search", params={"query": name}).text
+    def box(action):
+        assert f'action="{action}" class="js-row-toggle' in page, action
+        return page.split(f'action="{action}"')[1].split("</form>")[0]
+    assert "checked" in box(f"/recipe/{rid}/complete")
+    assert "checked" not in box(f"/recipe/{rid}/drink")
+    assert "checked" not in box(f"/food/{fid}/drink")
+    assert f'action="/food/{fid}/complete"' not in page
+
+    resp = client.post(f"/food/{fid}/drink", data={"is_drink": "1"}, headers={"X-Numa-Ajax": "1"})
+    assert resp.json() == {"ok": True}
+    assert db_conn.execute("SELECT is_drink FROM foods WHERE fdc_id = ?", (fid,)).fetchone()["is_drink"] == 1
+    page = client.get("/food/search", params={"query": name}).text
+    assert "checked" in box(f"/food/{fid}/drink")
+    assert client.post("/food/999999999/drink", data={"is_drink": "1"},
+                       headers={"X-Numa-Ajax": "1"}).json() == {"ok": False}
+
+
+def test_add_searches_have_labeled_complete_and_drink_boxes(
+    client: TestClient, cached_food, db_conn, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The add-an-ingredient, add-to-a-meal and My Pantry searches show the
+    same instant-save boxes, labeled under each result's name: Complete and
+    Drink on a recipe, Drink on a food of your own (pantry has no recipes)."""
+    _mock_api(monkeypatch)
+    fid, name = cached_food["fdcId"], cached_food["name"]
+    db_conn.execute("INSERT INTO recipes (name, servings, complete, is_drink) VALUES (?, 1, 1, 1)", (name,))
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Host', 1)")
+    meal_id = db_conn.execute("INSERT INTO meals (name, meal_date) VALUES ('Lunch', '2026-01-01')").lastrowid
+    db_conn.commit()
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = ?", (name,)).fetchone()["id"]
+    host = db_conn.execute("SELECT id FROM recipes WHERE name = 'Host'").fetchone()["id"]
+    src = {"source": ["cache", "recipe"]}
+
+    def box(page, action):
+        assert f'action="{action}" class="js-row-toggle' in page, action
+        return page.split(f'action="{action}"')[1].split("</form>")[0]
+
+    for page in (client.get("/search-rows/recipe", params={"q": name, "id": host, **src}).text,
+                 client.get(f"/meal/{meal_id}/search-api-results", params={"q": name, **src}).text):
+        assert "checked" in box(page, f"/recipe/{rid}/complete") and "Complete</label>" in page
+        assert "checked" in box(page, f"/recipe/{rid}/drink")
+        assert "checked" not in box(page, f"/food/{fid}/drink") and "Drink</label>" in page
+        assert f'action="/food/{fid}/complete"' not in page
+    pantry = client.get("/search-rows/pantry", params={"search": name, "source": "cache"}).text
+    assert "checked" not in box(pantry, f"/food/{fid}/drink")
+
+
+def test_numa_links_stay_in_numas_window() -> None:
+    """No link or form to a NuMa page opens a new window/tab (Print / Save
+    pages, Food Search from What-if, Annotate's Claude GI prompt, suggested
+    foods): from NuMa's app window, target="_blank" handed the page to the
+    system's default browser with no word of warning. Each such page has a
+    Back button or link. Outside sites (GitHub, claude.ai) still open in
+    the browser, since NuMa's window can't show them."""
+    import re
+    tpl_dir = pathlib.Path(__file__).parent.parent / "web" / "templates"
+    sources = [(t.name, t.read_text(encoding="utf-8")) for t in tpl_dir.glob("*.html")]
+    sources.append(("backend.py", (pathlib.Path(__file__).parent.parent / "web" / "backend.py").read_text(encoding="utf-8")))
+    offenders = []
+    for name, text in sources:
+        for tag in re.findall(r"<(?:a|form)\b[^>]*>", text):
+            if re.search(r'(?:href|action)="/', tag) and "_blank" in tag:
+                offenders.append(f"{name}: {tag}")
+    assert not offenders, offenders
 
 
 class TestCapResultsPreservingLocal:
@@ -8453,7 +8568,7 @@ def test_item_link_links_suggested_foods_and_recipes():
     """Complement suggestions and DIAAS boosters link each name to its page,
     in a new tab; a generic estimate (no id) stays plain text."""
     assert backend._item_link("Lentils", 172420) == (
-        '<a href="/food/172420" target="_blank" rel="noopener" title="Open in a new tab">Lentils</a>')
+        '<a href="/food/172420">Lentils</a>')
     assert 'href="/recipe/21"' in backend._item_link("Lentil soup", None, 21)
     assert 'href="/recipe/21"' in backend._item_link("Lentil soup", 0, 21)
     assert backend._item_link("Hemp seeds", None, None) == "Hemp seeds"
@@ -9013,6 +9128,8 @@ def test_claude_fetch_gi_only(client: TestClient, cached_food, db_conn) -> None:
     assert "also wanted: gi (rule 10)" in resp.text
     assert "provide only: no nutrient keys" in resp.text
     assert 'name="gi_diaas"' not in resp.text
+    # Opened in NuMa's own window now, so it links back to the Annotate page.
+    assert f'href="/food/annotate/{fid}"' in resp.text
     page = client.get(f"/food/annotate/{fid}")
     assert 'id="gi-claude-form"' in page.text and 'name="gi_only"' in page.text
 

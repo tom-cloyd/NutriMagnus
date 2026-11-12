@@ -1,5 +1,6 @@
 {# My Pantry search-result rows — rendered by /pantry (local results) and by
    /search-rows/pantry (full merged set, which replaces the tbody). #}
+{% import "_row_toggles.html" as _rt %}
     {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
     {% for r in search_results %}
       {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
@@ -29,6 +30,7 @@
             Copy as custom-food draft
           </button>
         </form>
+        {{ _rt.labeled(r) }}
       </td>
       <td class="muted">{{ r.brand or "—" }}</td>
       <td class="muted">{{ food_type(r) }}</td>

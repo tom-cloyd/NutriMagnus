@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-12:0501* / Reading time: 9 hours, 2 minutes
+*Updated 2026-11-12:0653* / Reading time: 9 hours, 6 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -498,7 +498,7 @@ In addition, the following internal data sources are used:
 
 ## Part 3 — Using the Web App
 
-*(Reading time: 53 minutes)*
+*(Reading time: 54 minutes)*
 
 NuMa's web app runs through your ordinary browser, normally in a window of its own (see [Browser to Launch](#browser-to-launch)). This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
@@ -537,6 +537,9 @@ If you'd rather use the keyboard, each nav item has a shortcut — hold **Alt+Sh
 - **In NuMa's own window** (Chrome, Chromium, Brave, Edge or Vivaldi), NuMa closes the window itself on the KDE desktop. Elsewhere the browser may not let a page close its own window; then the page says "NuMa has stopped" and you close it.
 - **On a Mac,** use `Ctrl+Q`, not `Cmd+Q`, which quits the browser.
 
+<span id="search-keys"></span>
+**Moving through search results from the keyboard.** After a search, the first result is ready for you, outlined in red (on a meal's or recipe's add search, its amount box). Press `↓` and `↑` to move that outline from result to result, and `Enter` to open the one you're on. When you come back (`Alt+←` or Back), the outline is on that same result again, so you can carry on down the list. This works in every search list in NuMa.
+
 Most detail pages (a food, a recipe, a meal) show a collapsible outline down the side — click a heading there to jump straight to that section. Forms that have unsaved changes light up their Save button — solid blue, bold white text, red border, the same as a Search button with something typed in it — with "Unsaved changes" beside it, so you can tell at a glance whether you've edited something, and the browser will warn you before you navigate away from an unsaved form. On the pages with a substantial edit form — Edit Recipe, a meal, Edit Custom Profile, Annotate a Food — NuMa goes further, with the "Data-entered safety" note at the top of each: click a link elsewhere in NuMa with unsaved edits and NuMa offers to save them for you first, or to leave without saving, or to stay and keep editing. On Edit Custom Profile, Edit Recipe and a meal page, running a search (or re-sorting its results) while you have unsaved edits saves them for you first, and a note at the top of the results offers to undo that save. (Closing or refreshing the browser tab is the one case NuMa can't step into — only your browser's own "leave this page?" warning appears there, so save first if you're closing the tab.)
 
 #### Search boxes remember your last search {: #search-memory}
@@ -555,9 +558,11 @@ The main navigation bar goes further than any one page: clicking **Recipes**, **
 
 #### Working in two windows {: #two-windows}
 
-*Search terms: new tab, second window, side by side, ctrl click, middle click, browser tab.*
+*Search terms: new tab, second window, side by side, ctrl click, middle click, browser tab, print page, opens in Chromium, default browser.*
 
 NuMa's own window has no tabs, but you can still have two NuMa pages open at once, for example a recipe next to the Food Cache, or two days to compare. **Hold `Ctrl` and click any NuMa link** (or click it with the middle mouse button, or `Shift`+click it). That page opens in an ordinary browser tab, outside NuMa's window, while NuMa's window stays where it was.
+
+Otherwise every NuMa link and button, **Print / Save** included, opens in NuMa's own window, and the page it opens has a **Back** button or link (or press `Alt+←`). Only links to outside websites, such as claude.ai or GitHub, open in your browser, since NuMa's window can't show them.
 
 - **Both show the same data.** Whatever you save in one is saved for both, but a page already on screen doesn't change by itself: reload it to see what you changed in the other one.
 - **To get back,** switch to the NuMa window with `Alt+Tab` or its taskbar button. The browser tab stays open until you close it.
@@ -808,7 +813,7 @@ Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp
 
 - **New recipe** — a short form (name, description, servings, total yield) that drops you straight into editing.
 - **Edit** — a details form plus an ingredients table, with a single **Save recipe details** button (on the "Recipe details" heading row) that saves every field in that form at once. The details form includes an **Introduction** field for background — where the recipe came from, why you like it, serving notes — anything that isn't the step-by-step instructions — and, below Instructions, a **Notes and documentation** field for anything you want on record: sources you consulted, substitutions you have tried, changes to make next time. Notes print at the very bottom of the recipe's nutritional analysis, go into the recipe [CSV](#gloss-csv) export, and are included in the [AI](#gloss-artificial-intelligence) translation. Add an ingredient by searching — the results table is the same one described in [USDA Food Search Results](#food-search), including the Source filter and sort-order dropdowns and the "Fetch full details for selected" [AA](#gloss-aa)-confirmation button — then typing a portion (`150 g`, `1/2 cup`, or a saved preset like `p1`) — NuMa saves it as grams at that moment, so later changes to the food's portions don't alter it (see [Editing or changing a food](#food-edit-consequences)); reorder ingredients with the up/down controls, or edit or remove one inline. A **Running totals** card at the side updates live as you add ingredients, showing calories, protein, and DCP for the whole recipe and per serving.
-- **Detail** — mirrors a food's detail page (Introduction right after the title, Protein Summary, Ingredients, Instructions, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions — [ignorable and recalculable](#ignore-complement) here too, [Glycemic Load](#glycemic), Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in a new tab, with Introduction included as one of the "Include on this printout" checkboxes. Above those checkboxes, a **Print layout** choice (Full sheet or Half sheet — Half sheet shrinks the title and tightens line spacing throughout, including the Ingredients list) and a **Paper size** choice (US Letter or A4, which sets the exact page dimensions your browser's Print/Save-as-[PDF](#gloss-pdf) preview paginates against) are both remembered for next time. This printable page — and the same layout/paper choices — is also available from a food's, a meal's, and a day's own detail page, not just a recipe's.
+- **Detail** — mirrors a food's detail page (Introduction right after the title, Protein Summary, Ingredients, Instructions, Nutritional Analysis, [Complete Protein Analysis](#meal-diaas) with per-ingredient digestibility, Missing AA Profiles, Complement Suggestions — [ignorable and recalculable](#ignore-complement) here too, [Glycemic Load](#glycemic), Anti-nutrients), plus a servings field to re-analyze at a different batch size. **Print/save recipe** opens a stripped-down, print-friendly version in the same window (its **Back to recipe** button returns), with Introduction included as one of the "Include on this printout" checkboxes. Above those checkboxes, a **Print layout** choice (Full sheet or Half sheet — Half sheet shrinks the title and tightens line spacing throughout, including the Ingredients list) and a **Paper size** choice (US Letter or A4, which sets the exact page dimensions your browser's Print/Save-as-[PDF](#gloss-pdf) preview paginates against) are both remembered for next time. This printable page — and the same layout/paper choices — is also available from a food's, a meal's, and a day's own detail page, not just a recipe's.
 
 ### G. Using the Meals & Log menu {: #meals-menu-web}
 
@@ -989,7 +994,7 @@ To work out the amount, NuMa counts each food at its own digestibility: your mea
 **How much of a food NuMa will suggest.** Every suggestion stays within a most-per-meal amount for that food, so you're never told to add four cups of nutritional yeast. If you've saved your own limit for the food, that's what's used. Otherwise it's three of the food's label servings (two servings for a recipe). Failing that, it's a default for the kind of food: 15 g for seasonings and nutritional yeast, 40 g for protein powders and for seeds and nuts, 60 g for cheese, and 300 g for anything else. If closing the gap would take more than that, the suggestion shows the food at its limit, says how much full closure would take, and shows how far the limit gets you. A **Use the full … g this time** box (it names the amount) lifts the limit for that page only. To set the limit for good, type it in the **Most I'd add to a meal** box under the suggestion and press **Save limit for this food**. Clear the box and save to go back to the default. The booster steps under DIAAS-Boosting Options stop at the same limit.
 
 Each suggestion shows:
-  - The food's or recipe's name, linked to its own page (it opens in a new tab, so the analysis stays as it was; a generic estimate from the built-in list has no page and isn't linked)
+  - The food's or recipe's name, linked to its own page (it opens in the same window; Back returns to the analysis; a generic estimate from the built-in list has no page and isn't linked)
   - Grams to add
   - Which gaps it closes, with scores before and after
   - Digestible protein added
@@ -2354,7 +2359,7 @@ NuMa counts the water you take in from everything you log, not just what you dri
 
 **Where you see it.** Meal, recipe and day pages show a **Water** row with two rows under it: **Water from drinks** and **Water from food**. The two always add up to the Water total. Each food and recipe in a meal's items, a recipe's ingredients, the list of meals on a day's page and *Analyze a saved recipe portion* also shows its water beside its name, in gray: "(72% water, 98 g)" is the share of water in it and the grams of water in the amount listed. A recipe shows its water as counted, after cooking if you've set that, and just the grams when its weight isn't known. A single food's page shows only its Water, since one food is either a drink or it isn't. Most branded drinks have no water value, since US labels don't list it; tick **This food is a drink** on one and NuMa estimates it as 100 g minus the drink's protein, carbs and fat, and the food's page says it's an estimate. Water from drinks and Water from food can also be chosen as columns in Meals & Log and Recent Days, and plotted in the [Nutrient Plot](#nutrient-plot). Amounts are in grams; for water, 1 g is 1 mL, so 250 g is a 250 mL glass.
 
-**What counts as a drink.** You decide, with a **This food is a drink** checkbox on each food's page. Recipes have their own **This recipe is a drink** checkbox, and both can be ticked straight from the list on Analysis → Food use in meals. When NuMa first saves a food from [USDA](#gloss-usda), it ticks the box itself if USDA files the food under beverages (tea, coffee, juice, soft drinks, water). It doesn't guess for milk, soup or smoothies, so tick those yourself if you think of them as drinks. Changing the box updates every meal and recipe that uses the food. Ticking it on a food with no water value (true of most branded drinks, since US labels don't list water) fills in an estimate: 100 g minus the food's protein, carbs and fat. The food's page says it's an estimate, and a measured water value is never replaced.
+**What counts as a drink.** You decide, with a **This food is a drink** checkbox on each food's page. Recipes have their own **This recipe is a drink** checkbox, also on every row of the [Recipes list](#recipes) and the [Foods search](#food-search) (which has a food's box too), and under each result in the searches for adding an ingredient, adding to a meal and My Pantry; both can also be ticked straight from the list on Analysis → Food use in meals. When NuMa first saves a food from [USDA](#gloss-usda), it ticks the box itself if USDA files the food under beverages (tea, coffee, juice, soft drinks, water). It doesn't guess for milk, soup or smoothies, so tick those yourself if you think of them as drinks. Changing the box updates every meal and recipe that uses the food. Ticking it on a food with no water value (true of most branded drinks, since US labels don't list water) fills in an estimate: 100 g minus the food's protein, carbs and fat. The food's page says it's an estimate, and a measured water value is never replaced.
 
 **Inside a recipe, only the recipe decides.**{: #water-in-recipes} All the water in a recipe counts as water from food, even from ingredients that are drinks on their own, like the cups of tap water in a bread dough or the milk in a pancake batter: once it's baked or mixed into a dish, it isn't something you drank. When a recipe has such ingredients, its page says so in a blue note just under **This recipe is a drink**, naming each one with its water in the batch and per serving. If you do drink the recipe (a smoothie, a coffee, a broth you sip), tick **This recipe is a drink** and *all* of its water counts as drinks, including any recipes used inside it, and a recipe marked as a drink still counts as one when it's used inside another recipe. A drink food logged straight into a meal counts as a drink, as always. Until 9 November 2026 a recipe counted its drink ingredients as drinks; meals that used such a recipe were recalculated once, and their pages say so. For a cooked dish, see also [water after cooking](#cooked-water).
 
@@ -2419,7 +2424,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 26 minutes)*
+*(Reading time: 1 hour, 27 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -3090,8 +3095,8 @@ If you'd rather type, the two code boxes take codes directly:
 The results table shows what's *currently used* in the selection — the item
 you're replacing is marked "replacing this" when you arrive from a blocked
 deletion. To find a replacement's code by hand, look it up on
-[Food Search](#food-search) or the Recipes list (both open in a new tab from
-links right above the form) — each shows the code in its results.
+[Food Search](#food-search) (linked right above the form; Back returns here)
+or the Recipes list — each shows the code in its results.
 
 You can mix kinds — replace a food with a recipe or vice versa — since both
 meal items and recipe ingredients can point at either one. The amount and
@@ -3526,7 +3531,7 @@ See [meal protein digestibility](#meal-diaas) to see the digestibility table. Se
 
 #### Recipes List Table {: #recipes}
 
-*Search terms: recipe list, recipes table, recipe columns.*
+*Search terms: recipe list, recipes table, recipe columns, beverage, finished recipe.*
 
 Shows all your saved recipes. Sorted by Last accessed by default; use the sort dropdown (not available while a search filter is active) to switch to Name or [DCP](#gloss-dcp)/serving instead. Your choice is remembered as the default the next time you browse recipes.
 
@@ -3550,7 +3555,13 @@ Columns:
                 doesn't matter what fraction of the recipe's total protein
                 that 1 g represents. The "Recompute DCP for all recipes"
                 button above the table recomputes every recipe at once.
-    Complete    Checkmark if you have marked the recipe finished.
+    Complete    Ticked if you have marked the recipe finished. Tick or
+                untick it right here; it's saved at once.
+    Drink       Ticked if the recipe is a drink: its water counts as
+                water from drinks in your totals (see Water). Tick or
+                untick it right here; it's saved at once, and the recipes
+                and meals that use it are updated. Not shown when water
+                tracking is turned off in Settings.
     Created     Date the recipe was first saved.
 
 Each row has **Edit**, **Copy**, **Archive/Restore**, and **Delete** buttons. A filter box narrows the list by name; a **Sort by** dropdown switches between Last accessed, Name, and DCP/serving; a **Show archived recipes** button reveals archived recipes (shown grayed out with an "Archived" badge — see [archiving](#archive)). Meals and recipes still naming a deleted recipe are listed in [Foods → 9](#db-check).
@@ -3580,7 +3591,7 @@ Nested recipes (a code starting with R) have their nutrients scaled automaticall
 
 #### USDA Food Search Results {: #food-search}
 
-*Search terms: results columns, AA checkmark, slow search, speed.*
+*Search terms: results columns, AA checkmark, slow search, speed, beverage, finished recipe.*
 
 Listed after a food search. Combines matches from [USDA](#gloss-usda) FoodData Central, Open Food Facts[^3], and your local [Food Cache](#gloss-food-cache).
 
@@ -3635,6 +3646,16 @@ Columns:
               Recipe     One of your saved recipes.
               USDA       Not yet cached — from FoodData Central.
               OFF        Not yet cached — from Open Food Facts.
+
+    Complete  Recipes only: ticked if you have marked the recipe
+              finished. Tick or untick it here; it's saved at once.
+              (Foods are never "complete".)
+    Drink     Recipes and your own foods (Pantry, Cache): ticked if it
+              is a drink, so its water counts as water from drinks (see
+              <a href="#water">Water</a>). Tick or untick it here; it's
+              saved at once. A USDA or OFF result not saved yet shows a
+              dash: open it first. USDA beverages are ticked for you when
+              saved. Not shown when water tracking is off.
 
     Delete  On a recipe row, <b>Delete</b> (asks first; refused for a recipe
             still in use); on a pantry row, <b>Remove from pantry</b>.
@@ -6181,7 +6202,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 21 minutes)*
+*(Reading time: 24 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6197,8 +6218,14 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-Version overview: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered.
+Version overview: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; and the manual's search opens the section you picked, with your words highlighted.
 
+- **13.** In every search list, the `↓` and `↑` keys move the red outline from result to result, and coming back from a result you opened puts the outline on it again.
+- **12.** Print / Save pages, Food Search from What-if, Annotate's Claude GI prompt and suggested foods' links now open in NuMa's own window, not in your default browser.
+- **11.** The searches for adding an ingredient to a recipe, adding to a meal and adding to My Pantry show the same boxes, labeled under each result's name; ticking one no longer leaves a false "unsaved changes" warning.
+- **10.** Foods search results have the same boxes: **Complete** and **Drink** on recipes, **Drink** on your own foods.
+- **9.** The Recipes list has a **Drink** checkbox and a clickable **Complete** checkbox on every row (filtered lists too); ticking either saves at once.
+- **8.** In the manual's search, Tab now goes straight to the first result in Firefox, Enter opens it with your words highlighted, and the section you picked stays at the top of the screen.
 - **7.** Each item you add to a meal now records the time of day you entered it, shown in a new **Time** column of the meal's Items list.
 - **6.** A food's own page now has a **Delete this food** button.
 - **5.** Searches match singular and plural both ways ("onions" finds "Green onion", "berry" finds "Berries"), so that food is no longer outranked by a recipe that matches fewer of your words.
@@ -6208,6 +6235,127 @@ Version overview: New Problems by food page (Foods → 9) and an Everything to c
 - **1.** An installed NuMa now shows the yellow "please restart it" bar after **Update Now** until you quit and start it again.
 
 #### November 12 updates
+
+**PROGRAM: ARROW KEYS MOVE THROUGH SEARCH RESULTS**
+
+In every search list (Recipes, Foods search, a meal's or recipe's add search, My Pantry and the rest), the `↓` and `↑` keys now move the red outline from one result to the next, and `Enter` opens it. Come back with `Alt+←` or Back and the outline is on that same result again. [learn more...](#search-keys)
+
+<!--
+
+```
+Scope: web/templates/base.html (one script, every [data-search-output]).
+Arrow keys move focus to the same kind of element in the next/previous
+result row (tbody tr / .list-group-item): an amount text box to the next
+amount box, else the row's link; rows without one (dividers) are skipped;
+number boxes, selects and textareas keep their own arrows. focusin on a
+result saves the row (data-row-key, else its link's href, else its index)
+in sessionStorage per page address; pageshow after Back (bfcache or
+back_forward navigation) focuses it again, and again once the online
+results replace the rows (numa:search-rows). Browser test
+tests/e2e/test_search_arrow_keys_e2e.py.
+```
+
+-->
+
+**PROGRAM: PRINT PAGES AND OTHER NUMA LINKS STAY IN NUMA'S WINDOW**
+
+The Print / Save buttons for recipes, recipe translations, meals, days and the Nutrient Plot now open their print page in NuMa's own window, with a **Back** button to return. So do the Food Search link on the What-if pages, the Annotate page's "give me a prompt asking Claude AI" link (which now has a link back to Annotate), and the names of suggested foods and recipes in complement suggestions. Links to outside websites, such as claude.ai and GitHub, still open in your browser. [learn more...](#two-windows)
+
+<!--
+
+```
+Scope: removed target="_blank" from every link/form to a NuMa page:
+recipe_detail.html (print, translation print), recipe_translate.html,
+meal.html, meal_day.html, nutrient_plot.html (print pages, each with its
+own Back), analysis_food_use(_recipes).html (Food Search), food_annotate.html
+gi-claude-form (claude_fetch.html gi_only now links back to Annotate),
+backend._item_link. From NuMa's app window a new tab/window goes to the
+system default browser, unannounced. Test test_numa_links_stay_in_numas_window
+scans templates for any <a>/<form> to "/..." with _blank. The Ctrl/middle-
+click new-tab notice (base.html) is deliberate and unchanged.
+```
+
+-->
+
+**PROGRAM: COMPLETE AND DRINK BOXES IN THE ADD-INGREDIENT, MEAL AND PANTRY SEARCHES**
+
+When you search to add an ingredient to a recipe, a food or recipe to a meal, or a food to My Pantry, each result now has small **Complete** and **Drink** boxes under its name (recipes get both, your own foods get Drink). Ticking one saves at once and leaves your search as it was. [learn more...](#water)
+
+<!--
+
+```
+Scope: _recipe_search_rows.html (Edit Recipe), _add_food_row.html (meal),
+_pantry_search_rows.html, via the new _row_toggles.labeled(food) macro
+(box() gained an optional visible label). style.css .row-toggles.
+base.html: js-row-toggle forms are no longer dirty-tracked: the checkbox's
+inline onchange submits before the change event reaches the form's
+tracker, so the tracker marked an already-saved form dirty and the page
+warned "leave site?" (also affected the Recipes list / Foods search boxes).
+```
+
+-->
+
+**PROGRAM: MARK DRINKS AND COMPLETE RECIPES FROM FOODS SEARCH RESULTS**
+
+Foods search results now have the same checkboxes as the Recipes list: a recipe row has **Complete** and **Drink**, and a food of your own (Pantry or Cache) has **Drink**. Ticking or unticking one saves at once, and the results stay where they are. [learn more...](#food-search)
+
+<!--
+
+```
+Scope: Foods -> Search (web/templates/_search_result_row.html, search.html,
+_search_api_rows.html; dividers colspan 12 -> 14). New shared macro
+_row_toggles.html (also used by recipes.html). base.html js-row-toggle is
+now a delegated document submit listener (search rows arrive by fetch) that
+fills `next` with the current URL for the no-fetch fallback. /food/{id}/drink
+answers X-Numa-Ajax with JSON. Search rows carry is_drink (cached foods:
+the foods SELECTs in db.search_cached_foods and the code/barcode lookups
+now read is_drink) and complete (recipes). Uncached USDA/OFF rows: a dash.
+```
+
+-->
+
+**PROGRAM: MARK RECIPES COMPLETE OR AS DRINKS FROM THE RECIPES LIST**
+
+Every row of the Recipes list, including a filtered list, now has a **Complete** checkbox and a **Drink** checkbox. Each shows the recipe's current setting, and ticking or unticking it saves at once, without leaving the list. [learn more...](#recipes)
+
+<!--
+
+```
+Scope: Recipes (web/templates/recipes.html); web/backend.py new POST
+/recipe/{id}/complete (db.set_recipe_complete), /recipe/{id}/drink now
+answers an X-Numa-Ajax request with JSON; base.html js-row-toggle forms
+(handleRowForm fetch, falls back to a full submit that returns to the
+same filtered list via `next`). db.recipe_list / recipe_list_recent now
+return is_drink. The Drink column follows track_water(), like the recipe
+page's own drink toggle; changing it recomputes DCP/nutrients as before.
+```
+
+-->
+
+**PROGRAM: MANUAL SEARCH RESULTS OPEN THE RIGHT SECTION, HIGHLIGHTED**
+
+In the manual's search, pressing Tab after the checkboxes now lands on the first result, with a clear outline, and Enter opens that section with your search words highlighted. The section you picked is shown at the top of the screen, so the "you are here" bar and the sidebar name it. [learn more...](#search-howto)
+
+<!--
+
+```
+Scope: scripts/build_manual.py (regenerates user-manual.html).
+Firefox makes any scrolling box a Tab stop, so Tab landed on the
+#search-results <ul> itself; Enter there did nothing (no section opened,
+nothing highlighted), and one more Tab reached result 1. Fix: tabindex=-1
+on the list. The list's overflow also clipped the default focus ring, so
+result 1 looked unfocused even in Chromium: :focus-visible now draws inside
+the link. openResult() centred the first match, leaving the picked
+heading mid-screen and the breadcrumb/scroll-spy naming the section above;
+scrollToMark(0, true) now keeps the heading at the top when the match is
+within 70% of a screen below it. The scroll-spy's 100px reading line was
+above where a jump parks a heading whose breadcrumb wraps (its own
+scroll-margin-top), so the section above stayed "current"; the line is
+now max(100, that heading's margin + 4). Search jumps are instant, not
+smooth (a long smooth glide in Chromium was still under way after 1.3 s).
+```
+
+-->
 
 **PROGRAM: MEAL ITEMS SHOW THE TIME THEY WERE ENTERED**
 

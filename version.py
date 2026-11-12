@@ -1,4 +1,4 @@
-VERSION = "2026-11-12:0512"
+VERSION = "2026-11-12:0653"
 
 # RELEASE_VERSION is the human-facing SemVer identifier (MAJOR.MINOR.PATCH,
 # optionally with a -rc.N/-beta.N/-alpha.N pre-release suffix) shown to users
@@ -24,4 +24,4 @@ RELEASE_VERSION = "0.1.0-rc.29"
 #   "minor problem fixes"
 #   "minor function added or improved"
 #   "significant improvements implemented"
-NEW_VERSION_NOTE = "New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered."
+NEW_VERSION_NOTE = "New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; and the manual's search opens the section you picked, with your words highlighted."

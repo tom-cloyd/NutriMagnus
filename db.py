@@ -1339,7 +1339,7 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
         if kind == "food":
             row = conn.execute(
                 "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-                "portions_json, notes, nutrients_json, archived FROM foods WHERE fdc_id = ?",
+                "portions_json, notes, nutrients_json, archived, is_drink FROM foods WHERE fdc_id = ?",
                 (code_id,)).fetchone()
             if row is not None:
                 return [row]
@@ -1348,7 +1348,7 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     # user-drafted foods like "B12 5000mcg" from surfacing for "coffee 1".
     match_words = [w for w in words if not w.isdigit()] or words
     select = ("SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-               "portions_json, notes, nutrients_json, archived FROM foods")
+               "portions_json, notes, nutrients_json, archived, is_drink FROM foods")
     archived_clause = "" if include_archived else "AND archived = 0"
     # Each query word also tries its singular form, so e.g. "potatoes" matches
     # cached/drafted names stored as singular "Potato, cooked".
@@ -1615,7 +1615,8 @@ def recipe_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> 
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived, notes"
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived, notes,"
+        " is_drink"
         f" FROM recipes {archived_clause} ORDER BY name"
     ).fetchall()
 
@@ -1624,10 +1625,17 @@ def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20, *, include_arc
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
-        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived"
+        " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived,"
+        " is_drink"
         f" FROM recipes {archived_clause} ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
         (limit,)
     ).fetchall()
+
+
+def set_recipe_complete(conn: sqlite3.Connection, recipe_id: int, complete: bool) -> None:
+    """Mark a recipe complete or not (the same flag as Edit Recipe's
+    "Mark recipe as complete" box; the Recipes list sets it in place)."""
+    conn.execute("UPDATE recipes SET complete = ? WHERE id = ?", (1 if complete else 0, recipe_id))
 
 
 def set_recipe_archived(conn: sqlite3.Connection, recipe_id: int, archived: bool) -> None:

@@ -1,3 +1,4 @@
+{% import "_row_toggles.html" as _rt with context %}
 {% macro row(food, show_compare=false) %}
 <tr>
   <td class="confirm-col">
@@ -54,6 +55,19 @@
   <td class="muted">{{ food.brand or "—" }}</td>
   <td class="muted">{{ food_type(food) }}</td>
   <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
+  {# Complete: recipes only. Drink: recipes and your own foods — an online
+     result not saved yet has nowhere to keep it (USDA beverages are ticked
+     automatically when saved). #}
+  <td style="text-align:center">
+    {% if food._type == "recipe" %}{{ _rt.complete_box(food.recipe_id, food.complete, food.name) }}{% endif %}
+  </td>
+  {% if track_water() %}
+  <td style="text-align:center">
+    {% if food._type == "recipe" %}{{ _rt.drink_box("/recipe/%s/drink" % food.recipe_id, food.is_drink, food.name) }}
+    {% elif food.is_drink is defined and food.fdc_id %}{{ _rt.drink_box("/food/%s/drink" % food.fdc_id, food.is_drink, food.name) }}
+    {% else %}<span class="muted" title="Save this food first (open it); then it can be marked as a drink">—</span>{% endif %}
+  </td>
+  {% endif %}
   <td>
     {% if food._type == "recipe" %}
     <form method="post" action="/recipe/{{ food.recipe_id }}/delete" style="display:inline">

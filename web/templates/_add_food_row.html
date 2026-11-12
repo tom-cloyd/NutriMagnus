@@ -1,4 +1,5 @@
 {% import "_serving_note.html" as _sn %}
+{% import "_row_toggles.html" as _rt %}
 
 {# A stored GI/DIAAS estimate is never prompted for again, so these cells
    double as the way back in to change one — the value itself is the link.
@@ -27,6 +28,7 @@
         </td>
         <td>{% if food._type == "recipe" %}<a href="/recipe/{{ food.recipe_id }}"><strong>{{ food.name }}</strong></a>{% else %}<a href="{{ food_url(food) }}"><strong>{{ food.name }}</strong></a>{% endif %}
           {% if (food.data_type and food._type != "recipe") or food.brand %}<br><small class="muted">{% if food._type != "recipe" %}{{ food_type(food) }}{% endif %}{% if food.brand and food.data_type and food._type != "recipe" %} &middot; {% endif %}{{ food.brand or '' }}</small>{% endif %}
+          {{ _rt.labeled(food) }}
         </td>
         <td class="col-aa">
           {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>

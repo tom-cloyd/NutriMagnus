@@ -1110,6 +1110,106 @@
         }, 0);
       });
     }
+
+    // ── Up/Down arrows in every search-result list ([data-search-output]) ──
+    // The focused result (its red focus ring) moves one result up or down:
+    // to the same kind of thing in the next row (an amount box to the next
+    // amount box, a name link to the next name link), skipping rows without
+    // one (group dividers). Number boxes, dropdowns and text areas keep
+    // their own arrow keys.
+    var RESULT_ROWS = 'tbody tr, .list-group-item';
+    var TEXT_BOX = 'input[type="text"], input:not([type])';
+    function resultTarget(row, kind) {
+      if (kind === 'text') {
+        var box = row.querySelector(TEXT_BOX);
+        return box && box.getClientRects().length ? box : null;
+      }
+      var link = row.matches('a[href]') ? row : row.querySelector('a[href]');
+      return link && link.getClientRects().length ? link : null;
+    }
+    function focusKind(el) { return el.matches(TEXT_BOX) ? 'text' : 'link'; }
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.defaultPrevented) return;
+      var el = document.activeElement;
+      if (!el || !el.closest) return;
+      var output = el.closest('[data-search-output]');
+      var row = el.closest(RESULT_ROWS);
+      if (!output || !row || !output.contains(row)) return;
+      if (el.matches('select, textarea, input[type="number"], input[type="range"]')) return;
+      var kind = focusKind(el);
+      var rows = Array.prototype.slice.call(output.querySelectorAll(RESULT_ROWS));
+      var step = e.key === 'ArrowDown' ? 1 : -1;
+      for (var i = rows.indexOf(row) + step; i >= 0 && i < rows.length; i += step) {
+        var next = resultTarget(rows[i], kind);
+        if (next) {
+          e.preventDefault();
+          next.focus({preventScroll: true});
+          next.scrollIntoView({block: 'nearest'});
+          return;
+        }
+      }
+      e.preventDefault();   // at either end: stay put, don't scroll the page
+    });
+
+    // Coming back (Back, Alt+Left) from a result opened with Enter puts the
+    // focus on that same result again. Remembered per page address, so each
+    // search keeps its own place.
+    var RESULT_KEY = 'numa_ui_result_focus:' + window.location.pathname + window.location.search;
+    function rowKey(row, rows) {
+      var k = row.getAttribute('data-row-key');
+      if (k) return k;
+      var link = row.matches('a[href]') ? row : row.querySelector('a[href]');
+      if (link) return 'href:' + link.getAttribute('href');
+      return 'i:' + rows.indexOf(row);
+    }
+    document.addEventListener('focusin', function (e) {
+      var el = e.target;
+      if (!el.closest) return;
+      var output = el.closest('[data-search-output]');
+      var row = el.closest(RESULT_ROWS);
+      if (!output || !row || !output.contains(row)) return;
+      var rows = Array.prototype.slice.call(output.querySelectorAll(RESULT_ROWS));
+      try {
+        sessionStorage.setItem(RESULT_KEY, JSON.stringify({row: rowKey(row, rows), kind: focusKind(el)}));
+      } catch (err) {}
+    });
+    function restoreResultFocus() {
+      var saved = null;
+      try { saved = JSON.parse(sessionStorage.getItem(RESULT_KEY) || 'null'); } catch (err) {}
+      if (!saved) return false;
+      var outputs = document.querySelectorAll('[data-search-output]');
+      for (var o = 0; o < outputs.length; o++) {
+        var rows = Array.prototype.slice.call(outputs[o].querySelectorAll(RESULT_ROWS));
+        for (var r = 0; r < rows.length; r++) {
+          if (rowKey(rows[r], rows) !== saved.row) continue;
+          var el = resultTarget(rows[r], saved.kind) || resultTarget(rows[r], 'link');
+          if (!el) return false;
+          el.focus({preventScroll: true});
+          el.scrollIntoView({block: 'nearest'});
+          return true;
+        }
+      }
+      return false;
+    }
+    function cameBack(e) {
+      if (e && e.persisted) return true;   // restored from the browser's page cache
+      return !!(navEntry && navEntry.type === 'back_forward');
+    }
+    window.addEventListener('pageshow', function (e) {
+      if (!cameBack(e)) return;
+      setTimeout(function () {
+        var restored = restoreResultFocus();
+        // Online results replace the rows a moment later: put it back on the
+        // same result then, unless the cursor has gone somewhere else.
+        var once = function () {
+          var at = document.activeElement;
+          if (restored && at && at !== document.body) return;
+          restored = restoreResultFocus() || restored;
+        };
+        document.addEventListener('numa:search-rows', once);
+      }, 0);
+    });
     window.addEventListener('pagehide', function () {
       try {
         var at = window.scrollY || document.documentElement.scrollTop || 0;
@@ -1303,6 +1403,9 @@
     function trackForm(form) {
       if (form.numaDirtyTracked) return;
       form.numaDirtyTracked = true;
+      // A list row's Complete/Drink box (js-row-toggle) saves the moment
+      // it's ticked: nothing is ever left unsaved, so never warn about it.
+      if (form.classList.contains('js-row-toggle')) return;
       // data-dirty-outside: the form's boxes sit outside it in table cells,
       // tied to it by the HTML form="" attribute (Settings' nutrient-target
       // rows, a food's portion rows). Opt-in, because the many checkbox
@@ -1566,6 +1669,21 @@
           .catch(function () { form.submit(); });
       });
     }
+
+    // A list row's own setting checkbox (_row_toggles.html: Complete,
+    // Drink on the Recipes list and Foods search): saved in place; the box
+    // simply stays as ticked. Delegated, since search rows arrive after the
+    // page loads. A failure falls back to a full submit that returns here.
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form.classList || !form.classList.contains('js-row-toggle')) return;
+      e.preventDefault();
+      if (form.elements.next) form.elements.next.value = location.pathname + location.search;
+      fetch(form.action, { method: 'POST', headers: { 'X-Numa-Ajax': '1' }, body: new FormData(form) })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+        .then(function (data) { if (!data.ok) form.submit(); })
+        .catch(function () { form.submit(); });
+    });
 
     document.querySelectorAll('form.js-row-remove').forEach(function (form) {
       handleRowForm(form, function () {

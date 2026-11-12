@@ -1,6 +1,7 @@
 {# Edit Recipe's "Add Ingredient" result rows — rendered by the edit page
    (local matches) and by /search-rows/recipe (full merged set, replacing
    the tbody). #}
+{% import "_row_toggles.html" as _rt %}
           {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
           {% for food in search_results %}
             {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
@@ -25,6 +26,7 @@
               {% if food.data_type or food.brand %}
               <br><small class="muted">{{ food_type(food) }}{% if food.brand and food.data_type %} &middot; {% endif %}{{ food.brand or '' }}</small>
               {% endif %}
+              {{ _rt.labeled(food) }}
             </td>
             <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
             <td>

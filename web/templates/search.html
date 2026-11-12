@@ -120,6 +120,8 @@
         <th>Brand</th>
         <th>Type</th>
         <th>Source</th>
+        <th title="Recipes: tick to mark complete; saved at once">Complete</th>
+        {% if track_water() %}<th title="Recipes and your own foods: tick if it is a drink (its water counts as water from drinks); saved at once">Drink</th>{% endif %}
         <th>Delete</th>
       </tr>
     </thead>
@@ -127,16 +129,16 @@
       {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false, local_header_shown=false) %}
       {% for food in results %}
         {% if is_local_source(food.source) and not ns.local_header_shown %}
-      <tr class="search-group-divider"><td colspan="12"><small class="muted">From your recipes, pantry, and food cache</small></td></tr>
+      <tr class="search-group-divider"><td colspan="14"><small class="muted">From your recipes, pantry, and food cache</small></td></tr>
         {% set ns.local_header_shown = true %}
         {% endif %}
         {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
         {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
-      <tr class="search-group-divider"><td colspan="12"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+      <tr class="search-group-divider"><td colspan="14"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
         {% set ns.divider_shown = true %}
         {% endif %}
         {% if is_local_source(food.source) and ns.divider_shown and not ns.partial_shown %}
-      <tr class="search-group-divider"><td colspan="12"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
+      <tr class="search-group-divider"><td colspan="14"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
         {% set ns.partial_shown = true %}
         {% endif %}
         {{ _sr.row(food, show_compare=true) }}

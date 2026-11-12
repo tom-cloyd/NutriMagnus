@@ -2,12 +2,17 @@
 
 Nutritional analysis web app (FastAPI). USDA FoodData Central + Open Food Facts. Python 3.12.
 
-Full architecture docs: `README-numa-documentation.md`
+- Architecture, and the full file/module tree: `README-numa-documentation.md` → Project Structure
+- Weekly maintenance sweep: same file, `## Maintenance` → `### Weekly sweep` (each item a
+  `#### N. Title` heading, linkable by number); longer-cadence checks follow it
 
-**Weekly maintenance sweep** — the ten numbered items live in that same file, under
-`## Maintenance` → `### Weekly sweep`, each one its own `#### N. Title` heading so it can be
-linked by number (the README's Table of Contents lists all ten directly). Longer-cadence
-checks — monthly, quarterly, annual — follow the nine items, under *Longer-cadence checks*.
+Read these when the task touches them:
+- `docs/claude/changelog.md` — writing the Part 11 log entry: layout, numbering, release cycle
+- `docs/claude/data-shapes.md` — DB row columns, every valid nutrient key
+- `docs/claude/manual-search-terms.md` — the manual's `*Search terms:*` lines
+
+Keep this file short: it loads into every session. Detail a task only sometimes needs goes
+in one of those files (README → Maintenance, *Monthly deep check*, checks this).
 
 ---
 
@@ -21,430 +26,36 @@ pytest tests/test_web.py -k foo  # run one test
 
 ---
 
-## Package Layout
-
-```
-db.py                — all SQLite access (get_db context manager + query functions)
-usda.py               — thin re-export shim; edit usda_api.py / usda_nutrients.py instead
-usda_api.py           — USDA HTTP client, NUTRIENT_MAP, amino acid constants
-usda_nutrients.py     — nutrient math, AA analysis, DIAAS, complement suggestions
-diaas.py              — meal-level DIAAS pooled calculation
-profile.py            — UserProfile dataclass, RDA computation
-openfoodfacts.py      — Open Food Facts API client
-cnf_api.py             — Canadian Nutrient File API client (search is a local
-                         name filter over one cached bulk food-list fetch —
-                         see module docstring)
-cofid_lookup.py         — UK CoFID local search over cofid_data.json (no live
-                         API; see scripts/build_cofid_data.py to regenerate).
-                         No amino-acid data — CoFID's public dataset has none.
-afcd_lookup.py          — Australian AFCD local search over afcd_data.json
-                         (see scripts/build_afcd_data.py). Has amino-acid data.
-ciqual_lookup.py        — French CIQUAL local search over ciqual_data.json
-                         (see scripts/build_ciqual_data.py). No amino-acid data.
-oxalate.py              — read access to the bundled oxalate.db reference
-                         table (never written at runtime — see oxalate_links
-                         in db.py for the user-specific food-to-record map)
-oxalate_source_data.py  — oxalate reference data compiled from a Harvard
-                         School of Public Health source table; feeds
-                         build_oxalate_db.py
-build_oxalate_db.py     — one-time/refresh script: populates the committed
-                         oxalate.db from oxalate_source_data.py
-version.py              — VERSION build stamp, RELEASE_VERSION, and
-                          NEW_VERSION_NOTE (see the bump rule below)
-platform_utils.py       — cross-platform config/data directory resolution
-                         (Linux/macOS ~/.config, ~/.local/share; Windows
-                         %APPDATA%/%LOCALAPPDATA% equivalents)
-import_foods.py         — import manually-compiled food records (see
-                         numa_app/services/food_import.py) into the food cache
-import_json_folder.py   — import one food per JSON file dropped into
-                         food_imports/ (same shape/rules as import_foods.py)
-import_gi_seed.py       — bulk-apply exact-name GI matches from a small
-                         62-item starter set (see gi_lookup.py for the full
-                         reference table, used by the web Annotate page)
-gi_lookup.py            — fuzzy name search over the bundled GI reference
-                         table; powers the web Annotate page's GI lookup.
-                         TWO tables are possible: gi_data.json (the Creative
-                         Commons 2008 edition, committed and shipped) and
-                         gi_data_local.json (built from the Atkinson 2021
-                         tables by numa_app/services/gi_table_build.py, via
-                         Settings or scripts/build_gi_data.py; preferred when
-                         present). NEVER commit or bundle the latter — the
-                         2021 licence permits text/data mining but forbids
-                         redistribution; tests enforce both. Population is a
-                         per-row field, NOT a property of which published
-                         table a row came from (the 2021 split is ISO method
-                         compliance) — read that script's docstring before
-                         touching either file.
-                         scripts/build_gi_data_2008.py is the superseded
-                         2008-edition ingest, kept but not part of a build.
-numa_gen_prompt.py      — generate a Claude nutrition-data request prompt
-                         (interactive, --pantry, or from a food-list file)
-numa_import_claude.py   — parse a Claude nutrition response (```json blocks)
-                         and import the results into numa
-                         (these last two are personal, gitignored scratch
-                         tools — present locally, not part of the repo)
-
-numa_app/
-  services/
-    aa_estimate.py     — estimate a food's AA profile by scaling another food's
-                         AA values to its own protein content: estimate_aa(), source_note()
-    browser_quit.py     — Ctrl+Q / browser-quit shutdown: FirefoxWatch (stops NuMa
-                         when Firefox quits, since Firefox keeps Ctrl+Q for itself),
-                         close_app_window() (KWin closes NuMa's app window)
-    claude_fetch.py     — prompt-building and response-parsing for the Claude AI
-                         amino-acid/nutrient fetch workflow behind Food Cache pages
-    data_completeness.py — which nutrient groups a cached food is missing
-                         (missing_groups(), active_gaps(), requested_keys());
-                         per-food "not needed" choices in db.food_data_ignores.
-                         Feeds Foods → 9's completeness section and the
-                         targeted Claude prompt; Claude imports into an
-                         existing food fill blanks only (db.merge_user_supplied_nutrients)
-    incoming_review.py  — compare a cached food with incoming data (fresh USDA
-                         copy, or another food) value by value for the review
-                         screen behind Refresh / Fill in nutrients from another
-                         food: nutrient_review(), meta_review(), new_portions()
-    complements.py     — shared complement-suggestion math: aa_effects(),
-                         two_step_combo(), build_complement_display()
-    csv_export.py       — Food Cache CSV export: foods_to_csv()
-    csv_import.py       — Food Cache CSV import: parse_foods_csv()
-    day_profile.py     — per-day profile pinning: get_profile_for_date(),
-                         ensure_day_profile(), backfill_missing_day_profiles(),
-                         set_day_profile_override(), protein_target_for_date() —
-                         required entry point for any date-scoped profile lookup
-    demo_data.py        — starter foods/pantry/recipes, loaded from
-                         starter_data.json (regenerated by
-                         scripts/export_starter_data.py from "* "-prefixed
-                         content in a real DB, not hand-coded):
-                         seed_if_fresh_install() runs once on app startup for a
-                         truly empty DB; load_demo_data()/clear_demo_data() back
-                         the Settings toggle for anyone who cleared it;
-                         also starter identity (starter_key/starter_uid),
-                         edit-safe clear, and the between-version starter
-                         manifest (starter_manifest(), apply_improvements())
-    supplements.py      — foods marked as supplements (foods.is_supplement): skipped
-                         by every food check, no weight, out of GL, read per tablet;
-                         tag() adds "<key>__supp" copies at summation (next to
-                         water.tag) so totals carry the from-supplements split
-    water.py            — water from drinks vs from food: tag() splits a food's
-                         water_g into water_drinks_g / water_food_g at summation
-                         (foods.is_drink / recipes.is_drink); the two always add
-                         up to water_g
-    water_backfill.py   — Foods → 9's "Fill in water from USDA": background-thread
-                         fill of water_g for cached USDA foods lacking it
-                         (blanks only, via db.fill_source_nutrient)
-    vitamin_k_repair.py — Foods → 9's "Correct vitamin K from USDA": replaces the
-                         menaquinone-4 value USDA foods were cached with before
-                         2026-10-14 by phylloquinone (foods.vitamin_k_checked;
-                         db.replace_source_nutrient keeps user edits)
-    data_quality.py     — every data-quality check in one place: food_issues(),
-                         stale_amounts() ("Amounts that no longer match"),
-                         generic_density_in_use(), duplicate_groups(),
-                         old_usda_copies(), merge_review(), scan(),
-                         problems_by_food() (all of it regrouped by food); feeds
-                         Foods → 9, the Home page reminder, and the
-                         just-added-food note
-    entry_parse.py      — tolerant reading of what people type: numbers,
-                         nutrient amounts with units (IU, mg, kJ), pasted
-                         amino acid tables, supplement mode; a value it can't
-                         read raises EntryError — forms must show it, never
-                         drop it silently
-    energy_check.py     — calories missing (Atwater 4/4/9 estimate, marked
-                         estimated) or not matching the macros (flag only)
-    diet_aware.py       — diet-preference-aware analysis notes (iron/zinc RDA bump etc.)
-                         for the daily summary / RDA comparison views
-    food_ids.py        — display codes: classify_food_id() (U171477 / UD4 / R21 / OFF3 …), parse_code(), CODE_PREFIXES; outside-source numbers live in db.food_codes
-    food_import.py      — shared nutrient-key validation and per-serving conversion
-                         for manually-compiled food imports; used by claude_fetch.py,
-                         import_foods.py, and import_json_folder.py
-    static_source_lookup.py — StaticSource class: shared local-search/lookup
-                         machinery for bundled static datasets (CoFID/AFCD/
-                         CIQUAL); cofid_lookup.py etc. are thin wrappers around it
-    gi_table_build.py   — builds the user's own gi_data_local.json from the two
-                         Atkinson 2021 supplemental PDFs (pdfminer.six);
-                         Settings' upload/Build button runs it on a thread
-    glycemic_load.py    — GL for foods, recipes, meals, days: food_gl(),
-                         recipe_gl() (live, through sub-recipes), meal_gl(),
-                         combine_gl(); partial total + "gaps" when GI is missing;
-                         per-serving vs whole-day GL bands (gl_band(),
-                         gl_band_caveat()); day totals/averages for trends
-                         and plots (day_gl_total(s), average_day_gl())
-    manual_build.py     — rebuild_manual_if_stale(), used by the /manual route
-    meal_bcp.py         — shared meal-DCP fallback: recipe_dcp_fallback()
-    meal_list_columns.py — nutrient-column picker logic shared by Meals & Log,
-                         Recent Days / Daily Summary, and the Nutrient Plot picker
-    nutrient_trend.py   — multi-day nutrient averaging for the trend view
-    plotting.py          — line-plot rendering for the Daily Summary nutrient plot
-    portions.py         — _parse_portion_input() — portion-string parsing
-    print_sections.py   — shared vocabulary/prefs resolution for printable
-                         nutritional-analysis "what to include" checkboxes
-    rda_status.py       — shared RDA/limit percent-of-target classification: rda_status()
-    recipe_csv.py        — Recipe CSV export/import (recipes.csv + foods.csv pair,
-                         including sub-recipes and ingredient nutrient/portion data)
-    recipe_dcp.py         — auto-recompute of a recipe's per-serving DCP after edits
-    recipe_nutrients.py — shared recursive recipe-ingredient expansion:
-                         expand_recipe_ingredients(), recipe_total_nutrients(), best_aa_nutrients()
-    recipe_translate.py — prompt-building/response-parsing for the manual-paste
-                         recipe translation workflow (print/export page); mirrors
-                         claude_fetch.py's paste-based pattern, no API call
-    search_ranking.py   — food-search relevance ranking: relevance_key()
-    search_suggest.py   — local "did you mean" suggestions for a search that
-                         returned no results: suggest() (difflib against
-                         cached foods/pantry/recipes + bundled static datasets)
-    self_update.py        — perform_update(): self-replace the running packaged
-                         Linux binary from the latest GitHub release, for the
-                         home page's "Update Now" button; is_available() gates
-                         it to a packaged (PyInstaller) Linux install only
-    top_contributors.py — rank a meal's/recipe's ingredients by contribution to
-                         one nutrient (or DCP, or glycemic load), for the "Top
-                         Contributors" analysis section
-    protein_per_meal.py — per-meal protein amount (from profile age/weight) and
-                         whether a meal's DCP and leucine reach it; meal page
-                         + day pages (sources: manual #protein-per-meal)
-    gl_swaps.py         — lower-GL swap suggestions for a meal/recipe's top GL
-                         foods, from cached foods with a GI; each opens What-if
-                         pre-filled (never writes)
-    manual_update.py    — check/download/serve a newer User Manual than the baked-in
-                         one, independently of program updates; Ed25519-verified
-                         (published by scripts/publish_manual.py)
-    whatif.py           — non-destructive what-if analysis (remove/add/replace/scale
-                         foods or recipes across a set of meals or recipes, before
-                         vs after); must never write — see Analysis -> What-if
-    update_check.py      — check_for_update(): GitHub latest-release check for
-                         the home-page "update available" banner; cached
-                         in-process, fails silently offline
-
-web/
-  backend.py           — the FastAPI app: all routes
-  launcher.py          — starts uvicorn and opens a browser tab
-  templates/           — Jinja2 templates
-  static/              — CSS/static assets
-```
-
----
-
-## Database Pattern
-
-```python
-# ALWAYS use the context manager — it commits on clean exit, rolls back on exception
-with _db.get_db() as conn:
-    row = _db.recipe_get(conn, rid)
-
-# NEVER hold a connection open across a slow operation (an external API call,
-# a second network round-trip) — open it, do the DB work, close it
-with _db.get_db() as conn:
-    data = _db.some_query(conn)
-# ... slow operation here ...
-with _db.get_db() as conn:
-    _db.some_write(conn, data)
-```
-
-`get_db()` sets `row_factory = sqlite3.Row` on the connection.
-
-**Row column names** (key tables):
-
-`recipe_list()` / `recipe_get()` rows:
-`id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete, last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit`
-(`recipe_list` also returns `archived`, `notes`; `recipe_get` is `SELECT *` and also returns `instructions`, `introduction`, `notes`, `archived`)
-
-`serving_size` is a free-text human description of what one serving actually is (e.g. `"1 muffin"`), set on the Edit Recipe page — independent of `total_weight`/`servings`, which give the gram weight of that same serving. Shown wherever a recipe's serving count is displayed, via the `_serving_note.html` macro.
-
-`recipe_get_ingredients()` rows:
-`id, recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id`
-
-`meal_get_items()` rows:
-`id, meal_id, item_type ('food'|'recipe'), fdc_id, recipe_id, food_name, amount, unit, notes, serving_grams`
-(`serving_grams` = grams per recipe serving when logged; see `_annotate_recipe_amounts()` in web/backend.py)
-
-`pantry_list()` rows:
-`id, food_name, fdc_id, notes`
-
-`get_cached_food()` rows:
-`fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json, user_drafted, notes`
-
----
-
-## Nutrients Dict
-
-All nutrient values are **per 100 g**. The dict is stored as JSON in `foods.nutrients_json` and passed around as `dict[str, float]`.
-
-Valid keys (from `usda_api.NUTRIENT_MAP`):
-
-```
-# Macros
-calories, protein_g, carbs_g, fat_g, fiber_g, sugar_g,
-saturated_fat_g, mono_fat_g, poly_fat_g
-
-# Water (g) — total moisture; drinks/food split is derived, see water.py
-water_g
-
-# Omega fatty acids (mg)
-omega3_ala_mg, omega3_epa_mg, omega3_dha_mg, omega6_la_mg
-
-# Minerals (mg, except iodine/selenium which are mcg)
-calcium_mg, iron_mg, magnesium_mg, phosphorus_mg,
-potassium_mg, sodium_mg, zinc_mg, iodine_mcg, selenium_mcg
-
-# Vitamins
-vitamin_a_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
-vitamin_k_mcg, thiamin_mg, riboflavin_mg, niacin_mg,
-b6_mg, folate_mcg, b12_mcg
-
-# Phytonutrients
-beta_carotene_mcg, alpha_carotene_mcg, lycopene_mcg,
-lutein_zeaxanthin_mcg, choline_mg, beta_sitosterol_mg, isoflavones_mg
-
-# Amino acids (g) — all prefixed aa_
-aa_tryptophan_g, aa_threonine_g, aa_isoleucine_g, aa_leucine_g,
-aa_lysine_g, aa_methionine_g, aa_cystine_g, aa_phenylalanine_g,
-aa_tyrosine_g, aa_valine_g, aa_histidine_g
-```
-
-Essential AAs: all `aa_` keys except `aa_cystine_g` and `aa_tyrosine_g`.
-`usda.has_amino_acid_data(nutrients)` → True if 5+ non-zero AA values present.
-
----
-
 ## Key Invariants
 
-- **Never `import usda_api` or `import usda_nutrients` directly** — always `import usda as _usda`. `usda.py` is the stable public surface.
-- **Never open the DB outside `get_db()`** — no raw `sqlite3.connect()` calls anywhere.
-- **Add `Docs:` line** to any new module's docstring pointing to the relevant README section.
-- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp; never hand-edit that line. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format). `RELEASE_VERSION`'s `-rc.N` counter is separate and deliberately NOT bumped on every session (decided 2026-09-21) — it advances only when an actual release is cut, so it stays a meaningful release count rather than a session count.
+- `import usda as _usda`; never import `usda_api` / `usda_nutrients` directly (`usda.py` is
+  the stable public surface).
+- DB only via `with _db.get_db() as conn:` (commits on clean exit, rolls back on error, rows
+  are `sqlite3.Row`); no raw `sqlite3.connect()`. Never hold a connection open across a slow
+  operation such as an API call: close it, do the slow part, then open a new one.
+- Nutrient dicts are per 100 g, keys from `usda_api.NUTRIENT_MAP`.
+- Date-scoped profile lookups go through `numa_app/services/day_profile.py`.
+- `numa_app/services/whatif.py` must never write.
+- `entry_parse`: a value it can't read raises `EntryError`; forms show it, never drop it.
+- Never commit or bundle `gi_data_local.json` (its licence forbids redistribution; tests
+  enforce this). Read `scripts/build_gi_data.py`'s docstring before touching either GI table.
+- `oxalate.db` is read-only at runtime. `starter_data.json` is generated by
+  `scripts/export_starter_data.py`, never hand-edited.
+- `numa_gen_prompt.py` / `numa_import_claude.py` are personal, gitignored; not repo code.
+- Every new module's docstring gets a `Docs:` line pointing to its README section.
+- Manual: American spelling only.
 
 ---
 
-## Changelog (user-manual.md, Part 11)
+## Ending a session that changed behavior
 
-Any turn that changes numa's user-facing behavior (new feature, bug fix, threshold change —
-not pure layout/wording tweaks, since the owner is currently numa's only user and already
-knows about those) ends with a new entry under today's `#### Month Day updates`
-heading in
-**Part 11, "Recent program updates log"** (its own Part at the end of the manual since
-2026-09-30; earlier Appendix A, and before 2026-08-05 Appendix K),
-plus the `version.py`/manual timestamp bump above.
-
-**Where entries go** (decided 2026-09-21): insert each new entry after the line
-`<!-- Insert new updates below here -->` in Part 11, newest on top, under today's
-`#### Month Day updates` heading (new form only; older `... program updates` headings stay
-as they are). Every entry title starts with `MANUAL: ` or `PROGRAM: ` (e.g.
-`**PROGRAM: ALL-CAPS TITLE**`).
-
-**Also add a one-line summary bullet** (adopted 2026-09-23) under the
-`#### Next release summary to this point` heading, which sits between the marker and
-those dated entries — so every dated entry you write gets a matching bullet, newest on
-top. That running list is what the reader (and the GitHub release page) sees first; the
-dated entries below it are the detail. Prefix a bullet with `MANUAL: ` only for
-manual-only changes; program changes take no prefix. Append ` (dated details below)` to
-the heading only while dated entry sections actually follow it.
-
-**Version overview at every commit** (adopted 2026-10-17): when making a commit, copy
-`version.py`'s `NEW_VERSION_NOTE` into Part 11 as the first line under
-`#### Next release summary to this point`, above the numbered bullets, as
-`Version overview: <note text>` — replacing the previous overview line if there is one,
-so there's only ever one. `NEW_VERSION_NOTE` is never printed on the home page.
-
-**Each summary bullet is numbered** (adopted 2026-10-07, so the reader can see how
-many updates are pending): oldest is 1, newest highest, newest on top — e.g.
-`- **13.** New item.` above `- **12.** ...`. A new bullet takes the next number up;
-nothing else is renumbered. The number is written into a plain bullet because a
-Markdown ordered list can only count upward. Don't put a count in the heading — it
-would go stale. Numbering restarts at 1 after each release.
-
-**The layout to end up with**, always, reading down from the marker:
-
-```
-<!-- Insert new updates below here -->
-
-#### Next release summary to this point (dated details below)
-
-- **13.** Newest bullet.    <- your new one-line summary goes on top, next number up
-- **12.** Older bullet.
-
-#### Month Day updates      <- today's date heading (create if not already today's)
-
-**PROGRAM: ALL-CAPS TITLE** <- your new dated entry, newest on top
-...
-#### Release v<tag> summary <- the previous release; never edit above-the-line into this
-```
-
-**After a release has just been cut** the running heading is gone — `create_release.py`
-renamed it to `#### Release v<tag> summary`, which now sits directly under the marker.
-So the next log update has to rebuild the top of that structure in order: a fresh
-`#### Next release summary to this point` heading, its first bullet, then today's
-`#### Month Day updates` heading, then the entry — all inserted between the marker and
-that `#### Release v<tag> summary` line. Nothing does this for you; it's the one part
-of the cycle that's yours to re-create.
-
-When cutting a release, `scripts/create_release.py` handles the bottom of the cycle: it
-renames the running heading in place to `#### Release <tag> summary`, so the summary
-you've been keeping becomes that release's summary, with the dated entries left
-untouched below it. Pending = everything between the marker and the newest
-`#### Release ... summary` heading. Don't hand-insert release headings. (If the running
-heading is missing at release time, the script inserts one under the marker itself, so a
-release never breaks — but it'll have no summary bullets, which is the thing to avoid.)
-
-Every entry from 2026-07-31 onward uses this format — adopted 2026-08-05 because the prior
-single dense run-on line per entry was hard to skim:
-
-```
-**PROGRAM: ALL-CAPS TITLE**
-
-One or two plain-language sentences a casual reader can grasp in a hurry. Lead with
-what the user can now do / now sees / now gets — NOT with what was wrong before or
-how it used to work. A [learn more...](#anchor) link goes here if a relevant manual
-section/anchor exists.
-
-<!--
-​```
-Scope (menu path / files touched), then fuller technical detail — root cause,
-mechanism, implementation notes — git-commit-message style. Only include this
-block if there's real technical detail worth keeping; skip it for a trivial change.
-​```
--->
-```
-
-**The `<!-- -->` around the Scope fence is not optional decoration — it's load-bearing.**
-Without it the Scope block renders as visible body text in the actual manual (caught
-2026-09-11, forgotten at least twice before that fix stuck). Checklist for every new
-entry: prose paragraph → blank line → `<!--` alone on its own line → blank line →
-` ``` ` fence → Scope text → ` ``` ` fence → blank line → `-->` alone on its own line.
-After writing an entry, grep the freshly-built `user-manual.html` for a distinctive
-word from that entry's Scope text and confirm it lands between `<!--` and `-->`, not
-as bare `<p>`/`<pre>` text — that's the actual verification, not just eyeballing the
-markdown source.
-
-Entries before 2026-07-31 remain in the old single-line format (`* ALL-CAPS SUMMARY -
-scope - description.`) — deliberately not reformatted retroactively; use the new format
-only going forward. After editing the manual, run `python3 scripts/build_manual.py` — it
-recomputes the "Reading time" header figure and regenerates `user-manual.html`; don't
-hand-edit reading time.
-
----
-
-## Search terms lines (user-manual.md)
-
-The manual's sidebar search matches only words actually in a section. When you write or
-edit a manual section about a topic readers are likely to search for using words the
-section doesn't contain (synonyms, everyday terms, other spellings: *seniors* for a
-section that says "65 and over"), give it a search-terms line:
-
-```
-*Search terms: seniors, elderly, older adults, over 65, ageing, aging.*
-```
-
-- One line on its own, with a blank line after it, just under the heading (after any
-  `<span id>` anchor lines). Exactly that form: `build_manual.py` hides it on the page
-  (search still sees it), and fails the build on a line that starts like one but isn't
-  in that form, since that would show as visible text.
-- A handful of terms; don't repeat words already in the section's heading or prose.
-- American spelling only (fiber, color, aging), no British variants, here or anywhere
-  in the manual. Published titles, journal names and URLs quoted in footnotes keep
-  their own spelling.
-- **When you change a section that has one, reread its list:** drop terms the section no
-  longer covers, add any the new wording calls for.
-- Not every section needs one. Weekly sweep item 10 checks the week's changed sections
-  (`python scripts/search_terms_review.py` lists them);
-  the monthly full manual audit (README, *Monthly deep check*) checks every section.
+1. `python3 scripts/bump_version.py` (never hand-edit `VERSION`); describe the change in
+   `NEW_VERSION_NOTE` by hand. Don't touch `RELEASE_VERSION`'s `-rc.N`.
+2. Edited `user-manual.md` or the README? Update its header stamp by hand.
+3. User-facing change? Add a Part 11 entry and a numbered summary bullet:
+   `docs/claude/changelog.md`. The Scope block MUST be wrapped in `<!-- -->`.
+4. Edited the manual? Run `python3 scripts/build_manual.py`.
+5. Committing? Copy `NEW_VERSION_NOTE` into Part 11 as the `Version overview:` line.
 
 ---
 

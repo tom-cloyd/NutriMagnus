@@ -1,6 +1,6 @@
 """Search terms lines in user-manual.md: hidden on the built page, still
 searchable, and a malformed one fails the build instead of showing.
-Docs: CLAUDE.md, "Search terms lines"; README-numa-documentation.md,
+Docs: docs/claude/manual-search-terms.md; README-numa-documentation.md,
 Manual updates / Search terms lines.
 """
 import sys

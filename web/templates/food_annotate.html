@@ -111,8 +111,10 @@
 
 {# Outside the annotate form (forms can't nest); the "give me a prompt"
    link under the GI lookup submits it via form="gi-claude-form". Opens the
-   Fetch-from-Claude page in GI-only mode, in a new tab so this page stays. #}
-<form method="post" action="/food/cache/claude-fetch" id="gi-claude-form" target="_blank">
+   Fetch-from-Claude page in GI-only mode, in NuMa's own window (a new tab
+   from NuMa's app window would open in the system browser); that page links
+   back here. #}
+<form method="post" action="/food/cache/claude-fetch" id="gi-claude-form">
   <input type="hidden" name="fdc_id" value="{{ fdc_id }}">
   <input type="hidden" name="gi_only" value="1">
 </form>
@@ -241,7 +243,7 @@
         <p class="muted mt-1 mb-0" style="font-size:0.85rem">If nothing suitable appears here,
           <button type="submit" form="gi-claude-form" class="btn btn-link p-0 align-baseline"
                   style="font-size:inherit"
-                  title="Opens, in a new tab, a ready-made prompt asking Claude AI to research this food's glycemic index, to copy into claude.ai">give me a prompt asking Claude AI</button>
+                  title="Opens a ready-made prompt asking Claude AI to research this food's glycemic index, to copy into claude.ai">give me a prompt asking Claude AI</button>
           to research the matter for me.</p>
       </div>
 

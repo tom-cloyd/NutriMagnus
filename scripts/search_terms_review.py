@@ -22,7 +22,7 @@ The default starting point is the newest commit whose message mentions
 "sweep" (that is how sweep commits are named); it is printed, so check it.
 A date means the last commit on or before that day.
 
-Docs: CLAUDE.md, "Search terms lines"; README-numa-documentation.md,
+Docs: docs/claude/manual-search-terms.md; README-numa-documentation.md,
 Maintenance -> Weekly sweep, item 10.
 """
 from __future__ import annotations

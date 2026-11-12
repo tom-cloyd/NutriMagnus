@@ -25,7 +25,7 @@ class TestParseProduct:
         # A mutation-testing-adjacent finding (TESTING-ROADMAP.md item #1,
         # 2026-09-11): carbohydrates_100g mapped to "carb_g", not the
         # canonical "carbs_g" used everywhere else in the app (usda_api.py's
-        # NUTRIENT_MAP, cnf_api.py, CLAUDE.md's documented Nutrients Dict) —
+        # NUTRIENT_MAP, cnf_api.py, docs/claude/data-shapes.md's Nutrients Dict) —
         # every Open Food Facts food's carb value was silently unreadable
         # by the rest of the app. Caught only because a real fixture-
         # recording run surfaced it, not by any existing test. This test

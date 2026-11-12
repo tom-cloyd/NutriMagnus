@@ -95,7 +95,7 @@ def existing_glossary_terms(glossary_text: str) -> set[str]:
 def strip_non_reader_text(text: str) -> str:
     """Remove hidden dev-facing content a reader never sees (HTML comments,
     i.e. Scope: blocks, and fenced code blocks), plus the "Recent program
-    updates log" — its ALL-CAPS TITLE convention (see CLAUDE.md) generates
+    updates log" — its ALL-CAPS TITLE convention (see docs/claude/changelog.md) generates
     huge amounts of incidental all-caps English noise unrelated to real
     terminology, and any genuinely new term worth defining will also appear
     in the manual's main body, not only in a changelog entry."""

@@ -36,7 +36,7 @@ names/notes, and unit words) is translated — amounts and nutrient data are nev
   {% for t in translations %}
   <li class="mb-1" data-row>
     {{ t.language }} <small class="muted">({{ t.created_at }})</small>
-    — <a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print" target="_blank">Print</a>
+    — <a href="/recipe/{{ recipe.id }}/translation/{{ t.id }}/print">Print</a>
     — <form method="post" action="/recipe/{{ recipe.id }}/translation/{{ t.id }}/delete"
             class="d-inline js-row-remove" onsubmit="return confirm('Remove this translation?')">
         <button type="submit" class="btn btn-outline-danger btn-sm py-0 align-baseline">Remove</button>
