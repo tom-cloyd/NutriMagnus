@@ -121,7 +121,6 @@
 {# ── Add food/recipe search ── #}
 <form method="get" action="/compare" class="mb-2" id="compare-search-form" data-online-search data-search-form>
   <input type="hidden" name="items" value="{{ items_str }}">{% if return_to %}<input type="hidden" name="return_to" value="{{ return_to }}">{% endif %}
-  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
       <input type="text" data-ak="i" class="form-control" name="search"
@@ -180,6 +179,8 @@
     var params = new URLSearchParams(new FormData(searchForm));
     params.delete('items'); params.delete('return_to');
     addForm.querySelector('input[name="then_search"]').value = params.toString();
+    // .submit() fires no submit event: add picks from other pages by hand.
+    if (window.numaComparePicks) window.numaComparePicks.addTo(addForm);
     addForm.submit();
   });
 })();

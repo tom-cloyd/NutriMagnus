@@ -1,3 +1,4 @@
+{% import "_reverse_offer.html" as _ro %}
 {% import "_analyze_portion_result_row.html" as _sr %}
 {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
 {% for food in results %}
@@ -10,5 +11,8 @@
 <tr class="search-group-divider"><td colspan="8"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
   {% set ns.partial_shown = true %}
   {% endif %}
+{{ _ro.divider(food, loop.previtem, results.also, 8) }}
   {{ _sr.row(food) }}
 {% endfor %}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(results, 8) }}
+{{ _ro.offer(results, 'query', 8) }}

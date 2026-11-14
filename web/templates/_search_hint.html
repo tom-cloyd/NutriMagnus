@@ -1,6 +1,13 @@
-{# What a food search box accepts besides a name — goes directly under the
-   box on every page whose search runs through backend._run_food_search(),
-   which looks up a typed FDC ID / code and a typed barcode on all of them. #}
+{# How to write a search, under the box on every page whose search runs
+   through backend._run_food_search(): word order (the ranking favors words
+   typed first), "!word" to leave a word out, and the codes, FDC IDs and
+   barcodes it looks up directly. One place, so every search box says the
+   same thing (before 2026-11-12 the word-order tip was a separate line on
+   seven of the nine pages, and nothing mentioned "!"). Learn more goes to
+   the manual's Ordering food search results, which covers all three. #}
 {% macro hint(cls="mb-2") -%}
-<p class="muted {{ cls }}"><small>Type a food name, an <a href="/manual#gloss-fdc-id">FDC ID</a>, or a 12/13-digit barcode (UPC-A or EAN-13).</small></p>
+<p class="muted search-hint {{ cls }}"><small>Most important word first: <code>bread wheat whole</code>, not <code>whole wheat bread</code>.<br>
+Put <code>!</code> before a word to leave it out: <code>beans red !kidney</code>.<br>
+A code (<code>R21</code>, <code>U171477</code>), an <a href="/manual#gloss-fdc-id">FDC ID</a> or a 12/13-digit barcode finds that one item.
+{{ manual_link("search-ranking", "Learn more") }}</small></p>
 {%- endmacro %}

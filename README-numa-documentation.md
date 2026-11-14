@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-12:0704
+UPDATED: 2026-11-13:2213
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -26,17 +26,7 @@ Last annual static-dataset check: 2026-09-20 (first run — see Maintenance sect
 - [Data Storage](#data-storage)
 - [Test Suite](#test-suite)
 - [Maintenance](#maintenance)
-  - [Weekly sweep](#weekly-sweep-wednesday-evening--thursday-morning) — **the ten numbered items** live here:
-    [1. CLAUDE.md drift](#1-claudemd-drift) ·
-    [2. "NuMa" capitalization](#2-numa-capitalization-in-prose) ·
-    [3. Vendored dependency check](#3-vendored-dependency-check) ·
-    [4. Changelog pruning](#4-changelog-pruning) ·
-    [5. Manual consolidation](#5-manual-consolidation) ·
-    [6. README.md accuracy](#6-readmemd-accuracy) ·
-    [7. Test coverage gaps](#7-test-coverage-gaps) ·
-    [8. Stale internal links](#8-stale-internal-links) ·
-    [9. Glossary coverage](#9-glossary-coverage) ·
-    [10. Search terms coverage](#10-search-terms-coverage)
+  - [Weekly sweep](#weekly-sweep-wednesday-evening--thursday-morning) — **the ten numbered items** live here: [1. CLAUDE.md drift](#1-claudemd-drift) · [2. "NuMa" capitalization](#2-numa-capitalization-in-prose) · [3. Vendored dependency check](#3-vendored-dependency-check) · [4. Changelog pruning](#4-changelog-pruning) · [5. Manual consolidation](#5-manual-consolidation) · [6. README.md accuracy](#6-readmemd-accuracy) · [7. Test coverage gaps](#7-test-coverage-gaps) · [8. Stale internal links](#8-stale-internal-links) · [9. Glossary coverage](#9-glossary-coverage) · [10. Search terms coverage](#10-search-terms-coverage)
   - [Monthly deep check](#monthly-deep-check-first-weekly-sweep-of-each-month)
   - [Quarterly source-fixture refresh](#quarterly-source-fixture-refresh-every-3-months)
   - [Quarterly glossary audit](#quarterly-glossary-audit-every-3-months)
@@ -322,7 +312,10 @@ numa/
       _food_delete_blocked.html, _recipe_delete_blocked.html
                                    — Why a food or recipe delete was refused, and how to clear each use
       _protein_quality_note.html   — Note under a single food's amino acid table
-      _search_hint.html            — What a food search box accepts besides a name (FDC ID, barcode)
+      _search_hint.html            — The how-to-search hint under every food search box (word order, !word, codes)
+      _excluded_note.html          — "N matches hidden by !word", the last row of a search's results
+      _reverse_offer.html          — The offer to search again with the words reversed, and the
+                                     "Also found by searching ..." heading over rows it appended
       _water_mark.html, _water_notes.html
                                    — Water beside an item ("72% water, 98 g"); a day page's water notes
                                     — Other shared partials (code key, show/hide archived, pick-by-name
@@ -493,85 +486,27 @@ Entry points: the Food Cache list's **Refresh** and the food page's **Refresh fr
 
 The `food_annotations` table stores user-supplied estimates attached to individual cached foods by `fdc_id` (fields: `gi_estimate`, `gi_source`, `diaas_estimate`, `diaas_source`, `prep_context`, `gi_no_prompt`, `diaas_no_prompt`, `reviewed`). `reviewed` is set by `set_food_annotation()` (the whole-form writer, so a save from the Annotate page) and means "the user has seen this food's prompt and settled it"; `_annotation_prompt_needed()` in `web/backend.py` treats it as a stop, which is what keeps a food from detouring again when the user filled in one estimate and deliberately left the other blank. It is never cleared by a later write — a non-review writer such as a GI seed import must not make an already-settled food start interrupting again. `gi_source` is free text describing where `gi_estimate` came from — composed by the Annotate page's reference-table lookup (table/population/entry name/study method) and displayed under the GI field there and on the food's own page. It is meaningless without a value, so `set_food_annotation()` drops it whenever `gi_estimate` is None, the page's JS clears it when the GI box is hand-edited, and any caller writing `gi_estimate` should write it too (see `upsert_food_annotation`'s docstring). See the [User Manual](user-manual.html) for the annotation workflow.
 
-**Prompt on first add:** `web/backend.py:_gi_prompt_needed()` fires the first time a food is added to the Pantry (single-add path) or to a meal, if that food has no `gi_estimate` on file and `gi_no_prompt` isn't set. `/pantry/add` and `/meal/{id}/add` redirect to `/food/annotate/{fdc_id}?next=...` when a prompt is warranted; the annotate page offers "Skip for now" (no DB write, redirects to `next`) vs. "Skip forever for this food" (POSTs to `/food/annotate/{fdc_id}/skip-forever`, which sets `gi_no_prompt=1` via `upsert_food_annotation` without touching other fields). `diaas_no_prompt` exists in the schema but is not currently wired into any add flow.
+**Prompt on first add:** `web/backend.py:_gi_prompt_needed()` fires the first time a food is added to the Pantry (single-add path) or to a meal, if that food has no `gi_estimate` on file and `gi_no_prompt` isn't set. `/pantry/add` and `/meal/{id}/add` redirect to `/food/annotate/{fdc_id}?next=...` when a prompt is warranted; the annotate page offers "Skip for now" (no DB write, redirects to `next`; each asked-for field also has its own Skip beside its badge: a link to `next`, except GI's while DIAAS is also asked for, a button whose script moves focus to `#diaas_estimate`) vs. "Skip forever for this food" (POSTs to `/food/annotate/{fdc_id}/skip-forever`, which sets `gi_no_prompt=1` via `upsert_food_annotation` without touching other fields). `diaas_no_prompt` exists in the schema but is not currently wired into any add flow.
 
 **Seeding GI values in bulk:** `import_gi_seed.py` (repo root) writes `gi_estimate` for cached foods whose name exactly matches an entry in a small hardcoded table sourced from Foster-Powell/Holt/Brand-Miller (2008) *Diabetes Care* 31(12):2281-3 (CC-licensed, ~60 common foods). Ambiguous/fuzzy matches are printed for manual review rather than written automatically — see the script's docstring. Run with `--apply` to write; without it, it's a dry run.
 
-**GI reference table lookup (`gi_lookup.py` — glycemic index table lookup):** The Annotate page's
-"look up a GI value" search is a local fuzzy name match over `gi_data.json` (bundled) or
-`gi_data_local.json` (user-built, below). No live API; same category as CoFID/AFCD/CIQUAL.
+**GI reference table lookup (`gi_lookup.py` — glycemic index table lookup):** The Annotate page's "look up a GI value" search is a local fuzzy name match over `gi_data.json` (bundled) or `gi_data_local.json` (user-built, below). No live API; same category as CoFID/AFCD/CIQUAL.
 
-**Ranking, and when the food isn't in the table.** Every name containing the query scores the same
-0.9, so `_tiebreak()` orders those ties: generic rows before a company's product (`is_branded()` —
-a ™/® sign, a company form in brackets, or a bracketed list ending in a country), then a row whose
-first comma part *is* the query, then shorter names. When no result is the food itself
-(`has_direct_match()` — plural-, word-order- and run-together-tolerant), the lookup route adds
-`stand_ins()`: plain rows for each separate word of the query ("Peanuts" for "peanut butter"),
-which the page shows below a "no row is X itself" note, labelled as stand-ins; a picked stand-in's
-saved source says so.
-A query containing a comma — the USDA-style name the search box starts with, e.g. "Peanut butter,
-smooth style, with salt" — goes to `_search_by_words()` instead of whole-string matching, which
-matched long names to nonsense: rows must contain every word of the first part (or of the second,
-after a category such as "Nuts,"; failing that, its first word), ranked generic-first, then by how
-many of the remaining words they share. Whole-string matching is the fallback when that finds nothing.
+**Ranking, and when the food isn't in the table.** Every name containing the query scores the same 0.9, so `_tiebreak()` orders those ties: generic rows before a company's product (`is_branded()` — a ™/® sign, a company form in brackets, or a bracketed list ending in a country), then a row whose first comma part *is* the query, then shorter names. When no result is the food itself (`has_direct_match()` — plural-, word-order- and run-together-tolerant), the lookup route adds `stand_ins()`: plain rows for each separate word of the query ("Peanuts" for "peanut butter"), which the page shows below a "no row is X itself" note, labelled as stand-ins; a picked stand-in's saved source says so. A query containing a comma — the USDA-style name the search box starts with, e.g. "Peanut butter, smooth style, with salt" — goes to `_search_by_words()` instead of whole-string matching, which matched long names to nonsense: rows must contain every word of the first part (or of the second, after a category such as "Nuts,"; failing that, its first word), ranked generic-first, then by how many of the remaining words they share. Whole-string matching is the fallback when that finds nothing.
 
-**Two tables, and the licence that forces the split.** `gi_data.json` (committed, shipped, bundled in
-the spec) is the 2008 edition — 2,487 rows, Creative Commons licensed, which is why it can ship.
-`gi_data_local.json` is built by the user from the two online supplemental tables of Atkinson et al.
-2021, *International tables of glycemic index and glycemic load values* (AJCN 114:1625–1632,
-doi:10.1093/ajcn/nqab233) — 4,017 rows from that edition plus ~369 carried forward from 2008, and it
-is **gitignored and deliberately absent from `nutrimagnus.spec`'s `datas`**. That edition is under
-the Elsevier user licence: text and data mining for non-commercial purposes is expressly permitted,
-redistribution and adaptation expressly forbidden, copyright held by the American Society for
-Nutrition. So NuMa ships the parser, each user mines their own copy, and the result never leaves
-their machine. `gi_lookup.active_table_path()` prefers the local table (user data dir first, so a
-packaged install can take an upgrade, then beside the module) and falls back to the bundled one.
-**Building the local table** (`numa_app/services/gi_table_build.py`): Settings → Glycemic Index
-Reference Table takes both PDFs as one multi-file upload (`POST /settings/gi-table/build`), saves them
-to a temp dir, and `start_build()` runs `build_table()` on a background thread (~70 s; the page polls
-by reloading every 4 s while `build_status()["running"]`). Which file is Table 1 is read from each
-PDF's "Supplemental Table N." heading, not the upload order. `build_table()` raises `BuildError` —
-writing nothing — for two copies of one table, a PDF with neither heading, or under 1,500 rows from
-either table; on success it writes to a temp name, `os.replace()`s it into
-`gi_lookup.user_table_path()` (the data dir), and calls `gi_lookup.reload()`, since the lookup
-otherwise caches its table for the life of the process. PDF words come from **pdfminer.six** (pure
-Python, so the packaged builds need no poppler binary; PyInstaller's contrib hook bundles its cmap
-data). Word *y* is taken from each character's baseline + 0.9 × font size rather than pdfminer's
-bbox top, which varies by font descender and split one wrapped name across rows; checked against the
-earlier `pdftotext` build, every row's name/GI/SEM/year/country/subjects/ref matches, bar one name
-that `pdftotext` had got wrong. `scripts/build_gi_data.py` is now a thin CLI over the same module.
-The Annotate page shows only an edition badge; setup lives in Settings alone.
+**Two tables, and the licence that forces the split.** `gi_data.json` (committed, shipped, bundled in the spec) is the 2008 edition — 2,487 rows, Creative Commons licensed, which is why it can ship. `gi_data_local.json` is built by the user from the two online supplemental tables of Atkinson et al. 2021, *International tables of glycemic index and glycemic load values* (AJCN 114:1625–1632, doi:10.1093/ajcn/nqab233) — 4,017 rows from that edition plus ~369 carried forward from 2008, and it is **gitignored and deliberately absent from `nutrimagnus.spec`'s `datas`**. That edition is under the Elsevier user licence: text and data mining for non-commercial purposes is expressly permitted, redistribution and adaptation expressly forbidden, copyright held by the American Society for Nutrition. So NuMa ships the parser, each user mines their own copy, and the result never leaves their machine. `gi_lookup.active_table_path()` prefers the local table (user data dir first, so a packaged install can take an upgrade, then beside the module) and falls back to the bundled one. **Building the local table** (`numa_app/services/gi_table_build.py`): Settings → Glycemic Index Reference Table takes both PDFs as one multi-file upload (`POST /settings/gi-table/build`), saves them to a temp dir, and `start_build()` runs `build_table()` on a background thread (~70 s; the page polls by reloading every 4 s while `build_status()["running"]`). Which file is Table 1 is read from each PDF's "Supplemental Table N." heading, not the upload order. `build_table()` raises `BuildError` — writing nothing — for two copies of one table, a PDF with neither heading, or under 1,500 rows from either table; on success it writes to a temp name, `os.replace()`s it into `gi_lookup.user_table_path()` (the data dir), and calls `gi_lookup.reload()`, since the lookup otherwise caches its table for the life of the process. PDF words come from **pdfminer.six** (pure Python, so the packaged builds need no poppler binary; PyInstaller's contrib hook bundles its cmap data). Word *y* is taken from each character's baseline + 0.9 × font size rather than pdfminer's bbox top, which varies by font descender and split one wrapped name across rows; checked against the earlier `pdftotext` build, every row's name/GI/SEM/year/country/subjects/ref matches, bar one name that `pdftotext` had got wrong. `scripts/build_gi_data.py` is now a thin CLI over the same module. The Annotate page shows only an edition badge; setup lives in Settings alone.
 
-`tests/test_gi_lookup.py` asserts `gi_data.json` holds only edition-2008 rows;
-`tests/test_packaging_spec.py` asserts the spec never bundles the local file. Source PDFs and the
-full citation live in `data-sources/` (PDFs gitignored).
+`tests/test_gi_lookup.py` asserts `gi_data.json` holds only edition-2008 rows; `tests/test_packaging_spec.py` asserts the spec never bundles the local file. Source PDFs and the full citation live in `data-sources/` (PDFs gitignored).
 
 Three things about the data model are easy to get wrong:
 
-* **`population` is a per-row field, not a property of which published table a row came from.** The
-  2021 supplement splits its two tables by ISO 26642:2010 *method compliance*, not by subject group
-  — roughly 1,250 rows in the non-compliant table were still measured in normal-tolerance subjects.
-  The 2008 edition's A1/A2 appendices genuinely were split by population, so code carried over from
-  that era cannot be trusted here. ISO compliance rides along separately as `iso`.
-* **`year` is the study's year of test, not the edition's.** Rows tagged `edition: 2008` carry
-  `year: None`, because that extraction never captured one and the edition year is not a measurement
-  date. The Annotate picker shows those as "2008 edition" with no year rather than implying one.
-* **Rows with `population: "unknown"` are returned for *either* requested population**, not withheld
-  from both — see `gi_lookup.search()`.
+* **`population` is a per-row field, not a property of which published table a row came from.** The 2021 supplement splits its two tables by ISO 26642:2010 *method compliance*, not by subject group — roughly 1,250 rows in the non-compliant table were still measured in normal-tolerance subjects. The 2008 edition's A1/A2 appendices genuinely were split by population, so code carried over from that era cannot be trusted here. ISO compliance rides along separately as `iso`.
+* **`year` is the study's year of test, not the edition's.** Rows tagged `edition: 2008` carry `year: None`, because that extraction never captured one and the edition year is not a measurement date. The Annotate picker shows those as "2008 edition" with no year rather than implying one.
+* **Rows with `population: "unknown"` are returned for *either* requested population**, not withheld from both — see `gi_lookup.search()`.
 
-`scripts/build_gi_data_2008.py` is the superseded 2008-edition ingest. It writes `gi_data_2008.json`
-and is not part of a normal build; it exists only in case those A1/A2 PDFs ever need re-parsing.
+`scripts/build_gi_data_2008.py` is the superseded 2008-edition ingest. It writes `gi_data_2008.json` and is not part of a normal build; it exists only in case those A1/A2 PDFs ever need re-parsing.
 
-**Provenance on a pick:** choosing a row writes a one-line human-readable citation into
-`food_annotations.gi_source` alongside the value — edition and published table, the row's own food
-name, year and country of test, subject group, and the source-study reference number. Values saved
-under an older format are never rewritten: the string records where a number came from, not a live
-pointer. Since 2026-10-13 the field is a visible text box the user can also type into; typing a GI
-by hand clears it only while it still holds a lookup citation (recognised in the page script by
-the lookup's own wording, `LOOKUP_SOURCE_RE`), never a source the user typed. `diaas_source` is
-the same for DIAAS (always typed — there is no DIAAS lookup; Claude imports write the reply's
-`diaas_source` there instead of into the food's notes). Each source is dropped by
-`set_food_annotation()` when its value is blank.
+**Provenance on a pick:** choosing a row writes a one-line human-readable citation into `food_annotations.gi_source` alongside the value — edition and published table, the row's own food name, year and country of test, subject group, and the source-study reference number. Values saved under an older format are never rewritten: the string records where a number came from, not a live pointer. Since 2026-10-13 the field is a visible text box the user can also type into; typing a GI by hand clears it only while it still holds a lookup citation (recognised in the page script by the lookup's own wording, `LOOKUP_SOURCE_RE`), never a source the user typed. `diaas_source` is the same for DIAAS (always typed — there is no DIAAS lookup; Claude imports write the reply's `diaas_source` there instead of into the food's notes). Each source is dropped by `set_food_annotation()` when its value is blank.
 
 **Visibility columns:** The **Ann** column in search result tables (`GI`, `DI`, or `GI DI` in green) and the `AA`/`GI`/`DIAAS` columns in the cached food list are driven by joins against `food_annotations` keyed on `fdc_id`.
 
@@ -617,8 +552,7 @@ Vitamins, minerals, and other supplement tablets are sold in per-tablet amounts,
 
 **Editing an old entry to convert it to supplement mode:** Open the entry via **Drafted food profiles → 3. Edit**. If the entry is user-drafted and not already in supplement mode, the program asks "Is this a supplement?" at the start of the edit session. Answer yes and confirm the unit name — the gram_weight=100 portion is added automatically, preserving any nutrient values you already entered.
 
-**IU input for vitamins A, D, and E:**
-Many US supplement labels express these vitamins in International Units. At those prompts, enter the number followed by `IU` (e.g. `400 IU` or `5000iu`). The program converts automatically:
+**IU input for vitamins A, D, and E:** Many US supplement labels express these vitamins in International Units. At those prompts, enter the number followed by `IU` (e.g. `400 IU` or `5000iu`). The program converts automatically:
 - Vitamin A: 1 IU = 0.3 mcg RAE
 - Vitamin D: 1 IU = 0.025 mcg
 - Vitamin E (natural d-alpha-tocopherol): 1 IU = 0.67 mg
@@ -635,12 +569,14 @@ See the [User Manual](user-manual.html) for usage documentation on food search, 
 
 **One search path for every screen.** Every food-search screen in the web app — Foods → Search, Analyze a Food Portion, a meal's add-food panel, My Pantry, Compare, Convert, Edit Recipe's ingredient search, and the "pick another food as a source" searches (custom food: Estimate amino acids / Copy nutrient values; Fill in nutrients from another food) — gets its results from `_run_food_search()` in `web/backend.py`. Don't hand-roll another search loop on a page; add an option to it instead. It runs:
 
+First, `search_ranking.split_excluded_words()` takes `!word` terms out of the query ("beans red !kidney cooked" → "beans red cooked" + `["kidney"]`); the rest of the pipeline sees only the remaining words (so excluded words never reach an online source or the ranking), and rows whose name has an excluded word (`has_excluded_word()`, matched like `word_in_name()`) are dropped before sorting. Only `!` words: no rows. `search_suggest.suggest()` ignores them too. The result is a `_SearchResults` list whose `hidden_by_exclusion` counts the dropped rows the Source filter would have shown; each results partial ends with `_excluded_note.html`'s "N matches hidden by !word" row (classed `search-group-divider`, no `data-row-key`, so row counters skip it, and base.html keeps a block holding only that note visible). Prep-state words (`_SEARCH_PREP_WORDS`: cooked, raw, canned …) are never sent to the online sources, on every screen (`_search_api_query()`): `usda_api.search_foods` keeps only names holding every word sent, so "cooked" dropped every canned bean. Ranking still uses them. After an online search that included USDA, `_SearchResults.reverse_offer` holds the query's words reversed (`_reverse_offer_query()`; USDA strongly favors names holding the words in the order sent, and product names read as English, the reverse of NuMa's most-important-word-first advice); `_reverse_offer.html` offers it, editable. Taking it with "Add below" resubmits the page's search form with `<box name>_also=<query>` (`_also()`, one parameter per box): `_run_food_search(also=...)` appends that query's new online rows after the capped results, marked `also`, under their own heading. "Replace" just searches for it.
+
 0. `_code_search_results()` — if the whole query is a code (`food_ids.parse_code()`: U171477, UD4, R21, OFF3, U171477.1) or a bare number that is a cached food's FDC ID, the one food or recipe it names is the entire result (row builders `_recipe_search_rows()` / `_cached_search_rows()`, shared with step 1; flagged `code_match`). Ignores the Source filter and archived status; skipped when `foods_only`/`exclude_*` rule the item out, and when the code names nothing (the normal search then runs). No online call.
 1. `_search_local_results()` — pantry, Food Cache, recipes, and the bundled no-network datasets (CoFID, AFCD, CIQUAL). Its rows carry every field any results table needs (a cached food's portions, a recipe's servings/weights, the pantry entry id, GI/DIAAS as display strings).
 2. `_external_food_search_results()` — the online sources in `_LIVE_SOURCES` (USDA, Open Food Facts, CNF), only those ticked in the Source filter.
 3. `_sort_search_results()` → `_filter_search_results_by_source()` → `_cap_results_preserving_local()`.
 
-Options: `external=False` for a page's instant local-only first render; `foods_only` (My Pantry, the source pickers); `exclude_recipe_id` (a recipe can't contain itself); `exclude_fdc_id` (a food can't be its own source); `aa_first` (the Estimate-amino-acids picker lists foods with ✓/~✓ amino acid data first); `clean_query` (the meal panel's handling of source names and prep-state words typed into the box). The source pickers' Source list has no Pantry box, so `_picker_sources()` counts pantry foods under Food Cache.
+Options: `external=False` for a page's instant local-only first render; `foods_only` (My Pantry, the source pickers); `exclude_recipe_id` (a recipe can't contain itself); `exclude_fdc_id` (a food can't be its own source); `aa_first` (the Estimate-amino-acids picker lists foods with ✓/~✓ amino acid data first); `clean_query` (the meal panel's: source names typed into the box are ignored). The source pickers' Source list has no Pantry box, so `_picker_sources()` counts pantry foods under Food Cache.
 
 **Local matches first, online results after.** Every search screen renders its local matches at once and fills in the online ones afterwards. Foods → Search, Analyze a Food Portion and the meal panel do this with their own `*-search-api-results` endpoints and page scripts (they also carry a confirm-amino-acids panel, barcode lookup, and the meal panel's amount-mode handling). The rest — My Pantry, Compare, Convert, Edit Recipe, and the three source pickers — share one mechanism: each has a builder in `_SEARCH_SCREENS` that reads its own query parameters and returns its rows partial and context; the page route calls it with `external=False`, and `GET /search-rows/<screen>` calls it with `external=True`. The page marks its results block with `_search_results_block.html`'s `attrs()`, and the `[data-search-results]` script in `base.html` fetches those rows, swaps them into the block's `tbody[data-search-tbody]`, carries across anything typed or ticked in a row (rows carry `data-row-key`), re-registers the rows with the unsaved-changes guard, and fires `numa:search-rows` for page-specific follow-up. A new search screen: write a builder, a rows partial, and add it to `_SEARCH_SCREENS`.
 
@@ -1345,10 +1281,7 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 
 ### Route reference
 
-`web/backend.py` currently defines **142** routes. The tables below group the ones most useful to
-know by name; several large, mostly-mechanical groups (per-row edit/move/archive endpoints, saved
-comparison-list CRUD, print/export variants) are summarized as a single row rather than listed
-individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the exhaustive, current list.
+`web/backend.py` currently defines **142** routes. The tables below group the ones most useful to know by name; several large, mostly-mechanical groups (per-row edit/move/archive endpoints, saved comparison-list CRUD, print/export variants) are summarized as a single row rather than listed individually — read `web/backend.py` directly (`grep -n '^@app\.'`) for the exhaustive, current list.
 
 #### Foods
 
@@ -1643,6 +1576,8 @@ Import a `recipes.csv` + `foods.csv` bundle (`numa_app/services/recipe_csv.py`),
 
 Unified side-by-side comparison — up to 8 foods and/or recipes, mixed in any combination. By default every comparison is per 100g of each item; a recipe's 100g is of the finished dish, by `recipe_serving_grams()` × servings (its stated total weight, else a complete ingredient sum — the weight a meal uses), falling back to the possibly incomplete `db.recipe_compute_weight()` sum, marked "(estimate)". The `basis` choice (`_COMPARE_BASES`, remembered as `compare_basis`) also offers each recipe per serving or whole, as written, and "amounts": each item at its own amount, carried in the `items` string as an `@n` suffix (`f174@150` grams of a food, `r12@2` servings or `r12@150g` grams of a recipe; `_parse_compare_amounts()`), set via `POST /compare/amounts` and kept by add/remove/save/load. Searching again with results ticked adds them first (`add-multiple`'s `then_search`). Three tables when 2+ items are present: an ingredient-union table (a food entry appears as its own single "100 g" ingredient; a recipe's raw ingredient amounts are rescaled by the same 100/batch-grams factor used for its nutrients), a DIAAS-based protein-quality table (built the same way for a food or a recipe — `diaas.meal_level_diaas()` takes a generic `{food_name, nutrients_100g, grams}` list either way, with a recipe's ingredients pre-scaled via `atomic_recipe_ingredients(portion_factor=...)`), and the full nutrient table with highest-value-per-row highlighting, sortable by checked nutrients, plus Print and CSV-export buttons. Search (inline on the same page) returns both foods (USDA/OFF/etc.) and recipes. Saved comparison lists can be named, saved, loaded, and deleted.
 
+**Compare picks across searches and lists.** A script in `base.html` remembers every tick in a Compare column in `sessionStorage` (`numa_compare_picks`), for any checkbox named `fdc_id`/`recipe_id` whose form posts to `/compare/add-multiple` — Foods search, My Pantry (both tables), Recipes, Food Cache and Compare's own search. Boxes are re-ticked from it on every page load and after online results replace the rows (`numa:search-rows`); a note under each Compare button lists the picks, each removable. On submit (capture phase, ahead of the "nothing ticked" guard) the picks not on the current page go in as hidden fields, `off_code_<id>` included; they are cleared when `/compare` next loads (`numa_compare_picks_sent`), so a submit stopped by another handler keeps them. Compare's own "search again with ticks" path calls `window.numaComparePicks.addTo()` itself, since `form.submit()` fires no submit event. A custom profile's Edit page and a food's Fill in nutrients from another food page (`name="pick"`, form action `/food/custom-profiles/{id}/compare`) keep a separate list per food, keyed by that action, limited to 7 besides the food itself. Browser test: `tests/e2e/test_compare_picks_e2e.py`.
+
 #### `recipe_delete_blocked.html`, `_recipe_delete_blocked.html`
 
 Why a recipe delete was refused: `POST /recipe/{id}/delete` won't delete a recipe still logged in a meal or used as a sub-recipe, and shows these instead (the partial as a row note on the Recipes list, via the `blocked_html` reply), with an Archive button. Meals and recipes left naming a recipe deleted before that rule are listed in Foods → 9 (`check_db_integrity`'s `orphaned_meal_items` and `deleted_subrecipe_refs`).
@@ -1737,44 +1672,20 @@ Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`,
 
 ## AI help edition of the manual
 
-Users who can't find an answer in the manual can ask an AI instead: a Google
-AI notebook (Gemini Notebook, formerly NotebookLM) whose one source is a
-Google Doc holding the manual. Anyone with the notebook's link can ask it
-questions; it answers from the manual and shows which passages it used.
+Users who can't find an answer in the manual can ask an AI instead: a Google AI notebook (Gemini Notebook, formerly NotebookLM) whose one source is a Google Doc holding the manual. Anyone with the notebook's link can ask it questions; it answers from the manual and shows which passages it used.
 
-`scripts/build_ai_manual.py` writes `ai-edition/numa-manual-ai.html` from
-`user-manual.md`: no reading times, no HTML comments, no Part 11 (Recent
-program updates log), and internal links turned into plain text that names
-where they point ("(see “Backing up your data”, Part 1)"), since links can't
-work inside a Google Doc. A Glossary link keeps just its word; a link into
-Part 11 says "(not included in this edition)".
+`scripts/build_ai_manual.py` writes `ai-edition/numa-manual-ai.html` from `user-manual.md`: no reading times, no HTML comments, no Part 11 (Recent program updates log), and internal links turned into plain text that names where they point ("(see “Backing up your data”, Part 1)"), since links can't work inside a Google Doc. A Glossary link keeps just its word; a link into Part 11 says "(not included in this edition)".
 
-`scripts/upload_ai_manual.py` runs that build, then replaces the Doc's
-content in place (Drive API `files.update`, same file ID, so the notebook's
-source stays linked). After uploading, click the source in the notebook and
-sync it with Google Drive — the notebook does not pick up changes by itself.
+`scripts/upload_ai_manual.py` runs that build, then replaces the Doc's content in place (Drive API `files.update`, same file ID, so the notebook's source stays linked). After uploading, click the source in the notebook and sync it with Google Drive — the notebook does not pick up changes by itself.
 
 **One-time setup** (owner only; nothing here ships with NuMa):
 
 1. `pip install google-api-python-client google-auth-oauthlib` in `.venv`.
-2. In Google Cloud Console: create a project, enable the **Google Drive API**,
-   set up the OAuth consent screen (External, your own address as a test
-   user), then **publish it to "In production"** — while it stays in
-   "Testing", Google expires the stored sign-in after 7 days. With only the
-   `drive.file` scope no Google review is needed; you'll see an "unverified
-   app" warning at sign-in, which is expected for your own app.
-3. Create an OAuth client of type **Desktop app**, download its JSON, and
-   save it as `~/.config/numa/google-drive/client_secret.json`.
-4. Run `python scripts/upload_ai_manual.py`. A browser opens for Google
-   sign-in; the token is saved beside the client file. The first run creates
-   the Doc and records its ID in `ai_manual_doc.json`; add that Doc to the
-   notebook as a Google Drive source.
+2. In Google Cloud Console: create a project, enable the **Google Drive API**, set up the OAuth consent screen (External, your own address as a test user), then **publish it to "In production"** — while it stays in "Testing", Google expires the stored sign-in after 7 days. With only the `drive.file` scope no Google review is needed; you'll see an "unverified app" warning at sign-in, which is expected for your own app.
+3. Create an OAuth client of type **Desktop app**, download its JSON, and save it as `~/.config/numa/google-drive/client_secret.json`.
+4. Run `python scripts/upload_ai_manual.py`. A browser opens for Google sign-in; the token is saved beside the client file. The first run creates the Doc and records its ID in `ai_manual_doc.json`; add that Doc to the notebook as a Google Drive source.
 
-The `drive.file` scope means the script can see only files it created
-itself — nothing else in the Drive. It also means the Doc must be the one
-the script created, not one uploaded by hand. If that Doc is ever deleted,
-the script stops rather than silently making a new one (which would leave
-the notebook pointing at nothing); `--new` creates a fresh Doc deliberately.
+The `drive.file` scope means the script can see only files it created itself — nothing else in the Drive. It also means the Doc must be the one the script created, not one uploaded by hand. If that Doc is ever deleted, the script stops rather than silently making a new one (which would leave the notebook pointing at nothing); `--new` creates a fresh Doc deliberately.
 
 ## Data Storage
 
@@ -1794,7 +1705,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,535 tests**, all passing (2,501 in the default run plus 34 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,549 tests**, all passing (2,509 in the default run plus 40 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1898,7 +1809,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 
 ### Browser-level end-to-end tests
 
-`tests/e2e/` uses [Playwright](https://playwright.dev/) to drive a real, isolated instance of the app in an actual browser — currently covering Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes async refresh (confirming the JS that re-fetches/re-sorts once external sources respond actually runs, not just that the page ships the right code), plus the user manual's bookmarks (set, drop-down list, table-of-contents marks, remove one, clear all — all client-side over localStorage), NuMa's own window's Ctrl+click notice (`test_new_tab_notice_e2e.py`: Cancel, Open it, an ordinary tab never shows it, "Don't show this again"), and Foods → 9's GI "not needed" list (`test_gi_not_needed_e2e.py`: the reminder beside "Also list..." turns into a warning on a changed box, leaving by a link asks to save first, and the list button saves on OK before reloading; the amino acid and portion lists' reminders, including after "Check all as not needed"; and the Annotate page's Save annotation lighting up on a "don't prompt me" box), and the Nutrient Plot's instant Legend placement change (`test_nutrient_plot_e2e.py`: it updates the address bar and both plot image URLs, and, while the plot is on the Home page, saves it there too), and every search page's landing after a search (`test_search_lands_on_results_e2e.py`: the section or search form comes to the top of the window and focus goes to the first result, and stays there after the online results replace the rows; other submits keep your place), and the Up/Down arrow keys in search results (`test_search_arrow_keys_e2e.py`: focus moves one result at a time, and Back from a result opened with Enter returns to it), and the Edit Recipe page's top section (`test_recipe_edit_layout_e2e.py`: Introduction, Instructions and Notes end level with Running totals at any window width), and a food's Portions page (`test_portions_layout_e2e.py`: typing in a portion's Description box shows "Unsaved changes" without resizing the box). Runs weekly (Thursday 06:00 UTC, just ahead of the sweep) and on demand, separately from the rest of the suite (which runs on every change) since a real browser adds real wall-clock time.
+`tests/e2e/` uses [Playwright](https://playwright.dev/) to drive a real, isolated instance of the app in an actual browser — currently covering Food Search, Analyze a Food Portion, and a meal's Add Food panel's behind-the-scenes async refresh (confirming the JS that re-fetches/re-sorts once external sources respond actually runs, not just that the page ships the right code), plus the user manual's bookmarks (set, drop-down list, table-of-contents marks, remove one, clear all — all client-side over localStorage), NuMa's own window's Ctrl+click notice (`test_new_tab_notice_e2e.py`: Cancel, Open it, an ordinary tab never shows it, "Don't show this again"), and Foods → 9's GI "not needed" list (`test_gi_not_needed_e2e.py`: the reminder beside "Also list..." turns into a warning on a changed box, leaving by a link asks to save first, and the list button saves on OK before reloading; the amino acid and portion lists' reminders, including after "Check all as not needed"; and the Annotate page's Save annotation lighting up on a "don't prompt me" box), and the Nutrient Plot's instant Legend placement change (`test_nutrient_plot_e2e.py`: it updates the address bar and both plot image URLs, and, while the plot is on the Home page, saves it there too), and every search page's landing after a search (`test_search_lands_on_results_e2e.py`: the section or search form comes to the top of the window and focus goes to the first result, and stays there after the online results replace the rows; other submits keep your place), and the Up/Down arrow keys in search results (`test_search_arrow_keys_e2e.py`: focus moves one result at a time, and Back from a result opened with Enter returns to it), and the Edit Recipe page's top section (`test_recipe_edit_layout_e2e.py`: Introduction, Instructions and Notes end level with Running totals at any window width), and a food's Portions page (`test_portions_layout_e2e.py`: typing in a portion's Description box shows "Unsaved changes" without resizing the box), and Compare picks kept across searches and lists (`test_compare_picks_e2e.py`: a tick survives a new search and a move to Recipes, the note under the Compare button lists every pick and removes one, Compare receives them all and the picks clear; a custom profile's Edit page and Fill in nutrients from another food keep their own). Runs weekly (Thursday 06:00 UTC, just ahead of the sweep) and on demand, separately from the rest of the suite (which runs on every change) since a real browser adds real wall-clock time.
 
 ### Mutation testing
 

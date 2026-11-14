@@ -1,5 +1,6 @@
 {# Convert's result rows — rendered by /food/convert (local matches) and by
    /search-rows/convert (full merged set, replacing the tbody). #}
+{% import "_reverse_offer.html" as _ro %}
     {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
     {% for food in search_results %}
       {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
@@ -11,6 +12,7 @@
     <tr class="search-group-divider"><td colspan="4"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
       {% set ns.partial_shown = true %}
       {% endif %}
+{{ _ro.divider(food, loop.previtem, search_results.also, 4) }}
     <tr data-row-key="{{ 'recipe:%s' % food.recipe_id if food._type == 'recipe' else 'food:%s' % food.fdc_id }}">
       <td><a href="{{ food.convert_url }}"><strong>{{ food.name }}</strong></a>{{ food_id_tag(None, food.recipe_id) if food._type == "recipe" else food_id_tag(food.fdc_id | default(none)) }}</td>
       <td class="muted">{{ food.brand or "—" }}</td>
@@ -18,3 +20,5 @@
       <td><span class="source-badge source-{{ food.source }}">{{ food.source }}</span></td>
     </tr>
     {% endfor %}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 4) }}
+{{ _ro.offer(search_results, 'q', 4) }}

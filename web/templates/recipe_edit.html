@@ -264,7 +264,6 @@
       <summary><strong>Add Ingredient</strong></summary>
 
       <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search data-online-search data-search-form>
-        <p class="muted mb-1 mt-2"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
           <div class="input-group" style="max-width:28rem">
             <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"

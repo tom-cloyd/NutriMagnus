@@ -228,13 +228,12 @@
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </div>
-      <p class="add-food-tip muted mb-0"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
+      {{ _sh.hint("add-food-tip mb-0") }}
       {% if q %}<span class="ak-hint">('Alt + Shift + I' returns focus to search input)</span>{% endif %}
       <span id="add-food-no-results" class="search-no-results" style="display:none"
             data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>
       {% if q and external_source_labels %}{{ _osn.notice("add-food-api-loading", external_source_labels) }}{% endif %}
     </div>
-    {{ _sh.hint("mb-2") }}
     <div class="mb-3">
       {% call _srcf.select(source, source_filters, source_labels, show_redo=False) %}
       <button type="submit" class="btn btn-sm btn-outline-primary"
@@ -425,6 +424,9 @@
     }
 
     var params = new URLSearchParams({q: {{ q | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
+    // A second search appended by the word-order offer (_reverse_offer.html)
+    var qAlso = new URLSearchParams(location.search).get('q_also');
+    if (qAlso) params.append('q_also', qAlso);
     {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
     fetch('/meal/{{ meal.id }}/search-api-results?' + params.toString())
       .then(function (r) { return r.text(); })

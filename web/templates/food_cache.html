@@ -274,15 +274,7 @@ function selectMissingAA() {
 function selectNone() {
   document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) { cb.checked = false; });
 }
-function updateCompareButtonColor() {
-  var checked = document.querySelectorAll('.compare-cb:checked').length;
-  var btn = document.getElementById('compare-btn');
-  btn.classList.toggle('btn-primary', checked >= 2);
-  btn.classList.toggle('btn-outline-secondary', checked < 2);
-}
-document.querySelectorAll('.compare-cb').forEach(function (cb) {
-  cb.addEventListener('change', updateCompareButtonColor);
-});
+// The Compare button's color and picks note: base.html (compare picks).
 function toggleNotes(fdcId) {
   var row = document.getElementById('notes-row-' + fdcId);
   if (row) row.style.display = (row.style.display === 'none') ? '' : 'none';

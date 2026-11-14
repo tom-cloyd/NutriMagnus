@@ -1,5 +1,6 @@
 {# Compare's "add a food or recipe" result rows — rendered by /compare (local
    matches) and by /search-rows/compare (full merged set, replacing the tbody). #}
+{% import "_reverse_offer.html" as _ro %}
       {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
       {% for r in search_results %}
         {% if is_local_source(r.source) %}{% set ns.seen_local = true %}{% endif %}
@@ -11,6 +12,7 @@
       <tr class="search-group-divider"><td colspan="6"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
         {% set ns.partial_shown = true %}
         {% endif %}
+{{ _ro.divider(r, loop.previtem, search_results.also, 6) }}
       <tr data-row-key="{{ 'recipe:%s' % r.recipe_id if r._type == 'recipe' else 'food:%s' % r.fdc_id }}">
         {% if r._type == "recipe" %}
         <td><input type="checkbox" name="recipe_id" value="{{ r.recipe_id }}" class="row-chk"></td>
@@ -30,3 +32,5 @@
         {% endif %}
       </tr>
       {% endfor %}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 6) }}
+{{ _ro.offer(search_results, 'search', 6) }}

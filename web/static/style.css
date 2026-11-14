@@ -1330,8 +1330,8 @@ td.compare-val-col {
   /* margin 0.5rem = gap-2, the spacing of the meal's button row above */
   .add-food-row > summary { float: left; width: calc(33.333% - 0.5rem); margin-right: 0.5rem; }
   .add-food-row > summary .ak-hint { white-space: nowrap; }
-  /* Tight lines let the two-line tip fit the search box's height; centered
-     on it, the header, search box and tip then share one top and bottom. */
+  /* The search hint (_search_hint.html) sits beside the box here, in tight
+     lines; it runs taller than the box, which is centered on it. */
   .add-food-search { flex-wrap: wrap; }
   .add-food-tip small { display: block; line-height: 1.2; }
   .add-food-tip code { line-height: 1; }

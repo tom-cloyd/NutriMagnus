@@ -3083,19 +3083,43 @@ def _barcode_search_results(digits: str, *, online: bool = True) -> tuple[list[d
     return rows, None
 
 
-def _search_api_query(q: str) -> str:
-    """The words a meal-style search sends to the online sources: source
-    names typed into the box (usda, off, ...) and prep-state words (raw,
-    cooked, ...) dropped, since USDA's own matching does worse with them."""
-    clean_query = _strip_meta_words(q)
-    api = [w for w in clean_query.split() if w not in _SEARCH_PREP_WORDS]
-    return " ".join(api) if api else clean_query
+def _search_api_query(q: str, *, clean_query: bool = True) -> str:
+    """The words a search sends to the online sources: prep-state words
+    (raw, cooked, canned, ...) dropped, since USDA's own matching does worse
+    with them and usda_api.search_foods keeps only names holding every word
+    sent — "beans red cooked" lost every canned bean, which is cooked but
+    named "canned" (reported 2026-11-12). Ranking still uses the whole
+    query, so a name with "cooked" still ranks first. Every search screen
+    does this since 2026-11-12; before, only the meal panel did.
+    clean_query=True also drops source names typed into the box (usda, off,
+    ...) — the meal panel's way. A query of only prep words is sent whole."""
+    base = _strip_meta_words(q) if clean_query else q
+    api = [w for w in base.split() if w.lower() not in _SEARCH_PREP_WORDS]
+    return " ".join(api) if api else base
+
+
+class _SearchResults(list):
+    """_run_food_search's rows, plus how many matches its "!word" terms
+    removed (`hidden_by_exclusion`, counting only rows the Source filter
+    would have shown) and those words (`excluded`). Results templates show
+    "6 matches hidden by !kidney" from these (see _excluded_note.html), so a
+    search whose USDA matches were all excluded doesn't look like a search
+    that found nothing there. Reported 2026-11-12: "beans red cooked
+    !kidney" showed no USDA rows — every cooked red bean USDA has is a
+    kidney bean, and nothing said so."""
+    hidden_by_exclusion: int = 0
+    excluded: list[str] = []
+    # The word-order offer (_reverse_offer.html): `reverse_offer` is the
+    # query to suggest, its words reversed ("" = no offer); `also` is the
+    # second query whose online rows were appended (rows marked "also").
+    reverse_offer: str = ""
+    also: str = ""
 
 
 def _run_food_search(query: str, source: list[str], limit: int, *, sort: str | None = None,
                      external: bool = True, foods_only: bool = False,
                      exclude_recipe_id: int | None = None, exclude_fdc_id: int | None = None,
-                     aa_first: bool = False, clean_query: bool = False) -> list[dict]:
+                     aa_first: bool = False, clean_query: bool = False, also: str = "") -> list[dict]:
     """The one food-search pipeline every search screen uses: local matches
     (pantry, cache, recipes, bundled datasets), then the online sources
     ticked in `source`, merged, ranked, Source-filtered and capped.
@@ -3108,12 +3132,23 @@ def _run_food_search(query: str, source: list[str], limit: int, *, sort: str | N
     exclude_fdc_id      drop that food (a food can't be its own source)
     aa_first            foods with (likely) amino acid data first — ✓ or ~✓ —
                         for the "estimate amino acids from" picker
-    clean_query         ignore source names typed into the box, and send the
-                        online sources _search_api_query(query) (prep-state
-                        words like "raw" dropped too) — the meal panel's way
+    clean_query         ignore source names typed into the box — the meal
+                        panel's way. Prep-state words ("raw", "cooked") are
+                        never sent to the online sources: see _search_api_query
+    also                a second query, sent to the online sources only; its
+                        rows not already found are appended after the capped
+                        results (their own ranking, cap and "!" words, plus
+                        the first query's), marked r["also"]. See
+                        _reverse_offer_query for why.
     """
     if sort is None:
         sort = _resolve_sort(None, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
+    # "!word" excludes: "beans red !kidney cooked" searches "beans red
+    # cooked" everywhere (local and online), then drops every result whose
+    # name has "kidney". Only excluded words, nothing to search for: no rows.
+    query, excluded = _search_ranking.split_excluded_words(query)
+    if not query:
+        return []
     # A typed barcode is that one product: the cache on the instant local
     # pass, Open Food Facts too on the online pass. A barcode never falls
     # through to a name search — a string of digits matches nothing useful.
@@ -3140,18 +3175,70 @@ def _run_food_search(query: str, source: list[str], limit: int, *, sort: str | N
                    if not (r.get("_type") == "recipe" and r["recipe_id"] == exclude_recipe_id)]
     if exclude_fdc_id is not None:
         results = [r for r in results if r.get("fdc_id") != exclude_fdc_id]
+    exclude_ids: set[int] = set()
     if external:
         exclude_ids = {r["fdc_id"] for r in results if r.get("fdc_id")}
         if exclude_fdc_id is not None:
             exclude_ids.add(exclude_fdc_id)
-        api_query = _search_api_query(query) if clean_query else query
+        api_query = _search_api_query(query, clean_query=clean_query)
         results = results + _external_food_search_results(api_query, exclude_ids, query, sort,
                                                           sources=source, limit=limit)
+    results, hidden = _drop_excluded(results, excluded, source)
     results = _sort_search_results(results, query, sort)
     if aa_first:
         results.sort(key=lambda r: r.get("aa") not in ("✓", "~✓"))   # stable: keeps relevance order
-    return _cap_results_preserving_local(_filter_search_results_by_source(results, source), limit,
-                                         _strip_meta_words(query) if clean_query else query)
+    out = _SearchResults(_cap_results_preserving_local(_filter_search_results_by_source(results, source), limit,
+                                                       _strip_meta_words(query) if clean_query else query))
+    also_query, also_excluded = _search_ranking.split_excluded_words(also.strip())
+    if external and also_query:
+        # exclude_ids now holds every row the first query found (excluded
+        # ones too), so the appended block is only what's new.
+        extra = _external_food_search_results(_search_api_query(also_query, clean_query=clean_query),
+                                              exclude_ids, also_query, "relevance", sources=source, limit=limit)
+        extra, also_hidden = _drop_excluded(extra, list(dict.fromkeys(excluded + also_excluded)), source)
+        hidden += also_hidden
+        extra = _filter_search_results_by_source(extra, source)
+        if limit:
+            extra = extra[:limit]
+        for r in extra:
+            r["also"] = True
+        out.extend(extra)
+        out.also = also_query
+    elif external and not also_query and "usda" in source:
+        out.reverse_offer = _reverse_offer_query(_strip_meta_words(query) if clean_query else query, excluded)
+    out.hidden_by_exclusion, out.excluded = hidden, excluded
+    return out
+
+
+def _drop_excluded(rows: list[dict], excluded: list[str], source: list[str]) -> tuple[list[dict], int]:
+    """(rows without those whose name has an excluded word, how many of the
+    dropped ones the Source filter would have shown)."""
+    if not excluded:
+        return rows, 0
+    kept, dropped = [], []
+    for r in rows:
+        (dropped if _search_ranking.has_excluded_word(r.get("name", ""), excluded) else kept).append(r)
+    return kept, len(_filter_search_results_by_source(dropped, source))
+
+
+def _reverse_offer_query(query: str, excluded: list[str]) -> str:
+    """The search to offer after an online search: the query's words in
+    reverse order, its "!" words kept at the end ("beans red small !kidney"
+    -> "small red beans !kidney"); "" for a one-word query.
+
+    Why reversed: USDA's search ranks a name holding the words in the order
+    sent far above the same words in any other order. Tried 2026-11-12 on
+    every order of three-word queries: five of six orders gave identical
+    results; only the one matching how products are named added more —
+    "small red beans" 13 more than "beans red small" (branded SMALL RED
+    BEANS), "whole wheat bread" 11 more than "bread wheat whole". Product
+    names read as ordinary English, the reverse of NuMa's advice to type
+    the most important word first, so reversing finds that order.
+    Offered, not run automatically: it costs another USDA request."""
+    words = query.split()
+    if len(words) < 2:
+        return ""
+    return " ".join(list(reversed(words)) + [f"!{w}" for w in excluded])
 
 
 # ── Search screens whose online results fill in after the page renders ──
@@ -3177,6 +3264,13 @@ def _screen_query(params, q_field: str, source_field: str = "source",
     return q, source, _resolve_result_limit(_param_int(params, "limit"))
 
 
+def _also(params, q_field: str) -> str:
+    """The second query appended to a search box's online results (see
+    _reverse_offer.html): `<box name>_also`, one per box, so a page with two
+    search boxes (a custom food's two pickers) keeps them apart."""
+    return (params.get(f"{q_field}_also") or "").strip()
+
+
 def _picker_sources(source: list[str]) -> list[str]:
     """Source pickers offer "Food Cache" but no separate "Pantry" — every
     pantry food is a cached food, so ticking the cache includes them."""
@@ -3192,20 +3286,21 @@ def _rows_ctx(searched: str, results: list[dict], source: list[str], external: b
 
 def _screen_pantry(params, external: bool, ident: int | None = None):
     q, source, limit = _screen_query(params, "search")
-    results = _run_food_search(q, source, limit, external=external, foods_only=True) if q else []
+    results = (_run_food_search(q, source, limit, external=external, foods_only=True,
+                                also=_also(params, "search")) if q else [])
     return "_pantry_search_rows.html", _rows_ctx(q, results, source, external, search=q,
                                                  limit=limit, link_id=_param_int(params, "link_id"))
 
 
 def _screen_compare(params, external: bool, ident: int | None = None):
     q, source, limit = _screen_query(params, "search")
-    results = _run_food_search(q, source, limit, external=external) if q else []
+    results = _run_food_search(q, source, limit, external=external, also=_also(params, "search")) if q else []
     return "_compare_search_rows.html", _rows_ctx(q, results, source, external, search=q, limit=limit)
 
 
 def _screen_convert(params, external: bool, ident: int | None = None):
     q, source, limit = _screen_query(params, "q")
-    results = _run_food_search(q, source, limit, external=external) if q else []
+    results = _run_food_search(q, source, limit, external=external, also=_also(params, "q")) if q else []
     for r in results:
         if r.get("_type") == "recipe":
             r["convert_url"] = f"/food/convert/recipe/{r['recipe_id']}"
@@ -3219,7 +3314,8 @@ def _screen_convert(params, external: bool, ident: int | None = None):
 
 def _screen_recipe(params, external: bool, ident: int | None = None):
     q, source, limit = _screen_query(params, "q")
-    results = (_run_food_search(q, source, limit, external=external, exclude_recipe_id=ident)
+    results = (_run_food_search(q, source, limit, external=external, exclude_recipe_id=ident,
+                                also=_also(params, "q"))
                if q and ident else [])
     with _db.get_db() as conn:
         for r in results:
@@ -3233,7 +3329,8 @@ def _picker_screen(q_field: str, source_field: str, pref_key: str, mode: str, aa
     def build(params, external: bool, ident: int | None = None):
         q, source, limit = _screen_query(params, q_field, source_field, pref_key, _SOURCE_PICKER_FILTERS)
         results = (_run_food_search(q, _picker_sources(source), limit, external=external, foods_only=True,
-                                    exclude_fdc_id=ident, aa_first=aa_first) if q and ident else [])
+                                    exclude_fdc_id=ident, aa_first=aa_first, also=_also(params, q_field))
+                   if q and ident else [])
         return "_source_picker_rows.html", _rows_ctx(q, results, source, external, q=q,
                                                      limit=limit, mode=mode, food={"fdc_id": ident})
     return build
@@ -3336,7 +3433,7 @@ def search_rows(request: Request, screen: str):
 @app.get("/food/search-api-results", response_class=HTMLResponse)
 def food_search_api_results(request: Request, query: str = "", sort: str | None = None,
                                    source: list[str] | None = Query(default=None),
-                                   limit: int | None = None):
+                                   limit: int | None = None, query_also: str = ""):
     """Fetched by JS on the Food Search page after the initial (cache-only)
     render. Returns the FULL result set — local results merged with USDA/OFF
     and re-sorted together, not just the external rows appended below — so a
@@ -3349,14 +3446,14 @@ def food_search_api_results(request: Request, query: str = "", sort: str | None 
     query = query.strip()
     results: list[dict] = []
     if query:
-        results = _run_food_search(query, source, limit, sort=sort)
+        results = _run_food_search(query, source, limit, sort=sort, also=query_also)
     return templates.TemplateResponse(request, "_search_api_rows.html", {"results": results})
 
 
 @app.get("/food/analyze-portion-api-results", response_class=HTMLResponse)
 def food_analyze_portion_api_results(request: Request, query: str = "", sort: str | None = None,
                                             source: list[str] | None = Query(default=None),
-                                            limit: int | None = None):
+                                            limit: int | None = None, query_also: str = ""):
     """Same as /food/search-api-results, for the Analyze a Food Portion page."""
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     source = _resolve_source_filter(source, "sort_food_search_source")
@@ -3364,7 +3461,7 @@ def food_analyze_portion_api_results(request: Request, query: str = "", sort: st
     query = query.strip()
     results: list[dict] = []
     if query:
-        results = _run_food_search(query, source, limit, sort=sort)
+        results = _run_food_search(query, source, limit, sort=sort, also=query_also)
     return templates.TemplateResponse(request, "_analyze_portion_api_rows.html", {"results": results})
 
 
@@ -3447,8 +3544,9 @@ def food_analyze_portion_get(request: Request):
 
 @app.post("/food/analyze-portion", response_class=HTMLResponse)
 async def food_analyze_portion_post(request: Request, query: str = Form(""), source: list[str] = Form([]),
-                                     limit: int | None = Form(None)):
-    return await _search_logic(request, query, "food_analyze_portion.html", source=source, limit=limit)
+                                     limit: int | None = Form(None), query_also: str = Form("")):
+    return await _search_logic(request, query, "food_analyze_portion.html", source=source, limit=limit,
+                               extra_ctx={"query_also": query_also.strip()})
 
 
 @app.get("/food/analyze-recipe-portion", response_class=HTMLResponse)
@@ -7934,7 +8032,7 @@ def meal_print(
 @app.get("/meal/{meal_id}/search-api-results", response_class=HTMLResponse)
 def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: str | None = None,
                                    source: list[str] | None = Query(default=None),
-                                   limit: int | None = None):
+                                   limit: int | None = None, q_also: str = ""):
     """Fetched by JS on the meal page after the initial (cache-only) render.
     Returns the FULL result set — local results merged with USDA/OFF and
     re-sorted together, not just the external rows appended below — so a
@@ -7947,7 +8045,7 @@ def meal_search_api_results(request: Request, meal_id: int, q: str = "", sort: s
     q = q.strip()
     results: list[dict] = []
     if q:
-        results = _run_food_search(q, source, limit, sort=sort, clean_query=True)
+        results = _run_food_search(q, source, limit, sort=sort, clean_query=True, also=q_also)
 
     return templates.TemplateResponse(request, "_add_food_api_rows.html", {
         "meal_id": meal_id,
@@ -8166,6 +8264,21 @@ def meal_toggle_complete(meal_id: int):
         with _db.get_db() as conn:
             _db.meal_set_complete(conn, meal_id, not bool(meal["complete"]))
     return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+
+
+@app.post("/meal/{meal_id}/set-complete", response_class=RedirectResponse)
+def meal_set_complete_post(request: Request, meal_id: int, complete: str = Form(""), next: str = Form("")):
+    """The Meals & Log list's Complete box: sets (not toggles) the same flag as
+    the meal page's "Mark complete" button. An unticked box sends nothing for
+    `complete`, which clears it. Saved in place (JSON) from the list."""
+    found = False
+    with _db.get_db() as conn:
+        if _db.meal_get(conn, meal_id):
+            found = True
+            _db.meal_set_complete(conn, meal_id, bool(complete))
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": found})
+    return RedirectResponse(_list_return(next, "/meals"), status_code=303)
 
 
 @app.post("/meal/{meal_id}/delete", response_class=RedirectResponse)

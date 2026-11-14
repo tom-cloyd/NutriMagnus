@@ -85,7 +85,8 @@ def suggest(conn: sqlite3.Connection, query: str, limit: int = 3) -> list[str]:
     food-composition name lists — a name you've searched before is more
     likely what you meant, and re-searching it is guaranteed to find
     something, whereas a bundled-dataset word is merely a real word."""
-    query = (query or "").strip()
+    # "!word" terms exclude, they aren't searched for: don't "correct" them.
+    query = " ".join(w for w in (query or "").split() if not w.startswith("!"))
     if not query:
         return []
     local_corpus = _local_tokens(conn)

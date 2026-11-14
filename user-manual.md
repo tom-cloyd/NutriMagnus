@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-12:0653* / Reading time: 9 hours, 6 minutes
+*Updated 2026-11-13:2213* / Reading time: 9 hours, 17 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -42,11 +42,11 @@ User-derived issues get immediate priority in the program-development process!
 
 ## How to read this Manual <!-- t:26-10-02 -->
 
-NuMa runs as a web app, shown through your ordinary browser, normally in a window of its own — once it's installed (Part 1, section A), there's no command line involved.
+NuMa is a desktop program that runs on your own computer, normally in a window of its own — once it's installed (Part 1, section A), there's no command line involved.
 
 - Read **Part 1** (To get a quick start) for a fast orientation before diving in.
 - Read **Part 2** (Introduction) for the ideas behind the program.
-- Read **Part 3 — Using the Web App** for how to actually operate NuMa.
+- Read **Part 3 — Using NuMa** for how to actually operate the program.
 - Read **Part 4** (Core nutrition concepts) for more of the ideas behind the program.
 - Read **Part 5** (Reading Your Results) whenever you want to know what a column or table means.
 - Read **Part 6** (Shared Operations) for behaviors that show up in more than one place in the app, explained once.
@@ -55,7 +55,7 @@ NuMa runs as a web app, shown through your ordinary browser, normally in a windo
 
 ## Part 1 — To get a quick start <!-- t:26-10-04 -->
 
-*(Reading time: 19 minutes)*
+*(Reading time: 20 minutes)*
 
 ### A. Download and install the program <!-- t:26-10-03 -->
 
@@ -123,7 +123,7 @@ Your data doesn't live in the installed program: it's in two folders in your hom
 
 *Search terms: offline, no internet, privacy, private, localhost, server, page won't load, site can't be reached, connection refused, hibernate.*
 
-NuMa is a "web app" — it runs quietly in the background and shows its screens through your browser, in a window of its own or a tab, like a website, but it's talking only to itself on your machine. It doesn't need the internet to run at all, and nothing you enter leaves your computer; NuMa reaches out only when you look up a food in an online [database](#gloss-database), or when it checks whether a newer version has been released. Two things follow from all this:
+NuMa is a desktop program, but an unusual one. It runs quietly in the background and draws its screens with a web browser, in a window of its own or a browser tab. It looks like a website (programmers call this design a "web app"), but it's talking only to itself on your machine. It doesn't need the internet to run at all, and nothing you enter leaves your computer; NuMa reaches out only when you look up a food in an online [database](#gloss-database), or when it checks whether a newer version has been released. Two things follow from all this:
 
    - **The window and the program are different things.** Closing NuMa's window (or tab) doesn't close NuMa — it's still running. To get back, start NuMa again the way you normally do, which opens a fresh window. To quit for real, press **Ctrl+Q** ([more](#quit-numa)).
    - **Sleep can disconnect the window.** If your computer sleeps or hibernates while NuMa is open, the background program may stop and need restarting when it wakes — you'll typically see the page fail to load. This is expected, not a sign anything's broken. Start NuMa again to relaunch it; your data is on disk and unaffected.
@@ -217,6 +217,20 @@ Use a kitchen scale to determine food quantities, if at all possible. It's easie
 Regardless of how you eat, you will have to tell the program WHAT you are eating and HOW MUCH. The absolute best way to do this is to give it a weight. Sometimes you can just give it a "portion" or a volume measure instead, and the program will figure out the weight for you from that so it can keep going. However, remember that approximations are better than nothing, so if you can do nothing else, try to give NuMa an approximate amount.
 
 Without the program you're flying blind. With it, even if you only use volume measures, there will be some errors of measurement, but you're still much better informed about what's happening than before. In some cases, though, a volume measure just doesn't work well. If that happens to you, [get in touch](#feedback) and we'll figure it out together. All in all, it's by far best to have and use a kitchen scale. I have had a small Oxo scale for years. It's excellent. There are others you can consider as well, but I do suggest that you get one.
+
+#### Practical compromises: dry pasta, weighed dry {: #dry-weight-compromise}
+
+*Search terms: uncooked, cooked weight, dried, water weight, noodles, spaghetti, grains, rice, oats, beans, lentils, workaround.*
+
+Sometimes the "right" food profile is hard to find or awkward to use, and a sensible compromise gives you an answer just as good. Pasta is a good example. Profiles for cooked pasta are scarce, and the cooked weight depends on the shape and how long you boiled it. Dry pasta profiles are everywhere, and dry pasta is easy to weigh straight from the box.
+
+**The compromise: weigh the pasta dry, before cooking, and use a dry pasta profile.** The result is as accurate as using a cooked profile with a cooked weight, and usually more so.
+
+**The one rule: the weight and the profile must match.** Cooking adds water but no calories or protein, so 100 g of dry pasta becomes roughly 230 g cooked. Per 100 g, [USDA](#gloss-usda) lists enriched dry pasta at 371 calories and 13.0 g protein, and cooked pasta at 158 calories and 5.8 g protein. Give NuMa a cooked weight with a dry profile and it will count more than twice what you ate. If you forgot to weigh it dry, multiplying the cooked weight by about 0.43 gets you close, though al dente pasta holds less water than soft-cooked, so this is the least exact choice.
+
+**What stays the same either way:** protein quality. [DIAAS](#gloss-diaas) and the amino acid balance are figured per gram of protein, so the added water doesn't change them. Only the amount of protein per 100 g of food changes. Some B vitamins leach into the cooking water, but that loss is small next to the water effect.
+
+The same applies to rice, oats, dried beans and lentils, and other foods that absorb water as they cook. Putting "dry" or "cooked" in such a food's name ([Renaming a food](#rename-food)) helps you pick the right weight later.
 
 ### G. Setting NuMa up: first time, or after losing your data <!-- t:26-10-03 --> {: #first-setup}
 
@@ -496,11 +510,11 @@ In addition, the following internal data sources are used:
 
 ---
 
-## Part 3 — Using the Web App
+## Part 3 — Using NuMa {: #part-3-using-numa}
 
 *(Reading time: 54 minutes)*
 
-NuMa's web app runs through your ordinary browser, normally in a window of its own (see [Browser to Launch](#browser-to-launch)). This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
+NuMa shows its screens through a browser, normally in a window of its own (see [Browser to Launch](#browser-to-launch)). This makes program development, which is ongoing, easier, and also provides the user with an interface they are already at least partly familiar with.
 
 ### A. Opening NutriMagnus
 
@@ -684,7 +698,7 @@ Workflows 1–3 follow one thread — protein complementarity — since it's NuM
 
 *Search terms: food search, find a food, look up food.*
 
-Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, a 12/13-digit barcode ([UPC](#gloss-upc)-A or [EAN](#gloss-ean)-13), or a food's or recipe's [code](#search-by-code) — see [Your own data is always checked first](#search-ranking) in Part 6 for how results are sourced and ordered. Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, [USDA](#gloss-usda), Open Food Facts, the Canadian Nutrient File, and the UK, Australian and French databases) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 5 for details. After a search, the search form comes to the top of the window and the cursor lands on the first result, so you can press Enter to open it; every page with a search does this, and on a meal or recipe it is the amount box of the first result, with "Add Food or Recipe" or "Add Ingredient" at the top. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
+Type any part of a food name, an [FDC ID](#gloss-fdc-id) number, a 12/13-digit barcode ([UPC](#gloss-upc)-A or [EAN](#gloss-ean)-13), or a food's or recipe's [code](#search-by-code) — see [Your own data is always checked first](#search-ranking) in Part 6 for how results are sourced and ordered. To leave a word out, put `!` in front of it: `beans red !kidney cooked` skips kidney beans (see [Leaving words out](#search-exclude)). Next to the search box, a row of Source checkboxes (Pantry, Food Cache, Recipes, [USDA](#gloss-usda), Open Food Facts, the Canadian Nutrient File, and the UK, Australian and French databases) lets you narrow results to any combination of sources before or after you search — see [Source filter](#food-search) in Part 5 for details. After a search, the search form comes to the top of the window and the cursor lands on the first result, so you can press Enter to open it; every page with a search does this, and on a meal or recipe it is the amount box of the first result, with "Add Food or Recipe" or "Add Ingredient" at the top. Click a result to open its full [Nutritional Analysis](#nutrients), [Protein Quality](#protein-quality), and complement-suggestion page.
 
 #### Analyze a food portion / Analyze a saved recipe portion {: #analyze-portion}
 
@@ -702,13 +716,13 @@ A pure unit-conversion tool — search for a food (with the same [Source filter]
 
 *Search terms: compare foods, comparison, which is better.*
 
-**Compare** has its own place in the navigation bar, rather than in the Foods menu. Add up to eight foods and/or recipes (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search) and set an amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
+**Compare** has its own place in the navigation bar, rather than in the Foods menu. Add up to eight foods and/or recipes (checkboxes in the search results, filterable by [Source](#food-search) the same as any other search; ticks are kept as you search again or move between lists — see [Picking from several searches](#compare-picks)) and set an amount for each to see them side by side in one nutrient table. Comparisons can be saved under a name and reopened later, renamed, or deleted.
 
 #### Food Cache {: #food-cache-web}
 
 *Search terms: cached foods, saved foods, food list, stored foods, my foods.*
 
-Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, or **Used in** (the foods most recipes and meals use come first). A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. The box at the top has two buttons: **Filter this list** narrows the foods already in your cache, and **Search online** opens [Foods → Search](#food-search) with the same words, to look in USDA, Open Food Facts and the other sources. After filtering, a **Not here? Search online** link next to the count does the same. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items.
+Every food NuMa has ever fetched from [USDA](#gloss-usda) or Open Food Facts[^3] lives here — see the [Food Cache column guide](#cached) in Part 5 for what each column means. A **Sort by** dropdown orders the list by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, or **Used in** (the foods most recipes and meals use come first). A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. The box at the top has two buttons: **Filter this list** narrows the foods already in your cache, and **Search online** opens [Foods → Search](#food-search) with the same words, to look in USDA, Open Food Facts and the other sources. After filtering, a **Not here? Search online** link next to the count does the same. Per-food actions: **Add to pantry** (adds the food to your [Pantry](#pantry) and returns you to the same row; a food already there shows **In pantry** instead, which opens the Pantry), **Portions** (add or edit named portion sizes), **Refresh** (fetch USDA's current copy of the food and [choose which changed values to take](#review-incoming)), **Archive/Restore** ([hide without deleting](#archive)), and **Delete** — refused if a pantry entry, recipe, or meal still uses that food, since deleting it anyway would leave that entry pointing at nothing; the refusal names and links every blocking pantry entry, recipe, and meal by id (e.g. "pantry: 34 | recipe: 12 | meal: 9, 72") so you can go straight to the place to remove or replace it, or use Archive instead. **Prune unused foods** removes cache entries no pantry entry, recipe, or meal is currently using — with a checkbox per food (checked by default) so you can uncheck anything you'd rather keep before pruning. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; ticks made in other searches and lists come along too (see [Picking from several searches](#compare-picks)).
 
 **Check [database](#gloss-database) integrity.**{: #db-check} *(This page — Foods → 9 — runs several checks: broken references, below; [missing nutrient data](#data-completeness); [food data problems](#calorie-checks); [amounts that no longer match](#stale-amounts); [amounts converted with a generic density](#generic-density); foods you use with no amino acid data, no portion weights or [no GI](#missing-gi); [foods eaten over a span of days](#days-eaten); [wet foods named as dry ones](#water-wet-dry); [duplicate foods](#duplicate-foods); and [old USDA copies](#old-copies). [Checking your data](#checking-your-data) lists every data check NuMa makes.)* The first scans for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the cache — leftover from before Delete started refusing to remove still-used foods and recipes, or from a manually edited [database](#gloss-database) file. Opening a food page for one of these fails, since NuMa treats the missing food as never-cached and tries to re-fetch it from USDA by [ID](#gloss-id) — which errors outright for an Open Food Facts food (its ID isn't a real USDA ID) and can return the wrong food for a reused-looking one. The check page lists every problem found, grouped into up to six kinds, **most with their own fix button and a plain-language note on what that fix actually does** — they're kept separate because the consequences are not equivalent:
 
@@ -779,7 +793,7 @@ From there:
 
 *Search terms: foods on hand, staples, groceries.*
 
-Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Can't find it? Save just the name for now** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared. Search results have Compare checkboxes too, with their own button, so you can compare foods before deciding which to add. Matches from your pantry and Food Cache appear at once; results from the online sources fill in a few seconds later (a red **Online search in progress…** note shows until they do), as on [Foods → Search](#food-search). The search box at the top looks for *new* foods to add. To narrow the pantry list you already have, use **Filter my pantry list** just above it: it keeps only the items whose name or notes contain every word you type.
+Foods you keep on hand — see [My Pantry](#pantry) in Part 5 for the column guide. Pantry foods are checked first for complement suggestions and search results. Add a food with full nutrient data via search (with the same [Source filter](#food-search) as every other search box), or use **Can't find it? Save just the name for now** for something you haven't looked up yet (link it to real data later with **Link a food**). Only the search-and-select route caches the food — see [Only a search-and-select adds a food to your Food Cache](#pantry) in Part 5. Searching for a food already in your pantry shows a **Remove from pantry** button right on its search-results row, so you don't need to scroll down to find the matching row in the pantry list to take it out. Each pantry item with a linked food also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) above — for jumping straight into [Comparison](#comparison) with the checked items; a quick-add item with no linked data can't be compared. Search results have Compare checkboxes too, with their own button, so you can compare foods before deciding which to add. Ticks are kept when you search again or go to another list, and either button compares everything you have picked — see [Picking from several searches](#compare-picks). Matches from your pantry and Food Cache appear at once; results from the online sources fill in a few seconds later (a red **Online search in progress…** note shows until they do), as on [Foods → Search](#food-search). The search box at the top looks for *new* foods to add. To narrow the pantry list you already have, use **Filter my pantry list** just above it: it keeps only the items whose name or notes contain every word you type.
 
 #### Custom food profiles
 
@@ -807,7 +821,7 @@ Right below the title, every food's page also has a **Copy as custom-food draft*
 
 *Search terms: recipe list, edit recipe, copy recipe, archive recipe.*
 
-The **Recipes** page lists every recipe, with filter/sort options and a **Show archived recipes** / **Hide archived recipes** button. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute [DCP](#gloss-dcp) for all recipes** refreshes every recipe's protein score at once. A recipe still used in a meal or another recipe can't be deleted, only archived — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes.
+The **Recipes** page lists every recipe, with filter/sort options and a **Show archived recipes** / **Hide archived recipes** button. A misspelled filter offers a ["Did you mean"](#search-suggestions) correction, same as any other search box. Row actions: **Edit**, **Copy**, **Archive/Restore**, **Delete**. **Recompute [DCP](#gloss-dcp) for all recipes** refreshes every recipe's protein score at once. A recipe still used in a meal or another recipe can't be deleted, only archived — see [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) in Part 6. Each row also has a **Compare** checkbox — see [Compare selected](#compare-checkboxes) in Part 5 — for jumping straight into [Comparison](#comparison) with the checked recipes, plus any foods or recipes you ticked in earlier searches (see [Picking from several searches](#compare-picks)).
 
 Editing a recipe's ingredients or servings recalculates its own [DCP](#gloss-dcp) automatically, and cascades to every recipe that depends on it too — see [Changing a recipe DCP by changing the recipe changes the DCP in everything that uses it](#recipe-dcp-cascade) in Part 6. You don't need **Recompute DCP for all recipes** just because you changed one recipe; it's there for after a bulk import, or if you suspect stale numbers from before this cascading recalculation existed.
 
@@ -994,7 +1008,7 @@ To work out the amount, NuMa counts each food at its own digestibility: your mea
 **How much of a food NuMa will suggest.** Every suggestion stays within a most-per-meal amount for that food, so you're never told to add four cups of nutritional yeast. If you've saved your own limit for the food, that's what's used. Otherwise it's three of the food's label servings (two servings for a recipe). Failing that, it's a default for the kind of food: 15 g for seasonings and nutritional yeast, 40 g for protein powders and for seeds and nuts, 60 g for cheese, and 300 g for anything else. If closing the gap would take more than that, the suggestion shows the food at its limit, says how much full closure would take, and shows how far the limit gets you. A **Use the full … g this time** box (it names the amount) lifts the limit for that page only. To set the limit for good, type it in the **Most I'd add to a meal** box under the suggestion and press **Save limit for this food**. Clear the box and save to go back to the default. The booster steps under DIAAS-Boosting Options stop at the same limit.
 
 Each suggestion shows:
-  - The food's or recipe's name, linked to its own page (it opens in the same window; Back returns to the analysis; a generic estimate from the built-in list has no page and isn't linked)
+  - The food's or recipe's name, linked to its own page (it opens in the same window; Back returns to the analysis; a [generic](#gloss-generic) estimate from the built-in list has no page and isn't linked)
   - Grams to add
   - Which gaps it closes, with scores before and after
   - Digestible protein added
@@ -1060,7 +1074,7 @@ When you analyze a recipe (its own page, not a portion-analysis or meal/day view
 
 This is why a recipe suggestion can look large — for example, 80+ g of soy protein isolate to close a lysine gap in a 4-serving recipe. That is not a serving-size recommendation; it is how much to add to the pot so that every serving, once divided out, ends up amino-acid-complete. Each recipe suggestion also shows the per-serving equivalent alongside the whole-batch amount, so you can see what one serving actually gets.
 
-Data sources, checked in this order: your [pantry](#pantry) (Foods → [My Pantry](#gloss-my-pantry)) and any [recipes you have analyzed](#recipes-menu-web); then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself[^10], filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "(generic estimate)".
+Data sources, checked in this order: your [pantry](#pantry) (Foods → [My Pantry](#gloss-my-pantry)) and any [recipes you have analyzed](#recipes-menu-web); then your broader food cache (any food you've ever looked up, matched by name against the built-in reference list below); then that built-in list itself[^10], filtered by your dietary preferences (see [dietary preferences](#diet)). The suggestion header tells you exactly which sources were considered for that run. See [amino acid estimates in suggestions](#comp-estimate) for what it means when a suggestion is tagged "(estimated)" or "([generic](#gloss-generic) estimate)".
 
 Don't want a particular suggestion? See [ignoring a complement suggestion](#ignore-complement) in Part 6.
 
@@ -1073,9 +1087,9 @@ A [complement suggestion](#comp) needs amino acid data for the suggested food to
 
   "(estimated)" — the suggested food is a real item from your pantry, recipes, or food cache, but it has no amino acid panel of its own. NuMa matched its name against the built-in reference table and scaled that table's amino acid profile to this food's own protein content.
 
-  "(generic estimate)" — no real food matched at all. The whole suggestion is the reference table entry itself, not any specific product you have.
+  "([generic](#gloss-generic) estimate)" — no real food matched at all. The whole suggestion is the reference table entry itself, not any specific product you have.
 
-Either way, this estimate is computed fresh every time the suggestion is shown — it is never saved to the food's own record, so there is nothing to undo. This is not the same as the "estimate amino acids from another food" tool described under [Estimating amino acids by copying from another food](#custom-foods). That tool lets you search all your saved foods and pick whichever one you judge to be the best match yourself, and it saves your choice permanently to that food's own record. The built-in table used for the "(estimated)" / "(generic estimate)" tags, by contrast, is a fixed, much shorter list matched purely by keyword — it can't use your own judgment about which food is the closer match, so the two methods can disagree.
+Either way, this estimate is computed fresh every time the suggestion is shown — it is never saved to the food's own record, so there is nothing to undo. This is not the same as the "estimate amino acids from another food" tool described under [Estimating amino acids by copying from another food](#custom-foods). That tool lets you search all your saved foods and pick whichever one you judge to be the best match yourself, and it saves your choice permanently to that food's own record. The built-in table used for the "(estimated)" / "([generic](#gloss-generic) estimate)" tags, by contrast, is a fixed, much shorter list matched purely by keyword — it can't use your own judgment about which food is the closer match, so the two methods can disagree.
 
 For a food you rely on often, running the "estimate amino acids from another food" tool on it yourself is worth doing: it is more accurate (your judgment beats a keyword match against 25 entries), it only has to be done once, and it turns the food into a normal pantry/cache candidate for every suggestion afterward — no more tags.
 
@@ -2424,7 +2438,7 @@ That last point is why a floor exists. ESPEN (the European Society for Clinical 
 
 ## Part 5 — Reading Your Results
 
-*(Reading time: 1 hour, 27 minutes)*
+*(Reading time: 1 hour, 29 minutes)*
 
 This part explains what the columns, tables, and analysis screens mean.
 
@@ -2436,7 +2450,7 @@ Throughout this manual, **Learn more** links appear next to section headings and
 
 The sections linked from analysis output are:
 
-- [Amino acid estimates in complement suggestions](#comp-estimate) — what "(estimated)" and "(generic estimate)" tags mean
+- [Amino acid estimates in complement suggestions](#comp-estimate) — what "(estimated)" and "([generic](#gloss-generic) estimate)" tags mean
 - [Food Cache](#food-cache-web) — fetching missing amino acid data with Claude [AI](#gloss-artificial-intelligence)
 - [Amino acid scoring](#aa-scoring) — limiting-amino-acid [DIAAS](#gloss-diaas) scoring method
 - [Antinutrients](#antinutrients) — what [antinutrients](#gloss-antinutrient) are and how they appear in output
@@ -2508,7 +2522,9 @@ The Food Cache list shows every food you have stored locally, sortable by Name, 
              is missing amino acid data.
 
     Compare  Checkbox to add this food to Comparison — see <a href="#compare-checkboxes">Compare selected</a>.
-             That button is only colored once 2 or more foods are checked.
+             Ticks are kept when you search again or go to another list —
+             see <a href="#compare-picks">Picking from several searches</a>.
+             That button is only colored once 2 or more items are picked.
 
     Code     The food's code (see <a href="#gloss-code">Code</a>).
              U171477 = USDA FoodData Central food (number = its FDC ID).
@@ -2826,8 +2842,10 @@ Columns:
     ID              The meal's number.
     Meal            Name you gave the meal (e.g. Breakfast, Lunch).
     Date            Date of the meal (YYYY-MM-DD).
-    Complete        Checkmark when you have marked the meal finished
-                    (a Mark complete / Mark incomplete button on the meal page).
+    Complete        A checkbox, ticked when the meal is finished. Tick or
+                    untick it right here to change it; it saves at once and
+                    the list refreshes, so Day DCP's * updates. (Same flag as
+                    the meal page's Mark complete / Mark incomplete button.)
     Items           Number of foods and recipes logged in this meal.
     Meal DCP        Digestible complete protein for this meal alone (g).
     Day DCP         The day's DCP, pooled across all its meals (as on the
@@ -2852,17 +2870,9 @@ Columns:
     Profile         Which profile the day is pinned to — shown only if you
                     have more than one (see Per-Day Profile Tracking).
 
-You can add up to 6 more nutrient columns of your own choosing — see
-[Meals & Log columns](#meal-columns). Under each meal's figure in those
-columns, a percentage in parentheses — "(23%)" — shows that meal's share
-of the day's goal for that nutrient, from the profile the day is scored
-against. The figures are plain, not colored: one meal is only part of a
-day. A nutrient with no daily goal (sugar, say) shows its figure alone.
-Under each day's date, a **current profile** switch scores that day
-against your profile as it is now — see [Per-Day Profile Tracking](#day-profile).
+You can add up to 6 more nutrient columns of your own choosing — see [Meals & Log columns](#meal-columns). Under each meal's figure in those columns, a percentage in parentheses — "(23%)" — shows that meal's share of the day's goal for that nutrient, from the profile the day is scored against. The figures are plain, not colored: one meal is only part of a day. A nutrient with no daily goal (sugar, say) shows its figure alone. Under each day's date, a **current profile** switch scores that day against your profile as it is now — see [Per-Day Profile Tracking](#day-profile).
 
-[DCP](#gloss-dcp) and Calories values start as -- and are computed on demand.
-Opening and analyzing a meal also saves its DCP and calories automatically.
+[DCP](#gloss-dcp) and Calories values start as -- and are computed on demand. Opening and analyzing a meal also saves its DCP and calories automatically.
 
     --    Not yet computed. Use the "Calculate DCP and calories for" dropdown
           and Calculate button to compute for all meals and days, the last 30
@@ -2883,44 +2893,21 @@ See [digestible complete protein](#dcp) for a full explanation of digestible [co
 
 *Search terms: meal columns, choose columns, nutrient columns.*
 
-The Meals & Log list always shows Calories, plus up to 6 more nutrients you
-choose yourself — e.g. Sodium, Fiber, Vitamin D, or any amino acid.
+The Meals & Log list always shows Calories, plus up to 6 more nutrients you choose yourself — e.g. Sodium, Fiber, Vitamin D, or any amino acid.
 
-To choose them: Settings -> section 10 "Meals & Log columns". Pick each nutrient's position (1 =
-leftmost); leave a nutrient's position blank to hide it, then click **Save Meals & Log columns**.
-Until you save a choice of your own, the columns are Protein, Calories, Carbohydrate, Fiber and
-Sugars, in that order; **Restore default columns** puts those back at any time.
+To choose them: Settings -> section 10 "Meals & Log columns". Pick each nutrient's position (1 = leftmost); leave a nutrient's position blank to hide it, then click **Save Meals & Log columns**. Until you save a choice of your own, the columns are Protein, Calories, Carbohydrate, Fiber and Sugars, in that order; **Restore default columns** puts those back at any time.
 
-The Protein choice here is raw protein. [DCP](#gloss-dcp) (Digestible Complete Protein) isn't a
-choice, because both lists always show it in fixed columns of their own.
+The Protein choice here is raw protein. [DCP](#gloss-dcp) (Digestible Complete Protein) isn't a choice, because both lists always show it in fixed columns of their own.
 
-Values for these columns come from the same computed snapshot as [DCP](#gloss-dcp)
-and Calories, so they show -- until computed and n/a if the ingredient data
-doesn't cover that nutrient. Use the Calculate button on the Meals & Log screen
-(or analyze a meal) to compute them.
+Values for these columns come from the same computed snapshot as [DCP](#gloss-dcp) and Calories, so they show -- until computed and n/a if the ingredient data doesn't cover that nutrient. Use the Calculate button on the Meals & Log screen (or analyze a meal) to compute them.
 
-The same chosen columns also appear on the Daily Summary's Recent Days table
-(Analysis -> Daily Summary), aggregated per day instead of per meal -- so a
-day's Sodium column, for example, is the sum of every meal logged that day.
+The same chosen columns also appear on the Daily Summary's Recent Days table (Analysis -> Daily Summary), aggregated per day instead of per meal -- so a day's Sodium column, for example, is the sum of every meal logged that day.
 
-On both lists (web), a column with a unit stacks it onto its own line below
-the nutrient's name (e.g. "Vitamin D" over "(mcg)"), matching the built-in
-Meal [DCP](#gloss-dcp) / Day DCP / % goal columns -- so each column takes up roughly half
-the width it otherwise would.
+On both lists (web), a column with a unit stacks it onto its own line below the nutrient's name (e.g. "Vitamin D" over "(mcg)"), matching the built-in Meal [DCP](#gloss-dcp) / Day DCP / % goal columns -- so each column takes up roughly half the width it otherwise would.
 
-**Recent Days always shows Protein first, regardless of what you've chosen
-above:** the raw, un-adjusted total -- Day DCP is the digestibility-adjusted
-figure. This one column isn't part of your 6-column choice and can't be
-turned off. Calories, Carbs (carbohydrates -- sugars and starches), and Fiber
-are ordinary picks in that same Settings list now, right alongside Protein --
-add them back, or leave them off, like any other nutrient; if you'd
-separately picked Protein as a Meals & Log column, it's simply not duplicated
-on Recent Days.
+**Recent Days always shows Protein first, regardless of what you've chosen above:** the raw, un-adjusted total -- Day DCP is the digestibility-adjusted figure. This one column isn't part of your 6-column choice and can't be turned off. Calories, Carbs (carbohydrates -- sugars and starches), and Fiber are ordinary picks in that same Settings list now, right alongside Protein -- add them back, or leave them off, like any other nutrient; if you'd separately picked Protein as a Meals & Log column, it's simply not duplicated on Recent Days.
 
-Recent Days' column headers stack a nutrient's unit onto its own line below
-the name (e.g. "Vitamin D" over "(mcg)") instead of running both on one
-line, so each column takes up roughly half the width it otherwise would --
-letting more columns fit on screen at once.
+Recent Days' column headers stack a nutrient's unit onto its own line below the name (e.g. "Vitamin D" over "(mcg)") instead of running both on one line, so each column takes up roughly half the width it otherwise would -- letting more columns fit on screen at once.
 
 
 #### Meal Items Table {: #meal-detail}
@@ -2951,20 +2938,7 @@ An **Edit** button on each row opens a popup to change the amount/servings and n
 
 *Search terms: how often, most eaten foods, food usage.*
 
-Analysis -> Food use in meals tabulates everything you actually ate across a
-set of meals you choose — foods logged on their own, recipes, the
-sub-recipes inside them, and every food used inside a recipe. You pick one selection method — one or more date ranges,
-or a list of specific meal IDs (not both in the same run) — then choose
-whether to include all foods or only protein-containing foods
-(more than 0 g of protein per 100 g). To find one food or recipe in a long
-table, type part of its name in
-**Show only foods and recipes whose name contains**{: #fooduse-name}
-(every word you type has to be in the name; capitals don't matter), or an item's
-exact code from the **Code** column, and click **Analyze**. Only the rows
-shown change: counts and percentages are still taken over the whole
-selection, and the heading says how many rows match. A change made from the
-**Replace, remove or add** panel brings you back to the same filtered view.
-**Clear name filter** shows them all again.
+Analysis -> Food use in meals tabulates everything you actually ate across a set of meals you choose — foods logged on their own, recipes, the sub-recipes inside them, and every food used inside a recipe. You pick one selection method — one or more date ranges, or a list of specific meal IDs (not both in the same run) — then choose whether to include all foods or only protein-containing foods (more than 0 g of protein per 100 g). To find one food or recipe in a long table, type part of its name in **Show only foods and recipes whose name contains**{: #fooduse-name} (every word you type has to be in the name; capitals don't matter), or an item's exact code from the **Code** column, and click **Analyze**. Only the rows shown change: counts and percentages are still taken over the whole selection, and the heading says how many rows match. A change made from the **Replace, remove or add** panel brings you back to the same filtered view. **Clear name filter** shows them all again.
 
 Columns:
 
@@ -2980,46 +2954,17 @@ Columns:
                 each meal ID opens that meal, each date opens that day's
                 Daily Summary. Your choice is remembered in this browser.
 
-Rows are ranked most- to least-used by Days used (ties broken by Meals, then
-name), with a bar showing relative frequency.
+Rows are ranked most- to least-used by Days used (ties broken by Meals, then name), with a bar showing relative frequency.
 
-Recipe items are counted twice: once as the recipe itself, and again as each
-of its ingredients (recursively expanded through any nested recipes), so both
-the dish and its components show up in the ranking. A sub-recipe inside a
-logged recipe gets its own row too, so a recipe you only ever eat as part of
-another one is still counted as eaten. A food you eat only inside recipes
-is counted the same way.
+Recipe items are counted twice: once as the recipe itself, and again as each of its ingredients (recursively expanded through any nested recipes), so both the dish and its components show up in the ranking. A sub-recipe inside a logged recipe gets its own row too, so a recipe you only ever eat as part of another one is still counted as eaten. A food you eat only inside recipes is counted the same way.
 
-Recipe rows always show the recipe's *current* name and are grouped by its
-stable [ID](#gloss-id) — if you rename a recipe after logging it in meals, this analysis
-still finds and merges every occurrence under the new name rather than
-splitting them across old and new names or dropping them. Food rows work the
-same way: the name shown is always the food's current cached name, even for
-a meal logged before you last renamed it.
+Recipe rows always show the recipe's *current* name and are grouped by its stable [ID](#gloss-id) — if you rename a recipe after logging it in meals, this analysis still finds and merges every occurrence under the new name rather than splitting them across old and new names or dropping them. Food rows work the same way: the name shown is always the food's current cached name, even for a meal logged before you last renamed it.
 
-An expandable **Replace, remove or add a food or recipe in these meals**
-panel above the results lets you replace one food or recipe with another,
-remove one, or add one, across all the meals currently selected — see
-[Substituting a Food or Recipe](#fooduse-substitute) and
-[Removing or Adding a Food in Many Meals](#fooduse-remove-add).
+An expandable **Replace, remove or add a food or recipe in these meals** panel above the results lets you replace one food or recipe with another, remove one, or add one, across all the meals currently selected — see [Substituting a Food or Recipe](#fooduse-substitute) and [Removing or Adding a Food in Many Meals](#fooduse-remove-add).
 
 
 #### Food Use in Recipes — Column Guide {: #fooduse-recipes}
-Analysis -> Food use in recipes tabulates which foods and recipes are used
-as *ingredients* across a set of recipes you choose (a recipe used as an
-ingredient in another recipe is called a sub-recipe below) — the recipe-book
-equivalent of Food Use in Meals. It looks only at your recipe book, not at
-what you eat: a recipe you log in meals but never use as an ingredient in
-another recipe won't appear here at all. For actual consumption, use
-[Food Use in Meals](#fooduse). Pick one selection method: all recipes
-(the default), one or more date ranges by when the recipe was created, or a
-list of specific recipe IDs, then optionally limit to protein-containing
-foods. To find one food or recipe in a long table, type part of its name in
-**Show only foods and recipes whose name contains**{: #fooduse-recipes-name}
-(every word you type has to be in the name; capitals don't matter) and click
-**Analyze**. Only the rows shown change: counts and percentages are still
-taken over the whole selection, and the heading says how many rows match.
-**Clear name filter** shows them all again.
+Analysis -> Food use in recipes tabulates which foods and recipes are used as *ingredients* across a set of recipes you choose (a recipe used as an ingredient in another recipe is called a sub-recipe below) — the recipe-book equivalent of Food Use in Meals. It looks only at your recipe book, not at what you eat: a recipe you log in meals but never use as an ingredient in another recipe won't appear here at all. For actual consumption, use [Food Use in Meals](#fooduse). Pick one selection method: all recipes (the default), one or more date ranges by when the recipe was created, or a list of specific recipe IDs, then optionally limit to protein-containing foods. To find one food or recipe in a long table, type part of its name in **Show only foods and recipes whose name contains**{: #fooduse-recipes-name} (every word you type has to be in the name; capitals don't matter) and click **Analyze**. Only the rows shown change: counts and percentages are still taken over the whole selection, and the heading says how many rows match. **Clear name filter** shows them all again.
 
 Columns:
 
@@ -3032,59 +2977,28 @@ Columns:
                         ingredient list contains this food or sub-recipe,
                         directly or nested inside another sub-recipe.
 
-Rows are ranked most- to least-used, with a bar showing what percentage of
-the selected recipes use each item. A sub-recipe used as an ingredient (e.g.
-a house dressing used in several salads) gets its own row — its own
-ingredients are also listed individually, the same way a directly-added
-recipe (or a sub-recipe inside it) on Food Use in Meals shows up both as
-itself and as its expanded ingredients.
+Rows are ranked most- to least-used, with a bar showing what percentage of the selected recipes use each item. A sub-recipe used as an ingredient (e.g. a house dressing used in several salads) gets its own row — its own ingredients are also listed individually, the same way a directly-added recipe (or a sub-recipe inside it) on Food Use in Meals shows up both as itself and as its expanded ingredients.
 
-This page has the same **Substitute a food or recipe** panel as Food Use in
-Meals, scoped to ingredients of the recipes currently selected — see
-[Substituting a Food or Recipe](#fooduse-substitute).
+This page has the same **Substitute a food or recipe** panel as Food Use in Meals, scoped to ingredients of the recipes currently selected — see [Substituting a Food or Recipe](#fooduse-substitute).
 
 
 #### Replace a Food or Recipe Everywhere (Substitute) {: #fooduse-substitute}
 
 *Search terms: replace food everywhere, swap food, bulk replace.*
 
-To replace one food with another in your meals or recipes — everywhere it was used, in one step — both Food Use in Meals and Food Use in Recipes have a **Substitute a food or
-recipe** panel that bulk-replaces every occurrence of one food or recipe
-with another, restricted to whatever's currently selected on that page (the
-same date range(s) or [ID](#gloss-id) list you searched with).
+To replace one food with another in your meals or recipes — everywhere it was used, in one step — both Food Use in Meals and Food Use in Recipes have a **Substitute a food or recipe** panel that bulk-replaces every occurrence of one food or recipe with another, restricted to whatever's currently selected on that page (the same date range(s) or [ID](#gloss-id) list you searched with).
 
-You can also reach this replacement tool directly from a blocked deletion:
-if Food Cache or Custom Food Profiles refuses to delete a food because it's
-still used in a recipe or a meal, the "swap it for a different food" link in
-that message brings you here with those exact recipes/meals already
-selected and the food already filled in as the one to replace — you only
-need to pick the replacement.
+You can also reach this replacement tool directly from a blocked deletion: if Food Cache or Custom Food Profiles refuses to delete a food because it's still used in a recipe or a meal, the "swap it for a different food" link in that message brings you here with those exact recipes/meals already selected and the food already filled in as the one to replace — you only need to pick the replacement.
 
-This is the tool for the common situation where a rename — or re-adding a
-food from a search instead of reusing what was already in your cache — has
-left what looks like two different foods, when really it's one food you
-just want to consolidate under a single, newer entry.
+This is the tool for the common situation where a rename — or re-adding a food from a search instead of reusing what was already in your cache — has left what looks like two different foods, when really it's one food you just want to consolidate under a single, newer entry.
 
 On either Food Use page, after you've searched:
 
-1. In the results table, tick the **Replace** box (on Food Use in Meals,
-   **Replace or remove**) beside the food or recipe you want to get rid of. Only one can be ticked at a time — ticking another
-   moves the tick. The Substitute panel opens and its "Replace this" box is
-   filled in for you.
-2. In **Replace it with**, type part of the replacement's name, then click it
-   in the list that drops down, or move to it with the up/down arrow keys and
-   press **Enter** (Enter alone picks the top one). The list
-   covers your Food Cache and your recipes. A line under the button reads
-   back what will be replaced with what.
-3. Click **Substitute everywhere in this selection** (on Food Use in Meals,
-   **Replace everywhere in this selection**) and confirm.
+1. In the results table, tick the **Replace** box (on Food Use in Meals, **Replace or remove**) beside the food or recipe you want to get rid of. Only one can be ticked at a time — ticking another moves the tick. The Substitute panel opens and its "Replace this" box is filled in for you.
+2. In **Replace it with**, type part of the replacement's name, then click it in the list that drops down, or move to it with the up/down arrow keys and press **Enter** (Enter alone picks the top one). The list covers your Food Cache and your recipes. A line under the button reads back what will be replaced with what.
+3. Click **Substitute everywhere in this selection** (on Food Use in Meals, **Replace everywhere in this selection**) and confirm.
 
-A dash instead of a tick-box means the item can't be reached from this
-selection: on Food Use in Meals it was only eaten *inside* a recipe; on Food
-Use in Recipes it's only used inside a sub-recipe that isn't itself selected
-(add that sub-recipe to the selection, or use the "All recipes" choice). See
-below for why. A food you've never added to NuMa won't be in the list; add it
-through [Food Search](#food-search) first.
+A dash instead of a tick-box means the item can't be reached from this selection: on Food Use in Meals it was only eaten *inside* a recipe; on Food Use in Recipes it's only used inside a sub-recipe that isn't itself selected (add that sub-recipe to the selection, or use the "All recipes" choice). See below for why. A food you've never added to NuMa won't be in the list; add it through [Food Search](#food-search) first.
 
 If you'd rather type, the two code boxes take codes directly:
 
@@ -3092,104 +3006,38 @@ If you'd rather type, the two code boxes take codes directly:
     With this /
     Replacement (code)   The replacement's code.
 
-The results table shows what's *currently used* in the selection — the item
-you're replacing is marked "replacing this" when you arrive from a blocked
-deletion. To find a replacement's code by hand, look it up on
-[Food Search](#food-search) (linked right above the form; Back returns here)
-or the Recipes list — each shows the code in its results.
+The results table shows what's *currently used* in the selection — the item you're replacing is marked "replacing this" when you arrive from a blocked deletion. To find a replacement's code by hand, look it up on [Food Search](#food-search) (linked right above the form; Back returns here) or the Recipes list — each shows the code in its results.
 
-You can mix kinds — replace a food with a recipe or vice versa — since both
-meal items and recipe ingredients can point at either one. The amount and
-unit already recorded are kept as-is; only *what* the entry points to
-changes, so double-check the replacement's portion makes sense afterward if
-the two items aren't measured the same way.
+You can mix kinds — replace a food with a recipe or vice versa — since both meal items and recipe ingredients can point at either one. The amount and unit already recorded are kept as-is; only *what* the entry points to changes, so double-check the replacement's portion makes sense afterward if the two items aren't measured the same way.
 
-On **Food Use in Meals**, substitution only reaches items added *directly*
-to a meal — a food used inside a recipe is part of that recipe's own
-ingredient list, not the meal's, so substitute it from **Food Use in
-Recipes** instead, scoped to that recipe. A row eaten inside a recipe says
-so in a line under its name, **Eaten only inside**{: #fooduse-inside-recipes} (or **Also eaten
-inside**, when it's logged directly in some meals too), naming the recipe
-whose ingredient list holds it; its **replace it in that recipe** link
-opens Food Use in Recipes with that recipe selected and the food already
-chosen as the thing to replace. So a food that
-still shows after a replace isn't a sign the replace failed: it's still in
-a recipe those meals include. On **Food Use in Recipes**,
-substitution updates every selected recipe's ingredient list and recomputes
-each changed recipe's [DCP](#gloss-dcp) automatically — including cascading up to any
-recipe that in turn uses one of them as a sub-recipe.
+On **Food Use in Meals**, substitution only reaches items added *directly* to a meal — a food used inside a recipe is part of that recipe's own ingredient list, not the meal's, so substitute it from **Food Use in Recipes** instead, scoped to that recipe. A row eaten inside a recipe says so in a line under its name, **Eaten only inside**{: #fooduse-inside-recipes} (or **Also eaten inside**, when it's logged directly in some meals too), naming the recipe whose ingredient list holds it; its **replace it in that recipe** link opens Food Use in Recipes with that recipe selected and the food already chosen as the thing to replace. So a food that still shows after a replace isn't a sign the replace failed: it's still in a recipe those meals include. On **Food Use in Recipes**, substitution updates every selected recipe's ingredient list and recomputes each changed recipe's [DCP](#gloss-dcp) automatically — including cascading up to any recipe that in turn uses one of them as a sub-recipe.
 
-A recipe can never be substituted into referencing itself; that combination
-is silently skipped rather than creating a broken self-reference.
+A recipe can never be substituted into referencing itself; that combination is silently skipped rather than creating a broken self-reference.
 
-This writes to the [database](#gloss-database) immediately when you click through the
-confirmation prompt — there's no automatic undo, so it's worth double-
-checking the codes first.
+This writes to the [database](#gloss-database) immediately when you click through the confirmation prompt — there's no automatic undo, so it's worth double- checking the codes first.
 
-**Removing or adding a food in many meals.**{: #fooduse-remove-add} Food Use
-in Meals can also take a food or recipe out of every selected meal, or put
-one into every selected meal — say, you stopped adding salt to a week of
-breakfasts you'd logged by copying, or forgot the nutritional yeast in all of
-them. Pick the meals first (narrow them with **Meal IDs** if a date range
-would catch meals you don't mean), then, in the panel, choose:
+**Removing or adding a food in many meals.**{: #fooduse-remove-add} Food Use in Meals can also take a food or recipe out of every selected meal, or put one into every selected meal — say, you stopped adding salt to a week of breakfasts you'd logged by copying, or forgot the nutritional yeast in all of them. Pick the meals first (narrow them with **Meal IDs** if a date range would catch meals you don't mean), then, in the panel, choose:
 
-- **Remove from every meal**: tick the food or recipe in the table, then
-  click **Remove from every meal in this selection**. Every line of it logged
-  straight onto those meals goes; a food eaten inside a recipe stays, for the
-  same reason as above.
-- **Add to every meal**: type part of its name and pick it from the list,
-  then give the **Amount in each meal**, the same way you would on a meal
-  page: a food takes grams or a measure (`30 g`, `1/3 c`, `2 oz`); a recipe
-  takes servings (`1 serving`, `1 1/2 srv`), a weight or a volume — a bare
-  number for a recipe means grams. Click **Add to every meal in this
-  selection**. Every selected meal gets one new line, even one that already
-  has that food.
+- **Remove from every meal**: tick the food or recipe in the table, then click **Remove from every meal in this selection**. Every line of it logged straight onto those meals goes; a food eaten inside a recipe stays, for the same reason as above.
+- **Add to every meal**: type part of its name and pick it from the list, then give the **Amount in each meal**, the same way you would on a meal page: a food takes grams or a measure (`30 g`, `1/3 c`, `2 oz`); a recipe takes servings (`1 serving`, `1 1/2 srv`), a weight or a volume — a bare number for a recipe means grams. Click **Add to every meal in this selection**. Every selected meal gets one new line, even one that already has that food.
 
-**Only some of the days.**{: #fooduse-pick-dates} Each row's **Days used**
-count has a **pick dates** button beside it. Click it and the dates that food
-or recipe was eaten open below its row, each with the meals it was in; tick
-the dates you want (**tick all** and **untick all** help). A replace,
-remove or add then reaches only the meals on those dates that the food
-appears in — for an add, the new item goes in alongside it — and the panel
-says which meals and dates it will touch. Untick every date to go back to
-the whole selection. You can tick dates in more than one row; the change
-reaches all their meals together.
+**Only some of the days.**{: #fooduse-pick-dates} Each row's **Days used** count has a **pick dates** button beside it. Click it and the dates that food or recipe was eaten open below its row, each with the meals it was in; tick the dates you want (**tick all** and **untick all** help). A replace, remove or add then reaches only the meals on those dates that the food appears in — for an add, the new item goes in alongside it — and the panel says which meals and dates it will touch. Untick every date to go back to the whole selection. You can tick dates in more than one row; the change reaches all their meals together.
 
-Both write at once after the confirmation prompt, with no undo. To see first
-what the change would do to your nutrition, try it in [What-if](#whatif),
-which changes nothing.
+Both write at once after the confirmation prompt, with no undo. To see first what the change would do to your nutrition, try it in [What-if](#whatif), which changes nothing.
 
 
 #### What-if: Meals {: #whatif}
 
 *Search terms: hypothetical, simulate, try a change, expanded recipe, recipe ingredients.*
 
-Analysis -> What-if: meals shows how your average daily nutrition over a set
-of days would change if you ate differently — dropped a food, added a
-supplement, swapped one food for another, or ate less of something. Nothing
-is saved or changed: your meals stay exactly as logged.
+Analysis -> What-if: meals shows how your average daily nutrition over a set of days would change if you ate differently — dropped a food, added a supplement, swapped one food for another, or ate less of something. Nothing is saved or changed: your meals stay exactly as logged.
 
-1. **Which meals.** Type dates, one per line: a range
-   (`2026-09-01:2026-09-30`) or a single date (`2026-09-03`). Or switch to
-   **Meal IDs** to pick particular meals.
-2. **What to change.** Each row is one change; add as many as you like with
-   **Add another change** and they all apply together. In a food/recipe box,
-   type part of a name and pick it from the list with the mouse, or with the
-   up/down arrow keys and **Enter** (or type its
-   [code](#fooduse), the one shown on Food Search or the Recipes list).
-3. **Which days to average over.** Either every day in your selection that
-   has a meal logged, or only the days when something you're removing,
-   replacing or changing was actually eaten. Say your dates cover 119 days,
-   112 of them logged, and the food you're removing was eaten on 47. The
-   first choice averages over the 112 days and shows the effect on your
-   overall diet. The second averages over the 47 days and shows what those
-   particular days would have looked like. **Add** rows don't narrow the
-   days, since an addition goes on every day.
-4. Click **Show the effect**. Once results are showing, switching the day
-   choice redraws them straight away.
+1. **Which meals.** Type dates, one per line: a range (`2026-09-01:2026-09-30`) or a single date (`2026-09-03`). Or switch to **Meal IDs** to pick particular meals.
+2. **What to change.** Each row is one change; add as many as you like with **Add another change** and they all apply together. In a food/recipe box, type part of a name and pick it from the list with the mouse, or with the up/down arrow keys and **Enter** (or type its [code](#fooduse), the one shown on Food Search or the Recipes list).
+3. **Which days to average over.** Either every day in your selection that has a meal logged, or only the days when something you're removing, replacing or changing was actually eaten. Say your dates cover 119 days, 112 of them logged, and the food you're removing was eaten on 47. The first choice averages over the 112 days and shows the effect on your overall diet. The second averages over the 47 days and shows what those particular days would have looked like. **Add** rows don't narrow the days, since an addition goes on every day.
+4. Click **Show the effect**. Once results are showing, switching the day choice redraws them straight away.
 
-The bold line above the results says exactly which days the averages cover,
-and how many of them contained what you're changing.
+The bold line above the results says exactly which days the averages cover, and how many of them contained what you're changing.
 
 The four actions:
 
@@ -3209,117 +3057,47 @@ The four actions:
                     1.5 or 150% = half again as much; 0.5 or 50% = half.
 
 <span id="whatif-ingredients"></span>**A recipe logged as individual ingredients.** When you add a recipe to a
-meal as individual ingredients, the meal holds each ingredient as its own
-food and doesn't record the recipe. **Remove** and **Change amount** still
-find it: the foods whose amounts match the recipe's ingredients, all at the
-same portion size, are taken out or changed together. Any other copy of one of those foods in the meal
-stays, such as a scoop of protein powder you logged separately. The line for
-that change says it was found this way. If the recipe has changed since you
-logged it, the amounts won't match, so nothing is removed and a note names
-the meal; change those foods one by one instead. This works for Remove and
-Change amount (and [Apply for real](#whatif-apply) can make either), and
-for recipes with at least two ingredients (one ingredient on its own can't
-be told apart from that food); Replace still needs the recipe itself in the
-meal.
+meal as individual ingredients, the meal holds each ingredient as its own food and doesn't record the recipe. **Remove** and **Change amount** still find it: the foods whose amounts match the recipe's ingredients, all at the same portion size, are taken out or changed together. Any other copy of one of those foods in the meal stays, such as a scoop of protein powder you logged separately. The line for that change says it was found this way. If the recipe has changed since you logged it, the amounts won't match, so nothing is removed and a note names the meal; change those foods one by one instead. This works for Remove and Change amount (and [Apply for real](#whatif-apply) can make either), and for recipes with at least two ingredients (one ingredient on its own can't be told apart from that food); Replace still needs the recipe itself in the meal.
 
-To swap one food for another, you have two choices. **Replace** puts the new
-food only where the old one was. A **Remove** row plus an **Add** row drops
-the old food and adds the new one on every logged day.
+To swap one food for another, you have two choices. **Replace** puts the new food only where the old one was. A **Remove** row plus an **Add** row drops the old food and adds the new one on every logged day.
 
 What you see:
 
-- A line for each change saying how many meals and days it was found in. A
-  change that matched nothing is pointed out, so a typo in a code doesn't go
-  unnoticed.
-- A small table of calories, protein, Protein ([DCP](#gloss-dcp)),
-  carbohydrate, sugars, fat and fiber per day, with rows labeled **Before
-  (as logged)**, **After your changes** and **Change**. DCP is worked out
-  for each day the same way as on the Daily Summary; if some days lack the
-  amino-acid data it needs, a note says how many days it covers.
-- A table of every nutrient that changed (a link shows the unchanged ones
-  too): before, after, the change, % of your target before and after with
-  its status (low / near / met / over, as on the
-  [Daily Summary](#goals)), how many days fell short of the target before
-  and after, and how many days went over a maximum. An average can look fine
-  while several days fall short, which is why the day counts are there.
-  **Largest change first** is the default order; **Grouped like the daily
-  summary** puts them back in the usual groups.
-- A **?** beside a nutrient means something you added has no value for it,
-  so the "after" figure may be too low.
+- A line for each change saying how many meals and days it was found in. A change that matched nothing is pointed out, so a typo in a code doesn't go unnoticed.
+- A small table of calories, protein, Protein ([DCP](#gloss-dcp)), carbohydrate, sugars, fat and fiber per day, with rows labeled **Before (as logged)**, **After your changes** and **Change**. DCP is worked out for each day the same way as on the Daily Summary; if some days lack the amino-acid data it needs, a note says how many days it covers.
+- A table of every nutrient that changed (a link shows the unchanged ones too): before, after, the change, % of your target before and after with its status (low / near / met / over, as on the [Daily Summary](#goals)), how many days fell short of the target before and after, and how many days went over a maximum. An average can look fine while several days fall short, which is why the day counts are there. **Largest change first** is the default order; **Grouped like the daily summary** puts them back in the usual groups.
+- A **?** beside a nutrient means something you added has no value for it, so the "after" figure may be too low.
 
-Targets come from the profile pinned to each day, as on the Daily Summary.
-Days with nothing logged are never counted as zero; they're left out.
-Glycemic load is recalculated too — see [Glycemic load in a what-if](#whatif-gl).
+Targets come from the profile pinned to each day, as on the Daily Summary. Days with nothing logged are never counted as zero; they're left out. Glycemic load is recalculated too — see [Glycemic load in a what-if](#whatif-gl).
 
-On [Food Use in Meals](#fooduse), the **try removing** link on each row opens
-this page with that item already entered, for the same meals.
+On [Food Use in Meals](#fooduse), the **try removing** link on each row opens this page with that item already entered, for the same meals.
 
-The page address holds the whole scenario, so you can bookmark it and come
-back to it later.
+The page address holds the whole scenario, so you can bookmark it and come back to it later.
 
 
 #### What-if: Recipes {: #whatif-recipes}
 
 *Search terms: what-if recipes, recipe scenario, change ingredient.*
 
-Analysis -> What-if: recipes is the recipe-book version of
-[What-if: Meals](#whatif): it shows how each recipe's nutrition **per
-serving** would change if you removed, added, replaced or cut down an
-ingredient. Nothing is saved or changed.
+Analysis -> What-if: recipes is the recipe-book version of [What-if: Meals](#whatif): it shows how each recipe's nutrition **per serving** would change if you removed, added, replaced or cut down an ingredient. Nothing is saved or changed.
 
-1. **Which recipes.** All recipes (the default), recipes created on certain
-   dates, or a list of recipe IDs.
-2. **What to change.** The same change rows as on What-if: Meals. Remove,
-   Replace and Change amount reach the ingredient wherever it's used,
-   including inside sub-recipes. **Add** puts an amount into each recipe like
-   one more ingredient; choose whether that amount is for **each serving** or
-   for **the whole recipe** (then each serving gets its share).
+1. **Which recipes.** All recipes (the default), recipes created on certain dates, or a list of recipe IDs.
+2. **What to change.** The same change rows as on What-if: Meals. Remove, Replace and Change amount reach the ingredient wherever it's used, including inside sub-recipes. **Add** puts an amount into each recipe like one more ingredient; choose whether that amount is for **each serving** or for **the whole recipe** (then each serving gets its share).
 3. Click **Show the effect**.
 
-The number of servings never changes, so removing an ingredient makes each
-serving lighter and adding one makes it heavier. That is usually what you
-want to know: "if I left the nutritional yeast out, what would one serving
-give me?"
+The number of servings never changes, so removing an ingredient makes each serving lighter and adding one makes it heavier. That is usually what you want to know: "if I left the nutritional yeast out, what would one serving give me?"
 
-To swap one ingredient for another at a different amount — say, pumpkin
-seeds in place of hemp seeds at 1.1 times the hemp weight — use a single
-**Replace** row: hemp seeds, replaced with pumpkin seeds, **A multiple of the
-old weight**, `1.1` (or `110%`). Every recipe gets 1.1 times whatever weight
-of hemp it had. No Remove row is needed; Replace takes the old one out.
+To swap one ingredient for another at a different amount — say, pumpkin seeds in place of hemp seeds at 1.1 times the hemp weight — use a single **Replace** row: hemp seeds, replaced with pumpkin seeds, **A multiple of the old weight**, `1.1` (or `110%`). Every recipe gets 1.1 times whatever weight of hemp it had. No Remove row is needed; Replace takes the old one out.
 
-To use more or less of an ingredient that's already in a recipe, use
-**Change amount (multiply: 1.5 or 150%)** with a multiplier, typed either way: 1.5 or
-150% for half again as much, 0.5 or 50% for half. It changes the amount wherever the ingredient is used,
-including inside sub-recipes. A **Remove** row plus an **Add** row does the
-same job when you'd rather state the new amount outright (for example
-"10 g per serving"), but remember that Add puts the ingredient into every
-selected recipe, not just the ones that already had it.
+To use more or less of an ingredient that's already in a recipe, use **Change amount (multiply: 1.5 or 150%)** with a multiplier, typed either way: 1.5 or 150% for half again as much, 0.5 or 50% for half. It changes the amount wherever the ingredient is used, including inside sub-recipes. A **Remove** row plus an **Add** row does the same job when you'd rather state the new amount outright (for example "10 g per serving"), but remember that Add puts the ingredient into every selected recipe, not just the ones that already had it.
 
-The results are a grid with one column per recipe. Each cell shows the value
-per serving **after** your changes, in bold, with the change below it. Tick
-**Also show the before values** to add the old figure. The first column,
-**Average change**, gives the average of each recipe's percent change for
-that nutrient, over every recipe the change reaches, including any that
-don't fit as a column. A recipe that had none of the nutrient before is left
-out of that average (a percent change from zero means nothing), and a small
-"over N" note shows when that happened. Only nutrients that
-change are listed; a link shows the rest. Protein ([DCP](#gloss-dcp)) is
-worked out the same way as on the recipe page; NC (not computed) means it
-can't be, because an ingredient with 1 g or more of protein has no
-amino-acid data.
+The results are a grid with one column per recipe. Each cell shows the value per serving **after** your changes, in bold, with the change below it. Tick **Also show the before values** to add the old figure. The first column, **Average change**, gives the average of each recipe's percent change for that nutrient, over every recipe the change reaches, including any that don't fit as a column. A recipe that had none of the nutrient before is left out of that average (a percent change from zero means nothing), and a small "over N" note shows when that happened. Only nutrients that change are listed; a link shows the rest. Protein ([DCP](#gloss-dcp)) is worked out the same way as on the recipe page; NC (not computed) means it can't be, because an ingredient with 1 g or more of protein has no amino-acid data.
 
-Only recipes the change actually reaches are shown (with only Add rows,
-every selected recipe is). At most 8 fit side by side: the 8 that change
-most are shown and the rest are listed by name, so you can pick particular
-ones with **Recipe IDs**.
+Only recipes the change actually reaches are shown (with only Add rows, every selected recipe is). At most 8 fit side by side: the 8 that change most are shown and the rest are listed by name, so you can pick particular ones with **Recipe IDs**.
 
-If a changed recipe is used inside other recipes you didn't select, those
-are listed under the grid, since they would change too, with a **Show them
-too** link that adds them.
+If a changed recipe is used inside other recipes you didn't select, those are listed under the grid, since they would change too, with a **Show them too** link that adds them.
 
-On [Food Use in Recipes](#fooduse-recipes), the **try removing** link on
-each row opens this page with that ingredient already entered, for the
-recipes that use it.
+On [Food Use in Recipes](#fooduse-recipes), the **try removing** link on each row opens this page with that ingredient already entered, for the recipes that use it.
 
 
 #### Glycemic load in a what-if {: #whatif-gl}
@@ -3340,33 +3118,13 @@ A typical use: on What-if: Meals, replace a High-[GI](#gloss-gi) staple you eat 
 
 *Search terms: save scenario, apply changes, make it real, delete from meals.*
 
-Once a what-if is showing results, on either What-if page, a bar under the
-list of changes offers three things.
+Once a what-if is showing results, on either What-if page, a bar under the list of changes offers three things.
 
-- **Save this scenario.** Give it a name and click the button. It appears
-  under **Use a saved scenario** at the top of that page (meals and recipes
-  each have their own list), where you can open, rename or delete it.
-  Opening one brings back everything: the dates or recipes, the changes, and
-  how the results were set out. Dates are kept as you typed them, so a
-  saved scenario always covers the same days.
-- **Download CSV.** The results as a CSV (comma-separated values) spreadsheet file: the changes, then
-  every nutrient, including the unchanged ones. From What-if: Recipes, it
-  has a column group for *every* recipe the change reaches, not only the 8
-  shown on the page.
-- **Apply these changes for real…** This changes your actual meals or
-  recipes, so it's only offered when doing it for real gives the same result
-  you're looking at. Any of the four actions can be applied, with these
-  limits: a **Replace** must be a food for a food at the same weight, or a
-  recipe for a recipe at the same servings; a **Change amount** of 0% is a
-  removal, so use Remove; no item is changed twice; and nothing is replaced
-  with, or added as, something another change also changes. If that isn't
-  so, the bar says why instead. Straight after you apply, the button is
-  hidden, so an addition can't be made twice by accident.
+- **Save this scenario.** Give it a name and click the button. It appears under **Use a saved scenario** at the top of that page (meals and recipes each have their own list), where you can open, rename or delete it. Opening one brings back everything: the dates or recipes, the changes, and how the results were set out. Dates are kept as you typed them, so a saved scenario always covers the same days.
+- **Download CSV.** The results as a CSV (comma-separated values) spreadsheet file: the changes, then every nutrient, including the unchanged ones. From What-if: Recipes, it has a column group for *every* recipe the change reaches, not only the 8 shown on the page.
+- **Apply these changes for real…** This changes your actual meals or recipes, so it's only offered when doing it for real gives the same result you're looking at. Any of the four actions can be applied, with these limits: a **Replace** must be a food for a food at the same weight, or a recipe for a recipe at the same servings; a **Change amount** of 0% is a removal, so use Remove; no item is changed twice; and nothing is replaced with, or added as, something another change also changes. If that isn't so, the bar says why instead. Straight after you apply, the button is hidden, so an addition can't be made twice by accident.
 
-Clicking it doesn't change anything yet. A page first lists what will
-change: for each change, the meals or recipes it will be made in. Then
-click **Yes, make these changes** to go ahead, or go back. What each action
-does for real:
+Clicking it doesn't change anything yet. A page first lists what will change: for each change, the meals or recipes it will be made in. Then click **Yes, make these changes** to go ahead, or go back. What each action does for real:
 
     Remove          Deletes the item from those meals, or the ingredient
                     from those recipes.
@@ -3380,25 +3138,11 @@ does for real:
                     (servings for a recipe), since "2 c" no longer
                     describes it.
 
-A recipe you [logged as individual ingredients](#whatif-ingredients) has
-exactly the foods the what-if matched deleted or changed, and the page says
-how many.
+A recipe you [logged as individual ingredients](#whatif-ingredients) has exactly the foods the what-if matched deleted or changed, and the page says how many.
 
-The page also says where the item will stay as it is. On What-if: Meals,
-a food used inside a recipe is left alone, because changing the recipe would
-change it in every meal that uses it; use What-if: Recipes for that. On
-What-if: Recipes, a recipe that has the item only inside a sub-recipe
-changes only if that sub-recipe is one of the ones listed, and a recipe
-can't be added to itself or to a recipe it's used in.
+The page also says where the item will stay as it is. On What-if: Meals, a food used inside a recipe is left alone, because changing the recipe would change it in every meal that uses it; use What-if: Recipes for that. On What-if: Recipes, a recipe that has the item only inside a sub-recipe changes only if that sub-recipe is one of the ones listed, and a recipe can't be added to itself or to a recipe it's used in.
 
-**Changing a recipe changes the meals that use it.** A logged meal follows
-its recipe, so on What-if: Recipes the page says how many logged meals use
-the recipes being changed (or a recipe built on them): their nutrition
-changes too, past days included. It also lists any recipe with a stored
-total weight or water once cooked: applying doesn't change those figures,
-so check them on the recipe's page afterwards. Every recipe changed has its
-Protein ([DCP](#gloss-dcp)) worked out again. See also
-[Food Use in Meals](#fooduse) and [Food Use in Recipes](#fooduse-recipes).
+**Changing a recipe changes the meals that use it.** A logged meal follows its recipe, so on What-if: Recipes the page says how many logged meals use the recipes being changed (or a recipe built on them): their nutrition changes too, past days included. It also lists any recipe with a stored total weight or water once cooked: applying doesn't change those figures, so check them on the recipe's page afterwards. Every recipe changed has its Protein ([DCP](#gloss-dcp)) worked out again. See also [Food Use in Meals](#fooduse) and [Food Use in Recipes](#fooduse-recipes).
 
 
 #### Glycemic Load Output {: #glycemic}
@@ -3538,6 +3282,8 @@ Shows all your saved recipes. Sorted by Last accessed by default; use the sort d
 Columns:
 
     Compare     Tick to compare recipes side by side (see Compare selected).
+                Ticks are kept when you search again or go to another list
+                (see Picking from several searches).
     Code        The recipe's code (R21).
     Name        Recipe name; click it to open the recipe.
     Description Short recipe description, if any.
@@ -3591,7 +3337,7 @@ Nested recipes (a code starting with R) have their nutrients scaled automaticall
 
 #### USDA Food Search Results {: #food-search}
 
-*Search terms: results columns, AA checkmark, slow search, speed, beverage, finished recipe.*
+*Search terms: results columns, AA checkmark, slow search, speed, beverage, finished recipe, lost ticks, checked foods disappear, multiple searches, basket.*
 
 Listed after a food search. Combines matches from [USDA](#gloss-usda) FoodData Central, Open Food Facts[^3], and your local [Food Cache](#gloss-food-cache).
 
@@ -3608,7 +3354,7 @@ Columns:
     don't include nutrient values up front, so "~checkmark" is a guess, not a
     fact. Opening a food's page (or adding it to a meal/recipe) fetches and
     caches its full details, which is when "~checkmark" turns into a confirmed
-    checkmark or X. On the web app, you can also check a batch of "~checkmark"
+    checkmark or X. You can also check a batch of "~checkmark"
     results directly from the search list: tick their checkboxes (or the
     header checkbox to select all of them) and click "Fetch full details for
     selected" — this avoids looking up every uncached result on every single
@@ -3665,6 +3411,8 @@ To select: click the result. If the food is not yet in your cache, NuMa fetches 
 
 **Compare selected.**{: #compare-checkboxes} Every row also has a checkbox in its own **Compare** column — check any mix of foods and/or recipes you want, then click **Compare nutrition of selected (up to 8)** above the table to jump straight to [Comparison](#comparison) with those items already added, no need to redo the search there. The same checkbox-and-button pair appears on [Food Cache](#food-cache-web), [My Pantry](#pantry)'s pantry list, and the [Recipes list](#recipes-menu-web) — each jumps into the comparison page from wherever you're already looking at a food or recipe.
 
+**Picking from several searches.**{: #compare-picks} Your ticks in a **Compare** column are kept when you search again or go to another list, so you can gather foods from as many searches as you like before comparing. Search for *salmon* and tick two results, search for *lentils* and tick one, open the Recipes list and tick a recipe, then click any **Compare nutrition of selected** button: all four go into the comparison, not just the ones on the page you're looking at. This works across Foods → Search, [My Pantry](#pantry) (its search results and its pantry list), the [Recipes list](#recipes-menu-web), [Food Cache](#food-cache-web) and [Compare](#comparison)'s own search. A note under each Compare button lists what you have picked so far, with an **✕** beside each to drop it and **Clear all picks** to start over; a food you picked shows ticked again whenever it turns up in a later search. Up to 8 items can be compared; pick more and the note warns you in red that only the first 8 will be used. Once Compare opens, the picks are cleared. They last only while this browser tab is open.
+
 **Sort order.** Results can be ordered two ways — a dropdown above the results table lets you switch, and your choice is remembered as the default for next time:
 
 <pre>
@@ -3703,7 +3451,7 @@ See [Food Cache](#cached) for the [Food Cache](#gloss-food-cache) column guide. 
 
 Shows up to eight foods and/or recipes side-by-side, mixed in any combination, in up to four tables: an ingredient table, a protein-quality table, a glycemic table, and a nutrient table. By default every comparison is per 100 g of each item — a food's natural unit (grams) and a recipe's (servings) aren't otherwise a comparable amount to judge side by side, so the page starts every item on the same 100 g footing. You can also set your own amount for each item (see below). To start a new list, click **Clear the list and start over**, beside the Search button (your saved lists are not affected). Once there is something to compare, a **Contents** list down the side of the page jumps to each part: the search, the items being compared, Compare amounts, each comparison table, and Save this list.
 
-**Gathering items from several searches.**{: #comparison-gather} Search for one food, tick it, then simply search for the next one: whatever you ticked is added to the comparison before the new search runs, so nothing you picked is lost. (**Add selected to comparison** does the same without searching again.) Everything added so far is listed under the search, each with a **Remove** button.
+**Gathering items from several searches.**{: #comparison-gather} Search for one food, tick it, then simply search for the next one: whatever you ticked is added to the comparison before the new search runs, so nothing you picked is lost. (**Add selected to comparison** does the same without searching again.) Anything you ticked on another page — Foods → Search, My Pantry, Recipes, Food Cache — and haven't compared yet is listed under the **Add selected to comparison** button and goes in with it; see [Picking from several searches](#compare-picks). Everything added so far is listed under the search, each with a **Remove** button.
 
 **Setting an amount for each item.**{: #comparison-amounts} Each item in that list has an **Amount** box: grams for a food, servings for a recipe. A recipe that has a weight per serving (its own total weight, or one NuMa can add up from its ingredients) also has a **servings / g** choice beside the box, and shows "1 serving = … g" underneath (with the recipe's serving description, such as "1 serving = 1 muffin (85 g)", when it has one — that description also appears under the recipe's name in the nutrient table whenever servings are being compared), so you can give it in grams instead; its column then reads, for example, "100 g (0.97 servings)". A recipe with no weight per serving takes servings only. A food that has portions ("1 slice (28 g)") has a **g / portion** choice beside its box too, so you can set it as a number of one of its portions — 2 × 1 slice — and its column reads "2 × 1 slice (56 g)". Fill in the amounts you want, then click **Show comparison at the amounts set above** (or press Enter in an Amount box). Of the two Show comparison buttons, the blue one is the one that matches what you've asked for: **Show comparison for 100 g of each item** until you type an amount, then the amounts one. Every table then shows each item at its own amount — 30 g of almonds beside 150 g of yogurt and 2 servings of your granola, say — and the **Compare amounts** choice switches to **The amount I set for each item**. A box left blank means 100 g of a food or 1 serving of a recipe. Your amounts stay with the comparison as you add or remove items, and are kept when you save it as a list. Switch **Compare amounts** back to per 100 g at any time to see how concentrated each item is instead; your amounts are kept for when you switch back.
 
@@ -3779,7 +3527,7 @@ What you can set:
 
 **Saving settles the food.** As soon as you change anything on this page (an estimate, its source, or either "don't prompt me" box), **Save annotation** lights up in solid blue with a red border, and goes back to normal if you put everything back as it was. Whatever you fill in, clicking **Save annotation** means you have dealt with this food: it stops interrupting you when you add it to a meal or the pantry, even if you deliberately left one of the two estimates blank. Come back any time through Annotate a Food to fill in the rest. **Skip for now** is the opposite — it saves nothing, so NuMa asks again the next time you add that food.
 
-**When only one estimate is outstanding**, the prompt says so, and says which. The form always shows both the GI and the DIAAS field, so a prompt that is really about DIAAS would otherwise look identical to the GI prompt you just dealt with. A line above the form names whichever one is already settled, and the two fields are badged **Asking for this one** and **Settled — not being asked about** so there is no guessing. The page always opens at its top, with the cursor in the GI box when the food has no GI yet; when it has a GI but no DIAAS, a **DIAAS needed, click to go there** button near the top takes you straight to the DIAAS box.
+**When only one estimate is outstanding**, the prompt says so, and says which. The form always shows both the GI and the DIAAS field, so a prompt that is really about DIAAS would otherwise look identical to the GI prompt you just dealt with. A line above the form names whichever one is already settled, and the two fields are badged **Asking for this one** and **Settled — not being asked about** so there is no guessing. The page always opens at its top, with the cursor in the GI box when the food has no GI yet; when it has a GI but no DIAAS, a **DIAAS needed, click to go there** button near the top takes you straight to the DIAAS box. Each estimate NuMa is asking for also has a **Skip** button right beside its label, so you don't have to scroll to the foot of the form. When both are being asked for, the GI field's **Skip** leaves GI blank and moves you down to the DIAAS box. The DIAAS field's **Skip**, or the GI field's when GI is the only one asked for, works like **Skip for now**: it saves nothing and goes back, and NuMa asks again next time.
 
 Annotations appear wherever that food is used: [Food Cache](#gloss-food-cache) list, food and recipe analysis, and meal analysis.
 
@@ -3826,13 +3574,13 @@ Custom food profiles are stored in your [Food Cache](#gloss-food-cache) and appe
 
 To edit nutrient data: open the food from [Food Cache](#gloss-food-cache) or this list and click **Edit nutrients**. Editing is done in the [Food Cache](#gloss-food-cache) record itself, not in a separate copy.
 
-**Comparing search results before you copy.** On the edit page, both searches ("Copy nutrient values from another food" and "Estimate amino acids from another food") give each result a **Compare** checkbox. Check the ones you want to weigh up and click **Compare checked foods with this one**: the [Compare](#comparison) page opens with the profile you're editing first and the checked foods beside it, every nutrient side by side per 100 g. Its **← Back to editing …** button at the top brings you back to the section you came from. Any unsaved edits are saved first, as with a search, so the comparison shows the profile as you have it now, and the Undo offer is waiting when you return.
+**Comparing search results before you copy.** On the edit page, both searches ("Copy nutrient values from another food" and "Estimate amino acids from another food") give each result a **Compare** checkbox. Check the ones you want to weigh up and click **Compare checked foods with this one**. Your ticks are kept when you run either search again, so you can gather foods from several searches (up to 7 besides the profile) and compare them all at once; a note under the button lists them. These picks belong to this profile alone — they don't mix with ticks made in Foods → Search or other lists. When you click it, the [Compare](#comparison) page opens with the profile you're editing first and the checked foods beside it, every nutrient side by side per 100 g. Its **← Back to editing …** button at the top brings you back to the section you came from. Any unsaved edits are saved first, as with a search, so the comparison shows the profile as you have it now, and the Undo offer is waiting when you return.
 
 To create a new custom profile: Foods -> Custom Food Profiles -> Create. See [Food Cache](#food-cache-web) for an alternative way to get missing data (e.g. amino acid data from Claude [AI](#gloss-artificial-intelligence) for foods not in [USDA](#gloss-usda)).
 
-**Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a custom food profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. On the web app, the same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
+**Estimating amino acids by copying from another food.** Whenever you're prompted for a food's amino acid profile (creating a custom food profile, copying a cached food, or editing any food's data), a third option lets you search for and pick a similar food that already has amino acid data, instead of typing values in or pasting from literature. The picked food's amino acids are **scaled to match this food's own protein content** (not copied raw) — a food with less protein than the source gets proportionally less amino acid content, and vice versa — the same scaling already used by hand in this app's built-in curated foods (e.g. amino acids scaled between fresh and dried okara). A note documenting the source food and scale factor is suggested automatically for the Note field. The same picker appears as an "Estimate amino acids from another food" panel on the custom-profile edit page ([Custom Food Profiles](#custom-foods)); editing any food's data this way marks it user-drafted, same as any other edit.
 
-On the web app, [Food Search](#food-search) (and Food Cache and Pantry's own ingredient search) has a shortcut into this workflow: every food row shows a **Copy as custom-food draft** button. Clicking it duplicates that food as an editable draft and takes you straight to its edit page, [AA](#gloss-aa)-source search box ready — skipping the separate trip through Custom Food Profiles' own "Copy a cached food as a draft" search.
+[Food Search](#food-search) (and Food Cache and Pantry's own ingredient search) has a shortcut into this workflow: every food row shows a **Copy as custom-food draft** button. Clicking it duplicates that food as an editable draft and takes you straight to its edit page, [AA](#gloss-aa)-source search box ready — skipping the separate trip through Custom Food Profiles' own "Copy a cached food as a draft" search.
 
 
 #### My Pantry Table {: #pantry}
@@ -3844,7 +3592,9 @@ Shows the protein sources you have flagged as currently on hand. The Pantry driv
 A **Sort by** dropdown above the list orders it by Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, Used in (most-used first) or date Added. NuMa remembers your choice. Columns:
 
 <pre>
-    Compare Tick to compare pantry foods side by side.
+    Compare Tick to compare pantry foods side by side. Ticks are kept when
+            you search again or go to another list (see Picking from
+            several searches).
     Food    Food name.
     Code    The food's code (U171477, UD4, OFF3 ...); -- for name-only entries.
     AA      Amino acid data status.
@@ -3899,7 +3649,7 @@ See [meal protein digestibility](#meal-diaas) to see where this value appears in
 
 ## Part 6 — Shared Operations
 
-*(Reading time: 1 hour, 2 minutes)*
+*(Reading time: 1 hour, 4 minutes)*
 
 Several operations show up in more than one place in the app — the same mechanism behind a search box on three different pages, say. This Part collects those, so they're documented once instead of several times, with a link back here from every place they apply.
 
@@ -3935,18 +3685,23 @@ The setting is saved between sessions and applies to both the interactive comple
 
 ### C. Ordering food search results {: #search-ranking}
 
-*Search terms: search order, search ranking, search by code, result order, best match, partial word.*
+*Search terms: search order, search ranking, search by code, result order, best match, partial word, exclude, not, leave out, without, hidden matches, cooked, canned, preparation words, word order, reverse, search again, branded products.*
 
-**Searching by code.**{: #search-by-code} Every food and recipe search box — Foods → Search, a meal's add-food panel, Edit Recipe's ingredient search, Compare, Convert, My Pantry, and the "search for a food to copy from" boxes — also takes a [code](#gloss-code) on its own: **[R21](#gloss-code)** for a recipe, **U171477**, **[UD4](#gloss-code)** or **[OFF3](#gloss-code)** for a food, **U171477.1** for an older version of one. Upper or lower case both work. The search then shows just that one food or recipe, straight away and without going online, whatever the Source boxes are set to, and even if it's archived. A plain number works too when it is the [FDC ID](#gloss-fdc-id) of a food already in your Food Cache (171477 for U171477). A code NuMa has nothing for, or a number that isn't a cached food's FDC ID, is searched as ordinary text instead, so a USDA FDC ID you haven't used yet still finds the food online. A box that can't offer the item (a recipe in a search for foods only, a recipe inside itself) ignores the code. Hover over a search box for a reminder.
+**Searching by code.**{: #search-by-code} Every food and recipe search box — Foods → Search, a meal's add-food panel, Edit Recipe's ingredient search, Compare, Convert, My Pantry, and the "search for a food to copy from" boxes — also takes a [code](#gloss-code) on its own: **[R21](#gloss-code)** for a recipe, **U171477**, **[UD4](#gloss-code)** or **[OFF3](#gloss-code)** for a food, **U171477.1** for an older version of one. Upper or lower case both work. The search then shows just that one food or recipe, straight away and without going online, whatever the Source boxes are set to, and even if it's archived. A plain number works too when it is the [FDC ID](#gloss-fdc-id) of a food already in your Food Cache (171477 for U171477). A code NuMa has nothing for, or a number that isn't a cached food's FDC ID, is searched as ordinary text instead, so a USDA FDC ID you haven't used yet still finds the food online. A box that can't offer the item (a recipe in a search for foods only, a recipe inside itself) ignores the code. A short hint under every food and recipe search box (beside it, on a meal) sums up word order, `!` and codes, with a **Learn more** link to this section.
 
-The boxes that *filter a list* take a code too: the Recipes list (**R21**), the Food Cache and Annotate lists, My Pantry's **Filter my pantry list** (**U171477**, **UD4** …), Food Use in Recipes' name filter, the Food Use in Meals "Replace it with" box, and [Search meal history](#meal-history), where **U171477** or **R21** lists every meal that food or recipe was logged in. A code there narrows the list to just that one item, archived or not; anything else filters by name as before.
-When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
+The boxes that *filter a list* take a code too: the Recipes list (**R21**), the Food Cache and Annotate lists, My Pantry's **Filter my pantry list** (**U171477**, **UD4** …), Food Use in Recipes' name filter, the Food Use in Meals "Replace it with" box, and [Search meal history](#meal-history), where **U171477** or **R21** lists every meal that food or recipe was logged in. A code there narrows the list to just that one item, archived or not; anything else filters by name as before. When you search for a food — whether from the Food Search page, the Meals & Log "Add Food or Recipe" panel, or a recipe's ingredient search — NuMa has to decide what order to show the matches in. That's a harder problem than it sounds, because "best match" usually means several different things at once: does the name contain your search words? All of them, or just some? And does it matter which words a near-miss is missing?
 
 **The short version:** results are ranked first by how many of your search words appear in the name — an item matching every word you typed always outranks one matching only some of them, which always outranks one matching none. A word counts only where a word in the name starts with it: "orange" matches "Oranges", "onions" matches "Green onion" and "berry" matches "Berries" (singular and plural find each other), and "raw" matches "raw", but "raw" inside "st**raw**berry" doesn't count, nor "sauce" inside "applesauce" (type "applesauce" for that). Your own matches are then listed before the online ones ([USDA](#gloss-usda), Open Food Facts, Canadian Nutrient File and the rest), under a "From your recipes, pantry, and food cache" heading with a divider below it, so something you already have is never buried under a wall of online results. Your own matches keep that best-match order among themselves too: a recipe comes before a Pantry or Food Cache food only when the two match your words equally well, so a recipe matching one of your words never sits above a food matching all of them. When one of your own items matches every word you typed, your items matching only some of the words move below the online results, under a "Partial matches from your recipes, pantry, and food cache" heading. They are still listed, but your exact match and the online foods matching every word come first. (An earlier version of NuMa let pantry/cache items always outrank everything else in the "Pantry, Cache, then Other" sort mode regardless of match quality, so an unrelated pantry item with only a coincidental word match could show up ahead of the food you actually typed. That mode now only breaks ties this way among equally-good matches — see below.)
 
 **Word order matters, too.** If you type more than one search word, NuMa treats the order you typed them in as a signal of what matters most to you. Suppose you search `milk dry instant` because there are two kinds of dry milk — instant and non-instant — and you specifically want the instant kind, but you've put "dry" before "instant" because that's the more important distinguishing word to you. If nothing in your data matches all three words, NuMa prefers a match on `milk` + `dry` over a match on `milk` + `instant`, precisely because you typed "dry" first. In effect, the words you type earlier act as your stated priorities — a partial match that preserves your earlier words beats one that preserves only a later one, even when both partial matches contain the same number of words.
 
 This means you can deliberately front-load your most important search word when you know a food name might be ambiguous or your data might be incomplete — put the word you care most about disambiguating on first, and let NuMa's ranking favor it if a perfect match isn't available.
+
+**Leaving words out.**{: #search-exclude} Put `!` in front of a word to drop every result whose name has that word: `beans red !kidney cooked` finds cooked red beans, but not kidney beans. You can leave out several words (`beans !kidney !pinto`). An excluded word is matched the same way as a searched one (where a word in the name starts with it, singular and plural alike), it doesn't count toward a result's ranking, and it is never sent to the online sources. A search made only of `!` words shows nothing, since there is nothing left to look for. When `!` words leave a result out, the list ends with a line saying how many, for example "6 matches hidden by `!kidney`", so a source showing nothing isn't mistaken for one that found nothing. (In [USDA](#gloss-usda), every cooked red bean is a kidney bean, so `beans red cooked !kidney` shows no USDA rows.) This works in the search boxes that find a food or recipe: Foods → Search, Analyze a food portion, a meal's add-food panel, Edit Recipe's ingredient search, Compare, Convert, My Pantry's add search, and the boxes for picking a food to estimate amino acids or nutrients from. Boxes that filter a list (the Recipes list, Food Cache, and the rest) don't use it yet.
+
+**Trying the words in another order.**{: #search-word-order} [USDA](#gloss-usda)'s own search ranks a food whose name holds your words *in the order you sent them* far above one holding the same words in any other order. Branded products are named the way people talk ("small red beans", "whole wheat bread"), which is the reverse of typing your most important word first, so `beans red small` misses many of them and `small red beans` finds them. (Tried on every order of several three-word searches: all orders but one gave the same results.) So after a food search that includes USDA, the end of the results offers your words reversed, in a box you can edit first. **Add its results below these** (the default) keeps your search and lists what the second search found that the first didn't, under *Also found by searching ...*. **Replace these results with its results** just searches for it instead. The Add choice appears only when your first search found something in USDA. Your `!` words apply to both searches. NuMa doesn't run the second search by itself, since it is one more request to USDA.
+
+**Preparation words.**{: #search-prep-words} Words that describe how a food is prepared (*cooked*, *raw*, *boiled*, *canned*, *frozen*, *dried*, *chopped* and similar) still count toward ranking, so `beans red cooked` lists a red bean named "cooked" first. But they aren't sent to [USDA](#gloss-usda), Open Food Facts or the Canadian Nutrient File, since those sources keep only names holding every word they're sent. A can of beans is cooked, but its name usually says "canned" or nothing at all, so sending "cooked" would leave it out. Every food and recipe search box works this way.
 
 *(For technically skilled users: the exact algorithm — including how word order is encoded as a simple bitmask comparison — is documented in `README-numa-documentation.md`, under "Searching for a food.")*
 
@@ -4131,7 +3886,7 @@ The ignored list is not saved anywhere — it resets the moment you navigate awa
 
 *To find the gaps themselves, see [Checking your data](#checking-your-data).*
 
-Food data is never complete — plenty of foods have no amino acid figures, and no food record carries a protein digestibility figure at all. Where a calculation needs a number that isn't there, NuMa either fills it with an estimate from a small built-in list, or leaves the food out and tells you. It never quietly saves a generic estimate into your own data. This is the full list of where estimation happens.
+Food data is never complete — plenty of foods have no amino acid figures, and no food record carries a protein digestibility figure at all. Where a calculation needs a number that isn't there, NuMa either fills it with an estimate from a small built-in list, or leaves the food out and tells you. It never quietly saves a [generic](#gloss-generic) estimate into your own data. This is the full list of where estimation happens.
 
 **Protein digestibility — an estimate for every food, every time.**{: #digestibility-by-name} [DCP](#gloss-dcp) needs to know how much of each food's protein your body actually absorbs. Food databases don't record that, so NuMa looks it up by the food's name, in this order:
 
@@ -4142,7 +3897,7 @@ Food data is never complete — plenty of foods have no amino acid figures, and 
 
 The [Meal Protein Digestibility Analysis](#meal-diaas) marks which of these each food got: a small "~est" beside the figure means a category or default estimate (NuMa had nothing specific for it), and "user" means your own override. If you know a better figure for a food you eat often, enter it as an override.
 
-**Amino acids in complement suggestions — a built-in list of 25 protein sources.** To suggest a food that closes an amino acid gap, NuMa needs that food's amino acid figures. When a candidate from your pantry, recipes or food cache has none, NuMa matches its name against a built-in table of 25 common protein sources (soy protein isolate, nutritional yeast, oats and the like) and scales that entry's amino acids to the food's own protein. Such suggestions are tagged "(estimated)" or "(generic estimate)" — see [Amino acid estimates in suggestions](#comp-estimate). This estimate is worked out afresh each time, is never saved, and is used *only* for suggestions — never in a meal's or recipe's DCP.
+**Amino acids in complement suggestions — a built-in list of 25 protein sources.** To suggest a food that closes an amino acid gap, NuMa needs that food's amino acid figures. When a candidate from your pantry, recipes or food cache has none, NuMa matches its name against a built-in table of 25 common protein sources (soy protein isolate, nutritional yeast, oats and the like) and scales that entry's amino acids to the food's own protein. Such suggestions are tagged "(estimated)" or "([generic](#gloss-generic) estimate)" — see [Amino acid estimates in suggestions](#comp-estimate). This estimate is worked out afresh each time, is never saved, and is used *only* for suggestions — never in a meal's or recipe's DCP.
 
 **Amino acids you estimate yourself.** The "estimate amino acids from another food" tool ([Custom Food Profiles](#drafted-foods)) copies a similar food's amino acid figures, scaled to this food's protein. Unlike the two above, this estimate *is* saved to the food, with a note naming the source, and is then used everywhere — DCP included — just as real data would be. It's your choice of source, which is why it's trusted that far. The same goes for a [DIAAS estimate](#diaas-estimate-table) you record by hand for a packaged food: that one is shown with the food, but NuMa doesn't use it in DCP calculations.
 
@@ -4173,7 +3928,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 | [Calories missing or not adding up](#calorie-checks) | No calorie value; calories far from what the food's protein, carbs and fat imply; calories estimated | Foods → 9; the food's page; a **Calories** note on meal, recipe and summary pages | Refresh from [USDA](#gloss-usda), fill in from another food, or edit the value; alcohol, sugar alcohols and very high fiber can explain a real gap |
 | Impossible values | Negative values; more than 100 g of one nutrient per 100 g; protein, carbs and fat adding up to more than 100 g; more sugars than carbohydrate; more of the three fat types than total fat | Foods → 9; the food's page; right after adding it | Correct the value on the food; such data usually came wrong from its source |
 | [Amounts that no longer match](#stale-amounts) | A recipe amount typed as a volume or portion ("1/3 c", "p1") whose stored grams differ from what it works out to today | Foods → 9 | Check the food's portions, then update the amounts there in one click |
-| [Amounts converted with a generic density](#generic-density) | A volume amount ("2 T") for a food with no cup or spoon weight of its own, converted with a generic density for that kind of food | Recipe and meal pages ("≈ generic" mark), Foods → 9 | Measure the food's cup or spoon weight and add it on its Portions page, then correct the amounts |
+| [Amounts converted with a generic density](#generic-density) | A volume amount ("2 T") for a food with no cup or spoon weight of its own, converted with a [generic](#gloss-generic) density for that kind of food | Recipe and meal pages ("≈ generic" mark), Foods → 9 | Measure the food's cup or spoon weight and add it on its Portions page, then correct the amounts |
 | [Old USDA copies](#old-copies) | USDA foods not refreshed in over a year | Foods → 9 | **Refresh from USDA** shows what changed and lets you choose |
 | [Missing amino acid data](#missing-aa) | Foods with protein but no amino acid figures, left out of protein quality ([DCP](#gloss-dcp), [DIAAS](#gloss-diaas)) | Foods → 9 (foods you use, most-used first); meal, recipe and food pages; the [AA](#gloss-aa) column in search results, Food Cache and Pantry | Find a Foundation or [SR](#gloss-sr) Legacy version, refresh from USDA, or estimate from a similar food; or tick "not needed" |
 | [Missing GI values](#missing-gi) | A food you use with carbohydrate (5 g or more per 100 g) but no [GI](#gloss-gi), so [glycemic load](#gl) is incomplete wherever it appears and it can't be suggested as a [lower-GI swap](#gl-swaps) | Foods → 9 (foods you use, most-used first); any incomplete [GL](#gloss-gl) figure; Top Contributors ranked by glycemic load | Look one up on the food's Annotate page; or tick "not needed" (the same as "don't prompt me") |
@@ -4196,7 +3951,7 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 Foods → 9 lists by kind of problem, so a food with three things wrong turns up in three places on that page. **Problems by food** (the button at the top of Foods → 9) turns it around: one entry per food, with everything NuMa found on it and a button for each fix, so you can put a food right in one visit. Each item is tagged:
 
 - **Problem**: gives wrong figures now (no calories, impossible values, a nutrient group with no data, amounts that no longer match, a wet food picked for a dry one).
-- **Suggestion**: leaves a result incomplete or approximate (no amino acid data, no [GI](#gloss-gi), no portion weights, a generic density, a possible duplicate).
+- **Suggestion**: leaves a result incomplete or approximate (no amino acid data, no [GI](#gloss-gi), no portion weights, a [generic](#gloss-generic) density, a possible duplicate).
 - **Note**: for information (calories estimated, a [USDA](#gloss-usda) copy over a year old).
 
 **Borrowing values from another food.** A food with missing or wrong values has a **Borrow values from** box, filled in with its own name. Change it to the food to borrow from (*onions, raw* for a green onion) and click **Find it**. That opens [Fill in nutrients from another food](#review-incoming) with that search, where you compare and tick which values to copy, some or all, before anything is written.
@@ -4224,7 +3979,7 @@ Amounts typed with their own weight ("42 g", "2 T 15 g") are never listed. A vol
 
 The food's own **Portions page** shows the same list for that one food, right after you add, change or remove a portion (and whenever any of its amounts still don't match). There, recipe amounts start ticked; logged meals and bracketed-weight amounts start unticked, for you to decide. If you've just reordered portions, amounts entered as `p1`, `p2`… now point at a different portion, so re-enter those rather than updating them.
 
-**Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a generic density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages, Edit Recipe and meal pages mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
+**Amounts converted with a generic density.**{: #generic-density} When you enter a volume ("1/3 c", "2 T") for a food that has no cup or spoon weight of its own, NuMa converts it with a [generic](#gloss-generic) density for that kind of food: protein powders, flours, seeds and so on. That's a reasonable guess, but it is a guess, so recipe pages, Edit Recipe and meal pages mark every such amount **≈ generic\***, with a footnote. Click the mark to go to the food's Portions page, measure the food's actual cup or spoon weight (fill a measuring cup, level it, weigh it), and add it there. The mark then disappears, and the amounts it affects show up under [Amounts that no longer match](#stale-amounts), ready to correct. Foods → 9 lists every food with such amounts, most-used first, under **Amounts converted with a generic density**. An amount with a weight in brackets ("2 T (14.7 gr)") counts too: older versions of NuMa wrote their own conversion that way, so it's most likely the same generic figure, unless you weighed it. A weight you typed yourself ("15 g") is never marked.
 
 **Foods you use with no amino acid data, or no portion weights.** These two lists on Foods → 9 could be long — dozens of foods for a well-used install — so each starts folded up, showing only its count, and lists only foods you actually use in a recipe, a meal or your pantry (an unused food affects no result), most-used first. Open one when you want to work through it. In the amino acid list, **find amino acid data** beside a food searches for a similar food to copy amino acids from, scaled to this food's protein. Tick **not needed** for a food that doesn't matter — a sprinkle of cheese with no amino acid data, a food you always weigh — and it stops being counted. Each list's Save button is at the bottom, so a reminder above the list says so, and turns red, counting your changes, as soon as you tick or untick a box; leave the page before saving and NuMa asks whether to save them first. Neither list raises the Home page reminder: they're improvements to make when you have time, not errors.
 
@@ -4359,10 +4114,10 @@ A weight is the most accurate way to enter anything. It's used exactly as typed,
 A volume has no weight of its own, so NuMa converts it to grams, in this order:
 
 1. **The food's own cup or spoon portion**, if it has one, including one you've added on its Portions page. This is a fact about that food, so it's the figure to trust.
-2. **A generic density for that kind of food**: flours, protein powders, seeds, dried herbs and spices, and so on.
+2. **A [generic](#gloss-generic) density for that kind of food**: flours, protein powders, seeds, dried herbs and spices, and so on.
 3. **A general figure of 0.45 g per milliliter**, typical of a dried ground spice, when nothing better is known. A volume is never refused, because herbs and spices are often only ever measured by the spoon.
 
-Amounts converted the second or third way are a guess, so they're marked **≈ generic** wherever they're shown (see [Amounts converted with a generic density](#generic-density)). For a teaspoon of spice the guess hardly matters; for a cup of flour it can be well off. The fix is to weigh one cup or spoonful of the food once and add it as a portion (Food Cache → **Portions**). Every later volume of that food then comes out right, and amounts already entered show up under [Amounts that no longer match](#stale-amounts), ready to correct.
+Amounts converted the second or third way are a guess, so they're marked **≈ [generic](#gloss-generic)** wherever they're shown (see [Amounts converted with a generic density](#generic-density)). For a teaspoon of spice the guess hardly matters; for a cup of flour it can be well off. The fix is to weigh one cup or spoonful of the food once and add it as a portion (Food Cache → **Portions**). Every later volume of that food then comes out right, and amounts already entered show up under [Amounts that no longer match](#stale-amounts), ready to correct.
 
 #### A weight and a volume together {: #weight-and-volume}
 
@@ -4376,7 +4131,7 @@ Two near-misses are refused rather than guessed at:
 - `134.1 g 2/3 c`, with no brackets. NuMa can't tell whether the extra words are a note or a typing mistake, so it asks you to put them in brackets: `134.1 g (2/3 c)`.
 - `2/3 c (134.1 g)`, with the weight in the brackets. Older versions of NuMa wrote their own estimate that way, so a weight in brackets after a volume doesn't count as one you weighed. Type `2/3 c 134.1 g` instead.
 
-An amount entered with its own weight is never marked **≈ generic** and never listed under [Amounts that no longer match](#stale-amounts): it's taken to be what you weighed.
+An amount entered with its own weight is never marked **≈ [generic](#gloss-generic)** and never listed under [Amounts that no longer match](#stale-amounts): it's taken to be what you weighed.
 
 Putting the weight in the amount and the volume in the item's **Notes** box (amount `16 g`, note `2 T`) works too, and is just as accurate. It's simply no longer necessary.
 
@@ -4458,7 +4213,7 @@ A [CSV](#gloss-csv) file carries foods, or a recipe, from one NuMa install to an
 
 ## Part 7 — Essential resources
 
-*(Reading time: 33 minutes)*
+*(Reading time: 34 minutes)*
 
 ---
 
@@ -4496,7 +4251,7 @@ NuMa keeps track of *which* values you changed, by remembering what the food's s
 **Refreshing a food, or filling it in from another food.**{: #review-incoming} Both open the same review screen: each value that differs is listed with what the food has now beside what's incoming, and only the values you tick are written.
 
 - **Refresh** (Food Cache list, or **Refresh from USDA** on a USDA food's page) fetches USDA's current copy of the food.
-- **Fill in nutrients from another food** (on the food's page, for any food that isn't one of your custom profiles) lets you search for a similar food and pick from its values. Tick the **Compare** box on a few results to weigh them up side by side first; Compare then has a **Fill in ... from ...** button for each of them, which opens this review screen with that food's values. Your custom profiles have the same search on their Edit page.
+- **Fill in nutrients from another food** (on the food's page, for any food that isn't one of your custom profiles) lets you search for a similar food and pick from its values. Tick the **Compare** box on a few results to weigh them up side by side first (ticks are kept if you search again, so you can gather candidates from several searches); Compare then has a **Fill in ... from ...** button for each of them, which opens this review screen with that food's values. Your custom profiles have the same search on their Edit page.
 
 What's ticked for you:
 
@@ -4644,13 +4399,15 @@ Abbreviations and key terms used in NuMa output and this manual.
 
 **FSANZ**{: #gloss-fsanz}  —  Food Standards Australia New Zealand, the agency publishing the [AFCD](#gloss-afcd) food composition [database](#gloss-database) bundled with NuMa.
 
-**Generic density**{: #gloss-generic-density}  —  A typical weight-per-volume figure for a kind of food (flours, protein powders, seeds and so on) that NuMa uses to turn a cup or spoon amount into grams when the food has no cup or spoon portion of its own. A reasonable guess, but a guess: such amounts are marked **≈ generic**. See [Amounts converted with a generic density](#generic-density).
+**Generic**{: #gloss-generic}  —  In NuMa, a figure that isn't the food's own: a typical value for that *kind* of food, taken from one of NuMa's small built-in tables and used where the food's own record lacks a number a calculation needs. It's a reasonable guess, but a guess, and NuMa labels it wherever it's shown. You'll meet it in two places. A volume amount ("2 T", "1/3 c") for a food with no cup or spoon weight of its own is converted to grams with a [generic density](#gloss-generic-density) and marked **≈ generic**; see [Amounts converted with a generic density](#generic-density), which also says how to replace the guess with the food's real weight. And a complement suggestion tagged "(generic estimate)" is an entry from NuMa's built-in table of common protein sources, not a food you have; see [Amino acid estimates in suggestions](#comp-estimate). Every place NuMa estimates is listed under [Where NuMa fills gaps](#filling-gaps).
+
+**Generic density**{: #gloss-generic-density}  —  A typical weight-per-volume figure for a kind of food (flours, protein powders, seeds and so on) that NuMa uses to turn a cup or spoon amount into grams when the food has no cup or spoon portion of its own. A reasonable guess, but a guess: such amounts are marked **≈ [generic](#gloss-generic)**. See [Amounts converted with a generic density](#generic-density).
 
 **GI**{: #gloss-gi}  —  Glycemic Index. A scale from 0 to 100 measuring how quickly a food raises blood glucose relative to pure glucose (100). See [glycemic index](#gi).
 
 **GL**{: #gloss-gl}  —  Glycemic Load. A measure of glycemic impact that combines GI with the actual amount of carbohydrate in a serving. More useful than GI alone for real-world meal comparisons. See [glycemic load](#gl).
 
-**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa's web app provides (see [Part 3, "Using the Web App"](#part-3-using-the-web-app)).
+**GUI**{: #gloss-gui}  —  Graphical User Interface. A visual, point-and-click interface — this is what NuMa provides (see [Part 3, "Using NuMa"](#part-3-using-numa)).
 
 **IAA**{: #gloss-iaa}  —  Indispensable Amino Acid. The FAO's own term for what this manual calls [EAA](#gloss-eaa) (Essential Amino Acid) — both refer to the same nine amino acids. See [essential amino acids](#aa).
 
@@ -4837,8 +4594,7 @@ Either way, [let us know](#feedback) — see ["How to contact help"](#quickhelp)
 
 *Search terms: how do I, can't find feature, where is.*
 
-Click any **Learn more** link near a section heading or analysis output — see [Getting help](#help) for the full list of what each one covers.
-Or use this manual's own search box, in the sidebar (see [Using this manual's search](#search-howto) for how to get good results from it, especially the "Only show things you can do" checkbox) — search for a word describing what you're trying to do rather than a menu name.
+Click any **Learn more** link near a section heading or analysis output — see [Getting help](#help) for the full list of what each one covers. Or use this manual's own search box, in the sidebar (see [Using this manual's search](#search-howto) for how to get good results from it, especially the "Only show things you can do" checkbox) — search for a word describing what you're trying to do rather than a menu name.
 
 If you still can't find it, [tell us what you were trying to do](#feedback) in plain language, not what menu item you were looking for. That phrasing is exactly what we need to know whether the feature exists, is named confusingly, or genuinely isn't built yet.
 
@@ -4890,7 +4646,7 @@ If more than one ingredient contributes meaningfully to the protein (a flour ble
 
 Once you have a proxy food — blended or not — holding the numbers you need, there are two different ways to turn it into a usable estimate for your actual food. Pick whichever fits how you'll use that food going forward:
 
-**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing [AA](#gloss-aa) data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Web app: [Food Search](#food-search)'s **Copy as custom-food draft** button does the "copy as draft" half of this step in one click, right from the search results row (also available from Food Cache and Pantry's own ingredient search). Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
+**Option 1 — create a new, clearly-labeled draft (the general-purpose default).** Foods → Custom Food Profiles → **Copy a cached food as a draft**, pick the real food you're missing [AA](#gloss-aa) data for (it copies that food's full nutrient snapshot — protein included — into a brand-new, independent entry), rename the copy something unambiguous like "Graham Cracker, generic (estimated AA)," then run the AA-copying picker on *that* draft, scaling from your proxy food. Shortcut: [Food Search](#food-search)'s **Copy as custom-food draft** button does the "copy as draft" half of this step in one click, right from the search results row (also available from Food Cache and Pantry's own ingredient search). Because the original cached food is never touched, USDA can still refresh its full nutrient profile and portions automatically if that entry ever changes. The tradeoff: this new draft doesn't retroactively reach meals or recipes that already reference the *original* food — those keep pointing at the un-estimated entry until you go swap the reference over by hand.
 
 **Option 2 — edit the original food's AA fields directly (a deliberate exception).** If you know you'll always be logging this exact product, editing its AA data in place is often more practical: every past and future meal or recipe that already references it picks up the estimate immediately, with nothing to swap. The cost is small: NuMa marks the food *user-edited* and remembers exactly which values you changed, and a later **Refresh from USDA** keeps those values unless you choose otherwise ([Reviewing incoming data](#review-incoming)). Amino acids estimated this way are also remembered as estimates, so measured values from USDA can replace them later. It's an easy choice when the food is unlikely to gain real measured data any other way — a specific branded product like Nabisco Honey Maid Grahams already has its macronutrients measured and isn't about to grow USDA amino acid data on its own, so there's little future refresh being given up.
 
@@ -5024,7 +4780,7 @@ Two fixes: weigh the item once on a kitchen scale and enter that weight directly
 
 *Search terms: no cup measure, volume missing, seasoning.*
 
-NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Entering amounts](#amount-formats)). And when even that table doesn't know the food, NuMa still takes the amount — a volume is never refused, since herbs and spices are often only ever measured by the spoon — using a general figure of 0.45 g per milliliter, typical of a dried ground spice. Every amount converted with a table figure or that general one is marked **≈ generic** where it's shown, and listed under Foods → 9, so you can see which numbers are guesses. For a teaspoon of spice the guess hardly matters; for a cup of something it can be well off.
+NuMa converts a volume measure (cup, tablespoon, teaspoon) to grams using a *density* estimate for that food — mass per milliliter. [USDA](#gloss-usda) doesn't publish density directly; NuMa derives it first from a cup, tablespoon or teaspoon portion in the food's own record, including one you've set yourself in the Portions editor. Only when the food has no such portion does it fall back to a small built-in table of common foods, mostly dried herbs and spices (see [Entering amounts](#amount-formats)). And when even that table doesn't know the food, NuMa still takes the amount — a volume is never refused, since herbs and spices are often only ever measured by the spoon — using a general figure of 0.45 g per milliliter, typical of a dried ground spice. Every amount converted with a table figure or that general one is marked **≈ [generic](#gloss-generic)** where it's shown, and listed under Foods → 9, so you can see which numbers are guesses. For a teaspoon of spice the guess hardly matters; for a cup of something it can be well off.
 
 If you'll be entering this food by volume repeatedly, teach NuMa the conversion once: weigh a level cup (or tablespoon) of it, then use the same Portions editor as above — the [Food Cache](#food-cache-web) entry's **Portions** action. From then on, cup and tablespoon amounts for that food convert automatically.
 
@@ -5847,11 +5603,9 @@ To run the same analysis in [NuMa](#gloss-numa):
 
 1. From the main menu, select **Meals & Log**.
 2. Create a new meal and add two foods:
-   - Search for **pinto beans cooked** → select [FDC](#gloss-fdc) 173796
-     ("Beans, pinto, mature seeds, cooked, boiled, with salt")
+   - Search for **pinto beans cooked** → select [FDC](#gloss-fdc) 173796 ("Beans, pinto, mature seeds, cooked, boiled, with salt")
    - Enter a portion of **100 g**
-   - Add a second food: search for **quinoa cooked** → select [FDC](#gloss-fdc) 168917
-     ("Quinoa, cooked")
+   - Add a second food: search for **quinoa cooked** → select [FDC](#gloss-fdc) 168917 ("Quinoa, cooked")
    - Enter a portion of **100 g**
 3. Save the meal and open it. The meal page itself is the analysis screen.
 4. Scroll to **Protein Summary** (total protein and DCP) and **Protein Analysis (DIAAS)** (composite score and per-[IAA](#gloss-iaa) ratios), or click those headings in the side outline.
@@ -6202,7 +5956,7 @@ The water a food or drink contains, measured as its moisture. NuMa adds it up fr
 
 ## Part 11 — Recent program updates log {: #updates-log}
 
-*(Reading time: 24 minutes)*
+*(Reading time: 28 minutes)*
 
 
 <!-- "Aside from being an update log for the user to access, this section is also used by create_release.py when a release is cut. New dated entries go below the "Insert new updates below here" marker, under today's "#### Month Day updates" heading and beneath the running "#### Next release summary to this point" heading, which sits directly under the marker and above the dated entries; each entry starts with MANUAL: or PROGRAM:, and each also gets a one-line bullet added under that running heading. At release time, create_release.py takes everything between the marker and the nearest "#### Release ... summary" heading as that release's notes, and renames that "Next release summary to this point" heading in place to "#### Release <tag> summary" -- the entries themselves are never rewritten or moved, so the running summary simply becomes that release's summary. The "(dated details below)" suffix is appended only when dated entry sections actually follow the summary. On the release page itself the running heading reads "#### Summary" instead, since work that is "next" in the manual is exactly what that release shipped (create_release.py rewrites that one line in the notes it sends, not in the manual). Once a release is cut, its notes are copied into the GitHub release body permanently -- nothing re-reads the manual afterward, so anything below a release summary heading is safe to prune anytime; it can't retroactively change a past release's notes."-->
@@ -6218,8 +5972,16 @@ Each entry has a bold-font title and a plain-language description — anywhere f
 
 #### Next release summary to this point (dated details below)
 
-Version overview: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; and the manual's search opens the section you picked, with your words highlighted.
+Version overview: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; the manual's search opens the section you picked, with your words highlighted; and Compare ticks are kept as you search again or move between lists, so one comparison can gather foods from several searches. A `!` before a search word leaves out results with that word (`beans red !kidney cooked`), and the list says how many results they hid; a search for a cooked food no longer misses canned products online; a hint under every search box sums up how to write a search; and NuMa offers to search USDA again with your words reversed, which finds many branded products. On the Annotate page, each estimate being asked for has its own Skip button beside it, and the Meals & Log list's Complete column is a checkbox, so a meal can be marked complete without opening it.
 
+- **21.** On the **Meals & Log** list, the **Complete** column is now a checkbox: tick or untick it to mark a meal complete without opening it.
+- **20.** On the Annotate page, each estimate NuMa is asking for has its own **Skip** button beside it; GI's moves you on to the DIAAS box when DIAAS is asked for too.
+- **19.** After a food search that includes USDA, NuMa offers to search again with your words reversed (`small red beans` for `beans red small`), which finds many branded products; you can edit it, and add its results below yours or replace them.
+- **18.** A hint under every food and recipe search box now sums up how to write a search: most important word first, `!` to leave a word out, and codes or barcodes, with a **Learn more** link.
+- **17.** Searching for a cooked food online no longer leaves out canned products, whose names say "canned" rather than "cooked".
+- **16.** When `!` words leave results out of a food search, the list ends with a line saying how many, such as "6 matches hidden by `!kidney`".
+- **15.** Put `!` before a word in a food search to leave out results with it: `beans red !kidney cooked` finds cooked red beans but not kidney beans.
+- **14.** Ticks in a **Compare** column are kept when you search again or go to another list, so one comparison can gather foods and recipes from several searches; a note under each Compare button lists them.
 - **13.** In every search list, the `↓` and `↑` keys move the red outline from result to result, and coming back from a result you opened puts the outline on it again.
 - **12.** Print / Save pages, Food Search from What-if, Annotate's Claude GI prompt and suggested foods' links now open in NuMa's own window, not in your default browser.
 - **11.** The searches for adding an ingredient to a recipe, adding to a meal and adding to My Pantry show the same boxes, labeled under each result's name; ticking one no longer leaves a false "unsaved changes" warning.
@@ -6234,7 +5996,143 @@ Version overview: New Problems by food page (Foods → 9) and an Everything to c
 - **2.** Errors are written to `numa-errors.log` in NuMa's data folder, so a failed page leaves a record to report.
 - **1.** An installed NuMa now shows the yellow "please restart it" bar after **Update Now** until you quit and start it again.
 
+#### November 13 updates
+
+**PROGRAM: MARK A MEAL COMPLETE FROM THE MEALS & LOG LIST**
+
+The **Complete** column on the **Meals & Log** list is now a checkbox instead of a checkmark. Tick or untick it to mark that meal complete or not; it saves at once, the same as the meal page's **Mark complete** button, and the list refreshes so the Day DCP and % goal figures drop or gain their `*` (provisional) mark. [learn more...](#meals-list)
+
+<!--
+```
+Scope: web/backend.py (POST /meal/{id}/set-complete: sets from the `complete` field, JSON under X-Numa-Ajax, else back to `next`; the meal page's /meal/{id}/complete still toggles); web/templates/_row_toggles.html (meal_complete_box; box() gains reload= -> data-reload); web/templates/base.html (js-row-toggle reloads on success when data-reload); web/templates/meals.html; tests/test_web.py::test_meals_list_complete_box_saves_in_place.
+```
+-->
+
+**PROGRAM: A SKIP BUTTON BESIDE EACH ESTIMATE ON THE ANNOTATE PAGE**
+
+Each estimate the Annotate page is asking for now has a **Skip** button right beside its **Asking for this one** badge, so you no longer scroll to the foot of the form to skip. When both GI and DIAAS are asked for, the GI field's **Skip** leaves GI blank and moves you down to the DIAAS box; otherwise **Skip** works like **Skip for now**. [learn more...](#annotate)
+
+<!--
+```
+Scope: web/templates/food_annotate.html (#gi-skip-btn, #diaas-skip-btn; toDiaas() shared with the "DIAAS needed" jump); tests/test_web.py::test_annotation_page_has_a_skip_beside_each_prompt; tests/e2e/test_annotate_skip_e2e.py. GI's Skip is a <button> only while DIAAS is also in `missing`; otherwise both are links to `next`, same as #annotate-back-btn. The leave guard still warns if a typed value would be lost.
+```
+-->
+
 #### November 12 updates
+
+**PROGRAM: SEARCH AGAIN WITH YOUR WORDS REVERSED**
+
+After a food search that includes USDA, the end of the results offers the same words in reverse order (`small red beans` for `beans red small`), in a box you can edit. USDA strongly favors names holding your words in the order typed, and branded products are named like ordinary English, so the reversed search often finds many more. Add its results below yours, or replace yours with them. [learn more...](#search-word-order)
+
+<!--
+
+```
+Scope: web/backend.py (_run_food_search also=, _reverse_offer_query, _drop_excluded,
+_also, the screen builders and the three *-api-results routes),
+web/templates/_reverse_offer.html, every search-results row partial, base.html
+(offer script; a block holding only the offer stays visible), search.html, meal.html,
+food_analyze_portion.html (pass <box>_also on).
+Measured 2026-11-12 against live USDA: of the six orders of "beans red small" five gave
+the same 19 results; "small red beans" gave 26, 13 of them new. Same pattern for
+"bread wheat whole" / "whole wheat bread". Offered rather than automatic: one more
+USDA request per search. The offer's inputs use form="numa-no-form" so they belong to
+no form (Compare's results sit inside a POST form the unsaved-changes guard watches).
+```
+
+-->
+
+**PROGRAM: HOW TO WRITE A SEARCH, UNDER EVERY SEARCH BOX**
+
+Every food and recipe search box now has the same short hint under it: put your most important word first, put `!` before a word to leave it out, and type a code or barcode to go straight to one item. A **Learn more** link opens the full explanation. [learn more...](#search-ranking)
+
+<!--
+
+```
+Scope: web/templates/_search_hint.html (now the one hint), the seven pages that had
+their own "most important word first" line (search, analyze-portion, compare,
+convert, pantry, recipe_edit, meal), web/static/style.css (comment only).
+The meal panel renders the hint in the old tip's slot beside the search box
+(class add-food-tip) instead of a second line below. The two source-picker pages
+(food_custom_edit, food_fill_from) gain the word-order tip, which they never had.
+```
+
+-->
+
+**PROGRAM: COOKED FOODS SEARCH NO LONGER MISSES CANNED ONES**
+
+A search such as `beans red cooked` now also finds canned beans and other online products whose names don't say "cooked". Names that do say "cooked" still rank first. [learn more...](#search-prep-words)
+
+<!--
+
+```
+Scope: web/backend.py (_search_api_query, _run_food_search).
+usda_api.search_foods keeps only names containing every word sent, so sending
+"cooked" dropped every canned product. Prep-state words (_SEARCH_PREP_WORDS) were
+already left out of the online query by the meal panel (clean_query=True); now every
+search screen leaves them out. Ranking still uses the whole query. The prep-word check
+is now case-insensitive.
+```
+
+-->
+
+**PROGRAM: SEARCH SAYS HOW MANY RESULTS ITS ! WORDS HID**
+
+When `!` words leave results out of a food search, the list ends with a line such as "6 matches hidden by `!kidney`", so a source showing nothing isn't mistaken for one that found nothing. [learn more...](#search-exclude)
+
+<!--
+
+```
+Scope: web/backend.py (_SearchResults, _run_food_search), web/templates/_excluded_note.html,
+every search-results row partial, base.html, search.html, food_analyze_portion.html.
+Reported for "beans red cooked !kidney": every cooked red bean USDA has is a kidney
+bean, so no USDA rows remained and nothing said why. _run_food_search returns a list
+subclass carrying hidden_by_exclusion (dropped rows the Source filter would have shown)
+and excluded. The note row is classed search-group-divider with no data-row-key, so row
+counters skip it (search.html and food_analyze_portion.html now count
+tr:not(.search-group-divider), which also stops section dividers counting as results),
+and base.html keeps a block holding only that note visible.
+```
+
+-->
+
+**PROGRAM: LEAVE WORDS OUT OF A SEARCH WITH !**
+
+Type `!` in front of a word in any food or recipe search box to drop every result whose name has that word: `beans red !kidney cooked` finds cooked red beans, but not kidney beans. [learn more...](#search-exclude)
+
+<!--
+
+```
+Scope: numa_app/services/search_ranking.py (split_excluded_words, has_excluded_word),
+web/backend.py (_run_food_search), numa_app/services/search_suggest.py.
+_run_food_search() strips "!word" terms first, so local matching, ranking and the
+online queries see only the remaining words; rows whose name has an excluded word
+(matched like word_in_name) are dropped before sorting and capping. A query of only
+"!" words returns no rows. Did-you-mean suggestions ignore "!" words. List-filter boxes
+(Recipes list, Food Cache, ...) don't parse "!" yet.
+```
+
+-->
+
+**PROGRAM: COMPARE PICKS KEPT ACROSS SEARCHES AND LISTS**
+
+Tick foods in one search, search for something else and tick more, even go to Recipes, My Pantry or Food Cache and tick there: every **Compare nutrition of selected** button now compares everything you have picked, not just the ticks on the page in front of you. A note under each Compare button lists your picks, with an ✕ to drop one. A custom profile's Edit page and **Fill in nutrients from another food** keep their own picks the same way. [learn more...](#compare-picks)
+
+<!--
+
+```
+Scope: web/templates/base.html (one script for every Compare column),
+compare.html, food_cache.html and pantry.html (their own button-color
+scripts removed: base.html now colors the button by the number of picks).
+Picks live in sessionStorage (numa_compare_picks; per food for the
+"Compare checked foods with this one" forms), are re-ticked on load and
+after the online rows arrive, and go in as hidden fields on submit,
+off_code included; cleared when /compare next loads. Previously a new
+search reloaded the page and dropped every tick (only Compare's own
+search carried ticks over, via then_search). Browser test
+tests/e2e/test_compare_picks_e2e.py.
+```
+
+-->
 
 **PROGRAM: ARROW KEYS MOVE THROUGH SEARCH RESULTS**
 
@@ -7216,6 +7114,7 @@ a <picture>; the (min-width: 992px) <source> carries the qs as-is, the fallback
 <img> swaps legend=right for legend=bottom (template replace; the page's live
 legend-change JS maps right->bottom for that target only). Print view and
 downloads use the qs unchanged.
+
 Follow-up same day: auto now resolves to "right" (was "bottom") past one row;
 the narrow fallback is a narrow=1 image param (line_plot_image(narrow=True)
 turns right -> bottom) instead of a template legend=right string swap, since

@@ -4,8 +4,10 @@
    filled in by that script, else the item's own page). #}
 {# text: a visible label beside the box (the add-ingredient / meal / pantry
    searches, which have no Complete/Drink columns). #}
-{% macro box(action, field, checked, label, title, text="") %}
-<form method="post" action="{{ action }}" class="js-row-toggle {% if text %}d-inline-block me-2{% else %}m-0{% endif %}">
+{# reload: refresh the page once saved, for a list whose other figures depend
+   on the box (Meals & Log: Day DCP's "*" provisional mark). #}
+{% macro box(action, field, checked, label, title, text="", reload=false) %}
+<form method="post" action="{{ action }}" class="js-row-toggle {% if text %}d-inline-block me-2{% else %}m-0{% endif %}"{% if reload %} data-reload{% endif %}>
   <input type="hidden" name="next" value="">
   {% if text %}<label class="row-toggle-label" title="{{ title }}">{% endif %}
   <input type="checkbox" class="form-check-input" name="{{ field }}" value="1"
@@ -18,6 +20,10 @@
 {% macro complete_box(recipe_id, checked, name, text="") %}{{ box("/recipe/%s/complete" % recipe_id, "complete", checked,
   name ~ " is complete",
   "Complete (same as Edit Recipe's \"Mark recipe as complete\"): tick or untick to change; saved at once", text) }}{% endmacro %}
+
+{% macro meal_complete_box(meal_id, checked, name) %}{{ box("/meal/%s/set-complete" % meal_id, "complete", checked,
+  name ~ " is complete",
+  "Complete (same as the meal page's \"Mark complete\"): tick or untick to change; saved at once", reload=true) }}{% endmacro %}
 
 {% macro drink_box(action, checked, name, text="") %}{{ box(action, "is_drink", checked,
   name ~ " is a drink",

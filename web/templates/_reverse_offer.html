@@ -1,0 +1,49 @@
+{# The word-order offer after a food search's online results, and the
+   heading over rows a second search appended — see
+   backend._reverse_offer_query for why the reversed order finds more.
+
+   divider(row, prev, query, colspan): the "Also found by searching ..."
+   heading, before the first row marked "also" (`prev` is the row before it,
+   or none).
+
+   offer(results, field, colspan): the last row of a results table, when
+   results.reverse_offer is set: the reversed query, editable, and Add below
+   (the default: the page's URL gains also=<it>) or Replace (a normal search
+   for it; offered only when this search found USDA rows). `field` is the
+   name of the page's search box; base.html's [data-reverse-offer] script
+   submits that box's form. The inputs belong to no form (form= names one
+   that doesn't exist), so they never submit, or count as unsaved edits in,
+   a form the table sits in. #}
+{% macro divider(row, prev, query, colspan) -%}
+{% if row.also and not (prev and prev.also) %}
+<tr class="search-group-divider"><td colspan="{{ colspan }}"><small class="muted">Also found by searching <code>{{ query }}</code></small></td></tr>
+{% endif %}
+{%- endmacro %}
+
+{% macro offer(results, field, colspan) -%}
+{% set q = results.reverse_offer | default("") %}
+{% if q %}
+{% set had_usda = results | selectattr("source", "equalto", "usda") | list | length > 0 %}
+<tr class="search-group-divider search-reverse-offer"><td colspan="{{ colspan }}">
+  <div data-reverse-offer data-field="{{ field }}">
+    <small class="muted d-block mb-1"><strong>Try the words in another order?</strong>
+      USDA's search ranks a name holding your words <em>in the order you sent them</em> far above one holding the
+      same words in any other order. Product names read like ordinary English (SMALL RED BEANS), the reverse of
+      typing your most important word first, so the reversed search below often finds more.
+      Words such as <em>cooked</em> or <em>raw</em> aren't sent to USDA; <code>!</code> words still apply.
+      {{ manual_link("search-word-order", "Learn more") }}</small>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <input type="text" class="form-control form-control-sm" style="max-width:20rem" value="{{ q }}"
+             form="numa-no-form" aria-label="Search to try next" data-reverse-offer-q>
+      {% if had_usda %}
+      <label class="small"><input type="radio" form="numa-no-form" name="reverse-offer-{{ field }}" value="also" checked>
+        Add its results below these</label>
+      <label class="small"><input type="radio" form="numa-no-form" name="reverse-offer-{{ field }}" value="replace">
+        Replace these results with its results</label>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-primary" data-reverse-offer-go>Search again</button>
+    </div>
+  </div>
+</td></tr>
+{% endif %}
+{%- endmacro %}

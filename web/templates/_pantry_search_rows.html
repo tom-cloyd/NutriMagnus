@@ -1,5 +1,6 @@
 {# My Pantry search-result rows — rendered by /pantry (local results) and by
    /search-rows/pantry (full merged set, which replaces the tbody). #}
+{% import "_reverse_offer.html" as _ro %}
 {% import "_row_toggles.html" as _rt %}
     {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
     {% for r in search_results %}
@@ -12,6 +13,7 @@
     <tr class="search-group-divider"><td colspan="8"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
       {% set ns.partial_shown = true %}
       {% endif %}
+{{ _ro.divider(r, loop.previtem, search_results.also, 8) }}
     <tr data-row-key="food:{{ r.fdc_id }}">
       <td>
         <input type="checkbox" class="form-check-input compare-cb" form="compare-search-form"
@@ -65,3 +67,5 @@
       </td>
     </tr>
     {% endfor %}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 8) }}
+{{ _ro.offer(search_results, 'search', 8) }}

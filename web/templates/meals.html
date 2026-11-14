@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Meals{% endblock %}
 {% import "_day_profile_switch.html" as _dps %}
+{% import "_row_toggles.html" as _rt %}
 
 {% macro col_header(label) %}{% set parts = label.rsplit(' (', 1) %}{{ parts[0] }}{% if parts|length > 1 %}<br><small class="muted">({{ parts[1] }}</small>{% endif %}{% endmacro %}
 
@@ -136,13 +137,7 @@ pinned to, or, with the <strong>current profile</strong> switch under its date t
       <td>{{ meal.meal_date }}{% if meal.first_of_date and meal.day_has_profile %}
         {{ _dps.switch(meal.meal_date, meal.day_follows_current,
                        request.url.path ~ ('?' ~ request.url.query if request.url.query else ''), compact=true) }}{% endif %}</td>
-      <td class="text-center">
-        {% if meal.complete %}
-        <span class="text-success" title="Complete">&#10003;</span>
-        {% else %}
-        <span class="text-muted">&middot;</span>
-        {% endif %}
-      </td>
+      <td class="text-center">{{ _rt.meal_complete_box(meal.id, meal.complete, meal.name) }}</td>
       <td class="num-col">{{ meal.item_count }}</td>
       <td class="num-col">
         {% if meal.bcp_g is not none %}

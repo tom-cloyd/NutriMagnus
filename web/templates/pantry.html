@@ -47,7 +47,6 @@
   {% if link_id %}<input type="hidden" name="link_id" value="{{ link_id }}">{% endif %}
   {% if filter %}<input type="hidden" name="filter" value="{{ filter }}">{% endif %}
   <p class="muted mb-1"><small>This searches your food cache and the online databases for foods to <em>add</em> — to narrow your existing pantry list, use <strong>Filter my pantry list</strong> further down.</small></p>
-  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-2">
     <div class="input-group" style="max-width:36rem">
       <input type="text" data-ak="i" class="form-control" name="search" value="{{ search }}"
@@ -266,24 +265,4 @@
 {% else %}
 <p>Your pantry is empty. Add some foods above, or <a href="/settings#starter-data">load starter data</a> to explore the app.</p>
 {% endif %}
-{% endblock %}
-
-{% block scripts %}
-<script>
-// Each Compare button turns blue once 2+ boxes for its own form are ticked.
-function updateCompareButtonColor() {
-  document.querySelectorAll('[data-compare-btn]').forEach(function (btn) {
-    var formId = btn.getAttribute('form');
-    var checked = document.querySelectorAll('.compare-cb[form="' + formId + '"]:checked').length;
-    btn.classList.toggle('btn-primary', checked >= 2);
-    btn.classList.toggle('btn-outline-secondary', checked < 2);
-  });
-}
-// Delegated, since the search rows are replaced once online results arrive.
-document.addEventListener('change', function (e) {
-  if (e.target.matches('.compare-cb')) updateCompareButtonColor();
-});
-// Ticks made while the online search ran are carried across the swap.
-document.addEventListener('numa:search-rows', updateCompareButtonColor);
-</script>
 {% endblock %}

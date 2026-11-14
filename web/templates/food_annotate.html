@@ -143,6 +143,10 @@
         <label for="gi_estimate" class="form-label">GI estimate <span class="muted">(0–100, optional)</span>
           {% if next and missing %}{% if 'GI' in missing %}<span class="badge text-bg-warning ms-1">Asking for this one</span>{% elif not gi_opt_out %}<span class="badge text-bg-secondary ms-1">Settled — not being asked about</span>{% endif %}{% endif %}
         </label>
+        {# Skip beside the prompt, so skipping needs no scroll to the foot of
+           the form. With DIAAS still to ask about, it moves on to the DIAAS
+           box (script below); otherwise it leaves, like Skip for now. #}
+        {% if next and missing and 'GI' in missing %}{% if 'DIAAS' in missing %}<button type="button" class="btn btn-sm btn-outline-secondary ms-1 py-0" id="gi-skip-btn" title="Leave GI blank and go on to the DIAAS estimate">Skip</button>{% else %}<a href="{{ next }}" class="btn btn-sm btn-outline-secondary ms-1 py-0" id="gi-skip-btn" title="Skip for now: you'll be asked again next time">Skip</a>{% endif %}{% endif %}
         <input type="number" class="form-control" id="gi_estimate" name="gi_estimate"
                value="{{ annotation.gi_estimate if annotation and annotation.gi_estimate is not none else '' }}"
                min="0" max="100" step="0.1" placeholder="Leave blank if unknown">
@@ -256,6 +260,7 @@
         <label for="diaas_estimate" class="form-label" id="diaas-label">DIAAS estimate <span class="muted">(0–2.0, optional)</span>
           {% if next and missing %}{% if diaas_jump %}{% elif 'DIAAS' in missing %}<span class="badge text-bg-warning ms-1">Asking for this one</span>{% else %}<span class="badge text-bg-secondary ms-1">Settled — not being asked about</span>{% endif %}{% endif %}
         </label>
+        {% if next and missing and 'DIAAS' in missing %}<a href="{{ next }}" class="btn btn-sm btn-outline-secondary ms-1 py-0" id="diaas-skip-btn" title="Skip for now: you'll be asked again next time">Skip</a>{% endif %}
         <input type="number" class="form-control" id="diaas_estimate" name="diaas_estimate"
                value="{{ annotation.diaas_estimate if annotation and annotation.diaas_estimate is not none else '' }}"
                min="0" max="2.0" step="0.01" placeholder="Leave blank if unknown">
@@ -415,13 +420,16 @@ GI 20 · 2008 edition · Impaired · ref Bread, 2h 76</code></pre>
               || document.getElementById('annotate-back-btn');
   if (start) start.focus({preventScroll: true});
   window.scrollTo(0, 0);
-  if (jump) {
-    jump.addEventListener('click', function (e) {
-      e.preventDefault();
-      document.getElementById('diaas-label').scrollIntoView({block: 'start'});
-      document.getElementById('diaas_estimate').focus({preventScroll: true});
-    });
+  // The "DIAAS needed" button, and GI's own Skip when DIAAS is asked for
+  // too (a <button>; when it's a link, it just leaves), go to the DIAAS box.
+  function toDiaas(e) {
+    e.preventDefault();
+    document.getElementById('diaas-label').scrollIntoView({block: 'start'});
+    document.getElementById('diaas_estimate').focus({preventScroll: true});
   }
+  if (jump) jump.addEventListener('click', toDiaas);
+  var giSkip = document.getElementById('gi-skip-btn');
+  if (giSkip && giSkip.tagName === 'BUTTON') giSkip.addEventListener('click', toDiaas);
 })();
 </script>
 <script>

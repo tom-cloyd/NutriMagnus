@@ -630,7 +630,9 @@
             var n = tbody.querySelectorAll('tr[data-row-key]').length;
             block.querySelectorAll('.js-result-n').forEach(function (el) { el.textContent = n; });
             block.querySelectorAll('.js-result-s').forEach(function (el) { el.textContent = n === 1 ? '' : 's'; });
-            if (!n) {
+            // No rows but a "N matches hidden by !word" note or the
+            // word-order offer: keep the block, so they still show.
+            if (!n && !tbody.querySelector('.search-excluded-note, .search-reverse-offer')) {
               block.style.display = 'none';
               var empty = document.getElementById(block.getAttribute('data-search-empty'));
               if (empty) { empty.style.display = ''; window.numaInitSearchSuggestions(empty); }
@@ -649,6 +651,43 @@
             if (notice) notice.textContent = 'Online search failed — reload to retry.';
           });
       });
+    });
+  })();
+  </script>
+  <script>
+  // The word-order offer at the end of a food search's results
+  // (_reverse_offer.html). "Add below" submits the page's search form with
+  // <box>_also=<the offered words>, so its online rows are appended to this
+  // search's; "Replace" (or no choice offered) runs it as a new search in
+  // the box. Enter in the offer's box does the same as its button.
+  (function () {
+    function go(offer) {
+      var field = offer.getAttribute('data-field');
+      var box = document.querySelector('form[data-search-form] input[type="text"][name="' + field + '"]');
+      var text = offer.querySelector('[data-reverse-offer-q]').value.trim();
+      if (!box || !text) return;
+      var form = box.form;
+      var picked = offer.querySelector('input[type="radio"]:checked');
+      form.querySelectorAll('input[name="' + field + '_also"]').forEach(function (el) { el.remove(); });
+      if (picked && picked.value === 'also') {
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = field + '_also';
+        hidden.value = text;
+        form.appendChild(hidden);
+      } else {
+        box.value = text;
+      }
+      form.requestSubmit();
+    }
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-reverse-offer-go]');
+      if (btn) go(btn.closest('[data-reverse-offer]'));
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' || !e.target.matches('[data-reverse-offer-q]')) return;
+      e.preventDefault();
+      go(e.target.closest('[data-reverse-offer]'));
     });
   })();
   </script>
@@ -1616,6 +1655,194 @@
   });
   </script>
   <script>
+  // Compare picks carried across searches and lists. A tick in any Compare
+  // column (Foods search, My Pantry, Recipes, Food Cache, Compare's own
+  // search) is remembered for this browser tab, so you can search for
+  // salmon, tick some, search for lentils, tick more, go to Recipes, tick
+  // one, and then click any "Compare nutrition of selected" button: every
+  // pick goes in, not just the ones on the current page. A note under each
+  // Compare button lists the picks (each removable). Comparing clears them.
+  // "Compare checked foods with this one" (a custom profile's Edit page,
+  // a food's "Fill in nutrients from another food") keeps its own picks,
+  // per food, shared by that food's searches.
+  (function () {
+    var PROFILE = /^\/food\/custom-profiles\/-?\d+\/compare$/;
+    var LISTS = 'Foods search, My Pantry, Recipes, Food Cache or Compare';
+    function groupOf(form) {
+      var action = form && form.getAttribute('action');
+      if (action === '/compare/add-multiple') {
+        return {key: 'numa_compare_picks', names: ['fdc_id', 'recipe_id'], max: 8,
+                kept: 'Kept when you search again or go to another list (' + LISTS + ')',
+                hint: 'Ticks are kept when you search again or go to another list (' + LISTS +
+                      ') &mdash; gather up to 8 from as many searches as you like, then click Compare.'};
+      }
+      if (action && PROFILE.test(action)) {
+        return {key: 'numa_compare_picks:' + action, names: ['pick'], max: 7,
+                kept: 'Kept when you search again on this page',
+                hint: 'Ticks are kept when you search again on this page &mdash; ' +
+                      'gather up to 7 foods from several searches, then click Compare.'};
+      }
+      return null;
+    }
+    function load(g) {
+      try { return JSON.parse(sessionStorage.getItem(g.key) || '[]') || []; } catch (e) { return []; }
+    }
+    function save(g, picks) {
+      try {
+        if (picks.length) sessionStorage.setItem(g.key, JSON.stringify(picks));
+        else sessionStorage.removeItem(g.key);
+      } catch (e) {}
+    }
+    function boxGroup(el) {
+      if (!el || el.type !== 'checkbox') return null;
+      var g = groupOf(el.form);
+      return g && g.names.indexOf(el.name) !== -1 ? g : null;
+    }
+    function keyOf(name, value) { return name + ':' + value; }
+    function nameOf(cb) {
+      var m = /^(?:Select (.+) to compare|Compare (.+))$/.exec(cb.getAttribute('aria-label') || '');
+      if (m) return m[1] || m[2];
+      var row = cb.closest('tr'), strong = row && row.querySelector('strong');
+      if (strong && strong.textContent.trim()) return strong.textContent.trim();
+      return (cb.name === 'recipe_id' ? 'Recipe ' : 'Food ') + cb.value.split('|')[0];
+    }
+    function offCodeOf(cb) {
+      var field = cb.name === 'fdc_id' && cb.form && cb.form.elements['off_code_' + cb.value];
+      return field && field.value ? field.value : '';
+    }
+    function allBoxes() {
+      return Array.prototype.filter.call(document.querySelectorAll('input[type="checkbox"][name]'),
+                                         function (cb) { return !!boxGroup(cb); });
+    }
+    function pickForms() {
+      return Array.prototype.filter.call(document.querySelectorAll('form'),
+                                         function (f) { return !!groupOf(f); });
+    }
+    // Every page's boxes show the stored picks (also after Back, when the
+    // browser may restore stale ticks).
+    function syncBoxes() {
+      allBoxes().forEach(function (cb) {
+        var keys = load(boxGroup(cb)).map(function (p) { return p.key; });
+        cb.checked = keys.indexOf(keyOf(cb.name, cb.value)) !== -1;
+      });
+    }
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function (c) {
+        return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c];
+      });
+    }
+    function noteHtml(g, picks) {
+      if (!picks.length) return '<small class="muted">' + g.hint + '</small>';
+      var items = picks.map(function (p) {
+        return esc(p.name) + ' <button type="button" class="btn btn-link btn-sm p-0 align-baseline text-decoration-none"' +
+          ' data-compare-unpick="' + esc(p.key) + '" data-compare-group="' + esc(g.key) + '"' +
+          ' title="Remove from the picks" aria-label="Remove ' + esc(p.name) + ' from the picks">&#10005;</button>';
+      }).join(' &middot; ');
+      var over = picks.length > g.max
+        ? ' <span class="text-danger">&mdash; only the first ' + g.max + ' will be compared</span>' : '';
+      return '<small><strong>Picked for comparison (' + picks.length + ' of ' + g.max + '):</strong> ' + items + over +
+        ' &nbsp;<button type="button" class="btn btn-link btn-sm p-0 align-baseline" data-compare-unpick-all="' +
+        esc(g.key) + '">Clear all picks</button><br><span class="muted">' + g.kept +
+        '. Click Compare once you have them all.</span></small>';
+    }
+    function submitButtons(form) {
+      var btns = form.id
+        ? Array.prototype.slice.call(document.querySelectorAll('button[type="submit"][form="' + form.id + '"]'))
+        : [];
+      form.querySelectorAll('button[type="submit"]').forEach(function (b) { btns.push(b); });
+      return btns;
+    }
+    function render() {
+      pickForms().forEach(function (form) {
+        var g = groupOf(form), picks = load(g), btns = submitButtons(form);
+        if (!btns.length) return;
+        var note = form.id && document.querySelector('[data-compare-picks-for="' + form.id + '"]');
+        if (!note) {
+          note = document.createElement('div');
+          note.className = 'compare-picks-note mb-2';
+          if (form.id) note.setAttribute('data-compare-picks-for', form.id);
+          // Inside the form itself when the button is (a custom profile's
+          // Compare form is its own flex row), else after the button's row.
+          var anchor = form.contains(btns[0]) ? form : (btns[0].closest('p, div') || btns[0]);
+          anchor.insertAdjacentElement('afterend', note);
+        }
+        note.innerHTML = noteHtml(g, picks);
+        // A Compare button that starts outlined turns blue once 2+ are picked.
+        btns.forEach(function (b) {
+          if (!b.hasAttribute('data-compare-btn-auto')) {
+            if (!b.classList.contains('btn-outline-secondary')) return;
+            b.setAttribute('data-compare-btn-auto', '');
+          }
+          b.classList.toggle('btn-primary', picks.length >= 2);
+          b.classList.toggle('btn-outline-secondary', picks.length < 2);
+        });
+      });
+    }
+    function refresh() { syncBoxes(); render(); }
+    document.addEventListener('change', function (e) {
+      var cb = e.target, g = boxGroup(cb);
+      if (!g) return;
+      var key = keyOf(cb.name, cb.value);
+      var picks = load(g).filter(function (p) { return p.key !== key; });
+      if (cb.checked) picks.push({key: key, name: nameOf(cb), off: offCodeOf(cb)});
+      save(g, picks);
+      refresh();
+    });
+    document.addEventListener('click', function (e) {
+      var one = e.target.closest('[data-compare-unpick]');
+      var all = e.target.closest('[data-compare-unpick-all]');
+      if (one) {
+        var g = {key: one.getAttribute('data-compare-group')};  // load/save need only .key
+        var key = one.getAttribute('data-compare-unpick');
+        save(g, load(g).filter(function (p) { return p.key !== key; }));
+      } else if (all) {
+        save({key: all.getAttribute('data-compare-unpick-all')}, []);
+      } else {
+        return;
+      }
+      refresh();
+    });
+    // Picks from other searches/pages go in as hidden fields; ticks on this
+    // page are already in the form. Capture phase, so this runs before the
+    // "nothing ticked" guard above looks at the form.
+    function addPicksTo(form) {
+      var g = groupOf(form);
+      if (!g) return;
+      var have = new FormData(form);
+      load(g).forEach(function (p) {
+        var i = p.key.indexOf(':'), name = p.key.slice(0, i), value = p.key.slice(i + 1);
+        if (have.getAll(name).indexOf(value) !== -1) return;
+        var fields = [[name, value]];
+        if (p.off && name === 'fdc_id') fields.push(['off_code_' + value, p.off]);
+        fields.forEach(function (pair) {
+          var input = document.createElement('input');
+          input.type = 'hidden'; input.name = pair[0]; input.value = pair[1];
+          form.appendChild(input);
+        });
+      });
+      // Cleared when Compare actually opens (see below), not now: a submit
+      // stopped by another handler (a failed save first) keeps them.
+      if (load(g).length || g.names.some(function (n) { return have.getAll(n).length; })) {
+        try { sessionStorage.setItem(SENT, JSON.stringify(g.key)); } catch (e) {}
+      }
+    }
+    var SENT = 'numa_compare_picks_sent';
+    window.addEventListener('submit', function (e) { addPicksTo(e.target); }, true);
+    // Every Compare submit lands on /compare: the picks it sent are done.
+    function clearSent() {
+      var key = null;
+      try { key = JSON.parse(sessionStorage.getItem(SENT) || 'null'); sessionStorage.removeItem(SENT); } catch (e) {}
+      if (key && window.location.pathname === '/compare') save({key: key}, []);
+    }
+    // For code that submits a pick form with form.submit(), which fires no
+    // submit event (Compare's "search again with ticks" — compare.html).
+    window.numaComparePicks = {addTo: addPicksTo};
+    document.addEventListener('DOMContentLoaded', function () { clearSent(); refresh(); });
+    document.addEventListener('numa:search-rows', refresh);
+    window.addEventListener('pageshow', function (e) { if (e.persisted) refresh(); });
+  })();
+  </script>
+  <script>
   (function () {
     // Row-action forms (archive/restore/remove/delete buttons on a filtered/
     // sorted/searched list — recipes, pantry, food cache, etc.) submit via
@@ -1681,7 +1908,10 @@
       if (form.elements.next) form.elements.next.value = location.pathname + location.search;
       fetch(form.action, { method: 'POST', headers: { 'X-Numa-Ajax': '1' }, body: new FormData(form) })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-        .then(function (data) { if (!data.ok) form.submit(); })
+        .then(function (data) {
+          if (!data.ok) form.submit();
+          else if (form.hasAttribute('data-reload')) location.reload();
+        })
         .catch(function () { form.submit(); });
     });
 

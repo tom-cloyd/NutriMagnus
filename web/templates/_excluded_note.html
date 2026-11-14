@@ -1,0 +1,12 @@
+{# Last row of a search-results table: how many matches the query's "!word"
+   terms removed — "6 matches hidden by !kidney" — so a source whose every
+   match was excluded doesn't look like a source that found nothing.
+   `results` is _run_food_search's _SearchResults (a plain list has no
+   count, and shows nothing). Classed search-group-divider so row counters
+   skip it; no data-row-key, so the row-swap scripts don't count it either. #}
+{% macro note(results, colspan) -%}
+{% set n = results.hidden_by_exclusion | default(0) %}
+{% if n %}
+<tr class="search-group-divider search-excluded-note"><td colspan="{{ colspan }}"><small class="muted">{{ n }} match{{ "es" if n != 1 }} hidden by {% for w in results.excluded %}<code>!{{ w }}</code>{{ ", " if not loop.last }}{% endfor %}</small></td></tr>
+{% endif %}
+{%- endmacro %}

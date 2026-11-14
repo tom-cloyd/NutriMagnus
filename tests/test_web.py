@@ -577,7 +577,7 @@ def test_barcode_search_on_meal_and_recipe_pages(
     page = client.get(f"/meal/{meal_id}", params={"q": barcode})
     assert page.status_code == 200
     assert calls == []
-    assert "12/13-digit barcode (UPC-A or EAN-13)" in page.text
+    assert "12/13-digit barcode finds that one item" in page.text and "<code>!</code> before a word" in page.text
 
     resp = client.get(f"/meal/{meal_id}/search-api-results", params={"q": barcode})
     assert resp.status_code == 200
@@ -587,7 +587,7 @@ def test_barcode_search_on_meal_and_recipe_pages(
     # Now cached: the recipe page's local pass finds it, OFF not asked again.
     page = client.get(f"/recipe/{rid}/edit", params={"q": barcode})
     assert "Pipeline Test Bar" in page.text
-    assert "12/13-digit barcode (UPC-A or EAN-13)" in page.text
+    assert "12/13-digit barcode finds that one item" in page.text and "<code>!</code> before a word" in page.text
     rows = client.get("/search-rows/recipe", params={"q": barcode, "id": rid})
     assert "Pipeline Test Bar" in rows.text
     assert calls == [barcode]
@@ -830,6 +830,36 @@ def test_pantry_search_shows_remove_button_for_food_already_in_pantry(client: Te
     assert "Remove from pantry" in resp.text
     assert f"/pantry/remove/{pantry_id}" in resp.text
     assert "Already in pantry" not in resp.text
+
+
+def test_meals_list_complete_box_saves_in_place(client: TestClient, db_conn) -> None:
+    """Meals & Log: each row's Complete column is a checkbox showing the meal's
+    flag; it sets (never toggles) the flag, in place (X-Numa-Ajax -> JSON), and
+    reloads the list after (data-reload) so Day DCP's "*" catches up."""
+    resp = client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-11"},
+                       follow_redirects=False)
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+
+    page = client.get("/meals").text
+    action = f'action="/meal/{meal_id}/set-complete" class="js-row-toggle'
+    assert action in page
+    box = page.split(f'action="/meal/{meal_id}/set-complete"')[1].split("</form>")[0]
+    assert 'name="complete"' in box and "checked" not in box and "data-reload" in box
+
+    for _ in range(2):   # sets, not toggles: sending it twice keeps it on
+        assert client.post(f"/meal/{meal_id}/set-complete", data={"complete": "1"},
+                           headers={"X-Numa-Ajax": "1"}).json() == {"ok": True}
+    assert db_conn.execute("SELECT complete FROM meals WHERE id = ?", (meal_id,)).fetchone()[0] == 1
+    box = client.get("/meals").text.split(f'action="/meal/{meal_id}/set-complete"')[1].split("</form>")[0]
+    assert "checked" in box
+
+    # Unticked sends nothing: clears it. Without the script, back to the same list.
+    resp = client.post(f"/meal/{meal_id}/set-complete", data={"next": "/meals?sort=date"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == "/meals?sort=date"
+    assert db_conn.execute("SELECT complete FROM meals WHERE id = ?", (meal_id,)).fetchone()[0] == 0
+    assert client.post("/meal/999999/set-complete", data={"complete": "1"},
+                       headers={"X-Numa-Ajax": "1"}).json() == {"ok": False}
 
 
 def test_meal_create_add_food_complete_delete(client: TestClient, cached_food, db_conn) -> None:
@@ -4612,6 +4642,29 @@ def test_annotation_page_opens_at_top(client: TestClient, cached_food) -> None:
     assert "Asking for this one" in page.text
 
 
+def test_annotation_page_has_a_skip_beside_each_prompt(client: TestClient, cached_food) -> None:
+    """Each "Asking for this one" has its own Skip, so skipping needs no scroll
+    to the foot of the form. With both asked for, GI's Skip is a button that
+    moves on to the DIAAS box; DIAAS's Skip leaves, like Skip for now. With
+    only GI asked for, GI's Skip leaves too."""
+    fdc_id = cached_food["fdcId"]
+    page = client.get(f"/food/annotate/{fdc_id}?next=/pantry").text
+    assert '<button type="button" class="btn btn-sm btn-outline-secondary ms-1 py-0" id="gi-skip-btn"' in page
+    assert '<a href="/pantry" class="btn btn-sm btn-outline-secondary ms-1 py-0" id="diaas-skip-btn"' in page
+
+    with _db.get_db() as conn:
+        _db.set_food_annotation(conn, fdc_id, gi_estimate=None, gi_no_prompt=False,
+                                diaas_estimate=1.0, diaas_no_prompt=False,
+                                prep_context=None, reviewed=False)
+    page = client.get(f"/food/annotate/{fdc_id}?next=/pantry").text
+    assert '<a href="/pantry" class="btn btn-sm btn-outline-secondary ms-1 py-0" id="gi-skip-btn"' in page
+    assert 'id="diaas-skip-btn"' not in page
+
+    # A deliberate visit (no next) asks nothing, so offers no Skip.
+    page = client.get(f"/food/annotate/{fdc_id}").text
+    assert 'id="gi-skip-btn"' not in page and 'id="diaas-skip-btn"' not in page
+
+
 def test_skip_forever_suppresses_both_prompts(client: TestClient, cached_food) -> None:
     """"Skip forever for this food" means stop asking entirely — suppressing
     only GI would leave the DIAAS prompt still detouring on every add."""
@@ -5494,6 +5547,134 @@ def test_meal_search_puts_the_best_cached_food_above_a_weak_recipe_match(client:
     assert names.index("Oranges, raw, Florida") < names.index("Orange glazed carrots")
     assert "English muffin sandwich, strawberry" not in names
     assert rid_frag and rid_weak
+
+
+def test_search_excluded_words_parse_and_match():
+    """"!word" in a search box excludes: "beans red !kidney cooked" is red
+    beans, cooked, but not kidney beans."""
+    from numa_app.services import search_ranking
+    split = search_ranking.split_excluded_words
+    assert split("beans red !kidney cooked") == ("beans red cooked", ["kidney"])
+    assert split("beans !KIDNEY !pinto") == ("beans", ["kidney", "pinto"])
+    assert split("beans ! red") == ("beans red", [])          # a bare "!" is ignored
+    assert split("!kidney") == ("", ["kidney"])
+    has = search_ranking.has_excluded_word
+    assert has("Beans, kidney, red, mature seeds, cooked", ["kidney"])
+    assert has("Red kidney beans", ["kidneys"])               # plurals, as for searched words
+    assert not has("Beans, red, cooked", ["kidney"])
+    assert not has("Strawberry jam", ["raw"])                 # word starts only
+
+
+def test_food_search_drops_results_with_an_excluded_word(client: TestClient, db_conn, monkeypatch) -> None:
+    """The excluded word filters local and online rows alike, and never
+    reaches the online search as text."""
+    for fid, name in ((990101, "Beans, kidney, red, cooked"), (990102, "Beans, small red, cooked")):
+        _db.cache_food(db_conn, fid, name, "SR Legacy", None, None, None, {"carbs_g": 20.0}, [])
+    db_conn.commit()
+    sent: list[str] = []
+
+    def fake_search(query, *a, **kw):
+        sent.append(query)
+        return [{"fdcId": 990201, "description": "Kidney beans, red, canned", "dataType": "Branded"},
+                {"fdcId": 990202, "description": "Red beans, cooked, Mexican style", "dataType": "Branded"}]
+    monkeypatch.setattr(_usda, "search_foods", fake_search)
+    monkeypatch.setattr(_usda, "get_api_key", lambda: "TESTKEY123")
+    rows = backend._run_food_search("beans red !kidney cooked", ["cache", "usda"], 25, sort="relevance")
+    names = [r["name"] for r in rows]
+    assert "Beans, small red, cooked" in names
+    assert not any("kidney" in n.lower() for n in names)
+    assert sent and all("kidney" not in q and "!" not in q for q in sent)
+    # Prep words aren't sent either, on every screen (2026-11-12): USDA keeps
+    # only names holding every word sent, and canned beans aren't "cooked".
+    assert all("cooked" not in q for q in sent)
+    assert backend._run_food_search("!kidney", ["cache"], 25, external=False) == []
+
+
+def test_food_search_says_how_many_matches_an_excluded_word_hid(client: TestClient, db_conn, monkeypatch) -> None:
+    """Reported 2026-11-12: "beans red cooked !kidney" showed no USDA rows
+    and no reason — every cooked red bean USDA has is a kidney bean. The
+    results now end with "N matches hidden by !kidney", counting only rows
+    the Source filter would have shown, and a table with nothing else in it
+    still shows that note."""
+    _db.cache_food(db_conn, 990111, "Beans, kidney, red, cooked", "SR Legacy", None, None, None,
+                   {"carbs_g": 20.0}, [])
+    db_conn.commit()
+    monkeypatch.setattr(_usda, "search_foods", lambda query, *a, **kw: [
+        {"fdcId": 990211, "description": "Beans, kidney, red, mature seeds, cooked", "dataType": "SR Legacy"},
+        {"fdcId": 990212, "description": "Beans, kidney, royal red, cooked", "dataType": "SR Legacy"}])
+    monkeypatch.setattr(_usda, "get_api_key", lambda: "TESTKEY123")
+    rows = backend._run_food_search("beans red cooked !kidney", ["cache", "usda"], 25, sort="relevance")
+    assert list(rows) == [] and rows.hidden_by_exclusion == 3 and rows.excluded == ["kidney"]
+    assert backend._run_food_search("beans red cooked !kidney", ["usda"], 25).hidden_by_exclusion == 2
+    assert backend._run_food_search("beans red cooked", ["cache", "usda"], 25).hidden_by_exclusion == 0
+
+    resp = client.get("/food/search-api-results",
+                      params={"query": "beans red cooked !kidney", "source": ["cache", "usda"]})
+    assert "3 matches hidden by" in resp.text and "!kidney" in resp.text
+    resp = client.get("/food/search-api-results",
+                      params={"query": "beans red cooked", "source": ["cache", "usda"]})
+    assert "hidden by" not in resp.text
+
+
+def test_reverse_offer_query_reverses_words_and_keeps_excluded_ones():
+    """USDA ranks names holding the words in the order sent far higher, and
+    product names read as English: the offer is the typed words reversed."""
+    assert backend._reverse_offer_query("beans red small", ["kidney"]) == "small red beans !kidney"
+    assert backend._reverse_offer_query("bread wheat whole", []) == "whole wheat bread"
+    assert backend._reverse_offer_query("lentils", []) == ""
+
+
+def _stub_usda_by_query(monkeypatch, by_query: dict[str, list[tuple[int, str]]]) -> list[str]:
+    sent: list[str] = []
+
+    def fake_search(query, *a, **kw):
+        sent.append(query)
+        return [{"fdcId": fid, "description": name, "dataType": "Branded"}
+                for fid, name in by_query.get(query, [])]
+    monkeypatch.setattr(_usda, "search_foods", fake_search)
+    monkeypatch.setattr(_usda, "get_api_key", lambda: "TESTKEY123")
+    return sent
+
+
+def test_food_search_offers_the_reversed_query_after_an_online_search(client: TestClient, monkeypatch) -> None:
+    """The offer comes with the online results (not the instant local pass),
+    only when USDA was searched and the query has 2+ words; its Replace
+    choice only when this search found USDA rows."""
+    _stub_usda_by_query(monkeypatch, {"beans red small": [(990301, "Beans, small red, dry")]})
+    rows = backend._run_food_search("beans red small !kidney", ["cache", "usda"], 25)
+    assert rows.reverse_offer == "small red beans !kidney"
+    assert backend._run_food_search("beans red small", ["cache", "usda"], 25, external=False).reverse_offer == ""
+    assert backend._run_food_search("beans red small", ["cache"], 25).reverse_offer == ""
+    assert backend._run_food_search("beans", ["cache", "usda"], 25).reverse_offer == ""
+
+    resp = client.get("/food/search-api-results", params={"query": "beans red small", "source": ["usda"]})
+    assert 'data-reverse-offer data-field="query"' in resp.text and 'value="small red beans"' in resp.text
+    assert 'value="replace"' in resp.text
+    resp = client.get("/food/search-api-results", params={"query": "peas green", "source": ["usda"]})
+    assert 'value="green peas"' in resp.text and 'value="replace"' not in resp.text   # no USDA rows
+
+
+def test_food_search_appends_new_online_rows_from_a_second_query(client: TestClient, monkeypatch) -> None:
+    """<box>_also=<query>: its online rows not already found are appended
+    under their own heading, both queries' "!" words applied; no second
+    offer once one was taken."""
+    _stub_usda_by_query(monkeypatch, {
+        "beans red small": [(990311, "Beans, small red, dry")],
+        "small red beans": [(990311, "Beans, small red, dry"), (990312, "SMALL RED BEANS"),
+                            (990313, "Small red kidney beans"), (990314, "Small red beans, pinto style")],
+    })
+    rows = backend._run_food_search("beans red small !kidney", ["usda"], 25, also="small red beans !pinto")
+    assert [(r["fdc_id"], bool(r.get("also"))) for r in rows] == [(990311, False), (990312, True)]
+    assert rows.also == "small red beans" and rows.reverse_offer == "" and rows.hidden_by_exclusion == 2
+
+    resp = client.get("/food/search-api-results",
+                      params={"query": "beans red small", "source": ["usda"], "query_also": "small red beans"})
+    assert "Also found by searching <code>small red beans</code>" in resp.text
+    assert "data-reverse-offer" not in resp.text
+    # The base.html-driven screens read <box name>_also from the page's own URL
+    resp = client.get("/search-rows/pantry", params={"search": "beans red small", "source": ["usda"],
+                                                     "search_also": "small red beans"})
+    assert "SMALL RED BEANS" in resp.text and "Also found by searching" in resp.text
 
 
 def test_search_ranking_tie_break_puts_recipes_before_pantry_and_cache():

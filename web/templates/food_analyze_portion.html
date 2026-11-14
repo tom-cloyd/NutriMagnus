@@ -24,7 +24,6 @@
 {% set is_barcode_query = _bc.isdigit() and (_bc|length == 12 or _bc|length == 13) %}
 
 <form method="post" action="/food/analyze-portion" data-online-search data-search-form>
-  <p class="muted mb-1"><small>Put your most important word first — e.g. <code>bread wheat whole</code>, not <code>whole wheat bread</code>. {{ manual_link("search-ranking", "Why?") }}</small></p>
   <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
     <div class="input-group" style="max-width: 40%">
       <input type="text" data-ak="i" class="form-control" name="query" value="{{ query }}"
@@ -91,6 +90,7 @@
   var noResults = document.getElementById('ap-no-results');
   var countEl = document.getElementById('ap-result-count');
   var params = new URLSearchParams({query: {{ query | tojson }}, sort: {{ sort | tojson }}, limit: {{ limit | tojson }}});
+  {% if query_also %}params.append('query_also', {{ query_also | tojson }});{% endif %}
   {{ source | tojson }}.forEach(function (s) { params.append('source', s); });
   fetch('/food/analyze-portion-api-results?' + params.toString())
     .then(function (r) { return r.text(); })
@@ -107,7 +107,7 @@
         noResults.style.display = '';
         window.numaInitSearchSuggestions(noResults);
       }
-      var totalRows = tbody.querySelectorAll('tr').length;
+      var totalRows = tbody.querySelectorAll('tr:not(.search-group-divider)').length;
       countEl.textContent = totalRows + ' result' + (totalRows != 1 ? 's' : '') + ' for ';
       var strong = document.createElement('strong');
       strong.textContent = {{ query | tojson }};

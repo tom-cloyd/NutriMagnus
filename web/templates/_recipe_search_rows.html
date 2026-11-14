@@ -1,6 +1,7 @@
 {# Edit Recipe's "Add Ingredient" result rows — rendered by the edit page
    (local matches) and by /search-rows/recipe (full merged set, replacing
    the tbody). #}
+{% import "_reverse_offer.html" as _ro %}
 {% import "_row_toggles.html" as _rt %}
           {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
           {% for food in search_results %}
@@ -13,6 +14,7 @@
           <tr class="search-group-divider"><td colspan="7"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
             {% set ns.partial_shown = true %}
             {% endif %}
+{{ _ro.divider(food, loop.previtem, search_results.also, 7) }}
           <tr data-row-key="{{ 'recipe:%s' % food.recipe_id if food._type == 'recipe' else 'food:%s' % food.fdc_id }}">
             <td class="confirm-col">
               {% if food.aa == "~✓" %}
@@ -83,3 +85,5 @@
             {% endif %}
           </tr>
           {% endfor %}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 7) }}
+{{ _ro.offer(search_results, 'q', 7) }}

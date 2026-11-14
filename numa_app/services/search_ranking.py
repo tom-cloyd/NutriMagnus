@@ -72,6 +72,30 @@ def word_in_name(word: str, name_lower: str) -> bool:
                for f in _word_forms(word))
 
 
+def split_excluded_words(query: str) -> tuple[str, list[str]]:
+    """(query without its "!word" terms, those words lowercased, "!"
+    dropped). "beans red !kidney cooked" -> ("beans red cooked", ["kidney"]):
+    red beans, cooked, but not kidney beans. A bare "!" is ignored."""
+    kept: list[str] = []
+    excluded: list[str] = []
+    for w in query.split():
+        if w.startswith("!"):
+            if w.strip("!"):
+                excluded.append(w.strip("!").lower())
+        else:
+            kept.append(w)
+    return " ".join(kept), excluded
+
+
+def has_excluded_word(name: str, excluded: list[str]) -> bool:
+    """True if any excluded word is in `name`, matched the way query words
+    are (word_in_name: start of a word, plurals too, so "!kidney" drops
+    "Beans, kidney, red" but not a name that merely contains "kidney" inside
+    another word)."""
+    name_lower = (name or "").lower()
+    return any(word_in_name(w, name_lower) for w in excluded)
+
+
 def _match_count_and_mask(name_lower: str, words: list[str]) -> tuple[int, int]:
     """Bit i (from the left, MSB = first query word) is set if words[i] is
     present in name_lower. Comparing masks as integers naturally prefers

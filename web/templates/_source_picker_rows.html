@@ -3,6 +3,7 @@
    replacing the tbody). `mode`: "aa" (Estimate amino acids from another
    food), "nutrient" (Copy nutrient values from another food), or "fill"
    (Fill in nutrients from another food). `food` is the food being edited. #}
+{% import "_reverse_offer.html" as _ro %}
 {% set compare_form_id = {"aa": "compare-aa-picks", "nutrient": "compare-nutrient-picks", "fill": "fill-compare-picks"}[mode] %}
 {% set ns = namespace(seen_local=false, divider_shown=false, partial_shown=false) %}
 {% for r in search_results %}
@@ -15,6 +16,7 @@
 <tr class="search-group-divider"><td colspan="5"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
   {% set ns.partial_shown = true %}
   {% endif %}
+{{ _ro.divider(r, loop.previtem, search_results.also, 5) }}
 {% set likely_aa = r.aa in ("✓", "~✓") %}
 <tr data-row-key="food:{{ r.fdc_id }}">
   <td><input type="checkbox" class="form-check-input" form="{{ compare_form_id }}" name="pick"
@@ -45,3 +47,5 @@
   </td>
 </tr>
 {% endfor %}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 5) }}
+{{ _ro.offer(search_results, {"aa": "aa_source_q", "nutrient": "nutrient_source_q", "fill": "q"}[mode], 5) }}
