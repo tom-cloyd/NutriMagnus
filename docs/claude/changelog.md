@@ -21,8 +21,8 @@ knows about those) ends with **two** additions, plus the `version.py`/manual tim
    `#### Next release summary to this point` heading that sits right after that section's
    own `<!-- Insert new updates below here -->` marker. Newest on top. Prefix a bullet with
    `MANUAL: ` only for manual-only changes; program changes take no prefix. This running list
-   is what users read in the manual and what the GitHub release page shows; the details file
-   is for developers only.
+   is what users read in the manual; the details file is for developers only. The GitHub
+   release page shows only the Version overview's SUMMARY (see "When a release is cut").
 
 (Until 2026-11-14 both lived in the manual, as Part 11 "Recent program updates log"; earlier
 Appendix A, and before 2026-08-05 Appendix K.)
@@ -35,10 +35,12 @@ Markdown ordered list can only count upward. Don't put a count in the heading �
 would go stale. Numbering restarts at 1 after each release.
 
 **Version overview at every commit** (adopted 2026-10-17): when making a commit, copy
-`version.py`'s `NEW_VERSION_NOTE` into the What's new section as the first line under
-`#### Next release summary to this point`, above the numbered bullets, as
-`Version overview: <note text>` — replacing the previous overview line if there is one,
-so there's only ever one.
+`version.py`'s `NEW_VERSION_NOTE` into the What's new section, first thing under
+`#### Next release summary to this point`, above the numbered bullets — replacing the
+previous overview if there is one, so there's only ever one. **Split it into three
+paragraphs** (adopted 2026-11-15; one long line was unreadable): `Version overview:` alone
+on its line, then the `SUMMARY: …` part, then the `DETAILS: …` part, each separated by a
+blank line. The note itself in `version.py` stays one line; only the manual's copy is split.
 
 **The layout to end up with in the manual**, reading down from the marker:
 
@@ -47,7 +49,12 @@ so there's only ever one.
 
 #### Next release summary to this point
 
-Version overview: ...
+Version overview:
+
+SUMMARY: ...
+
+DETAILS: ...
+
 - **13.** Newest bullet.    <- your new one-line summary goes on top, next number up
 - **12.** Older bullet.
 
@@ -66,9 +73,13 @@ Version overview: ...
 ## Release v<tag> — dated entries released in it   <- added by create_release.py
 ```
 
-**When a release is cut**, `scripts/create_release.py` takes everything between the manual's
-marker and the nearest `#### Release ... summary` heading as the GitHub release notes (the
-running heading reads `#### Summary` there), renames the running heading in place to
+**When a release is cut**, `scripts/create_release.py` publishes, as the GitHub release
+page, only the SUMMARY paragraph of the Version overview (found between the manual's marker
+and the nearest `#### Release ... summary` heading), without its label, followed by the line
+"See full list of changes in the User Manual's 'What's New' section" (adopted 2026-11-15:
+the whole overview and every bullet was more than anyone reads). No SUMMARY there, and the
+release stops with an error. **So keep the SUMMARY brief and to the point:** it is the one
+thing users see before they download. It then renames the running heading in place to
 `#### Release <tag> summary`, and adds a `## Release <tag> — dated entries released in it`
 heading under the details file's marker. Don't hand-insert release headings in either file.
 **After a release** the manual's running heading is gone, so the next update re-creates a

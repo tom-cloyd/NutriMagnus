@@ -51,12 +51,14 @@ pytest tests/test_web.py -k foo  # run one test
 
 1. `python3 scripts/bump_version.py` (never hand-edit `VERSION`); describe the change in
    `NEW_VERSION_NOTE` by hand, as `SUMMARY: … DETAILS: …`, and re-check that the summary
-   is still correct against the details. Don't touch `RELEASE_VERSION`'s `-rc.N`.
+   is still correct against the details. Keep the SUMMARY brief and to the point: it alone
+   is the GitHub release page users read before downloading. Don't touch `RELEASE_VERSION`'s `-rc.N`.
 2. Edited `user-manual.md` or the README? Update its header stamp by hand.
 3. User-facing change? Add a dated entry to `docs/updates-log-details.md` and a numbered
    summary bullet to the manual's What's new section: `docs/claude/changelog.md`.
 4. Edited the manual? Run `python3 scripts/build_manual.py`.
-5. Committing? Copy `NEW_VERSION_NOTE` into What's new as the `Version overview:` line.
+5. Committing? Copy `NEW_VERSION_NOTE` into What's new as the `Version overview:` block
+   (three paragraphs: that label, SUMMARY, DETAILS; see `docs/claude/changelog.md`).
 
 ---
 

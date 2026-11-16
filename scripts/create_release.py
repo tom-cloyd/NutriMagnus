@@ -11,13 +11,13 @@ install-linux.sh fetches its assets from releases/latest/download/<name>, so
 the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
 that script.
 
-Release notes are pulled from user-manual.md's "What's new" section
-(#updates-log; Part 11, "Recent program updates log", before 2026-11-14): everything between the "<!-- Insert new updates below
-here -->" marker and the next "#### Release ... summary" heading (or the end
-of the appendix, if no release has ever been cut) — falling back to a generic
-message if that stretch is empty. That stretch holds a running "#### Next
-release summary to this point" heading with one bullet per pending change,
-followed by the full dated entries those bullets summarize.
+Release notes (the GitHub release page) are just the SUMMARY paragraph of the
+Version overview in user-manual.md's "What's new" section (#updates-log),
+the part between the "<!-- Insert new updates below here -->" marker and the
+next "#### Release ... summary" heading, followed by one line pointing to
+the full list in the manual (since 2026-11-15; before that the whole stretch,
+overview and every numbered bullet, was published). No SUMMARY there: the
+release stops with an error instead of publishing an empty page.
 
 On success, that running heading is renamed in place to "#### Release <tag>
 summary", so the summary already written for the pending work simply becomes
@@ -73,11 +73,6 @@ _NEXT_SUMMARY_RE = re.compile(r'^#### Next release summary\b.*$')
 # Dated entry sections: "#### Sep 22 updates", "##### September 21 program updates".
 _DATED_SECTION_RE = re.compile(r'^#{4,5} .+ updates\s*$')
 _DETAILS_SUFFIX = " (dated details below)"
-# GitHub rejects a release body over 125,000 characters; leave some margin.
-_BODY_LIMIT = 120_000
-_TRIMMED_NOTE = ("*Older details were left out to fit GitHub's size limit. "
-                 "The full list is in the User Manual's "
-                 "\"What's new\" section.*")
 _RELEASE_VERSION_RE = re.compile(r'^(RELEASE_VERSION = ")(.*?)(-(?:rc|beta|alpha)\.)(\d+)("\s*)$', re.M)
 
 # (asset name, file path, content type) — every release asset besides the notes.
@@ -135,41 +130,38 @@ def _pending_range(lines: list[str]) -> tuple[int | None, int | None]:
     return marker_idx, len(lines)
 
 
-def _release_notes() -> str:
+FULL_LIST_LINE = "See full list of changes in the User Manual's 'What's New' section"
+_SUMMARY_LABEL_RE = re.compile(r"^SUMMARY:\s*")
+
+
+def _release_summary() -> str | None:
+    """The SUMMARY paragraph of the Version overview in the manual's
+    unreleased What's new section, without its label; None if there isn't
+    one. Also accepts the older one-line overview, where SUMMARY and DETAILS
+    shared a line."""
     if not MANUAL_FILE.exists():
-        return "Automated build from main."
+        return None
     lines = MANUAL_FILE.read_text().splitlines()
     marker_idx, end_idx = _pending_range(lines)
     if marker_idx is None:
-        return "Automated build from main."
-    # "Next release summary to this point" is in-manual phrasing for work not
-    # yet shipped; on a release page that work *is* this release, so the
-    # heading reads as a plain summary instead.
-    pending = [
-        "#### Summary" if _NEXT_SUMMARY_RE.match(l.strip()) else l
-        for l in lines[marker_idx + 1:end_idx]
-    ]
-    body = "\n".join(pending)
-    # Scope blocks are HTML comments: invisible on the release page, but
-    # GitHub counts them toward its body limit (they were over half of the
-    # 2026-10-05 notes, which GitHub rejected at 145k characters).
-    body = re.sub(r"<!--.*?-->\n?", "", body, flags=re.S)
-    body = re.sub(r"\n{3,}", "\n\n", body).strip()
-    return _fit_body(body) or "Automated build from main."
+        return None
+    for line in lines[marker_idx + 1:end_idx]:
+        text = re.sub(r"^Version overview:\s*", "", line.strip())
+        if _SUMMARY_LABEL_RE.match(text):
+            text = _SUMMARY_LABEL_RE.sub("", text).split("DETAILS:", 1)[0].strip()
+            return text or None
+    return None
 
 
-def _fit_body(body: str) -> str:
-    """Keep the notes under GitHub's body limit by dropping the oldest dated
-    sections (they're newest-first, so the summary and recent details stay),
-    with a pointer to the full log in the manual."""
-    if len(body) <= _BODY_LIMIT:
-        return body
-    note = f"\n\n{_TRIMMED_NOTE}"
-    starts = [m.start() for m in re.finditer(r"^#{4,5} .+ updates\s*$", body, re.M)]
-    for cut in reversed(starts):
-        if cut + len(note) <= _BODY_LIMIT:
-            return body[:cut].rstrip() + note
-    return body[:_BODY_LIMIT - len(note)].rstrip() + note
+def _release_notes() -> str | None:
+    """The GitHub release page text: just the SUMMARY, then a pointer to the
+    full list in the manual (decided 2026-11-15: the whole overview and every
+    numbered bullet was more than anyone deciding whether to update reads).
+    None when the manual has no SUMMARY, so main() can refuse to publish."""
+    summary = _release_summary()
+    if not summary:
+        return None
+    return f"{summary}\n\n{FULL_LIST_LINE}"
 
 
 def _roll_release_summary(tag: str) -> bool:
@@ -283,6 +275,11 @@ def main() -> int:
     version_str = _version()
     tag = _tag_for(version_str)
     body = _release_notes()
+    if not body:
+        print("ERROR: no SUMMARY in the manual's What's new section. Copy version.py's "
+              "NEW_VERSION_NOTE into it as the Version overview (docs/claude/changelog.md), "
+              "then try again.", file=sys.stderr)
+        return 1
     payload = json.dumps({
         "tag_name": tag,
         "name": f"NutriMagnus {tag}",

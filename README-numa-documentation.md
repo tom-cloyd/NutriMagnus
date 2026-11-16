@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-15:0553
+UPDATED: 2026-11-15:2116
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -1798,7 +1798,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_recipe_translate.py` | `numa_app/services/recipe_translate.py`: prompt-building and response-parsing for the manual-paste recipe translation workflow |
 | `tests/test_openfoodfacts.py` | `openfoodfacts.py`: search/barcode lookup parsing and id assignment (network mocked) |
 | `tests/test_update_check.py` | `numa_app/services/update_check.py`: the GitHub latest-release check behind the home-page update banner, including its offline silence and the release's starter-manifest fetch |
-| `tests/test_create_release_manifest.py` | `scripts/create_release.py`: the starter-set manifest it writes and uploads, under the asset name `update_check.py` fetches |
+| `tests/test_create_release_manifest.py` | `scripts/create_release.py`: the starter-set manifest it writes and uploads, under the asset name `update_check.py` fetches; the real manual's release notes are just the SUMMARY and the pointer line |
 | `tests/test_self_update.py` | `numa_app/services/self_update.py`: `perform_update()` self-replacing the packaged Linux binary, and `is_available()` gating it to a packaged install |
 | `tests/test_manual_update.py` | `numa_app/services/manual_update.py`: Ed25519-verified manual downloads, stamp comparison, and refusal of anything that fails verification |
 | `tests/test_manual_format.py` | `user-manual.md`'s own structure: changelog entry format, hidden Scope blocks, heading conventions |
@@ -1808,7 +1808,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_launcher.py` | Startup loading page: served on the real port at once, swapped for a failure page if the app cannot start, and the same socket then handed on to uvicorn; which browser opens, and when as its own (`--app`) window |
 | `tests/test_link_integrity.py` | Internal links: every manual `#anchor` against the built HTML, and every template `href="/..."` against a registered route (weekly-sweep item 8, automated) |
 | `tests/test_ai_manual.py` | The AI edition of the manual: reading times, HTML comments and the What's new section removed; every internal link rewritten as plain text naming its destination; footnote markers plain; stays well under a Google Doc's size limit |
-| `tests/test_create_release_notes.py` | `create_release.py` builds release notes from the manual's What's new summaries only, and rolling a release renames the running summary heading and adds a `## Release <tag>` separator to `docs/updates-log-details.md` |
+| `tests/test_create_release_notes.py` | `create_release.py`'s release notes are the manual's Version overview SUMMARY plus a pointer line (an older one-line overview still works; no SUMMARY stops the release before GitHub is contacted), and rolling a release renames the running summary heading and adds a `## Release <tag>` separator to `docs/updates-log-details.md` |
 | `tests/test_manual_menu_coverage.py` | Every navigation-bar destination in `base.html` maps to a manual anchor (`NAV_ANCHORS`), and that anchor is in Part 4 — Menu by menu, so a new menu item can't ship undocumented |
 | `tests/test_manual_abbreviations.py` | Every abbreviation in the manual is expanded inline or glossary-linked **within the section it appears in**, since any heading can be landed on directly (weekly-sweep item 9, automated) |
 | `tests/test_packaging_spec.py` | `nutrimagnus.spec`'s bundled-data list against what the app actually loads at runtime, plus this README's test table |
@@ -1931,7 +1931,7 @@ A recurring maintenance pass, scoped to what changed since the last sweep — no
 
 #### 4. Changelog pruning
 
-Entry placement and the release-summary procedure are in `docs/claude/changelog.md`. Since 2026-11-14 the log is in two places: the one-line release summaries in `user-manual.md`'s **What's new** section (`#updates-log`, read by `create_release.py`), and the dated, detailed entries in `docs/updates-log-details.md`. Prune only the details file: keep roughly the **last 2 weeks** of dated entries there. Older entries are safe to delete, since `create_release.py` builds release notes from the manual's summaries and never reads the details file. The manual's summaries are kept in full (they are short). Do this **before** items 5-7 below, which scan the last two weeks of the details file.
+Entry placement and the release-summary procedure are in `docs/claude/changelog.md`. Since 2026-11-14 the log is in two places: the one-line release summaries in `user-manual.md`'s **What's new** section (`#updates-log`; `create_release.py` publishes only its Version overview's SUMMARY, plus a pointer to the full list in the manual, as the GitHub release page), and the dated, detailed entries in `docs/updates-log-details.md`. Prune only the details file: keep roughly the **last 2 weeks** of dated entries there. Older entries are safe to delete, since `create_release.py` never reads the details file. The manual's summaries are kept in full (they are short). Do this **before** items 5-7 below, which scan the last two weeks of the details file.
 
 #### 5. Manual consolidation
 
