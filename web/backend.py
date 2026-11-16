@@ -8537,8 +8537,8 @@ def _day_context(meal_date: str, from_meal_id: int | None = None,
     /meal/<id>/day (reached from a meal; from_meal_id sets the breadcrumb).
     It carries the same analysis sections as a meal page, pooled over every
     meal on the date. A date with no meals gets an empty day (meals == [])
-    rather than a redirect, so "Today's summary" on a day not yet logged
-    says so instead of seeming to do nothing."""
+    rather than a redirect, so a typed /summary/<date> URL for a day not
+    yet logged says so instead of seeming to do nothing."""
     from_meal_name = None
     if from_meal_id is not None:
         with _db.get_db() as conn:
@@ -11584,7 +11584,7 @@ BLOCK_COUNT_MAX = 104
 @app.get("/summary/blocks", response_class=HTMLResponse)
 def summary_blocks(request: Request, size: int = Query(7), count: int = Query(8),
                          end: str = Query("")):
-    """Daily Summary in blocks of N days: one row per block, most recent
+    """Averages in blocks of N days: one row per block, most recent
     first, each nutrient averaged over the block's logged days (days with no
     meals are left out, not counted as zero — same rule as the trend view).
     Built from each meal's stored nutrient snapshot, like Recent Days, so a
@@ -12539,20 +12539,17 @@ def _build_day_rows(rows, conn) -> tuple[list[dict], list[dict], list[dict]]:
 
 @app.get("/summary", response_class=HTMLResponse)
 def summary_index(request: Request):
-    """Summary landing: recent-days table + date picker."""
+    """Summary landing: recent-days table + links to the several-day tools."""
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=30)
         day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
-        today_has_meals = bool(_db.meal_list_by_date(conn, datetime.date.today().isoformat()))
 
     return templates.TemplateResponse(request, "summary.html", {
-        "today_has_meals": today_has_meals,
         "day_rows":       day_rows,
         "day_nutrient_cols": day_nutrient_cols,
         "mandatory_day_cols": mandatory_day_cols,
         "show_profile_col": len(_profile.list_profiles()) > 1,
         "show_gl_col":    _track_gl() and not _gi_opt_out(),
-        "today":          datetime.date.today().isoformat(),
     })
 
 

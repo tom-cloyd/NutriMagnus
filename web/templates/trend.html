@@ -4,7 +4,7 @@
 {% import "_rda_definition_footer.html" as _rda_note %}
 {% import "_rda_legend.html" as _rda_legend %}
 {% import "_dcp_footnote.html" as _dcp_note %}
-{% if mode == "range" %}{% set page_title = "Nutrient totals for chosen meals" if by_meals else "Nutrient totals for a date range" %}{% else %}{% set page_title = "Nutrient averages across " ~ days ~ " days" %}{% endif %}
+{% if mode == "range" %}{% set page_title = "Nutrient averages for chosen meals" if by_meals else "Nutrient averages for a date range" %}{% else %}{% set page_title = "Nutrient averages across " ~ days ~ " days" %}{% endif %}
 {% block title %}NutriMagnus — {{ page_title }}{% endblock %}
 {% block layout_class %}container{% endblock %}
 
@@ -19,8 +19,8 @@
 <h2>{{ page_title }} {{ manual_link("goals") }}</h2>
 {% if mode == "range" %}
 <p class="muted">
-  Everything eaten across a date range, or across meals you pick by ID, added up &mdash; with the
-  average per logged day beside it, compared with your daily targets.
+  The average per logged day across a date range, or across meals you pick by ID, compared with
+  your daily targets. A Total column beside it gives the whole period's amount.
 </p>
 {% else %}
 <p class="muted">
@@ -34,7 +34,7 @@
   <a href="/summary/trend?days=7"  class="btn btn-sm {{ 'btn-primary' if mode != 'range' and days == 7  else 'btn-outline-primary' }}">Last 7 days</a>
   <a href="/summary/trend?days=14" class="btn btn-sm {{ 'btn-primary' if mode != 'range' and days == 14 else 'btn-outline-primary' }}">Last 14 days</a>
   <a href="/summary/trend?days=30" class="btn btn-sm {{ 'btn-primary' if mode != 'range' and days == 30 else 'btn-outline-primary' }}">Last 30 days</a>
-  <a href="/summary/blocks" class="btn btn-sm btn-outline-secondary">Blocks of days</a>
+  <a href="/summary/blocks" class="btn btn-sm btn-outline-secondary">Week-by-week averages</a>
 </div>
 
 <div class="d-flex flex-wrap gap-4 align-items-end mb-3">
@@ -49,7 +49,7 @@
       <input type="date" class="form-control form-control-sm" id="range-end" name="end"
              value="{{ form_end if mode == 'range' and not by_meals else end }}" required>
     </div>
-    <button type="submit" class="btn btn-sm btn-primary">Add up this date range</button>
+    <button type="submit" class="btn btn-sm btn-primary">Average these dates</button>
   </form>
   <form method="get" action="/summary/range" class="d-flex flex-wrap gap-2 align-items-end">
     <div>
@@ -57,7 +57,7 @@
       <input type="text" class="form-control form-control-sm" id="range-meal-ids" name="meal_ids"
              value="{{ form_meal_ids if mode == 'range' else '' }}" required>
     </div>
-    <button type="submit" class="btn btn-sm btn-primary">Add up these meals</button>
+    <button type="submit" class="btn btn-sm btn-primary">Average these meals</button>
   </form>
 </div>
 

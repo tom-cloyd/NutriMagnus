@@ -9268,7 +9268,7 @@ def test_summary_range_totals_a_date_range(client: TestClient, cached_food) -> N
 
     r = client.get(f"/summary/range?start={d0}&end={d1}")  # reversed: swapped, not refused
     assert r.status_code == 200
-    assert "Nutrient totals for a date range" in r.text
+    assert "Nutrient averages for a date range" in r.text
     assert "2 meal(s) on 2 logged day(s) out of 2 calendar day(s)" in r.text
     assert '<th class="num-col">Total</th>' in r.text
     assert "Per-day avg (2 days)" in r.text
@@ -9281,7 +9281,7 @@ def test_summary_range_by_meal_ids(client: TestClient, cached_food) -> None:
 
     r = client.get(f"/summary/range?meal_ids={m1},99999")
     assert r.status_code == 200
-    assert "Nutrient totals for chosen meals" in r.text
+    assert "Nutrient averages for chosen meals" in r.text
     assert "1 meal(s) on 1 day(s)" in r.text
     assert "No meal with ID 99999" in r.text
     assert f"(ID {m1})" in r.text
@@ -9303,7 +9303,7 @@ def test_summary_blocks_groups_days(client: TestClient, cached_food) -> None:
 
     r = client.get("/summary/blocks?size=7&count=3")
     assert r.status_code == 200
-    assert "blocks of 7 days" in r.text
+    assert "Averages in blocks of 7 days" in r.text
     first_start = (today - datetime.timedelta(days=6)).isoformat()
     second_end = (today - datetime.timedelta(days=7)).isoformat()
     assert f"{first_start} &ndash; {today.isoformat()}" in r.text
@@ -9312,7 +9312,8 @@ def test_summary_blocks_groups_days(client: TestClient, cached_food) -> None:
     rows = r.text.split("<tbody>")[1].split("</tr>")
     assert '<td class="num-col">2</td>' in rows[0]
     assert second_end in rows[1] and '<td class="num-col">1</td>' in rows[1]
-    assert "Full nutrient totals" not in rows[2]
+    assert "All nutrients</a>" in rows[0]
+    assert "All nutrients" not in rows[2]
 
     # Out-of-range sizes are clamped, not a 500
     assert client.get("/summary/blocks?size=0&count=999").status_code == 200
@@ -9688,17 +9689,16 @@ def test_compare_food_portion_amount(client):
     assert "no longer exists" in r.text
 
 
-def test_summary_today_button_explains_empty_day(client: TestClient, cached_food) -> None:
-    """"Today's summary" with nothing logged today stays put and shows a
-    message beside the button; once a meal is logged it links to the day."""
+def test_summary_has_no_single_day_control_and_dates_open_their_day(client: TestClient, cached_food) -> None:
+    """Daily Summary is a several-days page: no date box or "Today's summary"
+    button (they read as if the page were about one day); each date in the
+    table links to that day's full analysis instead."""
     today = datetime.date.today().isoformat()
-    empty = client.get("/summary").text
-    assert 'id="today-empty-note"' in empty
-    assert f'href="/summary/{today}" class="btn' not in empty
     client.post("/meals/create", data={"meal_date": today, "name": "Lunch"}, follow_redirects=False)
-    logged = client.get("/summary").text
-    assert 'id="today-empty-note"' not in logged
-    assert f'href="/summary/{today}" class="btn' in logged
+    page = client.get("/summary").text
+    assert 'id="summary-date"' not in page
+    assert "Today's summary" not in page
+    assert f'<a href="/summary/{today}" title="Full nutrient analysis for {today}">' in page
 
 
 def test_meal_and_day_dcp_line_gives_the_daily_goal_percent_before_raw_protein(client: TestClient, cached_food) -> None:

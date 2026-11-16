@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-15:2116* / Reading time: 7 hours, 17 minutes
+*Updated 2026-11-15:2317* / Reading time: 7 hours, 18 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -563,7 +563,7 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 **Step 2 — Open the Daily Summary.** Click **Analysis → 1. Daily summary**. The **Recent Days** table lists every date you've logged: whether the day is complete, protein and its percentage of your goal, the day's [DCP](#gloss-dcp) and its percentage, and the day's glycemic load if you track it. Click a date to reopen that day's full analysis.
 
-**Step 3 — Look at averages.** Click **Nutrient averages across days** and choose a 7-, 14- or 30-day window. NuMa averages your intake and compares it with your targets. This is where a nutrient that's a little low every day shows up, the kind of gap one good or bad day hides.
+**Step 3 — Look at averages.** Click **Nutrient averages over a period** and choose a 7-, 14- or 30-day window. NuMa averages your intake and compares it with your targets. This is where a nutrient that's a little low every day shows up, the kind of gap one good or bad day hides.
 
 **Step 4 — See the shape.** Click **Nutrient plot**, tick Day DCP and Protein (or any nutrient you're curious about), and click **Plot**. A line across your days, with your target drawn in, often makes a pattern obvious at a glance.
 
@@ -2024,32 +2024,31 @@ Both Food Use pages can also replace one food or recipe with another throughout 
 
 *Search terms: daily totals, day view, daily report.*
 
-Your days at a glance:
+Your recent days side by side, and the starting point for looking across several days:
 
-- **Show the full day for** a date, or **Today's summary**, opens that day's full analysis: every meal pooled, with the same sections as a meal's page (see [Analyze full day](#full-day)).
-- **Recent Days with Meals** lists each logged date: **Complete** (✓ when every meal that day is marked complete; click the dot to go to that day's meals), Protein and its percentage of your goal, Day [DCP](#gloss-dcp) and its percentage, the day's glycemic load if you track it, and any other nutrients you've chosen in [Settings → 10](#meal-columns). Click a date to open that day.
-- Buttons lead to [Nutrient averages across days](#trend), [Blocks of days](#summary-blocks), [Nutrient totals for a date range or meals](#range-totals) and the [Nutrient plot](#nutrient-plot), each described below.
+- Buttons lead to [Nutrient averages over a period](#trend) (the last 7, 14 or 30 days, [any dates or chosen meals](#range-totals)), [Week-by-week averages](#summary-blocks) and the [Nutrient plot](#nutrient-plot), each described below.
+- **Recent Days with Meals** lists each logged date: **Complete** (✓ when every meal that day is marked complete; click the dot to go to that day's meals), Protein and its percentage of your goal, Day [DCP](#gloss-dcp) and its percentage, the day's glycemic load if you track it, and any other nutrients you've chosen in [Settings → 10](#meal-columns). Click a date to open that day's full analysis: every meal pooled, with the same sections as a meal's page (see [Analyze full day](#full-day)). For a day older than the table reaches, open any of its meals in Meals & Log and click **Analyze full day** (shown when the day has more than one meal; with only one, that meal's page is the whole day).
 
-#### Nutrient Averages Across Days {: #trend}
+#### Nutrient Averages Over a Period {: #trend}
 
 *Search terms: trends, several days, weekly average, chronic shortfall, multi-day.*
 
 Every other comparison with your targets looks at one day. That shows whether today was enough, but not a nutrient that's a little short every day: one low day means little, two weeks of them is a pattern.
 
-Click **Nutrient averages across days** on the Daily Summary and choose the last 7, 14 or 30 days. NuMa averages each nutrient over the days in that window that have a meal logged, and compares the average with your targets in the same table as a single day, with the same colors and diet-aware notes.
+Click **Nutrient averages over a period** on the Daily Summary and choose the last 7, 14 or 30 days. NuMa averages each nutrient over the days in that window that have a meal logged, and compares the average with your targets in the same table as a single day, with the same colors and diet-aware notes.
 
 **Only logged days count.** Days with nothing logged are left out, not counted as zero, which would understate your intake and hide the very shortfall this is for. The page says how many days were averaged ("Averaging over 12 logged day(s) out of the last 30").
 
 The [B12, iron and zinc notes](#diet-bioavailability) apply here too, and this is often where such a pattern first shows.
 
-**Nutrient totals for a date range or a set of meals.**{: #range-totals} Below the 7/14/30-day buttons (or from the Daily Summary's **Nutrient totals for a date range or meals**):
+**Averages for any dates, or a set of meals.**{: #range-totals} Below the 7/14/30-day buttons:
 
-- **From / To** and **Add up this date range** — any range of dates, not just the last 7, 14 or 30.
-- **Meal IDs** and **Add up these meals** — only the meals you list by number (shown on Meals & Log), separated by commas or spaces; `20-24` means meals 20 to 24. A number with no meal is named and skipped.
+- **From / To** and **Average these dates** — any range of dates, not just the last 7, 14 or 30.
+- **Meal IDs** and **Average these meals** — only the meals you list by number (shown on Meals & Log), separated by commas or spaces; `20-24` means meals 20 to 24. A number with no meal is named and skipped.
 
-Either way the table adds a **Total** column beside the per-day average (which is still what's compared with your goals), and total [DCP](#gloss-dcp) appears under the average. With meals chosen by number, the average covers only those meals, not the rest of those days; they're listed under **Meals included**.
+Either way the per-day average is what's compared with your goals; a **Total** column beside it gives the whole period's amount (useful for adding up a few meals as one, or a nutrient with weekly guidance), and total [DCP](#gloss-dcp) appears under the average. With meals chosen by number, the average covers only those meals, not the rest of those days; they're listed under **Meals included**.
 
-**Blocks of days.**{: #summary-blocks} Shows the Recent Days table a block at a time: each row a run of days (7 by default), averaged per logged day, latest first. Choose **Days in each block**, **Number of blocks** and **Last day of the most recent block**, then **Show these blocks**. Columns are your Recent Days choices with their share of the goal, plus Day [DCP](#gloss-dcp) and Day [GL](#gloss-gl) if tracked; **Full nutrient totals** opens a block's totals. Comparing week with week shows whether a change is holding.
+**Week-by-week averages.**{: #summary-blocks} Shows the Recent Days table a block at a time: each row a run of days (7 by default), averaged per logged day, latest first. Choose **Days in each block**, **Number of blocks** and **Last day of the most recent block**, then **Show these blocks**. Columns are your Recent Days choices with their share of the goal, plus Day [DCP](#gloss-dcp) and Day [GL](#gloss-gl) if tracked; **All nutrients** opens every nutrient's average for that block. Comparing week with week shows whether a change is holding.
 
 There are no complement suggestions here: complementing works within about a day, so a suggestion pooled over a week couldn't be acted on. Use a day's, meal's or recipe's [suggestions](#comp) instead.
 
@@ -4354,7 +4353,7 @@ Where it shows, once set:
 
 - **A day's pages** (the day view, the Daily Summary for a date, the day printout) — under the Glycemic Load figure: "Your daily target: 80 — 64%", or "— over it" in the over-limit color, or "close to it" from 80% up.
 - **Recent Days** — the **Day GL** figure is colored against the target; hover for the percentage.
-- **Nutrient averages across days** — how many days in the window were over it.
+- **Nutrient averages over a period** — how many days in the window were over it.
 - **[What-if: Meals](#whatif-gl)** — days over it *before and after* your changes. An average can sit comfortably under the target while several days are over it; this count shows those days, and whether a change fixes them.
 
 **Days with missing GI values.** A day's [GL](#gloss-gl) counts only foods with a [GI](#gloss-gi), so it's a lower bound when some are missing. If that lower bound is already over the target, the day is over for certain and is shown so. If it's under, NuMa says it can't tell yet rather than calling it under — the missing foods could push it over.
@@ -4545,7 +4544,7 @@ A whole day, a much larger number, uses its own:
 
 NuMa shows GL for every food (per 100 g and for the portion shown: halve the portion and GL halves while GI stays put, which is the point of it), recipe (per serving), meal and day, marked incomplete when foods lack a GI ([details](#glycemic)). Recipes, meals and days also get an [estimated GI](#mixture-gi). GL doesn't affect protein scores.
 
-**Averages beat single days.** One day's GL swings with what you happened to eat. [Nutrient averages across days](#trend) gives the average over 7, 14 or 30 days (skipping incomplete days, and saying how many counted), and the [Nutrient Plot](#nutrient-plot) can plot **Daily glycemic load** to show patterns such as weekends or late evenings.
+**Averages beat single days.** One day's GL swings with what you happened to eat. [Nutrient averages over a period](#trend) gives the average over 7, 14 or 30 days (skipping incomplete days, and saying how many counted), and the [Nutrient Plot](#nutrient-plot) can plot **Daily glycemic load** to show patterns such as weekends or late evenings.
 
 How GL compares with glucose monitors and prediction apps, especially for diabetes: [GL and blood glucose](#appendix-gl-comparison).
 
@@ -6112,7 +6111,7 @@ Version overview:
 
 SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button.
 
-DETAILS: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; the manual's search opens the section you picked, with your words highlighted; and Compare ticks are kept as you search again or move between lists, so one comparison can gather foods from several searches. A `!` before a search word leaves out results with that word (`beans red !kidney cooked`), and the list says how many results they hid; a search for a cooked food no longer misses canned products online; a hint under every search box sums up how to write a search; and NuMa offers to search USDA again with your words reversed, which finds many branded products. On the Annotate page, each estimate being asked for has its own Skip button beside it, and the Meals & Log list's Complete column is a checkbox, so a meal can be marked complete without opening it. On a meal, the Add Food or Recipe header, search box and search hint line up along the top, and the hint's Learn more opens the manual at word order. A `!` word works in list filter boxes too (Recipes, Food Cache, My Pantry, Search meal history and the rest). Removing an item from a meal no longer makes the page jump around. The User Manual is reorganized and much shorter, with step-by-step workflows. A Return button above the manual (Alt+Shift+U) goes straight back to the page you came from, and Manual reopens it where you left off; and Settings checks a USDA API key with USDA before saving it, with a Test key button.
+DETAILS: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; the manual's search opens the section you picked, with your words highlighted; and Compare ticks are kept as you search again or move between lists, so one comparison can gather foods from several searches. A `!` before a search word leaves out results with that word (`beans red !kidney cooked`), and the list says how many results they hid; a search for a cooked food no longer misses canned products online; a hint under every search box sums up how to write a search; and NuMa offers to search USDA again with your words reversed, which finds many branded products. On the Annotate page, each estimate being asked for has its own Skip button beside it, and the Meals & Log list's Complete column is a checkbox, so a meal can be marked complete without opening it. On a meal, the Add Food or Recipe header, search box and search hint line up along the top, and the hint's Learn more opens the manual at word order. A `!` word works in list filter boxes too (Recipes, Food Cache, My Pantry, Search meal history and the rest). Removing an item from a meal no longer makes the page jump around. The User Manual is reorganized and much shorter, with step-by-step workflows. A Return button above the manual (Alt+Shift+U) goes straight back to the page you came from, and Manual reopens it where you left off; and Settings checks a USDA API key with USDA before saving it, with a Test key button. The Daily Summary page now says it covers several days and drops its date box and Today's summary button; a day opens from its date in the table. Its buttons now say what they show: Nutrient averages over a period (the last 7, 14 or 30 days, any dates, or chosen meals; this replaces the separate Nutrient totals button, which opened the same page) and Week-by-week averages (was Blocks of days); the date-range buttons read Average these dates and Average these meals, and each block's All nutrients link (was Full nutrient totals).
 
 - **26.** In **Settings → 6**, NuMa now checks a USDA API key with USDA when you save it, and won't save one USDA rejects; **Test key** checks the saved key again, and the card shows when it was last checked.
 - **25.** The yellow bar above the manual now has **↩ Return to …** (Alt+Shift+U), which goes straight back to the NuMa page you came from however many jumps you've made in the manual; **Manual** then reopens it where you left off. **← Back one step** (Alt+←) still retraces your jumps one at a time.

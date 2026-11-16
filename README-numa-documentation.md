@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-15:2116
+UPDATED: 2026-11-15:2317
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -365,7 +365,7 @@ numa/
       summary.html                 — Daily summary landing page (Recent Days list; fixed Day GL
                                      column, hidden when GI is opted out in Settings)
       trend.html                   — nutrient averages across days view
-      summary_blocks.html          — Daily Summary in blocks of N days
+      summary_blocks.html          — Averages in blocks of N days (Week-by-week averages)
       nutrient_plot.html           — Nutrient trend line-plot picker/display
       nutrient_plot_print.html     — Print-formatted nutrient plot
       print.html                   — Shared printable nutritional-analysis page (food/recipe/meal/day)
@@ -1396,7 +1396,7 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 | GET | `/summary/{meal_date}` | Full-day analysis for one date — the same page as `/meal/{meal_id}/day` (`meal_day.html`); a date with no meals shows an empty day, not a redirect |
 | GET | `/summary/{meal_date}/print` | Printable full-day analysis |
 | POST | `/summary/{meal_date}/profile` | Set/override the profile pinned to that date |
-| GET | `/summary/trend` | Nutrient averages across days view |
+| GET | `/summary/trend` | Nutrient averages over a period view |
 | GET | `/summary/range` | Nutrient totals + per-day average for a date range (`start`, `end`) or meal IDs (`meal_ids`) |
 | GET | `/summary/blocks` | Recent Days in blocks of N days (`size`, `count`, `end`) |
 | GET | `/summary/nutrient-plot`, `nutrient-plot/image`, `nutrient-plot/print` | Nutrient trend line-plot picker, rendered image, and print view |

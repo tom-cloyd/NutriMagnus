@@ -33,17 +33,15 @@
 
 <h2>Daily Summary {{ manual_link("goals") }}</h2>
 
-{# ── Date picker ──────────────────────────────────────────────────────── #}
-<div class="d-flex flex-wrap gap-3 align-items-end mb-3">
-  <div class="d-flex gap-2 align-items-end">
-    <label class="form-label mb-0" for="summary-date">Show the full day for</label>
-    <input type="date" class="form-control form-control-sm" id="summary-date"
-           value="{{ today }}"
-           onchange="if (this.value) window.location='/summary/'+this.value">
-  </div>
-  <a href="/summary/trend" class="btn btn-sm btn-outline-secondary">Nutrient averages across days</a>
-  <a href="/summary/blocks" class="btn btn-sm btn-outline-secondary">Blocks of days</a>
-  <a href="/summary/range" class="btn btn-sm btn-outline-secondary">Nutrient totals for a date range or meals</a>
+{# A several-days page. It has no single-day control (a date box and a
+   "Today's summary" button were removed 2026-11-15: they made the page look
+   like it was about one day). One day opens from its date in the table, or,
+   for an older day, from any of its meals -> Analyze full day. #}
+<p class="muted mb-2">Your recent days side by side, with tools for looking across several days. Click a date in the table to open that day's full analysis.</p>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  <a href="/summary/trend" class="btn btn-sm btn-outline-secondary" title="Each nutrient's average per logged day, compared with your goals: the last 7, 14 or 30 days, any dates you choose, or meals you pick">Nutrient averages over a period</a>
+  <a href="/summary/blocks" class="btn btn-sm btn-outline-secondary" title="One row per week (or any number of days), newest first, so you can see whether a change is holding">Week-by-week averages</a>
   <a href="/summary/nutrient-plot" class="btn btn-sm btn-outline-secondary">Nutrient plot</a>
 </div>
 
@@ -52,15 +50,6 @@
 <details open data-remember="recent-days">
   <summary style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:0.75rem;width:auto">
     <strong>Recent Days with Meals</strong>
-    {% if today_has_meals %}
-    <a href="/summary/{{ today }}" class="btn btn-sm btn-outline-primary"
-       onclick="event.stopPropagation()">Today's summary</a>
-    {% else %}
-    {# Nothing logged today: say so here rather than open an empty day. #}
-    <button type="button" class="btn btn-sm btn-outline-primary"
-            onclick="event.preventDefault(); event.stopPropagation(); document.getElementById('today-empty-note').hidden = false">Today's summary</button>
-    <span id="today-empty-note" class="rda-near" hidden><small>No meals are logged for today ({{ today }}) yet, so there is nothing to summarize. <a href="/meals" onclick="event.stopPropagation()">Log a meal in Meals &amp; Log</a>.</small></span>
-    {% endif %}
     {% if day_rows %}
     <small class="muted">Specify nutrients you want here: <a href="/settings#meal-list-nutrients" onclick="event.stopPropagation()">Settings &rarr; Meals &amp; Log columns</a></small>
     {% endif %}
