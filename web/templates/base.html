@@ -484,7 +484,10 @@
     var form = inp.closest('form');
     var btn = form && form.querySelector('button[type="submit"], input[type="submit"]');
     if (!btn) return;
-    if (inp.value) btn.focus();
+    // preventScroll: a fresh search loads at the top anyway, and on a page
+    // that restores your scroll position after a form post (meal items)
+    // a scrolling focus would throw you back up to the search box.
+    if (inp.value) btn.focus({preventScroll: true});
     // Same idea, live: picking an entry from the browser's own remembered-
     // values dropdown (built from past submissions of this field) fills the
     // box without the page reloading, so the case above never runs. That

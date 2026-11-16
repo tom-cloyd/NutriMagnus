@@ -1,40 +1,31 @@
 # Changelog and version-stamp rules
 
-Moved from `CLAUDE.md` (2026-11-12) so it loads only when a task needs it; `CLAUDE.md` points here. Read before writing a Part 11 log entry or cutting a release.
+Moved from `CLAUDE.md` (2026-11-12) so it loads only when a task needs it; `CLAUDE.md` points here. Read before writing a changelog entry or cutting a release.
 
 ## Version stamp (from CLAUDE.md's Key Invariants)
 
-- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp; never hand-edit that line. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format). `RELEASE_VERSION`'s `-rc.N` counter is separate and deliberately NOT bumped on every session (decided 2026-09-21) — it advances only when an actual release is cut, so it stays a meaningful release count rather than a session count.
+- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp; never hand-edit that line. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. Write it as one line in two parts, `SUMMARY: <one succinct sentence> DETAILS: <full note>`, with both labels in capitals and no newlines (the note is copied into the manual's one-line `Version overview:`). Each time the details change, review the summary for correctness against them: every claim must still be true, and none may overstate the details (adopted 2026-11-15). If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format). `RELEASE_VERSION`'s `-rc.N` counter is separate and deliberately NOT bumped on every session (decided 2026-09-21) — it advances only when an actual release is cut, so it stays a meaningful release count rather than a session count.
 
-## Changelog (user-manual.md, Part 11)
+## Changelog: two files (since 2026-11-14)
 
 Any turn that changes numa's user-facing behavior (new feature, bug fix, threshold change —
 not pure layout/wording tweaks, since the owner is currently numa's only user and already
-knows about those) ends with a new entry under today's `#### Month Day updates`
-heading in
-**Part 11, "Recent program updates log"** (its own Part at the end of the manual since
-2026-09-30; earlier Appendix A, and before 2026-08-05 Appendix K),
-plus the `version.py`/manual timestamp bump above.
+knows about those) ends with **two** additions, plus the `version.py`/manual timestamp bump above:
 
-**Where entries go** (decided 2026-09-21): insert each new entry after the line
-`<!-- Insert new updates below here -->` in Part 11, newest on top, under today's
-`#### Month Day updates` heading (new form only; older `... program updates` headings stay
-as they are). Every entry title starts with `MANUAL: ` or `PROGRAM: ` (e.g.
-`**PROGRAM: ALL-CAPS TITLE**`).
+1. **A dated entry in `docs/updates-log-details.md`**, inserted right after its
+   `<!-- Insert new updates below here -->` marker, newest on top, under today's
+   `#### Month Day updates` heading (create it if today has none). Every entry title starts
+   with `MANUAL: ` or `PROGRAM: ` (e.g. `**PROGRAM: ALL-CAPS TITLE**`). Format below.
+2. **A one-line, numbered summary bullet in `user-manual.md`'s What's new section**
+   (`## What's new {: #updates-log}`, after the Appendices), under the
+   `#### Next release summary to this point` heading that sits right after that section's
+   own `<!-- Insert new updates below here -->` marker. Newest on top. Prefix a bullet with
+   `MANUAL: ` only for manual-only changes; program changes take no prefix. This running list
+   is what users read in the manual and what the GitHub release page shows; the details file
+   is for developers only.
 
-**Also add a one-line summary bullet** (adopted 2026-09-23) under the
-`#### Next release summary to this point` heading, which sits between the marker and
-those dated entries — so every dated entry you write gets a matching bullet, newest on
-top. That running list is what the reader (and the GitHub release page) sees first; the
-dated entries below it are the detail. Prefix a bullet with `MANUAL: ` only for
-manual-only changes; program changes take no prefix. Append ` (dated details below)` to
-the heading only while dated entry sections actually follow it.
-
-**Version overview at every commit** (adopted 2026-10-17): when making a commit, copy
-`version.py`'s `NEW_VERSION_NOTE` into Part 11 as the first line under
-`#### Next release summary to this point`, above the numbered bullets, as
-`Version overview: <note text>` — replacing the previous overview line if there is one,
-so there's only ever one. `NEW_VERSION_NOTE` is never printed on the home page.
+(Until 2026-11-14 both lived in the manual, as Part 11 "Recent program updates log"; earlier
+Appendix A, and before 2026-08-05 Appendix K.)
 
 **Each summary bullet is numbered** (adopted 2026-10-07, so the reader can see how
 many updates are pending): oldest is 1, newest highest, newest on top — e.g.
@@ -43,38 +34,48 @@ nothing else is renumbered. The number is written into a plain bullet because a
 Markdown ordered list can only count upward. Don't put a count in the heading — it
 would go stale. Numbering restarts at 1 after each release.
 
-**The layout to end up with**, always, reading down from the marker:
+**Version overview at every commit** (adopted 2026-10-17): when making a commit, copy
+`version.py`'s `NEW_VERSION_NOTE` into the What's new section as the first line under
+`#### Next release summary to this point`, above the numbered bullets, as
+`Version overview: <note text>` — replacing the previous overview line if there is one,
+so there's only ever one.
+
+**The layout to end up with in the manual**, reading down from the marker:
 
 ```
 <!-- Insert new updates below here -->
 
-#### Next release summary to this point (dated details below)
+#### Next release summary to this point
 
+Version overview: ...
 - **13.** Newest bullet.    <- your new one-line summary goes on top, next number up
 - **12.** Older bullet.
+
+#### Release v<tag> summary <- the previous release; never add to it
+```
+
+**And in `docs/updates-log-details.md`:**
+
+```
+<!-- Insert new updates below here -->
 
 #### Month Day updates      <- today's date heading (create if not already today's)
 
 **PROGRAM: ALL-CAPS TITLE** <- your new dated entry, newest on top
 ...
-#### Release v<tag> summary <- the previous release; never edit above-the-line into this
+## Release v<tag> — dated entries released in it   <- added by create_release.py
 ```
 
-**After a release has just been cut** the running heading is gone — `create_release.py`
-renamed it to `#### Release v<tag> summary`, which now sits directly under the marker.
-So the next log update has to rebuild the top of that structure in order: a fresh
-`#### Next release summary to this point` heading, its first bullet, then today's
-`#### Month Day updates` heading, then the entry — all inserted between the marker and
-that `#### Release v<tag> summary` line. Nothing does this for you; it's the one part
-of the cycle that's yours to re-create.
-
-When cutting a release, `scripts/create_release.py` handles the bottom of the cycle: it
-renames the running heading in place to `#### Release <tag> summary`, so the summary
-you've been keeping becomes that release's summary, with the dated entries left
-untouched below it. Pending = everything between the marker and the newest
-`#### Release ... summary` heading. Don't hand-insert release headings. (If the running
-heading is missing at release time, the script inserts one under the marker itself, so a
-release never breaks — but it'll have no summary bullets, which is the thing to avoid.)
+**When a release is cut**, `scripts/create_release.py` takes everything between the manual's
+marker and the nearest `#### Release ... summary` heading as the GitHub release notes (the
+running heading reads `#### Summary` there), renames the running heading in place to
+`#### Release <tag> summary`, and adds a `## Release <tag> — dated entries released in it`
+heading under the details file's marker. Don't hand-insert release headings in either file.
+**After a release** the manual's running heading is gone, so the next update re-creates a
+fresh `#### Next release summary to this point` heading between the manual's marker and the
+newest `#### Release <tag> summary` line, with its first bullet. (If the running heading is
+missing at release time, the script inserts one under the marker, so a release never breaks,
+but it'll have no bullets, which is the thing to avoid.)
 
 Every entry from 2026-07-31 onward uses this format — adopted 2026-08-05 because the prior
 single dense run-on line per entry was hard to skim:
@@ -96,18 +97,10 @@ block if there's real technical detail worth keeping; skip it for a trivial chan
 -->
 ```
 
-**The `<!-- -->` around the Scope fence is not optional decoration — it's load-bearing.**
-Without it the Scope block renders as visible body text in the actual manual (caught
-2026-09-11, forgotten at least twice before that fix stuck). Checklist for every new
-entry: prose paragraph → blank line → `<!--` alone on its own line → blank line →
-` ``` ` fence → Scope text → ` ``` ` fence → blank line → `-->` alone on its own line.
-After writing an entry, grep the freshly-built `user-manual.html` for a distinctive
-word from that entry's Scope text and confirm it lands between `<!--` and `-->`, not
-as bare `<p>`/`<pre>` text — that's the actual verification, not just eyeballing the
-markdown source.
+**Keep the `<!-- -->` around the Scope fence.** Release notes no longer include the dated entries, and the details file isn't rendered, but the convention keeps entries readable and lets an entry be pasted anywhere (the manual, a release page) without its Scope block showing. Checklist for every new entry: prose paragraph → blank line → `<!--` alone on its own line → blank line → ` ``` ` fence → Scope text → ` ``` ` fence → blank line → `-->` alone on its own line.
 
 Entries before 2026-07-31 remain in the old single-line format (`* ALL-CAPS SUMMARY -
 scope - description.`) — deliberately not reformatted retroactively; use the new format
-only going forward. After editing the manual, run `python3 scripts/build_manual.py` — it
+only going forward. A dated entry's `[learn more...](#anchor)` link can't be followed from the details file, but keep it: it names the manual section, and the anchor is checked by nothing there, so make sure it exists in the manual. After editing the manual, run `python3 scripts/build_manual.py` — it
 recomputes the "Reading time" header figure and regenerates `user-manual.html`; don't
 hand-edit reading time.

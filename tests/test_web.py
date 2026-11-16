@@ -940,6 +940,37 @@ def test_meal_update_item_to_zero_grams(client: TestClient, cached_food, db_conn
     assert item["amount"] == 0.0
 
 
+def test_meal_remove_item_keeps_search(client: TestClient, cached_food, db_conn) -> None:
+    """Removing an item returns to the meal with the search still in the URL.
+    Without it, the page's persist-search script reloads a second time to put
+    the search back, and that lost the scroll position."""
+    resp = client.post(
+        "/meals/create", data={"name": "Lunch", "meal_date": "2026-07-11"},
+        follow_redirects=False,
+    )
+    meal_id = int(resp.headers["location"].rsplit("/", 1)[-1])
+    client.post(
+        f"/meal/{meal_id}/add",
+        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"], "portion_str": "150 g"},
+        follow_redirects=False,
+    )
+    item_id = db_conn.execute(
+        "SELECT id FROM meal_items WHERE meal_id = ?", (meal_id,)
+    ).fetchone()["id"]
+
+    page = client.get(f"/meal/{meal_id}", params={"q": "chicken soup"}).text
+    assert f'action="/meal/{meal_id}/remove/{item_id}"' in page
+    resp = client.post(
+        f"/meal/{meal_id}/remove/{item_id}", data={"q": "chicken soup"}, follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/meal/{meal_id}?q=chicken+soup"
+    assert db_conn.execute("SELECT 1 FROM meal_items WHERE id = ?", (item_id,)).fetchone() is None
+    # No search: a bare return, as before.
+    resp = client.post(f"/meal/{meal_id}/remove/{item_id}", follow_redirects=False)
+    assert resp.headers["location"] == f"/meal/{meal_id}"
+
+
 def test_recipe_new_edit_and_add_ingredient(client: TestClient, cached_food, db_conn) -> None:
     resp = client.post(
         "/recipe/new",
@@ -9557,6 +9588,44 @@ def test_list_filters_find_an_item_by_its_code(client: TestClient, cached_food, 
     assert cached_food["name"] in table and second_cached_food["name"] not in table
 
 
+def test_list_filters_honor_excluded_words(client: TestClient, db_conn) -> None:
+    """"!word" works in the filter boxes too, as in a search: Recipes, Food
+    Cache, Annotate, My Pantry, Food Use in Recipes, the Substitute box's
+    type-ahead and Search meal history all drop names holding the word."""
+    kid, small = (990301, "Beans, kidney, red, cooked"), (990302, "Beans, small red, cooked")
+    for fid, name in (kid, small):
+        _db.cache_food(db_conn, fid, name, "SR Legacy", None, None, None, {"carbs_g": 20.0}, [])
+        db_conn.execute("INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)", (name, fid))
+    db_conn.commit()
+    r1 = _make_recipe(client, "Kidney bean chili", 1, kid[0], kid[1], "100 g")
+    r2 = _make_recipe(client, "Red bean rice", 1, small[0], small[1], "100 g")
+
+    page = client.get("/recipes", params={"q": "bean !kidney"}).text
+    assert "Red bean rice" in page and "Kidney bean chili" not in page
+    for url in ("/food/cache", "/food/annotate"):
+        page = client.get(url, params={"q": "beans red !kidney"}).text
+        assert small[1] in page and kid[1] not in page, url
+    page = client.get("/food/cache", params={"q": "!kidney"}).text      # only "!" words: all but those
+    assert small[1] in page and kid[1] not in page
+    listed = client.get("/pantry", params={"filter": "beans !kidney"}).text.split("Filter my pantry list")[-1]
+    assert small[1] in listed and kid[1] not in listed
+    page = client.get(f"/analysis/food-use-recipes?mode=ids&recipe_ids={r1},{r2}&name=beans !kidney").text
+    table = page.split("<tbody")[1] if "<tbody" in page else page
+    assert small[1] in table and kid[1] not in table
+    names = [r["name"] for r in client.get("/analysis/food-use/replacement-search",
+                                           params={"q": "bean !kidney"}).json()["results"]]
+    assert small[1] in names and kid[1] not in names and "Kidney bean chili" not in names
+
+    meal_id = int(client.post("/meals/create", data={"name": "Supper", "meal_date": "2026-07-11"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    with _db.get_db() as conn:
+        for fid, name in (kid, small):
+            _db.meal_add_food(conn, meal_id, fid, name, 100.0, "100 g")
+    page = client.get("/meals/search", params={"q": "beans !kidney"}).text
+    rows = page.split("<tbody")[1] if "<tbody" in page else ""
+    assert small[1] in rows and kid[1] not in rows
+
+
 def test_meal_history_search_by_code(client: TestClient, cached_food, second_cached_food, db_conn) -> None:
     """Search meal history takes a code: U<fdc> finds that food's meal items,
     R<id> that recipe's — nothing else that merely shares a word."""
@@ -9780,9 +9849,87 @@ def test_manual_opens_in_numa_window_under_menu(client):
     page = client.get("/manual").text
     assert 'id="manual-frame"' in page and 'src="/manual/page"' in page
     assert 'id="manual-back-note"' in page and "Alt</kbd>+<kbd>&larr;" in page
+    # Two ways out: one step back, or straight back to NuMa (Alt+Shift+U).
+    assert 'id="manual-back-btn"' in page and 'id="manual-return"' in page
+    assert 'data-ak="u"' in page and "<kbd>Shift</kbd>+<kbd>U</kbd>" in page
     assert 'data-section="manual"' in page            # the main menu is there
     assert client.get("/manual/page").status_code == 200
     home = client.get("/").text
     import re
     for tag in re.findall(r'<a\b[^>]*href="/manual[^"]*"[^>]*>', home):
         assert "_blank" not in tag, tag
+
+
+# ── Settings → 6: the USDA key is checked with USDA before it is saved ──
+
+@pytest.fixture()
+def usda_config(tmp_path, monkeypatch):
+    """Point the USDA config file (key, last check) at a temp file."""
+    import usda_api
+    path = tmp_path / "config.json"
+    monkeypatch.setattr(usda_api, "_CONFIG_FILE", path)
+    return path
+
+
+def test_check_api_key_sorts_usda_replies(monkeypatch):
+    """ok / rejected (401, 403) / unreachable (offline, other errors); the key
+    tried is the one given, not the saved one; never raises."""
+    import io, urllib.error, usda_api
+    seen = []
+
+    def reply(outcome):
+        def fake(req, timeout=None):
+            seen.append(req.full_url)
+            if outcome == "ok":
+                return io.BytesIO(b'{"foods": []}')
+            if outcome == "offline":
+                raise urllib.error.URLError("no route")
+            if outcome == "timeout":
+                raise TimeoutError("timed out")
+            raise urllib.error.HTTPError(req.full_url, outcome, "x", {}, None)
+        monkeypatch.setattr(usda_api.urllib.request, "urlopen", fake)
+
+    monkeypatch.setattr(usda_api, "get_api_key", lambda: "SAVEDKEY")
+    for outcome, want in (("ok", "ok"), (403, "rejected"), (401, "rejected"), (503, "unreachable"),
+                          ("offline", "unreachable"), ("timeout", "unreachable")):
+        reply(outcome)
+        assert usda_api.check_api_key(" NEWKEY\n")["result"] == want, outcome
+    assert all("api_key=NEWKEY" in u for u in seen)
+
+
+def test_settings_rejected_api_key_is_not_saved(client, usda_config, monkeypatch):
+    import usda_api
+    usda_api.set_api_key("GOODOLDKEY")
+    monkeypatch.setattr(_usda, "check_api_key", lambda k: {"result": "rejected", "detail": "USDA API 403"})
+    r = client.post("/settings/api-key", data={"api_key": "TYPOKEY"})
+    assert usda_api.get_api_key() == "GOODOLDKEY"
+    assert "Not saved: USDA rejected that key" in r.text and "previous key is still in use" in r.text
+
+
+def test_settings_api_key_save_test_and_clear(client, usda_config, monkeypatch):
+    """Saving a key USDA accepts records the check; Test key re-checks the
+    saved key and shows the verdict; an offline save still saves; Clear
+    drops the key and its check."""
+    import usda_api
+    verdict = {"result": "ok", "detail": ""}
+    tried = []
+    monkeypatch.setattr(_usda, "check_api_key", lambda k: (tried.append(k), dict(verdict))[1])
+
+    r = client.post("/settings/api-key", data={"api_key": "  NEWKEY  "})
+    assert usda_api.get_api_key() == "NEWKEY" and tried == ["NEWKEY"]
+    assert "API key saved, and USDA accepted it." in r.text
+    assert "USDA accepted it." in r.text and usda_api.get_api_key_check()["result"] == "ok"
+
+    verdict.update(result="rejected", detail="USDA API 403")
+    r = client.post("/settings/api-key/test")
+    assert tried[-1] == "NEWKEY"
+    assert "USDA rejects your saved key" in r.text and "USDA rejected it." in r.text
+
+    verdict.update(result="unreachable", detail="Network error: no route")
+    r = client.post("/settings/api-key", data={"api_key": "OTHERKEY"})
+    assert usda_api.get_api_key() == "OTHERKEY"
+    assert "couldn&rsquo;t reach USDA to check it" in r.text and "Network error: no route" in r.text
+
+    r = client.post("/settings/api-key", data={"api_key": ""})
+    assert usda_api.get_api_key() == "" and usda_api.get_api_key_check() is None
+    assert "API key cleared." in r.text

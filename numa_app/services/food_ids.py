@@ -7,8 +7,8 @@ Docs: README-numa-documentation.md, Project Structure
 # use USDA's own positive FDC IDs. User-drafted foods live in (-1_000_000_000, 0)
 # — see db.next_user_drafted_fdc_id() — so every reserved range here starts at
 # or below -1_000_000_000 to avoid colliding with it. See user-manual.md
-# Part 9, "Additional food nutrition database access", for the roadmap that
-# introduced these one at a time (OFF/CNF live-API sources; CoFID/AFCD/CIQUAL
+# #food-data ("Food data — where it comes from"). The ranges were
+# added one at a time (OFF/CNF live-API sources; CoFID/AFCD/CIQUAL
 # static bundled-dataset sources).
 #
 # (key, range_start, range_end, label) — range is inclusive on both ends.

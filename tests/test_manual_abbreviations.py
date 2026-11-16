@@ -17,7 +17,7 @@ full name somewhere in nearby prose, which leaves the reader to guess that
 the two refer to the same thing (the distinction that prompted this test).
 
 Sections are delimited by any Markdown heading, since any of them can be
-landed on directly. The changelog (Part 11) is excluded: its entries are
+landed on directly. The changelog (What's new) is excluded: its entries are
 a dated historical record and are deliberately never rewritten.
 """
 import re
@@ -99,11 +99,11 @@ def _body_sections() -> list[tuple[str, str]]:
     normally -- so list markers and the lines continuing them are kept.
     """
     lines = _MANUAL.read_text(encoding="utf-8").split("\n")
-    # Stop at the changelog (Part 11); everything after it is Notes and the
+    # Stop at the changelog (What's new); everything after it is Notes and the
     # Disclaimer. The appendices before it are checked too (since 2026-09-30).
     try:
         stop = next(i for i, l in enumerate(lines)
-                    if l.startswith("## Part 11"))
+                    if l.startswith("## ") and "{: #updates-log}" in l)
     except StopIteration:            # heading gone -- check the whole file
         stop = len(lines)
 
@@ -181,7 +181,7 @@ def _is_handled(token: str, text: str) -> bool:
 def _offenders() -> list[str]:
     problems = []
     for heading, text in _body_sections():
-        if heading.startswith("### B. Glossary"):
+        if "{: #glossary}" in heading:
             continue             # the glossary defines them; that is its job
         for tok, pattern in _OTHER_SENSE.items():
             if tok in text:

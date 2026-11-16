@@ -190,7 +190,7 @@ def rank_contributors_by_gl(ingredients: list[dict], conn: sqlite3.Connection,
             "coverage_pct": whole["coverage_pct"]}
 
 
-# Each nutrient's entry in the manual's Appendix G (Full Nutrient Key), whose
+# Each nutrient's entry in the manual's Full Nutrient Key (#nutrient-key), whose
 # "Where to find it" line says where to get data a food lacks. Amino acids
 # (DCP) have no G entry of their own; their advice is under #key-sources.
 _SOURCE_ANCHORS = {

@@ -5,7 +5,7 @@ drop-down list, the ★/☆ marks in the table of contents, removing one and
 clearing all. All client-side JS over localStorage, so only a real browser
 exercises it.
 
-Docs: user-manual.md, Part 7 F "Bookmarking sections of this manual"
+Docs: user-manual.md, "Bookmarking sections of this manual" (#bookmarks-howto)
 (#bookmarks-howto).
 """
 import pytest
@@ -53,7 +53,7 @@ def test_bookmark_list_toc_marks_remove_and_clear(live_server, page):
     assert menu.is_visible()
     hrefs = page.locator("#bm-list a").evaluate_all("els => els.map(a => a.getAttribute('href'))")
     assert hrefs == ["#search-howto", "#toc-howto"]
-    assert "Part 7" in page.locator("#bm-list a").first.inner_text()
+    assert "Part 4" in page.locator("#bm-list a").first.inner_text()
     page.keyboard.press("Escape")
     assert menu.is_hidden()
 

@@ -6,7 +6,7 @@ tab, "Don't show this again" turns the notice off, and an ordinary tab
 never shows it. Client-side JS keyed on window.name, so only a real browser
 exercises it.
 
-Docs: user-manual.md, Part 3 B "Working in two windows" (#two-windows).
+Docs: user-manual.md, "Working in two windows" (#two-windows).
 """
 import urllib.parse
 import urllib.request

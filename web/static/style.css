@@ -1323,21 +1323,24 @@ td.compare-val-col {
 
 /* Meal page, Add Food or Recipe: the header (the <summary>), the search box
    and the search tip each take a third of the first line. The summary floats
-   left; the search row, a flex box, sits in the two thirds beside it. Below
-   768px they stack. */
+   left; the search row, a flex box, sits in the two thirds beside it. All
+   three line up along the top (before 2026-11-14 the box was centered on
+   the taller tip, so it sat lower than the header). The box's Alt+Shift+I
+   note sits right under the box, in .add-food-box. Below 768px they stack. */
+.add-food-box { width: 100%; }
 @media (min-width: 768px) {
   .add-food-row { display: flow-root; }
   /* margin 0.5rem = gap-2, the spacing of the meal's button row above */
   .add-food-row > summary { float: left; width: calc(33.333% - 0.5rem); margin-right: 0.5rem; }
   .add-food-row > summary .ak-hint { white-space: nowrap; }
   /* The search hint (_search_hint.html) sits beside the box here, in tight
-     lines; it runs taller than the box, which is centered on it. */
+     lines; it runs taller than the box. */
   .add-food-search { flex-wrap: wrap; }
   .add-food-tip small { display: block; line-height: 1.2; }
   .add-food-tip code { line-height: 1; }
-  .add-food-search > .input-group,
+  .add-food-search > .add-food-box,
   .add-food-search > .add-food-tip { flex: 1 1 0; min-width: 0; }
-  .add-food-search > :not(.input-group):not(.add-food-tip) { flex-basis: 100%; }
+  .add-food-search > :not(.add-food-box):not(.add-food-tip) { flex-basis: 100%; }
 }
 
 /* Problems by food (Foods → 9) and a food page's "Everything to check on

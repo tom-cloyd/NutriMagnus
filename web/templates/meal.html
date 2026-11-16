@@ -221,15 +221,17 @@
 
   <form method="get" action="/meal/{{ meal.id }}" data-persist-search data-online-search data-search-form>
     <input type="hidden" name="sort" value="{{ sort }}">
-    <div class="add-food-search d-flex align-items-center flex-wrap gap-2 mb-2">
+    <div class="add-food-search d-flex align-items-start flex-wrap gap-2 mb-2">
+      <div class="add-food-box">
       <div class="input-group">
         <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
                placeholder="Search foods or recipes…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" autofocus>
         <button type="submit" class="btn btn-primary">Search</button>
         {% if q %}<a href="#" data-reset-search class="btn btn-outline-secondary" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </div>
-      {{ _sh.hint("add-food-tip mb-0") }}
       {% if q %}<span class="ak-hint">('Alt + Shift + I' returns focus to search input)</span>{% endif %}
+      </div>
+      {{ _sh.hint("add-food-tip mb-0") }}
       <span id="add-food-no-results" class="search-no-results" style="display:none"
             data-query="{{ q }}" data-field="q">No results for <strong>{{ q }}</strong>.</span>
       {% if q and external_source_labels %}{{ _osn.notice("add-food-api-loading", external_source_labels) }}{% endif %}
@@ -364,7 +366,9 @@
     // first in document order wins.
     function focusFirstResultField() {
       var inp = tbody.querySelector('.add-food-form input[name="portion_str"], .add-food-form input[name="amount"]');
-      if (inp) inp.focus();
+      // After an add/edit/remove the page has just put you back where you
+      // were (scroll-restore script at the end of this page); don't undo that.
+      if (inp) inp.focus({preventScroll: !!window.numaMealScrollRestored});
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', focusFirstResultField);
@@ -439,6 +443,14 @@
         // row field has focus (and where its caret is) and the scroll
         // position, and put all three back after the swap.
         var scrollX = window.scrollX, scrollY = window.scrollY;
+        // If you're scrolled wholly past the results (down in Items, say),
+        // the swap changes how tall they are and would slide what you're
+        // looking at up or down. Measure so the scroll can follow it.
+        // The whole section: it holds the table, the loading row and the
+        // "No results" line.
+        var resultsBox = document.getElementById('add-food-details');
+        var heightBefore = resultsBox.offsetHeight;
+        var pastResults = resultsBox.getBoundingClientRect().bottom <= 0;
         var active = document.activeElement, focusKey = null, focusName = null, focusSel = '', caret = null;
         if (active && tbody.contains(active) && active.form && active.name) {
           focusKey = rowKey(active.form);
@@ -484,7 +496,7 @@
           window.numaInitSearchSuggestions(noResults);
         }
         tbody.dispatchEvent(new CustomEvent('numa:search-rows', {bubbles: true}));
-        window.scrollTo(scrollX, scrollY);
+        window.scrollTo(scrollX, scrollY + (pastResults ? resultsBox.offsetHeight - heightBefore : 0));
         refreshConfirmUI();
       })
       .catch(function () {
@@ -655,6 +667,7 @@
         </td>
         <td class="fit">
           <form method="post" action="/meal/{{ meal.id }}/remove/{{ item.id }}" style="margin:0">
+            <input type="hidden" name="q" value="{{ q }}">
             <button type="submit" class="btn btn-outline-danger btn-sm"
                     aria-label="Remove">&#x2715;</button>
           </form>
@@ -1402,6 +1415,17 @@ document.getElementById('complements-form').addEventListener('change', function 
   if (saved !== null) {
     sessionStorage.removeItem(key);
     window.scrollTo(0, parseInt(saved, 10) || 0);
+    // Tells the focus steps that run after this one (first search result,
+    // base.html's Search button) not to scroll.
+    window.numaMealScrollRestored = true;
+    // The search box's native autofocus is applied after this script runs,
+    // and it scrolls the box into view, which would throw the page back up
+    // to the top. Once something already has focus the browser skips
+    // autofocus, so give the box its focus now, without scrolling.
+    var box = document.querySelector('#add-food-details input[autofocus]');
+    if (box && (!document.activeElement || document.activeElement === document.body)) {
+      box.focus({preventScroll: true});
+    }
   }
 })();
 </script>

@@ -11,8 +11,8 @@ install-linux.sh fetches its assets from releases/latest/download/<name>, so
 the exact names below (nutrimagnus, nutrimagnus.png) must stay in sync with
 that script.
 
-Release notes are pulled from user-manual.md's Part 11 ("Recent program
-updates log") section: everything between the "<!-- Insert new updates below
+Release notes are pulled from user-manual.md's "What's new" section
+(#updates-log; Part 11, "Recent program updates log", before 2026-11-14): everything between the "<!-- Insert new updates below
 here -->" marker and the next "#### Release ... summary" heading (or the end
 of the appendix, if no release has ever been cut) — falling back to a generic
 message if that stretch is empty. That stretch holds a running "#### Next
@@ -58,7 +58,10 @@ BINARY_PATH = REPO_ROOT / "dist" / "nutrimagnus"
 STARTER_MANIFEST_PATH = REPO_ROOT / "dist" / "starter_manifest.json"
 VERSION_FILE = REPO_ROOT / "version.py"
 MANUAL_FILE = REPO_ROOT / "user-manual.md"
-CHANGELOG_HEADING = "## Part 11 — Recent program updates log {: #updates-log}"
+# The dated, detailed entries (moved out of the manual 2026-11-14). A release
+# adds a separator heading under its marker; nothing else here reads it.
+DETAILS_FILE = REPO_ROOT / "docs" / "updates-log-details.md"
+CHANGELOG_HEADING = "## What's new {: #updates-log}"
 INSERT_MARKER = "<!-- Insert new updates below here -->"
 _SUMMARY_RE = re.compile(r'^#### Release .+ summary\b.*$')
 # The heading in the manual reads "#### Next release summary to this point
@@ -73,8 +76,8 @@ _DETAILS_SUFFIX = " (dated details below)"
 # GitHub rejects a release body over 125,000 characters; leave some margin.
 _BODY_LIMIT = 120_000
 _TRIMMED_NOTE = ("*Older details were left out to fit GitHub's size limit. "
-                 "The full list is in the User Manual, Part 11, "
-                 "\"Recent program updates log\".*")
+                 "The full list is in the User Manual's "
+                 "\"What's new\" section.*")
 _RELEASE_VERSION_RE = re.compile(r'^(RELEASE_VERSION = ")(.*?)(-(?:rc|beta|alpha)\.)(\d+)("\s*)$', re.M)
 
 # (asset name, file path, content type) — every release asset besides the notes.
@@ -192,7 +195,21 @@ def _roll_release_summary(tag: str) -> bool:
     else:
         lines[marker_idx + 1:marker_idx + 1] = ["\n", heading]
     MANUAL_FILE.write_text("".join(lines))
+    _mark_release_in_details(tag)
     return True
+
+
+def _mark_release_in_details(tag: str) -> None:
+    """Put a "## Release <tag>" heading under docs/updates-log-details.md's
+    marker, so the dated entries written since the last release sit under
+    the release that shipped them."""
+    if not DETAILS_FILE.exists():
+        return
+    text = DETAILS_FILE.read_text()
+    if INSERT_MARKER not in text:
+        return
+    heading = f"## Release {tag} — dated entries released in it"
+    DETAILS_FILE.write_text(text.replace(INSERT_MARKER, f"{INSERT_MARKER}\n\n{heading}", 1))
 
 
 def _bump_release_version() -> str | None:

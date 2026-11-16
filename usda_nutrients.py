@@ -1493,7 +1493,7 @@ def get_diaas(food_name: str) -> float | None:
 # tests/test_usda.py's TestAntinutrientMatching holds the reviewed examples
 # both ways. Entries sharing a `group` merge into one displayed note.
 # solution_label / solution may be None for issues with no actionable remedy.
-# Sources: manual Part 4 L (#antinutrients) and its footnotes.
+# Sources: manual #antinutrients and its footnotes.
 
 # Not legumes, or not eaten as one, though the name has a legume word in it.
 _NOT_LEGUME = (r"jelly", r"coffee", r"cocoa", r"cacao", r"vanilla", r"snap", r"green beans?",

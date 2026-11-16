@@ -11,7 +11,7 @@ source's AA/protein ratios exactly, for ANY valid target/source pair.
 These tests generate many random-but-plausible foods (via Hypothesis) and
 check that claim directly, instead of only the cases someone thought to type
 in by hand. This is item #2 from the "elevating automated testing" plan
-(2026-08-28 discussion) — see CLAUDE.md / user-manual.md Part 2E for context
+(2026-08-28 discussion) — see CLAUDE.md / user-manual.md #data-testing-validation for context
 on the project's overall test tiers.
 
 Also the load-bearing math check for #3's "estimation-path coverage" idea:

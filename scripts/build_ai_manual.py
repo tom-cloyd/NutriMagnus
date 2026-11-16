@@ -14,13 +14,13 @@ scripts/upload_ai_manual.py, which runs this build first.
 Differences from user-manual.html:
   - no reading times (header total and per-Part), no HTML comments
     (hidden Scope blocks and anything else commented out)
-  - no Part 11 (Recent program updates log) — a historical record, not help;
+  - no "What's new" section (release summaries) — a historical record, not help;
     a note under the title says where to find it
   - no sidebar, search, script or styling
   - internal links become plain text, since they cannot work inside a Google
     Doc: a Glossary link keeps just its word; any other link keeps its text
     and names its destination, "(see “Heading”, Part N)", which gives the AI
-    something to cite; a link into the omitted Part 11 says so instead
+    something to cite; a link into the omitted What's new section says so instead
   - footnote references become plain "[N]" markers
 
 Docs: README-numa-documentation.md, "AI help edition of the manual".
@@ -50,7 +50,7 @@ OMITTED_NOTE = "not included in this edition"
 PREAMBLE = (
     "<p><em>This is the AI edition of the NutriMagnus (NuMa) User Manual, "
     "prepared as a reference for an AI assistant answering questions about "
-    "NuMa. It omits Part 11, the Recent program updates log (a dated record "
+    "NuMa. It omits the What's new section, the release-by-release log (a record "
     "of past changes). Cross-references to other sections are written as "
     "“(see …)”. The full manual, with working links and the updates log, "
     "opens from the Manual link at the top of every page in NuMa.</em></p>"
@@ -91,10 +91,10 @@ def _render(md_text: str) -> str:
 
 
 def _omitted_span(body: str) -> tuple[int, int]:
-    """Character span of the omitted Part 11 in the rendered body."""
+    """Character span of the omitted What's new section in the rendered body."""
     m = re.search(rf'<h2\s+id="{OMITTED_PART_ID}"', body)
     if not m:
-        sys.exit(f"Error: no <h2 id=\"{OMITTED_PART_ID}\"> — has Part 11 moved?")
+        sys.exit(f"Error: no <h2 id=\"{OMITTED_PART_ID}\"> — has the What's new section moved?")
     nxt = re.compile(r"<h2\b|<div class=\"footnote\"").search(body, m.end())
     return m.start(), nxt.start() if nxt else len(body)
 

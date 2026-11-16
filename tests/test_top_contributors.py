@@ -39,7 +39,7 @@ def test_missing_contributors_dcp_means_no_amino_acid_data() -> None:
 
 def test_every_rankable_nutrient_has_a_where_to_find_it_entry() -> None:
     """Each nutrient the no-data list can name links to an anchor that
-    exists in the manual's Appendix G, with its own "Where to find it" line."""
+    exists in the manual's Full Nutrient Key, with its own "Where to find it" line."""
     import re
     from pathlib import Path
     from web.backend import _NUTRIENT_GROUPS
@@ -49,7 +49,7 @@ def test_every_rankable_nutrient_has_a_where_to_find_it_entry() -> None:
     keys = [k for _g, ks in _NUTRIENT_GROUPS for k in ks]
     for key in keys:
         a = source_anchor(key)
-        assert a != "key-sources", f"{key} has no Appendix G entry of its own"
+        assert a != "key-sources", f"{key} has no Full Nutrient Key entry of its own"
         assert a in anchors, f"{key} -> #{a} is not in the manual"
         entry = manual[manual.index("{: #" + a + "}") + 1:]
         entry = entry[:entry.index("{: #key-")] if "{: #key-" in entry else entry

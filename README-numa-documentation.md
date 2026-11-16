@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-13:2213
+UPDATED: 2026-11-15:0553
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -223,7 +223,7 @@ numa/
                                       for the "Top Contributors" analysis section; rank_by_meal_item()
                                       ranks a meal's items with recipes kept whole; missing_contributors()
                                       lists the foods with no data for it (absent key, not 0);
-                                      source_anchor() maps a nutrient to its Appendix G
+                                      source_anchor() maps a nutrient to its Full Nutrient Key
                                       "Where to find it" entry and fill_url() builds each
                                       row's "Find this data" link (Fill in from another food)
       protein_per_meal.py            — per-meal protein amount from the profile (0.25-0.4 g/kg under
@@ -373,7 +373,9 @@ numa/
                                      nutrient targets, starter-data toggle, system-issues list
       disclaimer.html              — The /disclaimer page
       manual_frame.html            — The manual inside NuMa's window under the menu (iframe of
-                                     /manual/page)
+                                     /manual/page); yellow bar: Return to <page> (Alt+Shift+U,
+                                     from document.referrer, kept in sessionStorage
+                                     numa_manual_return) and Back one step (history.back())
   .venv/                           — Python virtual environment (not committed)
 ```
 
@@ -427,6 +429,8 @@ Food searches require a free API key from the USDA FoodData Central service.
 3. The key is emailed to you immediately (check spam if it doesn't arrive within a minute or two).
 
 The key is free and gives you **1,000 requests per hour**, which is more than enough for normal use. There is no paid tier — this is the standard limit for all registered keys.
+
+**Checked on save.** `POST /settings/api-key` asks USDA about a new key first (`usda_api.check_api_key()`: a one-result search with that key; `ok`, `rejected` for 401/403, else `unreachable`). A rejected key is not saved, so a typo can't break every later USDA search; an unreachable check saves the key anyway. The verdict and time are kept in `config.json` as `api_key_check` (dropped when the key changes) and shown under the key; **Test key** (`POST /settings/api-key/test`) re-checks the saved key. Borrowed from cmgr's Google Contacts setup, which counts a connection as working only once a real request has succeeded.
 
 > **Note:** The USDA API has a built-in `DEMO_KEY` that works without registration, but it is limited to roughly 30 requests per hour and will rate-limit quickly during a normal session. Always use a registered key for real use.
 
@@ -569,7 +573,7 @@ See the [User Manual](user-manual.html) for usage documentation on food search, 
 
 **One search path for every screen.** Every food-search screen in the web app — Foods → Search, Analyze a Food Portion, a meal's add-food panel, My Pantry, Compare, Convert, Edit Recipe's ingredient search, and the "pick another food as a source" searches (custom food: Estimate amino acids / Copy nutrient values; Fill in nutrients from another food) — gets its results from `_run_food_search()` in `web/backend.py`. Don't hand-roll another search loop on a page; add an option to it instead. It runs:
 
-First, `search_ranking.split_excluded_words()` takes `!word` terms out of the query ("beans red !kidney cooked" → "beans red cooked" + `["kidney"]`); the rest of the pipeline sees only the remaining words (so excluded words never reach an online source or the ranking), and rows whose name has an excluded word (`has_excluded_word()`, matched like `word_in_name()`) are dropped before sorting. Only `!` words: no rows. `search_suggest.suggest()` ignores them too. The result is a `_SearchResults` list whose `hidden_by_exclusion` counts the dropped rows the Source filter would have shown; each results partial ends with `_excluded_note.html`'s "N matches hidden by !word" row (classed `search-group-divider`, no `data-row-key`, so row counters skip it, and base.html keeps a block holding only that note visible). Prep-state words (`_SEARCH_PREP_WORDS`: cooked, raw, canned …) are never sent to the online sources, on every screen (`_search_api_query()`): `usda_api.search_foods` keeps only names holding every word sent, so "cooked" dropped every canned bean. Ranking still uses them. After an online search that included USDA, `_SearchResults.reverse_offer` holds the query's words reversed (`_reverse_offer_query()`; USDA strongly favors names holding the words in the order sent, and product names read as English, the reverse of NuMa's most-important-word-first advice); `_reverse_offer.html` offers it, editable. Taking it with "Add below" resubmits the page's search form with `<box name>_also=<query>` (`_also()`, one parameter per box): `_run_food_search(also=...)` appends that query's new online rows after the capped results, marked `also`, under their own heading. "Replace" just searches for it.
+First, `search_ranking.split_excluded_words()` takes `!word` terms out of the query ("beans red !kidney cooked" → "beans red cooked" + `["kidney"]`); the rest of the pipeline sees only the remaining words (so excluded words never reach an online source or the ranking), and rows whose name has an excluded word (`has_excluded_word()`, matched like `word_in_name()`) are dropped before sorting. Only `!` words: no rows. List filter boxes (Recipes, Food Cache, Annotate, Pantry filter, Food Use name filters and Substitute type-ahead, Search meal history) take `!` too, through `backend._list_filter()` (in-Python filters) and `_filtered_cached_foods()` (`db.search_cached_foods()` lists); there a filter of only `!` words keeps every item but those. `search_suggest.suggest()` ignores them too. The result is a `_SearchResults` list whose `hidden_by_exclusion` counts the dropped rows the Source filter would have shown; each results partial ends with `_excluded_note.html`'s "N matches hidden by !word" row (classed `search-group-divider`, no `data-row-key`, so row counters skip it, and base.html keeps a block holding only that note visible). Prep-state words (`_SEARCH_PREP_WORDS`: cooked, raw, canned …) are never sent to the online sources, on every screen (`_search_api_query()`): `usda_api.search_foods` keeps only names holding every word sent, so "cooked" dropped every canned bean. Ranking still uses them. After an online search that included USDA, `_SearchResults.reverse_offer` holds the query's words reversed (`_reverse_offer_query()`; USDA strongly favors names holding the words in the order sent, and product names read as English, the reverse of NuMa's most-important-word-first advice); `_reverse_offer.html` offers it, editable. Taking it with "Add below" resubmits the page's search form with `<box name>_also=<query>` (`_also()`, one parameter per box): `_run_food_search(also=...)` appends that query's new online rows after the capped results, marked `also`, under their own heading. "Replace" just searches for it.
 
 0. `_code_search_results()` — if the whole query is a code (`food_ids.parse_code()`: U171477, UD4, R21, OFF3, U171477.1) or a bare number that is a cached food's FDC ID, the one food or recipe it names is the entire result (row builders `_recipe_search_rows()` / `_cached_search_rows()`, shared with step 1; flagged `code_match`). Ignores the Source filter and archived status; skipped when `foods_only`/`exclude_*` rule the item out, and when the code names nothing (the normal search then runs). No online call.
 1. `_search_local_results()` — pantry, Food Cache, recipes, and the bundled no-network datasets (CoFID, AFCD, CIQUAL). Its rows carry every field any results table needs (a cached food's portions, a recipe's servings/weights, the pantry entry id, GI/DIAAS as display strings).
@@ -640,7 +644,7 @@ The program will display a tip automatically when most of your search results ar
 
 ### Analyzing a portion
 
-See [Entering amounts in meals and recipes](user-manual.html#amount-formats) (User Manual, Part 6 K) for every accepted amount format.
+See [Entering amounts in meals and recipes](user-manual.html#amount-formats) (User Manual, Part 5 A) for every accepted amount format.
 
 **Implementation note:** every amount box goes through `_parse_portion_str()` in `web/backend.py`: a bare number is grams (or tablets, for a per-tablet supplement); a weight followed by a bracketed note ("134.1 g (2/3 c)", the form a weighed volume "2/3 c 134.1 g" is stored in) keeps the note verbatim; any other text after a weight is refused (before 2026-11-10 it was silently dropped). `portions._parse_portion_input()` is an older parser kept only for reading stored entries back (`data_quality.stale_amounts()`, the recipe page's `pN` labels); it reads a bare number as a count with no weight, which never reaches an amount box.
 
@@ -652,7 +656,7 @@ See the [User Manual](user-manual.html) for usage documentation. Internally, the
 
 ### Protein completeness
 
-Wherever protein is analyzed (food, recipe, or meal), NuMa checks whether all nine essential amino acids meet FAO/WHO reference levels. See the [User Manual](user-manual.html) for output interpretation; see [Appendix A of the User Manual](user-manual.html#appendix-protein-quality) for the theory behind FAO reference values and DIAAS.
+Wherever protein is analyzed (food, recipe, or meal), NuMa checks whether all nine essential amino acids meet FAO/WHO reference levels. See the [User Manual](user-manual.html) for output interpretation; see [the User Manual's protein-quality primer](user-manual.html#appendix-protein-quality) for the theory behind FAO reference values and DIAAS.
 
 #### No amino acid data — building a user-drafted profile from literature
 
@@ -808,7 +812,7 @@ A third, lower-ceremony import path for a single food: save one JSON file per fo
 
 Wherever a food is analyzed (search, portion analysis, recipe, or meal), NuMa automatically displays a **Bioavailability** section if it has data for that food. This section reports two things: the DIAAS score and any anti-nutrient advisories (see next section).
 
-For background on the DIAAS scoring methodology and score interpretation, see [Appendix A of the User Manual](user-manual.html#appendix-protein-quality).
+For background on the DIAAS scoring methodology and score interpretation, see [the User Manual's protein-quality primer](user-manual.html#appendix-protein-quality).
 
 #### What NuMa displays
 
@@ -1078,6 +1082,7 @@ One consequence worth knowing when writing code that deletes foods: `demo_data.c
 | Function | Purpose |
 |---|---|
 | `get_api_key()` / `set_api_key(key)` | Read/write API key from `~/.config/numa/config.json` |
+| `check_api_key(key)` / `record_api_key_check(check)` / `get_api_key_check()` | Ask USDA whether a key works; keep and read the last verdict (see "Checked on save" above) |
 | `search_foods(query, page_size=15, data_types=None)` | Search USDA; returns list of result dicts |
 | `get_food_detail(fdc_id)` | Fetch full nutrient profile for one food |
 | `get_search_boost_page_size()` / `set_search_boost_page_size(n)` | Read/write the result cap (default 25) for the Foundation/SR Legacy-only "boost" search — see below |
@@ -1407,7 +1412,8 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 |---|---|---|
 | GET/POST | `/settings` | Settings page (profile, diet, API key, DIAAS overrides, RDA table) / save profile |
 | POST | `/settings/diet` | Save dietary preference |
-| POST | `/settings/api-key` | Save USDA API key |
+| POST | `/settings/api-key` | Check a USDA API key with USDA, then save it (not saved if rejected) |
+| POST | `/settings/api-key/test` | Re-check the saved USDA API key; record the verdict |
 | POST | `/settings/search-boost` | Save the Foundation/SR-Legacy search-boost page size |
 | POST | `/settings/diaas-override`, `diaas-override/delete` | Add/update or delete a DIAAS digestibility override |
 | POST | `/settings/nutrient-target`, `nutrient-target/load-defaults` | Edit / reset Profile Optimal targets and max limits |
@@ -1668,13 +1674,29 @@ Several forms on one page:
 
 Renders `user-manual.md` as HTML using the Python `markdown` library with `toc`, `fenced_code`, and `tables` extensions. Provides a scrollable, linked view of the full user manual.
 
+#### Editing the manual's source file (user-manual.md)
+
+Moved here from the User Manual (Part 6 D) on 2026-11-14: it is for people running NuMa from source, not for users.
+
+
+*For anyone running NuMa from its source folder (`python web/launcher.py`). An installed copy of NuMa carries its own manual; editing files there does nothing useful.*
+
+This manual is written in `user-manual.md` and shown in your browser as `user-manual.html`, which NuMa builds from it. **To see an edit, save `user-manual.md` and reload the manual's browser tab.** Opening the manual, or the Home page, checks whether the `.md` file is newer than the `.html` and rebuilds it if so. There's no need to restart NuMa or run anything. A manual tab that is already open won't change until you reload it.
+
+The rebuild also rewrites the reading-time figures in `user-manual.md` itself, so your editor may report that the file changed on disk. Accept the new version.
+
+If a reloaded tab still shows the old text:
+
+- **Check the "Updated" date on the manual's second line.** If you've ever clicked **Update manual now** on the Home page, NuMa keeps that downloaded manual and shows it instead of your own build whenever its date is the newer one. Set the date to the current date and time to make your copy the newer one.
+- **Run `python3 scripts/build_manual.py` from the NuMa folder.** It does the same rebuild, but prints any error that stopped it (two footnote markers side by side, for instance).
+
 ---
 
 ## AI help edition of the manual
 
 Users who can't find an answer in the manual can ask an AI instead: a Google AI notebook (Gemini Notebook, formerly NotebookLM) whose one source is a Google Doc holding the manual. Anyone with the notebook's link can ask it questions; it answers from the manual and shows which passages it used.
 
-`scripts/build_ai_manual.py` writes `ai-edition/numa-manual-ai.html` from `user-manual.md`: no reading times, no HTML comments, no Part 11 (Recent program updates log), and internal links turned into plain text that names where they point ("(see “Backing up your data”, Part 1)"), since links can't work inside a Google Doc. A Glossary link keeps just its word; a link into Part 11 says "(not included in this edition)".
+`scripts/build_ai_manual.py` writes `ai-edition/numa-manual-ai.html` from `user-manual.md`: no reading times, no HTML comments, no What's new section (release summaries), and internal links turned into plain text that names where they point ("(see “Backing up your data”, Part 1)"), since links can't work inside a Google Doc. A Glossary link keeps just its word; a link into Part 11 says "(not included in this edition)".
 
 `scripts/upload_ai_manual.py` runs that build, then replaces the Doc's content in place (Drive API `files.update`, same file ID, so the notebook's source stays linked). After uploading, click the source in the notebook and sync it with Google Drive — the notebook does not pick up changes by itself.
 
@@ -1705,7 +1727,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,549 tests**, all passing (2,509 in the default run plus 40 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,559 tests**, all passing (2,518 in the default run plus 41 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1738,7 +1760,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_aa_estimate.py` | `numa_app/services/aa_estimate.py`: `estimate_aa()` scaling a food's AA profile from another food's, hand-picked cases |
 | `tests/test_estimate_aa_properties.py` | Property-based tests for `estimate_aa()`, complementing `test_aa_estimate.py` |
 | `tests/test_portions.py` | `numa_app/services/portions.py`: `_ing_amount_display()` and related portion-string formatting; `parse_recipe_amount()` (servings, weight or volume typed for a recipe on a meal page) |
-| `tests/test_top_contributors.py` | `top_contributors.rank_by_meal_item()` (recipes kept whole; the meal page's by-item table appears only with a recipe, for nutrients, DCP and GL) and `top_contributors.missing_contributors()`: absent keys listed, stored zeros not, one row per food (amounts summed), heaviest first, unused foods skipped; DCP mode = protein but no amino acid data. `source_anchor()`: every nutrient in `_NUTRIENT_GROUPS` maps to its own Appendix G anchor, which exists in user-manual.md and has a "Where to find it" line. `fill_url()`: name search, `want`, custom-profile Edit page, none for recipes/name-only |
+| `tests/test_top_contributors.py` | `top_contributors.rank_by_meal_item()` (recipes kept whole; the meal page's by-item table appears only with a recipe, for nutrients, DCP and GL) and `top_contributors.missing_contributors()`: absent keys listed, stored zeros not, one row per food (amounts summed), heaviest first, unused foods skipped; DCP mode = protein but no amino acid data. `source_anchor()`: every nutrient in `_NUTRIENT_GROUPS` maps to its own Full Nutrient Key anchor, which exists in user-manual.md and has a "Where to find it" line. `fill_url()`: name search, `want`, custom-profile Edit page, none for recipes/name-only |
 | `tests/test_contributors_by_item_properties.py` | Property-based (Hypothesis): for random meals of foods and recipes (shared foods, sub-recipes, random amounts, yields and GIs), `rank_by_meal_item()` gives every item exactly its own amount of each nutrient and its own glycemic load (against `food_gl()` / `recipe_gl()`'s unrounded `total_exact`), each computed independently, and the items sum to the meal's totals. A sum-only check was shown not to catch misattribution |
 | `tests/test_day_profile.py` | `numa_app/services/day_profile.py`: per-day profile pinning, backfill, and override behavior |
 | `tests/test_food_id_tags.py` | `web/templates/`: static scan enforcing that every food or recipe name shown carries its code (`food_id_tag` / `food_id_short` / `food_code`), with a reasoned exemption list |
@@ -1785,7 +1807,9 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_browser_quit.py` | NuMa stops when Firefox quits (Firefox keeps Ctrl+Q): FirefoxWatch needs the latest page in Firefox, Firefox seen running, then two missed checks; KWin closing NuMa's own app window |
 | `tests/test_launcher.py` | Startup loading page: served on the real port at once, swapped for a failure page if the app cannot start, and the same socket then handed on to uvicorn; which browser opens, and when as its own (`--app`) window |
 | `tests/test_link_integrity.py` | Internal links: every manual `#anchor` against the built HTML, and every template `href="/..."` against a registered route (weekly-sweep item 8, automated) |
-| `tests/test_ai_manual.py` | The AI edition of the manual: reading times, HTML comments and Part 11 removed; every internal link rewritten as plain text naming its destination; footnote markers plain; stays well under a Google Doc's size limit |
+| `tests/test_ai_manual.py` | The AI edition of the manual: reading times, HTML comments and the What's new section removed; every internal link rewritten as plain text naming its destination; footnote markers plain; stays well under a Google Doc's size limit |
+| `tests/test_create_release_notes.py` | `create_release.py` builds release notes from the manual's What's new summaries only, and rolling a release renames the running summary heading and adds a `## Release <tag>` separator to `docs/updates-log-details.md` |
+| `tests/test_manual_menu_coverage.py` | Every navigation-bar destination in `base.html` maps to a manual anchor (`NAV_ANCHORS`), and that anchor is in Part 4 — Menu by menu, so a new menu item can't ship undocumented |
 | `tests/test_manual_abbreviations.py` | Every abbreviation in the manual is expanded inline or glossary-linked **within the section it appears in**, since any heading can be landed on directly (weekly-sweep item 9, automated) |
 | `tests/test_packaging_spec.py` | `nutrimagnus.spec`'s bundled-data list against what the app actually loads at runtime, plus this README's test table |
 | `tests/test_source_fixtures.py` | Live-source response shapes against the recorded fixtures (quarterly source-fixture refresh, automated) |
@@ -1907,11 +1931,11 @@ A recurring maintenance pass, scoped to what changed since the last sweep — no
 
 #### 4. Changelog pruning
 
-Entry placement and the release-summary procedure are in `docs/claude/changelog.md`: new entries go under `<!-- Insert new updates below here -->`, each also getting a bullet under the running `#### Next release summary to this point` heading, which `create_release.py` renames to `#### Release <tag> summary` when a release is cut) — the "Recent program updates log" lives in `user-manual.md` Part 11 (its own Part since 2026-09-30; earlier Appendix A, and before 2026-08-05 Appendix K, since it's checked far more often than the other appendices). Keep roughly the **last 2 weeks** of entries. Older entries are safe to delete: `create_release.py` copies same-day entries into the release notes at push time and never re-reads the file afterward, so a pruned old entry can't retroactively change a past release's notes (stated in the manual's own `[//]: #` comment above the log). Do this **before** items 5-7 below — they all scan "the last two weeks" of this same log, so pruning first means less to read and no risk of auditing an entry that's about to be deleted anyway. **Known limitation, accepted rather than fixed** (raised and dismissed as not worth solving, 2026-09-20): the 2-week cutoff is a flat date boundary, not release-aware, so it can clip off some of the entries a still-relevant bottom-most release's notes were drawn from — those entries are already permanently copied into that release's GitHub notes per the paragraph above, so nothing is actually lost, but a reader of the in-app log specifically (not the GitHub release page) loses that older context. Not worth a fix for a gap this narrow.
+Entry placement and the release-summary procedure are in `docs/claude/changelog.md`. Since 2026-11-14 the log is in two places: the one-line release summaries in `user-manual.md`'s **What's new** section (`#updates-log`, read by `create_release.py`), and the dated, detailed entries in `docs/updates-log-details.md`. Prune only the details file: keep roughly the **last 2 weeks** of dated entries there. Older entries are safe to delete, since `create_release.py` builds release notes from the manual's summaries and never reads the details file. The manual's summaries are kept in full (they are short). Do this **before** items 5-7 below, which scan the last two weeks of the details file.
 
 #### 5. Manual consolidation
 
-The same mechanism explained more than once (once per page/interface) that should live once in Part 6 — Shared Operations (or an existing Part 3 reference section) of `user-manual.md`, cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body; an Appendix A entry that contradicts a later entry (e.g. a feature marked "not built yet" when a subsequent same-day or later entry announces it shipped). Also worth a dedicated pass: leftover CLI-era content (typed single-letter commands like `a{id}=analyze`, `Type ?keyword` help references) that survived past the 2026-08-04 CLI removal — grep `user-manual.md` for `Type ?`, `^Commands:`, and `Command line:` as a quick way to surface it; the first full sweep (2026-08-17) found a meaningful amount still there, so don't assume one pass caught it all.
+The same mechanism explained more than once (once per page/interface) that should live once in `user-manual.md` (in Part 5 — Skills used everywhere if it applies on several pages, otherwise in its page's Part 4 — Menu by menu chapter), cross-linked from every place it applies; a feature documented for only one interface/page despite applying to more than one; two command/column lists for the same menu that have drifted out of sync (fix by pointing the thinner one at the canonical list, not updating both); a real behavior change that only exists in the changelog and was never written into the manual body; a changelog entry that contradicts a later entry (e.g. a feature marked "not built yet" when a subsequent same-day or later entry announces it shipped). Also worth a dedicated pass: leftover CLI-era content (typed single-letter commands like `a{id}=analyze`, `Type ?keyword` help references) that survived past the 2026-08-04 CLI removal — grep `user-manual.md` for `Type ?`, `^Commands:`, and `Command line:` as a quick way to surface it; the first full sweep (2026-08-17) found a meaningful amount still there, so don't assume one pass caught it all.
 
 #### 6. README.md accuracy
 
@@ -1931,7 +1955,7 @@ Two separate targets, both worth checking, since a broken link in either one is 
 
 #### 9. Glossary coverage
 
-Scoped to what the week's changelog entries introduced, not a full pass over the whole manual (that's the monthly/full-audit's job — see below). Two checks, both cheap: (a) an abbreviation or term newly introduced this week (`CSV`, a new nutrient short-name, a new source label) that reads like it belongs in the Glossary (Part 7, section B, `{: #gloss-*}` entries) but has no entry yet; (b) a term that already has a `#gloss-*` entry, used in a new passage this week, whose first/prominent mention in that passage isn't linked (`[TERM](#gloss-term)`). The convention is one link (or one inline expansion) per term per section, not every occurrence — **and as of 2026-09-27 that rule is enforced automatically** by `tests/test_manual_abbreviations.py`, so a bare abbreviation in a section that neither expands nor links it now fails the suite rather than waiting for this sweep to spot it. What the test cannot judge is whether a *newly introduced* abbreviation deserves a Glossary entry at all, so that part stays manual: check the week's changelog entries for a term that reads like it belongs in the Glossary (Part 7, section B, `{: #gloss-*}` entries) and has no entry yet. If the test flags something that genuinely needs no expansion — a file format, a country code, a paper size — add it to the `_ALLOWED` set in that test file with a one-line reason rather than working around it in the prose. The per-section rule exists because the manual is never read front to back: every heading is a landing point reached from the app's "learn more..." links, the table of contents, or manual search, so a term spelled out three sections earlier is undefined for the reader who arrives mid-document.
+Scoped to what the week's changelog entries introduced, not a full pass over the whole manual (that's the monthly/full-audit's job — see below). Two checks, both cheap: (a) an abbreviation or term newly introduced this week (`CSV`, a new nutrient short-name, a new source label) that reads like it belongs in the Glossary (Appendices, section A, `{: #gloss-*}` entries) but has no entry yet; (b) a term that already has a `#gloss-*` entry, used in a new passage this week, whose first/prominent mention in that passage isn't linked (`[TERM](#gloss-term)`). The convention is one link (or one inline expansion) per term per section, not every occurrence — **and as of 2026-09-27 that rule is enforced automatically** by `tests/test_manual_abbreviations.py`, so a bare abbreviation in a section that neither expands nor links it now fails the suite rather than waiting for this sweep to spot it. What the test cannot judge is whether a *newly introduced* abbreviation deserves a Glossary entry at all, so that part stays manual: check the week's changelog entries for a term that reads like it belongs in the Glossary (Appendices, section A, `{: #gloss-*}` entries) and has no entry yet. If the test flags something that genuinely needs no expansion — a file format, a country code, a paper size — add it to the `_ALLOWED` set in that test file with a one-line reason rather than working around it in the prose. The per-section rule exists because the manual is never read front to back: every heading is a landing point reached from the app's "learn more..." links, the table of contents, or manual search, so a term spelled out three sections earlier is undefined for the reader who arrives mid-document.
 
 #### 10. Search terms coverage
 
@@ -1941,7 +1965,7 @@ Run `python scripts/search_terms_review.py` first. It compares `user-manual.md` 
 
 Items 4-6 all scan the same two-week changelog window for gaps, just against three different targets (manual body, README, test suite) — do a single read-through of the changelog and produce three gap-lists from it, rather than re-reading the same entries three separate times (the first full sweep, 2026-08-17, ran two separate audits that each re-read the same window from scratch).
 
-After a sweep: log the result as a new `user-manual.md` Part 11 entry (or a suitable per-item entry if the fixes span categories), and bump the manual's own timestamp header. Pure doc/config consolidation does not require a `version.py` bump (no application behavior changed) — but a real bug fix found via item 6 (missing test written, bug fixed) does.
+After a sweep: log the result as a new entry in `docs/updates-log-details.md`, with a summary bullet in `user-manual.md`'s What's new section (or a suitable per-item entry if the fixes span categories), and bump the manual's own timestamp header. Pure doc/config consolidation does not require a `version.py` bump (no application behavior changed) — but a real bug fix found via item 6 (missing test written, bug fixed) does.
 
 #### Longer-cadence checks — verify before starting the items above
 
@@ -1998,7 +2022,7 @@ The weekly sweep's item 9 (Glossary coverage) only scans what the last two weeks
 
 **Procedure:**
 
-1. Run `python scripts/audit_glossary.py` from the project root. It parses every existing `{: #gloss-*}` entry out of the manual's Glossary (Part 7, section B), then scans the rest of the document for candidate terms — all-caps 2-6 letter tokens appearing more than once, with fenced code blocks, hidden `<!-- Scope: -->` developer comments, and the Recent Program Updates log (its ALL-CAPS TITLE convention is pure noise for this purpose) excluded from the scan. Output is a frequency-sorted candidate list; it does not decide anything on its own.
+1. Run `python scripts/audit_glossary.py` from the project root. It parses every existing `{: #gloss-*}` entry out of the manual's Glossary (Appendices, section A), then scans the rest of the document for candidate terms — all-caps 2-6 letter tokens appearing more than once, with fenced code blocks, hidden `<!-- Scope: -->` developer comments, and the Recent Program Updates log (its ALL-CAPS TITLE convention is pure noise for this purpose) excluded from the scan. Output is a frequency-sorted candidate list; it does not decide anything on its own.
 2. **This triage step is Claude's job, not yours** — same reasoning as the mutation-testing triage below: it doesn't need your personal judgment, and reviewing a short candidate list is quick. For each candidate, judge whether it's a genuine gap (real recurring nutrition/app terminology with no definition anywhere) or noise (a proper noun, a well-known general-computing format already explained inline where it's used, a source-citation abbreviation, generic English). The August 2026 CIQUAL/AFCD/CNF/UK/ANSES/FSANZ/DHSC cluster and the PDF/PNG/SVG/JSON cluster are both noise for the same underlying reason — already explained in full, in place, at their point of use (the [Food data](#food-data) section for the data-source names; the [Plot File Formats](#plot-file-formats) section for PNG/SVG) — so a separate glossary entry would just be redundant, not more discoverable. Real gaps get a new entry in alphabetical position, in the glossary's existing `**TERM**{: #gloss-slug}  —  Definition. See [section](#anchor).` format, plus a link from that term's first prominent mention in the body (not every occurrence — glossary linking has never been exhaustive by design, see weekly item 9's own note on this).
 3. Flag anything genuinely ambiguous to the user rather than deciding either way silently — same rule as any other sweep-item judgment call.
 4. Update the "Last quarterly glossary audit" line in this file's header to today's date, regardless of whether anything needed fixing.
@@ -2071,4 +2095,4 @@ Mutation testing (`mutmut`) deliberately breaks a small piece of the code (a "mu
 
 ## Appendix — Understanding Protein Quality
 
-For a full explanation of the FAO reference values, EAA ratios, what "complete" protein means, and how the DIAAS score is calculated with worked examples, see **[Appendix A of the NutriMagnus User Manual](user-manual.html#appendix-protein-quality)**.
+For a full explanation of the FAO reference values, EAA ratios, what "complete" protein means, and how the DIAAS score is calculated with worked examples, see **[the protein-quality primer in the NutriMagnus User Manual](user-manual.html#appendix-protein-quality)**.

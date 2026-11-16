@@ -5,10 +5,16 @@
 {% block layout_class %}manual-frame-wrap{% endblock %}
 {% block content %}
 <div class="manual-back-note" id="manual-back-note" role="note">
-  <button type="button" class="btn btn-sm btn-primary me-2" id="manual-back-btn">&larr; Back</button>
-  <strong>To return to where you were:</strong> click <em>Back</em> or press <kbd>Alt</kbd>+<kbd>&larr;</kbd>
-  (<kbd>Alt</kbd>+<kbd>&rarr;</kbd> goes forward again). Each jump you make inside the manual is one
-  step back, so you may need it a few times. Or use the menu above to go anywhere in NuMa.
+  <div class="mbn-row">
+    <a class="btn btn-sm btn-primary" id="manual-return" href="/" data-ak="u">&#x21A9; Ret<u class="ak">u</u>rn to <span id="manual-return-name">NuMa</span></a>
+    <span><kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>U</kbd>: straight back to the NuMa page you came from, in one step.
+      The manual remembers where you were reading, and <strong>Manual</strong> in the menu reopens it there.</span>
+  </div>
+  <div class="mbn-row">
+    <button type="button" class="btn btn-sm btn-outline-primary" id="manual-back-btn">&larr; Back one step</button>
+    <span><kbd>Alt</kbd>+<kbd>&larr;</kbd>: undoes your last jump inside the manual; press again for the one before.
+      With no jumps left, it returns to the page you came from. <kbd>Alt</kbd>+<kbd>&rarr;</kbd> goes forward again.</span>
+  </div>
 </div>
 <iframe id="manual-frame" title="NuMa User Manual" src="/manual/page"></iframe>
 {% endblock %}
@@ -19,13 +25,44 @@
   .manual-frame-wrap { padding: 0; margin: 0; }
   .manual-back-note {
     background: #fff3cd; border-bottom: 2px solid #e0b400; color: #3d2f00;
-    padding: 0.45rem 1rem; font-size: 0.95rem;
+    padding: 0.35rem 1rem; font-size: 0.95rem;
   }
+  .manual-back-note .mbn-row { display: flex; align-items: center; gap: 0.6rem; padding-block: 0.15rem; }
+  .manual-back-note .btn { flex: 0 0 auto; min-width: 11.5rem; text-align: left; }
   #manual-frame { display: block; width: 100%; border: 0; }
 </style>
 <script>
 (function () {
   var frame = document.getElementById('manual-frame');
+
+  // "Return to …": the NuMa page the manual was opened from, kept for this
+  // window (sessionStorage) so jumps and reloads inside the manual don't
+  // lose it. It's an ordinary link, not a run of history steps, so it gets
+  // there in one go however many jumps were made inside the manual; the
+  // manual's reading place is saved as you scroll (build_manual.py,
+  // LAST_SECTION_KEY), so Manual in the menu reopens it where you left off.
+  var RETURN_KEY = 'numa_manual_return', back = null;
+  try {
+    var ref = document.referrer ? new URL(document.referrer) : null;
+    if (ref && ref.origin === location.origin && ref.pathname.indexOf('/manual') !== 0) {
+      back = ref.pathname + ref.search + ref.hash;
+      sessionStorage.setItem(RETURN_KEY, back);
+    } else {
+      back = sessionStorage.getItem(RETURN_KEY);
+    }
+  } catch (e) {}
+  if (back) {
+    var names = [[/^\/$/, 'Home'], [/^\/meal\/\d+/, 'the meal'], [/^\/meals/, 'Meals &amp; Log'],
+                 [/^\/food\/search/, 'Food search'], [/^\/food\/\d+/, 'the food'], [/^\/food\//, 'Foods'],
+                 [/^\/recipe\/\d+/, 'the recipe'], [/^\/recipes?\b/, 'Recipes'], [/^\/compare/, 'Compare'],
+                 [/^\/summary/, 'Summary'], [/^\/analysis/, 'Analysis'], [/^\/pantry/, 'Pantry'],
+                 [/^\/settings/, 'Settings']];
+    var path = back.split(/[?#]/)[0];
+    for (var i = 0; i < names.length; i++) {
+      if (names[i][0].test(path)) { document.getElementById('manual-return-name').innerHTML = names[i][1]; break; }
+    }
+    document.getElementById('manual-return').href = back;
+  }
 
   // /manual#anchor → the manual's own #anchor.
   if (location.hash) frame.src = '/manual/page' + location.hash;

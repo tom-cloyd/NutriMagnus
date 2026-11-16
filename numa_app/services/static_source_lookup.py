@@ -2,7 +2,7 @@
 static_source_lookup.py — shared local-search machinery for bundled,
 network-free food-composition datasets: CoFID, AFCD, CIQUAL, and any future
 source that's a one-time download rather than a live API (see user-manual.md
-Part 9, "Additional food nutrition database access").
+#food-data, "Food data — where it comes from").
 
 Each concrete source (cofid_lookup.py, afcd_lookup.py, ciqual_lookup.py) is a
 thin wrapper around one StaticSource instance, pointed at its own bundled

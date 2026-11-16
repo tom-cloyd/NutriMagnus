@@ -11,6 +11,7 @@ import re
 import time
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from typing import Any
 
 import platform_utils as _platform_utils
@@ -214,10 +215,53 @@ def get_api_key() -> str | None:
     return _load_config().get("api_key")
 
 
+def clean_api_key(key: str) -> str:
+    """The key as stored: printable characters only, no surrounding spaces."""
+    return "".join(c for c in key if c.isprintable()).strip()
+
+
 def set_api_key(key: str) -> None:
     cfg = _load_config()
-    cfg["api_key"] = "".join(c for c in key if c.isprintable()).strip()
+    new = clean_api_key(key)
+    if new != cfg.get("api_key"):
+        cfg.pop("api_key_check", None)   # that check was of a different key
+    cfg["api_key"] = new
     _save_config(cfg)
+
+
+def check_api_key(key: str) -> dict:
+    """Ask USDA whether `key` works, with the smallest request there is (a
+    one-result search). Returns {"result", "detail"}: "ok"; "rejected" (USDA
+    refused the key: 401/403); or "unreachable" (no answer, or any other
+    error, so the key's fate is unknown). Never raises.
+
+    Settings → 6 runs this when a key is saved, so a mistyped key is caught
+    then rather than by every later USDA search failing; and on Test key.
+    Same idea as cmgr's Google Contacts setup, which ticks "connected" only
+    once a real request has worked. Docs: README "2. USDA API key".
+    """
+    try:
+        _get("foods/search", {"query": "apple", "pageSize": 1}, api_key=clean_api_key(key))
+        return {"result": "ok", "detail": ""}
+    except USDAError as e:
+        if getattr(e, "status", None) in (401, 403):
+            return {"result": "rejected", "detail": str(e)}
+        return {"result": "unreachable", "detail": str(e)}
+    except (OSError, ValueError) as e:   # a timeout mid-read, or a garbled reply
+        return {"result": "unreachable", "detail": f"Network error: {e}"}
+
+
+def record_api_key_check(check: dict) -> None:
+    """Keep the last key check (with the time) so Settings can show it."""
+    cfg = _load_config()
+    cfg["api_key_check"] = {**check, "at": datetime.now().strftime("%Y-%m-%d %H:%M")}
+    _save_config(cfg)
+
+
+def get_api_key_check() -> dict | None:
+    """The last recorded check of the saved key, or None."""
+    rec = _load_config().get("api_key_check")
+    return rec if isinstance(rec, dict) else None
 
 
 _DEFAULT_SEARCH_BOOST_PAGE_SIZE = 25
@@ -239,8 +283,8 @@ def set_search_boost_page_size(n: int) -> None:
     _save_config(cfg)
 
 
-def _get(path: str, params: dict) -> Any:
-    key = get_api_key() or "DEMO_KEY"
+def _get(path: str, params: dict, api_key: str | None = None) -> Any:
+    key = api_key or get_api_key() or "DEMO_KEY"
     params["api_key"] = key
     qs = urllib.parse.urlencode(params)
     url = f"{_BASE_URL}/{path}?{qs}"
@@ -259,7 +303,9 @@ def _get(path: str, params: dict) -> Any:
             503: "USDA server temporarily unavailable — overloaded or under maintenance, not an issue on your end; usually resolves in a few minutes",
         }
         reason = _HTTP_REASONS.get(e.code, f"unexpected HTTP {e.code}")
-        raise USDAError(f"USDA API {e.code}: {reason}") from e
+        err = USDAError(f"USDA API {e.code}: {reason}")
+        err.status = e.code
+        raise err from e
     except urllib.error.URLError as e:
         raise USDAError(f"Network error: {e.reason}") from e
     except KeyboardInterrupt:

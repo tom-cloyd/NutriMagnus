@@ -635,11 +635,11 @@ class TestNumericalRegressionOatmealRecipe:
 # ---------------------------------------------------------------------------
 # Golden-value regression: pinto beans + quinoa vs. published FAO Table I-7
 #
-# Nutrient values below are transcribed verbatim from user-manual.md Appendix K
+# Nutrient values below are transcribed verbatim from user-manual.md #appendix-diaas-validation
 # (Tables I-1/I-2), which in turn are USDA SR Legacy values as of June 2026 for:
 #   FDC 173796 — Beans, pinto, mature seeds, cooked, boiled, with salt
 #   FDC 168917 — Quinoa, cooked
-# Expected ratios/DIAAS/DCP are the independently hand-worked values in Appendix K
+# Expected ratios/DIAAS/DCP are the independently hand-worked values in #appendix-diaas-validation
 # Table I-7, not values re-derived from this code — this test exists to catch
 # drift between the two, not to encode the algorithm's own output as truth.
 # ---------------------------------------------------------------------------
@@ -696,7 +696,7 @@ _TABLE_I7_RATIOS = {
 
 
 class TestGoldenValuePintoQuinoaMeal:
-    """Golden-value regression vs. user-manual.md Appendix K, Table I-7.
+    """Golden-value regression vs. user-manual.md #appendix-diaas-validation, Table I-7.
 
     Confirms the digestibility lookups, pooling, and composite scoring in
     diaas.py reproduce the independently hand-worked FAO methodology example
@@ -733,7 +733,7 @@ class TestGoldenValuePintoQuinoaMeal:
         assert self._result["diaas"] == pytest.approx(0.921, abs=0.001)
 
     def test_digestible_complete_protein(self):
-        # NOT the manual's Appendix K Step 5 value (13.41 x 0.921 = 12.35g) — diaas.py
+        # NOT the manual's #appendix-diaas-validation Step 5 value (13.41 x 0.921 = 12.35g) — diaas.py
         # caps DCP at aa_dig_protein_g (9.01x0.80 + 4.40x0.85 = 10.948g) because the
         # limiting IAA (leucine) is concentrated in quinoa, the higher-digestibility
         # ingredient, so the uncapped formula would report more absorbed protein than

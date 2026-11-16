@@ -10,7 +10,7 @@ and prints two lists:
      the new text, dropping terms it no longer covers, adding any it needs;
   2. changed or new sections WITHOUT one: decide whether they need one.
 
-The Recent program updates log (Part 11) is left out; its entries are
+The What's new section (release summaries) is left out; its entries are
 never searched for by topic. Nothing is written; no state is kept.
 
 Usage:

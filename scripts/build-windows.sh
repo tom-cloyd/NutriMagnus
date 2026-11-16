@@ -55,7 +55,10 @@ if [[ ! -f "$SSH_KEY" ]]; then
     exit 1
 fi
 
-if ! virsh list --all 2>/dev/null | grep -q "$VM_NAME"; then
+# (dominfo, not `virsh list | grep -q`: under pipefail, grep quitting at the
+# first match can kill virsh with SIGPIPE and fail the check while the VM is
+# there; dominfo also needs the exact name, not a substring.)
+if ! virsh dominfo "$VM_NAME" >/dev/null 2>&1; then
     echo ""
     echo "VM '$VM_NAME' not found in libvirt."
     echo ""
@@ -131,7 +134,7 @@ info "Waiting for SSH on $VM_IP ..."
 ELAPSED=0
 SSH_READY=0
 while [[ $ELAPSED -lt $BOOT_TIMEOUT ]]; do
-    if ssh $SSH_OPTS "$VM_USER@$VM_IP" "echo ready" 2>/dev/null | grep -q "ready"; then
+    if [[ "$(ssh $SSH_OPTS "$VM_USER@$VM_IP" "echo ready" 2>/dev/null)" == *ready* ]]; then
         SSH_READY=1
         break
     fi

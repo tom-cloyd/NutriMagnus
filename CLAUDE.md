@@ -7,7 +7,7 @@ Nutritional analysis web app (FastAPI). USDA FoodData Central + Open Food Facts.
   `#### N. Title` heading, linkable by number); longer-cadence checks follow it
 
 Read these when the task touches them:
-- `docs/claude/changelog.md` — writing the Part 11 log entry: layout, numbering, release cycle
+- `docs/claude/changelog.md` — writing a changelog entry: the two files, numbering, release cycle
 - `docs/claude/data-shapes.md` — DB row columns, every valid nutrient key
 - `docs/claude/manual-search-terms.md` — the manual's `*Search terms:*` lines
 
@@ -50,12 +50,13 @@ pytest tests/test_web.py -k foo  # run one test
 ## Ending a session that changed behavior
 
 1. `python3 scripts/bump_version.py` (never hand-edit `VERSION`); describe the change in
-   `NEW_VERSION_NOTE` by hand. Don't touch `RELEASE_VERSION`'s `-rc.N`.
+   `NEW_VERSION_NOTE` by hand, as `SUMMARY: … DETAILS: …`, and re-check that the summary
+   is still correct against the details. Don't touch `RELEASE_VERSION`'s `-rc.N`.
 2. Edited `user-manual.md` or the README? Update its header stamp by hand.
-3. User-facing change? Add a Part 11 entry and a numbered summary bullet:
-   `docs/claude/changelog.md`. The Scope block MUST be wrapped in `<!-- -->`.
+3. User-facing change? Add a dated entry to `docs/updates-log-details.md` and a numbered
+   summary bullet to the manual's What's new section: `docs/claude/changelog.md`.
 4. Edited the manual? Run `python3 scripts/build_manual.py`.
-5. Committing? Copy `NEW_VERSION_NOTE` into Part 11 as the `Version overview:` line.
+5. Committing? Copy `NEW_VERSION_NOTE` into What's new as the `Version overview:` line.
 
 ---
 

@@ -3,11 +3,13 @@
    typed first), "!word" to leave a word out, and the codes, FDC IDs and
    barcodes it looks up directly. One place, so every search box says the
    same thing (before 2026-11-12 the word-order tip was a separate line on
-   seven of the nine pages, and nothing mentioned "!"). Learn more goes to
-   the manual's Ordering food search results, which covers all three. #}
+   seven of the nine pages, and nothing mentioned "!"). One paragraph, the
+   sentences running on (2026-11-14). Learn more goes to the word-order
+   paragraph of the manual's Setting up a Food or Recipe search, which goes
+   on to "!" and starts with codes. #}
 {% macro hint(cls="mb-2") -%}
-<p class="muted search-hint {{ cls }}"><small>Most important word first: <code>bread wheat whole</code>, not <code>whole wheat bread</code>.<br>
-Put <code>!</code> before a word to leave it out: <code>beans red !kidney</code>.<br>
+<p class="muted search-hint {{ cls }}"><small>Most important word first: <code>bread wheat whole</code>, not <code>whole wheat bread</code>.
+Put <code>!</code> before a word to leave it out: <code>beans red !kidney</code>.
 A code (<code>R21</code>, <code>U171477</code>), an <a href="/manual#gloss-fdc-id">FDC ID</a> or a 12/13-digit barcode finds that one item.
-{{ manual_link("search-ranking", "Learn more") }}</small></p>
+{{ manual_link("search-word-first", "Learn more") }}</small></p>
 {%- endmacro %}

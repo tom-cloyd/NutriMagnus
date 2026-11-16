@@ -428,19 +428,35 @@
 </details>
 
 {# ── 6. USDA API key ───────────────────────────────────────────────────── #}
-<details>
+<details id="usda-api-key" {% if saved.startswith('api_key') %}open{% endif %}>
   <summary data-ak="6"><u class="ak">6</u>. <strong>USDA API Key</strong>
     <span class="muted"> — for higher search rate limits</span>
-    {{ manual_link("food-data") }}
+    {{ manual_link("usda-api-key") }}
   </summary>
 
-  {% if saved == 'api_key' %}
-  <p class="status-met mt-2"><strong>&#10003; API key saved.</strong></p>
+  {% set ck = api_key_check %}
+  {% if saved == 'api_key_rejected' %}
+  <p class="status-gap mt-2"><strong>&#9888; Not saved: USDA rejected that key.</strong> Check that you copied the
+  whole key from USDA&rsquo;s email, with nothing missing at either end, and paste it again.
+  {% if api_key %}Your previous key is still in use.{% else %}Searches still use <code>DEMO_KEY</code>.{% endif %}</p>
+  {% elif saved == 'api_key_cleared' %}
+  <p class="status-met mt-2"><strong>&#10003; API key cleared.</strong> Searches now use <code>DEMO_KEY</code>.</p>
+  {% elif saved in ('api_key', 'api_key_test') and ck %}
+    {% if ck.result == 'ok' %}
+  <p class="status-met mt-2"><strong>&#10003; {% if saved == 'api_key' %}API key saved, and USDA accepted it.{% else %}USDA accepted your key.{% endif %}</strong></p>
+    {% elif ck.result == 'rejected' %}
+  <p class="status-gap mt-2"><strong>&#9888; USDA rejects your saved key.</strong> USDA searches will fail until you
+  paste a correct key, or click <strong>Clear key</strong> to use <code>DEMO_KEY</code> instead.</p>
+    {% else %}
+  <p class="status-gap mt-2"><strong>{% if saved == 'api_key' %}&#10003; API key saved, but{% else %}&#9888;{% endif %}
+  NuMa couldn&rsquo;t reach USDA to check it</strong> ({{ ck.detail }}). Click <strong>Test key</strong> later.</p>
+    {% endif %}
   {% endif %}
 
   <p class="mt-2 muted"><small>Without a key, food searches use <code>DEMO_KEY</code> (30 requests/hour).
   A free key raises this to 1,000/hour. Register at
-  <a href="https://fdc.nal.usda.gov/api-guide.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>.</small></p>
+  <a href="https://fdc.nal.usda.gov/api-guide.html" target="_blank" rel="noopener">fdc.nal.usda.gov</a>.
+  NuMa checks a key with USDA when you save it, and won&rsquo;t save one USDA rejects.</small></p>
 
   <form method="post" action="/settings/api-key" class="mt-2">
     <div class="mb-2" style="max-width:420px">
@@ -450,9 +466,18 @@
     </div>
     <button type="submit" class="btn btn-primary btn-sm">Save key</button>
     {% if api_key %}
+    <button type="submit" formaction="/settings/api-key/test" class="btn btn-outline-primary btn-sm ms-1">Test key</button>
     <button type="submit" name="api_key" value="" class="btn btn-outline-secondary btn-sm ms-1">Clear key</button>
     {% endif %}
   </form>
+  {% if api_key %}
+  <p class="mt-1 muted" id="api-key-last-check"><small>
+  {% if ck and ck.result == 'ok' %}Last checked {{ ck.at }}: USDA accepted it.
+  {% elif ck and ck.result == 'rejected' %}Last checked {{ ck.at }}: USDA rejected it.
+  {% elif ck %}Last checked {{ ck.at }}: USDA couldn&rsquo;t be reached.
+  {% else %}Not checked yet: click <strong>Test key</strong>.{% endif %}
+  </small></p>
+  {% endif %}
 
   {% if saved == 'search_boost' %}
   <p class="status-met mt-2"><strong>&#10003; Search result depth saved.</strong></p>

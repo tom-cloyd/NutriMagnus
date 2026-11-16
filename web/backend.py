@@ -569,7 +569,7 @@ def _drop_repeated_names(rows: list[dict], existing: list[dict]) -> list[dict]:
 # function). Single source of truth for that name, used both to build the
 # "Searching X and Y…" status message (see _external_source_labels()) and by
 # _external_food_search_results()'s fetch loop below — adding a future source
-# (UK CoFID, etc. — see user-manual.md Part 9) is one entry here, not a
+# (UK CoFID, etc. — see user-manual.md #food-data) is one entry here, not a
 # change to the message or the fetch loop.
 _LIVE_SOURCES = [
     ("usda", "USDA FoodData Central",     _fetch_usda_candidates),
@@ -2995,6 +2995,35 @@ def _typed_code(text: str) -> tuple[str, int] | None:
         return None
 
 
+def _list_filter(text: str, any_word: bool = False):
+    """A list filter box's test, as match(name, extra="") -> bool: every word
+    of `text` (any one, with any_word) appears somewhere in the name or
+    `extra` (notes, say), and no "!word" is in the name — matched as a
+    search's "!" is (search_ranking.has_excluded_word). A filter made only of
+    "!" words keeps everything but those. Added 2026-11-14: before then "!"
+    worked only in the search boxes, and a filter took "!kidney" literally."""
+    words_text, excluded = _search_ranking.split_excluded_words(text or "")
+    words = words_text.lower().split()
+    test = any if any_word else all
+
+    def match(name: str, extra: str = "") -> bool:
+        hay = f"{name or ''} {extra or ''}".lower()
+        if words and not test(w in hay for w in words):
+            return False
+        return not _search_ranking.has_excluded_word(name or "", excluded)
+    return match
+
+
+def _filtered_cached_foods(conn, text: str, include_archived: bool = False) -> list:
+    """db.search_cached_foods() for a filter box's text, with its "!" words
+    honored: the rest is searched (every cached food when nothing is left),
+    then names holding a "!" word are dropped."""
+    words_text, excluded = _search_ranking.split_excluded_words(text.strip())
+    rows = (_db.search_cached_foods(conn, words_text, include_archived=include_archived) if words_text
+            else _db.list_cached_foods(conn, include_archived=include_archived))
+    return [r for r in rows if not _search_ranking.has_excluded_word(r["name"], excluded)]
+
+
 def _code_search_results(query: str) -> list[dict] | None:
     """The one food or recipe a search box's whole query names by its code
     (food_ids.parse_code: U171477, UD4, R21, OFF3, U171477.1 ...), or by a
@@ -3911,10 +3940,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
     sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
-        if q.strip():
-            rows = _db.search_cached_foods(conn, q.strip(), include_archived=show_archived)
-        else:
-            rows = _db.list_cached_foods(conn, include_archived=show_archived)
+        rows = _filtered_cached_foods(conn, q, include_archived=show_archived)
         fdc_ids = [r["fdc_id"] for r in rows]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
         pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
@@ -3970,10 +3996,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
 def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
-        if q.strip():
-            rows = _db.search_cached_foods(conn, q.strip(), include_archived=show_archived)
-        else:
-            rows = _db.list_cached_foods(conn, include_archived=show_archived)
+        rows = _filtered_cached_foods(conn, q, include_archived=show_archived)
     csv_text = _csv_export.foods_to_csv(rows)
     filename = f"numa_food_cache_{datetime.date.today().isoformat()}.csv"
     return Response(
@@ -5119,9 +5142,8 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
     if _typed_code(filter):
         items = [i for i in items if _typed_code(filter) == ("food", i["fdc_id"])]
     elif filter:
-        words = filter.lower().split()
-        items = [i for i in items
-                 if all(w in f"{i['food_name']} {i['notes'] or ''}".lower() for w in words)]
+        match = _list_filter(filter)
+        items = [i for i in items if match(i["food_name"], i["notes"] or "")]
 
     # Local matches render now; online ones fill in via /search-rows/pantry
     _rows_template, search_ctx = _screen_pantry(request.query_params, False)
@@ -5253,7 +5275,7 @@ def food_custom_profiles_get(request: Request, copy_q: str = Query(default=""),
         rows = _db.list_user_drafted_foods(conn)
         copy_results = []
         if copy_q.strip():
-            copy_results = [dict(r) for r in _db.search_cached_foods(conn, copy_q.strip())]
+            copy_results = [dict(r) for r in _filtered_cached_foods(conn, copy_q)]
     foods = [dict(r) for r in rows]
     return templates.TemplateResponse(request, "food_custom_profiles.html", {
         "foods": foods,
@@ -5792,10 +5814,7 @@ def _annotation_prompt_needed(fdc_id: int) -> bool:
 @app.get("/food/annotate", response_class=HTMLResponse)
 def food_annotate_list(request: Request, q: str = ""):
     with _db.get_db() as conn:
-        if q.strip():
-            rows = _db.search_cached_foods(conn, q.strip())
-        else:
-            rows = _db.list_cached_foods(conn)
+        rows = _filtered_cached_foods(conn, q)
         fdc_ids = [r["fdc_id"] for r in rows]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
 
@@ -8228,10 +8247,16 @@ def meal_add_recipe_item(
 
 
 @app.post("/meal/{meal_id}/remove/{item_id}", response_class=RedirectResponse)
-def meal_remove_item(meal_id: int, item_id: int):
+def meal_remove_item(meal_id: int, item_id: int, q: str = Form("")):
+    from urllib.parse import urlencode
+
     with _db.get_db() as conn:
         _db.meal_remove_item(conn, item_id, meal_id)
-    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+    # The search, if any, stays as it was. Dropping it made base.html's
+    # persist-search script reload the page a second time to put it back,
+    # which lost the scroll position the meal page had just restored.
+    qs = f"?{urlencode({'q': q})}" if q else ""
+    return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/rename", response_class=RedirectResponse)
@@ -8443,8 +8468,12 @@ def meals_search(request: Request, q: str = "", mode: str = "contains"):
             # A code (U171477, R21) or a bare FDC ID number finds that one
             # food or recipe; else by name.
             code = _typed_code(q) or (("food", int(q.strip())) if q.strip().isdigit() else None)
+            # "!word" drops items whose name has it (_list_filter); the
+            # rest of the text is the name search.
+            words_text, excluded = _search_ranking.split_excluded_words(q.strip())
             rows = [dict(r) for r in (_db.search_meal_history_by_item(conn, *code) if code
-                                      else _db.search_meal_history(conn, q.strip()))]
+                                      else _db.search_meal_history(conn, words_text))
+                    if not _search_ranking.has_excluded_word(r["food_name"], excluded)]
             recipe_ids = {r["recipe_id"] for r in rows if r["item_type"] == "recipe" and r["recipe_id"]}
             deleted_recipe_ids = {rid for rid in recipe_ids if _db.recipe_get(conn, rid) is None}
         for r in rows:
@@ -8832,6 +8861,7 @@ def settings_get(request: Request, saved: str = "", recompute_retry: str = "", k
         "app_window":           _load_prefs_file().get("app_window", True) is not False,
         "new_tab_notice":       _new_tab_notice_on(),
         "api_key":              api_key,
+        "api_key_check":        _usda.get_api_key_check() if api_key else None,
         "search_boost_page_size": search_boost_page_size,
         "diaas_overrides":      diaas_overrides,
         "nutrient_target_rows": nutrient_target_rows,
@@ -9100,8 +9130,29 @@ def settings_browser_post(preferred_browser: str = Form(""), next: str = Form(No
 
 @app.post("/settings/api-key", response_class=RedirectResponse)
 def settings_api_key_post(api_key: str = Form("")):
-    _usda.set_api_key(api_key.strip())
-    return RedirectResponse("/settings?saved=api_key", status_code=303)
+    """Save (or clear) the USDA key, testing it with USDA first. A key USDA
+    rejects is not saved, so a mistyped key can't quietly break every later
+    USDA search; one that can't be checked (offline) is saved anyway, since
+    it may well be right. No DB connection is open across the request."""
+    key = _usda.clean_api_key(api_key)
+    if not key:
+        _usda.set_api_key("")
+        return RedirectResponse("/settings?saved=api_key_cleared#usda-api-key", status_code=303)
+    check = _usda.check_api_key(key)
+    if check["result"] == "rejected":
+        return RedirectResponse("/settings?saved=api_key_rejected#usda-api-key", status_code=303)
+    _usda.set_api_key(key)
+    _usda.record_api_key_check(check)
+    return RedirectResponse("/settings?saved=api_key#usda-api-key", status_code=303)
+
+
+@app.post("/settings/api-key/test", response_class=RedirectResponse)
+def settings_api_key_test_post():
+    """Test key: ask USDA whether the saved key still works, and record it."""
+    key = _usda.get_api_key()
+    if key:
+        _usda.record_api_key_check(_usda.check_api_key(key))
+    return RedirectResponse("/settings?saved=api_key_test#usda-api-key", status_code=303)
 
 
 @app.post("/settings/search-boost", response_class=RedirectResponse)
@@ -9411,9 +9462,8 @@ def recipes_list(request: Request, q: str = "", sort: str | None = None,
     if code:
         all_recipes = [r for r in all_recipes if code == ("recipe", r["id"])]
     elif q:
-        ql = q.lower()
-        words = ql.split()
-        all_recipes = [r for r in all_recipes if any(w in r["name"].lower() for w in words)]
+        match = _list_filter(q, any_word=True)
+        all_recipes = [r for r in all_recipes if match(r["name"])]
     reverse = sort in ("recent", "dcp")
     all_recipes.sort(key=_RECIPE_SORT_KEYS[sort], reverse=reverse)
     return templates.TemplateResponse(request, "recipes.html", {
@@ -12759,8 +12809,8 @@ def analysis_food_use(
         rows_all = [r for r in rows_all
                     if name_code == (("recipe", r["recipe_id"]) if r["recipe_id"] else ("food", r["fdc_id"]))]
     elif name_filter:
-        words = name_filter.lower().split()
-        rows_all = [r for r in rows_all if all(w in (r["name"] or "").lower() for w in words)]
+        match = _list_filter(name_filter)
+        rows_all = [r for r in rows_all if match(r["name"])]
 
     sort_keys = {
         "frequency": lambda e: (-len(e["days"]), -len(e["meal_ids"]), e["name"].lower()),
@@ -12842,17 +12892,17 @@ def analysis_food_use_replacement_search(q: str = Query(default="")):
     q = q.strip()
     if len(q) < 2:
         return JSONResponse({"results": []})
-    words = q.lower().split()
+    match = _list_filter(q)
     with _db.get_db() as conn:
-        foods = _db.search_cached_foods(conn, q)
+        foods = _filtered_cached_foods(conn, q)
         code = _typed_code(q)
         recipes = [r for r in _db.recipe_list(conn)
-                   if (code == ("recipe", r["id"]) if code else all(w in r["name"].lower() for w in words))]
+                   if (code == ("recipe", r["id"]) if code else match(r["name"]))]
     results = [{"code": _food_code(f["fdc_id"]), "name": f["name"], "kind": "food",
                 "detail": f["brand"] or ""} for f in foods]
     results += [{"code": _food_code(None, r["id"]), "name": r["name"], "kind": "recipe",
                  "detail": "recipe"} for r in recipes]
-    results.sort(key=lambda r: (r["kind"] != "recipe", _search_ranking.relevance_key(r["name"], q)))
+    results.sort(key=lambda r: (r["kind"] != "recipe", _search_ranking.relevance_key(r["name"], _search_ranking.split_excluded_words(q)[0])))
     return JSONResponse({"results": results[:20]})
 
 
@@ -13620,8 +13670,8 @@ def analysis_food_use_recipes(
         rows_all = [r for r in rows_all
                     if name_code == (("recipe", r["recipe_id"]) if r["recipe_id"] else ("food", r["fdc_id"]))]
     elif name_filter:
-        words = name_filter.lower().split()
-        rows_all = [r for r in rows_all if all(w in (r["name"] or "").lower() for w in words)]
+        match = _list_filter(name_filter)
+        rows_all = [r for r in rows_all if match(r["name"])]
 
     sort_keys = {
         "frequency": lambda e: (-len(e["container_ids"]), e["name"].lower()),
