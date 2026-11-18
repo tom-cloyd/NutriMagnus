@@ -615,6 +615,9 @@ table td.sticky-col, table th.sticky-col {
 /* ── Status indicators ───────────────────────────────────────────────── */
 
 .status-met  { color: #166534; font-weight: 600; }
+/* Food Cache / My Pantry Actions cell: two-line button labels ("Add to / pantry")
+   sit level with the one-line ones. */
+.actions-stack .btn { line-height: 1.1; vertical-align: middle; }
 .status-gap  { color: #92400e; font-weight: 600; }
 
 /* ── Protein quality block ───────────────────────────────────────────── */

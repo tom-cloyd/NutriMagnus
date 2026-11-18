@@ -2931,6 +2931,9 @@ def _recipe_search_rows(recipes: list) -> list[dict]:
     """Search-result rows for recipe rows (db.recipe_list() shape)."""
     results: list[dict] = []
     recipe_aa_status = _recipe_aa_status([r["id"] for r in recipes])
+    # One serving's weight, for the amount hints ("1 serving = 24 g").
+    with _db.get_db() as conn:
+        serving_g = {r["id"]: recipe_serving_grams(r["id"], conn) for r in recipes}
     for r in recipes:
         results.append({
             "_type":             "recipe",
@@ -2942,6 +2945,7 @@ def _recipe_search_rows(recipes: list) -> list[dict]:
             "serving_size":      r["serving_size"],
             "total_weight":      r["total_weight"],
             "total_weight_unit": r["total_weight_unit"] or "g",
+            "serving_grams":     serving_g[r["id"]],
             "total_volume":      r["total_volume"],
             "total_volume_unit": r["total_volume_unit"] or "ml",
             "data_type":         "Recipe",
@@ -3348,10 +3352,6 @@ def _screen_recipe(params, external: bool, ident: int | None = None):
     results = (_run_food_search(q, source, limit, external=external, exclude_recipe_id=ident,
                                 also=_also(params, "q"))
                if q and ident else [])
-    with _db.get_db() as conn:
-        for r in results:
-            if r.get("_type") == "recipe":
-                r["serving_grams"] = recipe_serving_grams(r["recipe_id"], conn)
     return "_recipe_search_rows.html", _rows_ctx(q, results, source, external, q=q,
                                                  limit=limit, recipe={"id": ident})
 
@@ -3913,6 +3913,17 @@ def _compare_omitted(entries: list[dict]) -> list[str]:
     ]
 
 
+def _other_nutrients(nuts: dict, fdc_id, ignores: dict[int, set[str]], is_supplement,
+                     track_water: bool) -> list[str] | None:
+    """The "Other nutrients" column of the Food Cache and My Pantry: the
+    missing nutrient group labels (empty = complete), or None for a
+    supplement or a pantry entry with no food, which aren't checked."""
+    if not fdc_id or is_supplement:
+        return None
+    gaps = _data_completeness.other_nutrient_gaps(nuts, ignores.get(fdc_id, set()), track_water=track_water)
+    return [_data_completeness.OTHER_NUTRIENT_LABELS[g] for g in gaps]
+
+
 _FOOD_CACHE_SORT_KEYS = {
     "name":  lambda f: (f["name"] or "").lower(),
     "id":    lambda f: _code_sort_key((_classify_food_id(f["fdc_id"]) or ("",))[0]),
@@ -3947,6 +3958,8 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
         pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
         usage = _data_quality.usage_counts(conn)
+        ignores = _db.food_data_ignores(conn)
+    track_water = _track_water()
 
     foods = []
     for row in rows:
@@ -3967,6 +3980,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
             "gi_source":      _ann_source(ann),
             "diaas":          diaas,
             "diaas_saved":    diaas_saved is not None,
+            "other_missing":  _other_nutrients(nuts, row["fdc_id"], ignores, row["is_supplement"], track_water),
             "notes":          row["notes"] or "",
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
             "archived":       bool(row["archived"]),
@@ -5128,6 +5142,7 @@ def food_cache_refresh(request: Request, fdc_id: int):
                 "gi":            ann["gi_estimate"] if ann else None,
                 "gi_source":     _ann_source(ann),
                 "diaas":         ann["diaas_estimate"] if ann else None,
+                "other_missing": None,
                 "notes":         row["notes"] or "",
                 "curator_notes": row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
                 "archived":      bool(row["archived"]),
@@ -5151,6 +5166,8 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
     with _db.get_db() as conn:
         rows = _db.pantry_list(conn, include_archived=show_archived)
         usage = _data_quality.usage_counts(conn)
+        ignores = _db.food_data_ignores(conn)
+        track_water = _track_water()
         fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
         annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
         items = []
@@ -5169,6 +5186,8 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
                 "gi_source":   _ann_source(ann),
                 "diaas":       diaas,
                 "diaas_saved": diaas_saved is not None,
+                "other_missing": (_other_nutrients(nuts, r["fdc_id"], ignores, cached["is_supplement"], track_water)
+                                  if cached else None),
                 "use":         usage.get(r["fdc_id"], {"recipes": 0, "meals": 0}),
             })
             items.append(item)

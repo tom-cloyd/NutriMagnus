@@ -1351,7 +1351,7 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
         if kind == "food":
             row = conn.execute(
                 "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-                "portions_json, notes, nutrients_json, archived, is_drink FROM foods WHERE fdc_id = ?",
+                "portions_json, notes, nutrients_json, archived, is_drink, is_supplement FROM foods WHERE fdc_id = ?",
                 (code_id,)).fetchone()
             if row is not None:
                 return [row]
@@ -1360,7 +1360,7 @@ def search_cached_foods(conn: sqlite3.Connection, query: str, *, include_archive
     # user-drafted foods like "B12 5000mcg" from surfacing for "coffee 1".
     match_words = [w for w in words if not w.isdigit()] or words
     select = ("SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-               "portions_json, notes, nutrients_json, archived, is_drink FROM foods")
+               "portions_json, notes, nutrients_json, archived, is_drink, is_supplement FROM foods")
     archived_clause = "" if include_archived else "AND archived = 0"
     # Each query word also tries its singular form, so e.g. "potatoes" matches
     # cached/drafted names stored as singular "Potato, cooked".

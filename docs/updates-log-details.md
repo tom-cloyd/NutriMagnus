@@ -8,6 +8,28 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+#### November 18 updates
+
+**PROGRAM: FOOD CACHE AND PANTRY SHOW WHETHER A FOOD'S OTHER NUTRIENTS ARE COMPLETE**
+
+The Food Cache and My Pantry lists have an **Other nutrients** column after DIAAS. It reads "complete" when a food has its macronutrients, water, minerals, vitamins and the amino acids its DCP is worked out from (or each missing group is marked "not needed"), and "incomplete" otherwise. Pointing at "incomplete" lists what's missing, and clicking it opens the food. To make room, the Used in counts and the longer button labels ("Add to pantry", "Copy as draft") take two lines. [learn more...](#cached)
+
+<!--
+```
+Scope: numa_app/services/data_completeness.py (OTHER_NUTRIENT_GROUPS = macros, water, minerals, vitamins, aa; OTHER_NUTRIENT_LABELS; other_nutrient_gaps(), water only while track_water), web/backend.py (_other_nutrients(): None for a supplement or unlinked pantry entry; food_cache_get and pantry_get add other_missing, honoring food_data_ignores), db.py (search_cached_foods selects is_supplement), web/templates/_other_nutrients.html (new: header and cell macros), food_cache.html, pantry.html (column; Used in and button labels stacked with <br>; notes row colspan 12), web/static/style.css (.actions-stack), tests/test_web.py. Omega and phyto are left out, as in DEFAULT_CHECKED.
+```
+-->
+
+**PROGRAM: MEAL PAGE SAYS WHAT ONE SERVING OF A RECIPE WEIGHS**
+
+When you add a recipe to a meal, the hint under its Amount box now gives one serving's weight ("4 total · 1 serving = 24 g"), with the serving description in front when the recipe has one ("1 serving = 1 muffin, 85 g"). Before, a recipe with no serving description gave only the number of servings it makes. [learn more...](#portions-vs-servings)
+
+<!--
+```
+Scope: web/backend.py (_recipe_search_rows adds serving_grams from recipe_serving_grams() for every recipe search row; _screen_recipe's own serving_grams loop dropped as redundant), web/templates/_add_food_row.html (recipe Amount hint built like _recipe_search_rows.html's, no longer via _serving_note), _recipe_search_rows.html (weight shown with %g, so "24 g" not "24.0 g"), tests/test_web.py.
+```
+-->
+
 #### November 17 updates
 
 **PROGRAM: FOOD USE PAGES ALWAYS SAY WHETHER A REPLACE WORKED**

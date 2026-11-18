@@ -84,6 +84,25 @@ def active_gaps(nutrients: dict, ignored: set[str] | frozenset[str] = frozenset(
             if g not in ignored and (checked is None or g in checked)]
 
 
+# The Food Cache and My Pantry "Other nutrients" column: everything a food
+# needs for a full analysis besides what the AA, GI and DIAAS columns show —
+# water, and the amino acids DCP is worked out from, included. Omega and
+# phytonutrient values are left out, as in DEFAULT_CHECKED: most foods
+# never had them measured, so the column would read "incomplete" for nearly
+# everything.
+OTHER_NUTRIENT_GROUPS: tuple[str, ...] = ("macros", "water", "minerals", "vitamins", "aa")
+OTHER_NUTRIENT_LABELS: dict[str, str] = {**GROUP_LABELS, "aa": "Amino acids (needed for DCP)"}
+
+
+def other_nutrient_gaps(nutrients: dict, ignored: set[str] | frozenset[str] = frozenset(),
+                        *, track_water: bool = True) -> list[str]:
+    """The OTHER_NUTRIENT_GROUPS this food is missing and not marked "not
+    needed" for; water only while numa tracks it (Settings → 9). Empty
+    means the column reads "complete"."""
+    checked = {g for g in OTHER_NUTRIENT_GROUPS if track_water or g != "water"}
+    return active_gaps(nutrients, ignored, checked)
+
+
 def is_blank(key: str, nutrients: dict) -> bool:
     """True if `key` has no usable value: absent, or — for an amino acid in
     a food with protein — a 0 placeholder (some imports store every AA as 0

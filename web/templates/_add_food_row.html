@@ -1,4 +1,3 @@
-{% import "_serving_note.html" as _sn %}
 {% import "_row_toggles.html" as _rt %}
 
 {# A stored GI/DIAAS estimate is never prompted for again, so these cells
@@ -83,7 +82,7 @@
               <button type="submit" class="btn btn-primary btn-sm">Add to meal</button>
             </div>
             <div style="font-size:0.75rem" class="muted mt-1">
-              Servings ({{ food.servings | int if food.servings == food.servings | int else food.servings }} total{{ _sn.note(food.serving_size) }}), with the word: 1.125 srv, 1 1/8 servings
+              Servings ({{ food.servings | int if food.servings == food.servings | int else food.servings }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% if food.serving_grams %}, {{ "%g"|format(food.serving_grams | round(1)) }} g{% endif %}{% elif food.serving_grams %} &middot; 1 serving = {{ "%g"|format(food.serving_grams | round(1)) }} g{% endif %}), with the word: 1.125 srv, 1 1/8 servings
               {%- if food.total_weight %} &middot; or a weight: a bare number = grams, oz, lb ({{ food.total_weight | round(1) }}&thinsp;{{ food.total_weight_unit }} total){% endif %}
               {%- if food.total_volume %} &middot; or a volume: cup (c), T, t, ml ({{ food.total_volume | round(1) }}&thinsp;{{ food.total_volume_unit }} total)
               {%- elif serving_volume_ml(food.serving_size) %} &middot; or a volume: cup (c), T, t, ml (from the serving size){% endif %}

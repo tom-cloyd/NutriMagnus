@@ -54,7 +54,7 @@
                   <button type="submit" class="btn btn-primary">Add to recipe</button>
                 </div>
                 <div style="font-size:0.75rem" class="muted mt-1">
-                  Servings ({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% if food.serving_grams %}, {{ food.serving_grams | round(1) }} g{% endif %}{% elif food.serving_grams %} &middot; 1 serving = {{ food.serving_grams | round(1) }} g{% endif %}), with the word: 1.125 srv, 1 1/8 servings
+                  Servings ({{ food.servings | round(2) }} total{% if food.serving_size %} &middot; 1 serving = {{ food.serving_size }}{% if food.serving_grams %}, {{ "%g"|format(food.serving_grams | round(1)) }} g{% endif %}{% elif food.serving_grams %} &middot; 1 serving = {{ "%g"|format(food.serving_grams | round(1)) }} g{% endif %}), with the word: 1.125 srv, 1 1/8 servings
                   {%- if food.serving_grams %} &middot; or a weight: a bare number = grams, oz, lb{% endif %}
                   {%- if food.total_volume or serving_volume_ml(food.serving_size) %} &middot; or a volume: cup (c), T, t, ml{% endif %}
                 </div>

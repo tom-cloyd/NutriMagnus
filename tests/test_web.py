@@ -2160,7 +2160,7 @@ def test_food_cache_add_to_pantry_button(client: TestClient, cached_food, db_con
     Pantry, then "In pantry"; adding from there returns to the Food Cache
     (possibly via the annotation prompt), not the Pantry page."""
     fdc_id = cached_food["fdcId"]
-    assert "Add to pantry" in client.get("/food/cache").text
+    assert "Add to<br>pantry" in client.get("/food/cache").text
     resp = client.post("/pantry/add", data={
         "food_name": cached_food["name"], "fdc_id": str(fdc_id),
         "next": f"/food/cache?q=&sort=name#food-{fdc_id}",
@@ -2169,7 +2169,7 @@ def test_food_cache_add_to_pantry_button(client: TestClient, cached_food, db_con
     assert "/food/cache?" in urllib.parse.unquote(resp.headers["location"])
     assert db_conn.execute("SELECT 1 FROM pantry WHERE fdc_id = ?", (fdc_id,)).fetchone()
     page = client.get("/food/cache").text
-    assert "In pantry" in page and "Add to pantry" not in page
+    assert "In<br>pantry" in page and "Add to<br>pantry" not in page
 
 
 def test_food_cache_row_buttons_return_to_same_list(client: TestClient, cached_food) -> None:
@@ -3944,8 +3944,46 @@ def test_food_cache_shows_used_in_counts(client: TestClient, db_conn) -> None:
     _db.recipe_add_ingredient(db_conn, rid, 999121, "Raisin Used", 30, "g")
     db_conn.commit()
     html = client.get("/food/cache", params={"q": "raisin"}).text
-    assert "1 recipe, 0 meals" in html
+    assert "1 recipe,<br>0 meals" in html
     assert "not used" in html
+
+
+def test_food_cache_and_pantry_other_nutrients_column(client: TestClient, db_conn) -> None:
+    """The Other nutrients column reads complete or incomplete. Water and the
+    amino acids DCP needs both count; a group marked not needed doesn't; a
+    supplement isn't checked; a pantry entry with no food shows a dash."""
+    full = {"calories": 884, "protein_g": 0, "carbs_g": 0, "fat_g": 100, "water_g": 0,
+            "iron_mg": 0.1, "vitamin_e_mg": 14}
+    foods = ((999141, "Otherq Complete", full),
+             (999142, "Otherq Nowater", {k: v for k, v in full.items() if k != "water_g"}),
+             (999143, "Otherq Noaa", {**full, "protein_g": 20}),
+             (999144, "Otherq Ignored", {k: v for k, v in full.items() if k != "iron_mg"}),
+             (999145, "Otherq Pill", {"vitamin_d_mcg": 25}))
+    for fid, name, n in foods:
+        _db.cache_food(db_conn, fdc_id=fid, name=name, data_type="SR Legacy", brand=None,
+                       serving_size=100.0, serving_unit="g", nutrients=n)
+    _db.set_food_data_ignore(db_conn, 999144, "minerals", True)
+    _db.set_food_is_supplement(db_conn, 999145, True)
+    db_conn.commit()
+
+    def cell(html: str, name: str) -> str:
+        row = html[html.index(name):]
+        return row[:row.index("</tr>")]
+
+    html = client.get("/food/cache", params={"q": "otherq"}).text
+    assert "Other<br>nutrients" in html
+    assert ">complete</span>" in cell(html, "Otherq Complete")
+    assert "Missing: Water." in cell(html, "Otherq Nowater")
+    assert "Missing: Amino acids (needed for DCP)." in cell(html, "Otherq Noaa")
+    assert ">complete</span>" in cell(html, "Otherq Ignored")
+    assert "complete" not in cell(html, "Otherq Pill")
+
+    client.post("/pantry/add", data={"fdc_id": 999142, "food_name": "Otherq Nowater"}, follow_redirects=False)
+    client.post("/pantry/add", data={"food_name": "Otherq Unlinked"}, follow_redirects=False)
+    html = client.get("/pantry").text
+    body = html[html.index('id="compare-pantry-form"'):]
+    assert "Missing: Water." in cell(body, "Otherq Nowater")
+    assert "complete" not in cell(body, "Otherq Unlinked")
 
 
 def test_food_cache_and_pantry_sort_by_used_in(client: TestClient, db_conn) -> None:
@@ -3970,7 +4008,7 @@ def test_food_cache_and_pantry_sort_by_used_in(client: TestClient, db_conn) -> N
     html = client.get("/pantry", params={"sort": "used"}).text
     body = html[html.index('id="compare-pantry-form"'):]
     assert body.index("Zzz Sortfood") < body.index("Aaa Sortfood")
-    assert "1 recipe, 0 meals" in body
+    assert "1 recipe,<br>0 meals" in body
     assert '<option value="used" selected>' in html
     # Remembered: the next plain visit keeps that sort.
     body = client.get("/pantry").text
@@ -9189,6 +9227,21 @@ def test_profile_save_repins_today_and_apply_to_days_and_day_switch(client: Test
     resp = client.post(f"/day/{past}/profile-mode", data={"mode": "current", "next": "https://x.example/"},
                        follow_redirects=False)
     assert resp.headers["location"] == f"/summary/{past}"
+
+
+def test_meal_recipe_amount_hint_shows_serving_weight(client, db_conn) -> None:
+    """The meal page's recipe Amount hint says what one serving is: its
+    weight even with no Serving description (4 crackers from 96 g), and the
+    description with the weight when there is one."""
+    _db.recipe_create(db_conn, "Iced crackers", "", 4, "", total_weight=96.0, total_weight_unit="g")
+    _db.recipe_create(db_conn, "Iced muffins", "", 6, "", serving_size="1 muffin",
+                      total_weight=510.0, total_weight_unit="g")
+    mid = _db.meal_create(db_conn, "Snack", "2026-11-18")
+    db_conn.commit()
+
+    page = client.get(f"/meal/{mid}?q=iced&source=recipe").text
+    assert "4 total &middot; 1 serving = 24 g)" in page
+    assert "6 total &middot; 1 serving = 1 muffin, 85 g)" in page
 
 
 def test_meal_recipe_amount_box_takes_fractions_and_volumes(client, db_conn) -> None:

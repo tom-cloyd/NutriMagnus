@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_other_nutrients.html" as _on %}
 {% from "_archived_toggle.html" import archived_toggle %}
 {% block title %}NutriMagnus — Food Cache{% endblock %}
 
@@ -131,7 +132,8 @@
       <th class="text-center">AA</th>
       <th class="text-center">GI est.</th>
       <th class="text-center">DIAAS</th>
-      <th title="How many recipes and logged meals use this food directly">Used in</th>
+      {{ _on.header() }}
+      <th title="How many recipes and logged meals use this food directly">Used<br>in</th>
       <th>Notes</th>
       <th>Actions</th>
     </tr>
@@ -174,9 +176,10 @@
         {% endif %}
         {% else %}—{% endif %}
       </td>
+      {{ _on.cell(food.other_missing, food.fdc_id) }}
       <td style="white-space:nowrap"><small>
         {% if food.use.recipes or food.use.meals %}
-        {{ food.use.recipes }} recipe{{ "s" if food.use.recipes != 1 }}, {{ food.use.meals }} meal{{ "s" if food.use.meals != 1 }}
+        {{ food.use.recipes }} recipe{{ "s" if food.use.recipes != 1 }},<br>{{ food.use.meals }} meal{{ "s" if food.use.meals != 1 }}
         {% else %}<span class="muted">not used</span>{% endif %}
       </small></td>
       <td>
@@ -188,10 +191,10 @@
         <span class="muted">—</span>
         {% endif %}
       </td>
-      <td style="white-space:nowrap">
+      <td class="actions-stack" style="white-space:nowrap">
         {% if food.in_pantry %}
         <a href="/pantry" class="btn btn-sm btn-outline-success me-1"
-           title="This food is already in your Pantry — click to open the Pantry">In pantry</a>
+           title="This food is already in your Pantry — click to open the Pantry">In<br>pantry</a>
         {% else %}
         <form method="post" action="/pantry/add" style="display:inline"
               class="js-keep-scroll" data-return-to="{{ list_url }}">
@@ -199,7 +202,7 @@
           <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
           <input type="hidden" name="next" value="{{ list_url }}">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
-                  title="Add this food to your Pantry (the foods you keep on hand, used for complement suggestions), then return here">Add to pantry</button>
+                  title="Add this food to your Pantry (the foods you keep on hand, used for complement suggestions), then return here">Add to<br>pantry</button>
         </form>
         {% endif %}
         <a href="/food/cache/{{ food.fdc_id }}/portions"
@@ -207,7 +210,7 @@
         <form method="post" action="/food/custom-profiles/copy/{{ food.fdc_id }}" style="display:inline">
           <button type="submit" class="btn btn-sm btn-outline-secondary me-1"
                   title="Create an editable custom-food draft copy of this food, leaving the cached original untouched">
-            Copy as draft
+            Copy as<br>draft
           </button>
         </form>
         {% if food.fdc_id > 0 %}
@@ -250,7 +253,7 @@
     </tr>
     {% if food.notes or food.curator_notes %}
     <tr id="notes-row-{{ food.fdc_id }}" style="display:none">
-      <td colspan="11" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
+      <td colspan="12" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
         {% if food.notes %}
         <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
         {% endif %}

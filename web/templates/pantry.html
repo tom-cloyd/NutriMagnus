@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "_other_nutrients.html" as _on %}
 {% import "_search_hint.html" as _sh %}
 {% from "_archived_toggle.html" import archived_toggle %}
 {% import "_source_filter_select.html" as _srcf %}
@@ -168,7 +169,8 @@
       <th class="text-center" title="Amino acid data">AA</th>
       <th class="text-center">GI est.</th>
       <th class="text-center">DIAAS</th>
-      <th title="How many recipes and logged meals use this food directly">Used in</th>
+      {{ _on.header() }}
+      <th title="How many recipes and logged meals use this food directly">Used<br>in</th>
       <th>Notes</th>
       <th>Added</th>
       <th></th>
@@ -218,18 +220,19 @@
         {% endif %}
         {% else %}—{% endif %}
       </td>
+      {{ _on.cell(item.other_missing, item.fdc_id) }}
       <td style="white-space:nowrap"><small>
         {% if item.use.recipes or item.use.meals %}
-        {{ item.use.recipes }} recipe{{ "s" if item.use.recipes != 1 }}, {{ item.use.meals }} meal{{ "s" if item.use.meals != 1 }}
+        {{ item.use.recipes }} recipe{{ "s" if item.use.recipes != 1 }},<br>{{ item.use.meals }} meal{{ "s" if item.use.meals != 1 }}
         {% else %}<span class="muted">not used</span>{% endif %}
       </small></td>
       <td class="muted">{{ item.notes or "—" }}</td>
       <td class="muted">{{ item.added_at or "—" }}</td>
-      <td style="white-space:nowrap">
+      <td class="actions-stack" style="white-space:nowrap">
         {% if not item.fdc_id %}
         <a href="/pantry?link_id={{ item.id }}&search={{ item.food_name | urlencode }}"
            class="btn btn-sm btn-outline-secondary me-1" title="Search for and attach USDA/Open Food Facts data">
-          Link a food
+          Link<br>a food
         </a>
         {% else %}
         <a href="/food/custom-profiles/{{ item.fdc_id }}/edit"

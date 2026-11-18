@@ -1,0 +1,14 @@
+{# The Food Cache and My Pantry "Other nutrients" column. `missing` is
+   backend.py's _other_nutrients(): the missing group labels (empty =
+   complete), or None for a supplement or an unlinked pantry entry, which
+   aren't checked. Groups: data_completeness.OTHER_NUTRIENT_GROUPS. #}
+{% macro header() %}<th class="text-center" title="Whether this food has the macronutrients, water, minerals, vitamins and amino acids (needed for DCP) NuMa needs for a full analysis. A group marked &quot;not needed&quot; for the food doesn't count against it. Omega fatty acids and phytonutrients are not checked: most foods never had them measured.">Other<br>nutrients</th>{% endmacro %}
+
+{% macro cell(missing, fdc_id) %}
+<td class="text-center"><small>
+  {% if missing is none %}<span class="muted" title="Not checked: a supplement, or no food linked">&#8212;</span>
+  {% elif not missing %}<span class="status-met" title="Macronutrients, water, minerals, vitamins and amino acids all present, or marked not needed">complete</span>
+  {% else %}<a href="/food/{{ fdc_id }}" class="text-warning-emphasis" title="Missing: {{ missing | join(', ') }}. Open the food to see and fix it.">incomplete</a>
+  {% endif %}
+</small></td>
+{% endmacro %}

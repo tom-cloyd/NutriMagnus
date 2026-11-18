@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-18:0136* / Reading time: 7 hours, 33 minutes
+*Updated 2026-11-18:0242* / Reading time: 7 hours, 35 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -722,7 +722,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 9 minutes)*
+*(Reading time: 2 hours, 10 minutes)*
 
 
 
@@ -1044,6 +1044,15 @@ Columns:
              See <a href="#diaas">DIAAS</a> for details. Shown with a star when it's your
              own saved estimate rather than the built-in reference-table value.
 
+    Other    "complete" when the food has macronutrients, water, minerals,
+    nutrients vitamins and amino acids (which its DCP is worked out from),
+             or each missing group is marked "not needed" for it; otherwise
+             "incomplete", linked to the food's page. Point at "incomplete"
+             to see what's missing. Omega fatty acids and phytonutrients
+             aren't checked (most foods never had them measured), nor is a
+             supplement (shows --). Water counts only while NuMa tracks it
+             (Settings).
+
     Used in  How many recipes and logged meals use this food directly, e.g.
              "2 recipes, 5 meals" ("not used" if none). A recipe counts once
              however many times the food appears in it; a food reached only
@@ -1140,7 +1149,7 @@ The foods you've marked as on hand. When NuMa suggests a food to fill an amino a
                          Use Link a food to attach real data.
     Notes   Your optional note for this pantry entry.
     Added   When you added it.
-    Type, GI est., DIAAS, Used in   Same as the matching columns in the
+    Type, GI est., DIAAS, Other nutrients, Used in   Same as the matching columns in the
             <a href="#cached">Food Cache</a> list — see the DIAAS entry there for
             how the saved-estimate-vs-reference-table value is chosen.
     An archived entry, shown when archived entries are visible, has an
@@ -2741,7 +2750,7 @@ A recipe's serving weight comes from **Number of servings** and **Total yield we
 
 (On Convert only, `p1` for a recipe means its one serving.)
 
-**Serving description**, beside Number of servings, gives the serving a real-world name: 1 muffin, 1 slice. It's a label, except that a measure (`2/3 cup`) lets a meal convert volumes, as above. It appears as "(1 serving = 1 muffin)" wherever the recipe's servings are shown.
+**Serving description**, beside Number of servings, gives the serving a real-world name: 1 muffin, 1 slice. It's a label, except that a measure (`2/3 cup`) lets a meal convert volumes, as above. It appears as "(1 serving = 1 muffin)" wherever the recipe's servings are shown. When you add the recipe to a meal, the hint under the Amount box also gives one serving's weight, if it's known ("1 serving = 1 muffin, 85 g"), or the weight alone if there is no description ("1 serving = 24 g").
 
 **Where you see the weight.** Servings are shown with grams, "2 servings (500 g)", on screen and in print, from the Total yield weight or else the ingredients added up, but only if every ingredient has a weight (a partial sum would mislead).
 
@@ -6234,7 +6243,11 @@ DETAILS:
 * NuMa's own window now runs as a separate browser process with its own profile, so KDE shows it in Alt+Tab with its own icon even while an ordinary Chromium window is open, and your browser's extensions (and their keyboard shortcuts) no longer reach it.
 * On the Food Cache, Fetch ticks and "Deletion not possible" warnings are kept when you leave the page and click your way back (a keyboard shortcut back starts it fresh); each warning is checked again, so it shows what uses the food now, and goes once nothing does.
 * On both Food Use pages, a replace, remove or add always reports what happened, in a colored box the page opens at: what was changed and in how many meals or recipes, or that nothing was and why. After a mistake, the codes you typed are still there to correct.
+* When you add a recipe to a meal, the hint under its Amount box says what one serving weighs ("1 serving = 24 g"), even with no serving description.
+* The Food Cache and My Pantry lists have an Other nutrients column, complete or incomplete, covering macronutrients, water, minerals, vitamins and the amino acids DCP needs; the Used in counts and longer button labels there now take two lines.
 
+- **41.** The [Food Cache](#cached) and My Pantry lists have an **Other nutrients** column after DIAAS: "complete" when a food has its macronutrients, water, minerals, vitamins and the amino acids DCP needs, otherwise "incomplete", with what's missing shown when you point at it.
+- **40.** When you add a recipe to a meal, the hint under its Amount box now says what one serving weighs ("1 serving = 24 g"), even when the recipe has no serving description. [learn more...](#portions-vs-servings)
 - **39.** On both Food Use pages, a replace, remove or add now always says what happened, in a colored box the page opens at. It names what was changed and in how many meals or recipes, or says nothing was changed and why (a mistyped code used to change nothing and say nothing). After a mistake, the codes you typed are still there to correct. See [Replace a Food or Recipe Everywhere](#fooduse-substitute).
 - **38.** On the [Food Cache](#cached), your **Fetch** ticks and any "Deletion not possible" warnings are still there when you leave the page and click your way back, so you can look at the meal that's using a food without losing your place. Coming back with a keyboard shortcut starts the page fresh.
 - **37.** NuMa's own window shows NuMa's icon in Alt+Tab again, even while your everyday Chromium is open. The window now runs separately from your browser, with its own browser settings, so your browser's extensions no longer reach it. See [Browser to Launch](#browser-to-launch).
