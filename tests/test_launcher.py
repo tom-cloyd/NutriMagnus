@@ -55,6 +55,18 @@ def test_running_chromium_snap_opens_chromium_not_os_default(monkeypatch) -> Non
     assert launched == [["/snap/bin/chromium", "http://127.0.0.1:8000"]]
 
 
+class _FakeProfile:
+    """Stands in for NuMa's window profile folder without creating one."""
+    def mkdir(self, **kw) -> None:
+        pass
+
+    def __str__(self) -> str:
+        return "/profile"
+
+
+_APP_ARGS = ["--user-data-dir=/profile", "--no-first-run", "--no-default-browser-check"]
+
+
 def _capture_launch(monkeypatch, *, preferred: str, running: list[str],
                     on_path: dict[str, str]) -> list:
     monkeypatch.setattr(launcher, "_resolve_executable", on_path.get)
@@ -64,6 +76,7 @@ def _capture_launch(monkeypatch, *, preferred: str, running: list[str],
     monkeypatch.setattr(launcher, "_detect_running_browsers", lambda: running)
     monkeypatch.setattr(launcher, "_prompt_browser_choice", lambda r: None)
     monkeypatch.setattr(launcher, "_ensure_linux_window_entry", lambda window_id: None)
+    monkeypatch.setattr(launcher, "_app_window_profile", lambda app: _FakeProfile())
     launched = []
     monkeypatch.setattr(launcher.subprocess, "Popen",
                         lambda cmd, **kw: launched.append(cmd))
@@ -77,7 +90,7 @@ def test_own_window_uses_installed_chromium_even_if_only_firefox_runs(monkeypatc
     launched = _capture_launch(
         monkeypatch, preferred="", running=["firefox"],
         on_path={"chromium": "/snap/bin/chromium", "firefox": "/usr/bin/firefox"})
-    assert launched == [["/snap/bin/chromium", "--app=http://127.0.0.1:8000/nutrimagnus-source"]]
+    assert launched == [["/snap/bin/chromium", "--app=http://127.0.0.1:8000/nutrimagnus-source", *_APP_ARGS]]
 
 
 def test_own_window_prefers_running_chromium_family_browser(monkeypatch) -> None:
@@ -85,7 +98,7 @@ def test_own_window_prefers_running_chromium_family_browser(monkeypatch) -> None
         monkeypatch, preferred="", running=["firefox", "brave"],
         on_path={"chromium": "/usr/bin/chromium", "brave": "/snap/bin/brave",
                  "firefox": "/usr/bin/firefox"})
-    assert launched == [["/snap/bin/brave", "--app=http://127.0.0.1:8000/nutrimagnus-source"]]
+    assert launched == [["/snap/bin/brave", "--app=http://127.0.0.1:8000/nutrimagnus-source", *_APP_ARGS]]
 
 
 def test_own_window_with_firefox_chosen_opens_normal_tab(monkeypatch) -> None:
@@ -132,3 +145,16 @@ def test_linux_window_entry_written_unless_already_claimed(monkeypatch, tmp_path
         f"[Desktop Entry]\nName=NuMa\nStartupWMClass={wid2}\n")
     launcher._ensure_linux_window_entry(wid2)
     assert not (tmp_path / "applications" / f"{wid2}.desktop").exists()
+
+
+def test_app_window_profile_is_numa_own(monkeypatch, tmp_path) -> None:
+    """Its own profile gives NuMa's window its own browser process, so KDE
+    doesn't file it under the browser (no NuMa icon in Alt+Tab)."""
+    monkeypatch.setattr(launcher.Path, "home", lambda: tmp_path)
+    (tmp_path / "snap" / "chromium").mkdir(parents=True)
+    assert launcher._app_window_profile("/snap/bin/chromium") == \
+        tmp_path / "snap" / "chromium" / "common" / "numa-profile"
+    monkeypatch.setattr(launcher.sys, "platform", "linux")
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    assert launcher._app_window_profile("/usr/bin/google-chrome") == \
+        tmp_path / ".config" / "numa" / "browser-profile"

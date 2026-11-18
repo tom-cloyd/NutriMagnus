@@ -292,6 +292,31 @@ def _app_window_id(browser_path: str, url: str) -> str:
     return f"{prefix}-{parts.hostname}_{(parts.path or '/').replace('/', '_')}-Default"
 
 
+def _app_window_profile(browser_path: str) -> Path:
+    """A browser profile used only by NuMa's own window.
+
+    Its own profile makes the browser start a separate process for NuMa.
+    KDE groups windows into applications by process, so in the shared one
+    (with an ordinary browser window open, OneTab's say) Alt+Tab filed
+    NuMa's window under the browser and showed no NuMa icon (2026-11-17).
+    It also keeps the main profile's extensions out of NuMa's window: their
+    shortcuts (OneTab's Alt+Shift+1 and 2) reach the browser before the page
+    sees the key. A snap browser may only write inside ~/snap/<name>/, so
+    its profile goes there. cmgr's launcher does the same, for the same reason.
+    """
+    name = os.path.basename(browser_path)
+    snap_home = Path.home() / "snap" / name
+    if browser_path.startswith("/snap/") and snap_home.is_dir():
+        return snap_home / "common" / "numa-profile"
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        return base / "NutriMagnus" / "browser-profile"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "NutriMagnus" / "browser-profile"
+    config = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return config / "numa" / "browser-profile"
+
+
 def _ensure_linux_window_entry(window_id: str) -> None:
     """Give NuMa's window its icon on a Linux desktop, whichever the desktop.
 
@@ -358,8 +383,11 @@ def _pick_and_open_browser(url: str) -> None:
             app_url = f"{urlsplit(url).scheme}://{urlsplit(url).netloc}{_app_window_path()}"
             _ensure_linux_window_entry(_app_window_id(app, app_url))
             try:
+                profile = _app_window_profile(app)
+                profile.mkdir(parents=True, exist_ok=True)
                 subprocess.Popen(
-                    [app, f"--app={app_url}"],
+                    [app, f"--app={app_url}", f"--user-data-dir={profile}",
+                     "--no-first-run", "--no-default-browser-check"],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 )
                 return

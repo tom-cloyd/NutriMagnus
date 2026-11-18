@@ -10,13 +10,23 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 #### November 17 updates
 
-**PROGRAM: OPEN A RECIPE OR MEAL BY TYPING ITS ID**
+**PROGRAM: NUMA'S WINDOW GETS ITS ICON BACK IN ALT+TAB**
 
-On the Recipes list, Meals & Log and Search meal history, hold Alt+Shift, type a row's ID (21 for R21) and let go: that recipe or meal opens. A box at the bottom of the window shows what the digits typed so far match. [learn more...](#go-to-id)
+NuMa's own window now runs as its own browser process, with a browser profile of its own, so KDE shows it in Alt+Tab with NuMa's icon even while an ordinary Chromium window is open. Your browser's extensions no longer run in NuMa's window either. [learn more...](#browser-to-launch)
 
 <!--
 ```
-Scope: web/templates/base.html (Alt+Shift keydown handler + "Go to a row by its ID" keyup block), web/static/style.css (#go-id-box), recipes.html, meals.html, meals_search.html (data-go-id / data-go-label on each row's main link), tests/e2e/test_go_to_id_e2e.py. With any [data-go-id] on the page, an Alt+Shift+digit keydown appends to a buffer (preventDefault) instead of calling akRun; keyup of Alt or Shift clicks the first [data-go-id="<Number(buffer)>"], or shows "No ID N in this list" for 2.5 s. Window blur clears the buffer (Alt+Tab never delivers the keyup). Settings' Alt+Shift+digit section shortcuts are unaffected: it has no data-go-id rows.
+Scope: web/launcher.py (_app_window_profile; _pick_and_open_browser adds --user-data-dir=<profile> --no-first-run --no-default-browser-check to the --app launch), tests/test_launcher.py. KDE groups windows into applications by process: an --app window in the main profile's process, alongside an ordinary browser window (OneTab's tab, opened at Chromium startup), was filed under Chromium and showed no NuMa icon, although its app_id still matched chrome-127.0.0.1__nutrimagnus-source-Default.desktop. Same fix as cmgr's launcher (_profile_dir). Profile: ~/snap/<browser>/common/numa-profile for a snap browser (it may only write inside ~/snap/<name>/), else $XDG_CONFIG_HOME/numa/browser-profile, %LOCALAPPDATA%\NutriMagnus\browser-profile, ~/Library/Application Support/NutriMagnus/browser-profile. localStorage (manual bookmarks, Keyboard Shortcuts on/off, Nutrient Plot's last settings, Food use's meal column) is per profile, so it starts empty in the new one.
+```
+-->
+
+**PROGRAM: OPEN A RECIPE OR MEAL BY TYPING ITS ID**
+
+On the Recipes list, Meals & Log and Search meal history, press Alt+Shift+G, type a row's ID (21 for R21) and press Enter: that recipe or meal opens. A box at the bottom of the window shows what the digits typed so far match; Backspace removes a digit, Esc cancels. (First built as hold Alt+Shift, type the digits, let go; changed the same day because a browser extension's own Alt+Shift+1 and Alt+Shift+2 shortcuts, OneTab's, reach the browser before the page sees them.) [learn more...](#go-to-id)
+
+<!--
+```
+Scope: web/templates/base.html (Alt+Shift keydown handler + "Go to a row by its ID" block), web/static/style.css (#go-id-box), recipes.html, meals.html, meals_search.html (data-go-id / data-go-label on each row's main link), tests/e2e/test_go_to_id_e2e.py. With any [data-go-id] on the page, Alt+Shift+G turns go-to-ID mode on; while on, a capture-phase window keydown listener swallows every key (so a focused search box never gets them): digits (Digit/Numpad) append to a buffer, Backspace trims it, Enter clicks the first [data-go-id="<Number(buffer)>"] or shows "No ID N in this list" for 2.5 s, Esc or any other key cancels. Window blur cancels. Settings' Alt+Shift+digit section shortcuts are untouched.
 ```
 -->
 

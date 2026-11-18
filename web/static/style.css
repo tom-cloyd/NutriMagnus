@@ -156,7 +156,7 @@ html {
 /* Access key underlines: visible only when shortcuts are enabled */
 .ak { text-decoration: none; }
 .shortcuts-on .ak { text-decoration: underline; }
-/* Alt+Shift + digits on a list with IDs: what's been typed and what it matches */
+/* Alt+Shift+G then digits on a list with IDs: what's been typed and what it matches */
 #go-id-box {
   position: fixed; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); left: 50%;
   transform: translateX(-50%); z-index: 1080; max-width: calc(100vw - 2rem);

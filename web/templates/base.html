@@ -1330,21 +1330,23 @@
       if (digit) key = digit[1];
       else if (!/^[a-z]$/.test(key) && letter) key = letter[1].toLowerCase();
       // On a page whose table rows carry data-go-id (Recipes, Meals & Log,
-      // meal search), digits typed with Alt+Shift held build up an ID
-      // instead; releasing Alt or Shift opens that row (keyup below).
-      if (digit && document.querySelector('[data-go-id]')) {
+      // meal search), Alt+Shift+G starts "go to ID": plain digits then
+      // build the ID and Enter opens that row (see goIdStart below).
+      if (key === 'g' && document.querySelector('[data-go-id]')) {
         e.preventDefault();
-        goIdBuf = (goIdBuf + key).slice(-9);
-        goIdShow();
+        goIdStart();
         return;
       }
       if (akRun(key)) e.preventDefault();
     });
 
-    // ── Go to a row by its ID: hold Alt+Shift, type the digits, release ──
+    // ── Go to a row by its ID: Alt+Shift+G, then the digits, then Enter ──
     // Each row's main link carries data-go-id="<id>" (and data-go-label, its
     // name). A small box shows the ID typed so far and the row it matches.
-    var goIdBuf = '', goIdBox = null, goIdTimer = null;
+    // Plain keys, not Alt+Shift+digit: browser extensions may claim
+    // Alt+Shift+1/2 (OneTab does), and an extension's shortcut reaches the
+    // browser before the page ever sees the key.
+    var goIdOn = false, goIdBuf = '', goIdBox = null, goIdTimer = null;
     function goIdTarget() {
       return goIdBuf ? document.querySelector('[data-go-id="' + Number(goIdBuf) + '"]') : null;
     }
@@ -1356,9 +1358,11 @@
         document.body.appendChild(goIdBox);
       }
       var t = goIdTarget();
-      goIdBox.textContent = msg || ('Go to ID ' + goIdBuf + ': ' +
-        (t ? (t.getAttribute('data-go-label') || t.textContent.trim()) : 'not in this list'));
-      goIdBox.classList.toggle('go-id-miss', !msg && !t);
+      goIdBox.textContent = msg || (!goIdBuf
+        ? 'Go to ID: type the digits, then Enter (Esc cancels)'
+        : 'Go to ID ' + goIdBuf + ': ' +
+          (t ? (t.getAttribute('data-go-label') || t.textContent.trim()) : 'not in this list'));
+      goIdBox.classList.toggle('go-id-miss', !msg && !!goIdBuf && !t);
       goIdBox.hidden = false;
       clearTimeout(goIdTimer);
     }
@@ -1366,23 +1370,44 @@
       clearTimeout(goIdTimer);
       goIdTimer = setTimeout(function () { if (goIdBox) goIdBox.hidden = true; }, delay || 0);
     }
-    document.addEventListener('keyup', function (e) {
-      if (!goIdBuf || (e.key !== 'Alt' && e.key !== 'Shift')) return;
-      var t = goIdTarget(), typed = goIdBuf;
-      goIdBuf = '';
-      if (t) {
-        goIdShow('Opening ' + (t.getAttribute('data-go-label') || 'ID ' + typed) + '…');
-        t.click();
-      } else {
-        goIdShow('No ID ' + typed + ' in this list');
-        goIdBox.classList.add('go-id-miss');
-        goIdHide(2500);
+    function goIdStart() { goIdOn = true; goIdBuf = ''; goIdShow(); }
+    function goIdStop() { goIdOn = false; goIdBuf = ''; goIdHide(); }
+    // Capture phase on window, so while it's on the keys never reach a
+    // focused search box or the open-dropdown digit picker.
+    window.addEventListener('keydown', function (e) {
+      if (!goIdOn) return;
+      if (e.key === 'Alt' || e.key === 'Shift' || e.key === 'Control' || e.key === 'Meta') return;
+      e.preventDefault();
+      e.stopPropagation();
+      var digit = /^(?:Digit|Numpad)(\d)$/.exec(e.code || '');
+      if (digit && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        goIdBuf = (goIdBuf + digit[1]).slice(-9);
+        goIdShow();
+      } else if (e.key === 'Backspace') {
+        goIdBuf = goIdBuf.slice(0, -1);
+        goIdShow();
+      } else if (e.key === 'Enter') {
+        if (!goIdBuf) return;
+        var t = goIdTarget(), typed = goIdBuf;
+        goIdOn = false; goIdBuf = '';
+        if (t) {
+          goIdShow('Opening ' + (t.getAttribute('data-go-label') || 'ID ' + typed) + '…');
+          t.click();
+        } else {
+          goIdShow('No ID ' + typed + ' in this list');
+          goIdBox.classList.add('go-id-miss');
+          goIdHide(2500);
+        }
+      } else if (e.key === 'Escape') {
+        goIdStop();
+      } else if (!(e.altKey && e.shiftKey && e.code === 'KeyG')) {
+        // Any other key cancels; that key is swallowed, not acted on.
+        goIdStop();
       }
-    });
-    // Switching windows mid-chord (Alt+Tab) never delivers the keyup here.
-    window.addEventListener('blur', function () { if (goIdBuf) { goIdBuf = ''; goIdHide(); } });
+    }, true);
+    window.addEventListener('blur', function () { if (goIdOn) goIdStop(); });
     // Coming Back to a list from the opened row: don't show a stale box.
-    window.addEventListener('pageshow', function () { goIdHide(); });
+    window.addEventListener('pageshow', function () { goIdOn = false; goIdBuf = ''; goIdHide(); });
 
     // akRun(key) does what Alt+Shift+key does on this page, and returns false
     // if the page has nothing for that key. The command palette (Alt+Shift+K)
