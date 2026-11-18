@@ -594,13 +594,23 @@
 
   {# No amino acid data — shown whether or not there's a protein-summary card above #}
   {% if suggest_foundation %}
-  <div class="alert alert-info mt-3" style="max-width:42rem">
-    <strong>No amino acid data for this food.</strong>
-    Foundation Foods (USDA's most complete dataset) usually includes full amino acid profiles.
-    <a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
-    &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy equivalent,
-    or <a href="/food/custom-profiles/{{ food.fdc_id }}/edit?aa_source_q={{ suggest_foundation | urlencode }}">estimate it from a similar food</a>
-    that already has amino acid data.
+  <div class="alert alert-info mt-3 no-aa-steps" style="max-width:42rem">
+    <strong>No amino acid data for this food.</strong> Try these in order {{ manual_link("fix-food-data", "why this order") }}
+    <ol class="mb-0 mt-1">
+      <li><a href="/food/search?query={{ suggest_foundation | urlencode }}">Search for
+        &ldquo;{{ suggest_foundation }}&rdquo;</a> to find a Foundation or SR&nbsp;Legacy record of the same food:
+        USDA&rsquo;s most complete data, which usually includes amino acids.</li>
+      <li><a href="/food/custom-profiles/{{ food.fdc_id }}/edit?aa_source_q={{ suggest_foundation | urlencode }}">Estimate them from a similar food</a>
+        that has amino acid data, scaled to this food&rsquo;s own protein.</li>
+      <li>Neither works? Ask Claude AI:
+        <form method="post" action="/food/cache/claude-fetch" class="d-inline">
+          <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+          <input type="hidden" name="group" value="aa">
+          <input type="hidden" name="back" value="/food/{{ food.fdc_id }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary py-0" title="Writes a prompt asking Claude AI for this food&rsquo;s amino acids, to paste into claude.ai; its answer is imported back into NuMa after you review it">Write a prompt for Claude AI</button>
+        </form>
+        <small class="muted">(for other nutrients, or the whole profile, use <a href="/food/custom-profiles/{{ food.fdc_id }}/edit#sec-ask-ai">Ask Claude AI for help</a> on its Edit page)</small></li>
+    </ol>
   </div>
   {% elif not protein %}
   <p class="muted">No protein in this food &mdash; protein quality analysis is not applicable.</p>

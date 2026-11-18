@@ -84,6 +84,10 @@ _INTRO_FULL = "I need complete nutritional data for {n} food(s), formatted as JS
 _INTRO_TARGETED = ("I need specific missing nutrient values for {n} food(s), formatted as JSON for "
                    "direct import into a Python nutrition app. The app already has the other values "
                    "for these foods, so only the keys listed for each food are wanted.")
+_INTRO_REPLACE = ("I need nutrient values for {n} food(s), formatted as JSON for direct import into a "
+                  "Python nutrition app. The app has figures for some of these keys already but they "
+                  "may be wrong or estimated, so give your best-sourced value for every key listed "
+                  "for each food, whether or not you think the app has it.")
 _ANNOTATION_RULE = """\
 10. Where a food's entry below says "also wanted: gi" or "also wanted: diaas", add these keys to that food's JSON block, after confidence_note:
      "gi": 78,                 — glycemic index, glucose = 100 scale
@@ -101,7 +105,8 @@ _TARGETED_RULE = ("8b. For each food, include ONLY the nutrient keys listed unde
 
 def build_prompt(selected: list[tuple[int | None, str]],
                  requests: dict[int, tuple[list[str], list[str]]] | None = None,
-                 annotations: dict[int, list[str]] | None = None) -> str:
+                 annotations: dict[int, list[str]] | None = None,
+                 replace: bool = False) -> str:
     """Build the Claude prompt text for a list of (fdc_id, name) foods.
 
     With `requests` (fdc_id -> (nutrient keys wanted, labels of groups the
@@ -109,7 +114,10 @@ def build_prompt(selected: list[tuple[int | None, str]],
     instead of a complete profile — see data_completeness.py.
 
     `annotations` (fdc_id -> a subset of ANNOTATION_KEYS) also asks for
-    those GI/DIAAS estimates, per food."""
+    those GI/DIAAS estimates, per food.
+
+    `replace` words the request as a check of every key listed (the user
+    doubts the figures the app has) rather than a fill of missing ones."""
     annotations = annotations or {}
 
     def _line(fdc_id, name):
@@ -131,7 +139,8 @@ def build_prompt(selected: list[tuple[int | None, str]],
     targeted = requests is not None
     return PROMPT_TEMPLATE.format(
         n=n, food_list=lines,
-        intro=(_INTRO_TARGETED if targeted else _INTRO_FULL).format(n=n),
+        intro=(_INTRO_REPLACE if targeted and replace else
+               _INTRO_TARGETED if targeted else _INTRO_FULL).format(n=n),
         which_keys=("only the nutrient keys listed for that food" if targeted
                     else "all available nutrient keys"),
         targeted_rule=_TARGETED_RULE if targeted else "",

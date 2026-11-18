@@ -8,7 +8,111 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+#### November 17 updates
+
+**MANUAL: USING NUMA WITHOUT A MOUSE**
+
+[Tips for new users](#new-user-tips) now points out that NuMa can be run entirely from the keyboard, for speed or for anyone who finds a mouse or touchpad hard to use, starting from `Alt+Shift+K`, the panel that lists every page and shortcut.
+
+**PROGRAM: A RELOADED PAGE KEEPS YOUR PLACE EVEN WHEN ONLINE RESULTS ARRIVE LATE**
+
+When a page reloads after you change something below its search results (on a meal, say), it reliably comes back to where you were. Before, if the online results arrived while the page was still gliding back into place, it could end up back at the top.
+
+<!--
+
+```
+Scope: web/templates/base.html, the after-submit scroll restore. It used window.scrollTo(0, y), which Bootstrap's scroll-behavior: smooth animates; the online-rows swap (data-search-results fetch) records the scroll position and puts it back after replacing the rows, so landing mid-animation it read the half-way position (often 0) and its own scrollTo cancelled the restore. The restore now jumps with behavior: 'instant'. Found as an intermittent failure (about 1 in 7 on a fresh server) of tests/e2e/test_search_lands_on_results_e2e.py::test_meal_search_puts_panel_at_top_and_adding_keeps_your_place; 0 in 16 after.
+```
+
+-->
+
+**PROGRAM: ALT+SHIFT+K LISTS EVERY PAGE AND SHORTCUT (COMMAND PALETTE)**
+
+**Alt+Shift+K** (or the **⌘ Alt+Shift+K** button at the right of the menu bar, or `Ctrl+K`) opens a panel listing every menu page and every shortcut the current page has, each with the keys that reach it. Type to narrow it, or to search foods, recipes or meals for the typed text; ↑↓ and Enter choose; it can also quit NuMa. Settings' Keyboard Shortcuts section moves from `Alt+Shift+K` to `Alt+Shift+E`. [learn more...](#command-palette)
+
+<!--
+
+```
+Scope: web/templates/base.html: navbar #palette-btn (data-ak="k"), #palette modal, palette script (pages read from the navbar so it can't drift from the menus; page entries from every [data-ak] outside the navbar, data-ak-label when the text won't do); the Alt+Shift handler refactored into akRun(key) / window.numaAkRun, which the palette runs; Ctrl+Q's handler exposed as window.numaQuit; Ctrl+K alias; footer hint names K. web/static/style.css: palette rules. settings.html: section 12 K -> E. meal.html, compare.html: data-ak-label on the Items targets. Same design as cmgr's palette (cmgr README, "Keyboard shortcuts and the command palette"). Tests: tests/e2e/test_command_palette_e2e.py (6); test_web settings-letters and Items tests updated.
+```
+
+-->
+
+**PROGRAM: WHAT-IF REMOVES A RECIPE LOGGED AS INGREDIENTS, EVEN AFTER YOU CHANGED IT**
+
+When a recipe is added to a meal as individual ingredients, each of those foods now remembers the recipe it came from, and the meal page shows *part of* and the recipe's name beside it. **What-if: meals** (Analysis → 4) uses that link to **Remove** or **Change amount** of the recipe, so it still works after you altered the recipe for that meal: an ingredient left out, an amount changed, or a food swapped. Foods you added yourself stay. Recipes logged this way before today are still found by matching their ingredients, as before. Where a change can't reach such foods, it now names the meals so you can fix them by hand: a **Replace** of the recipe (Replace needs the recipe itself in the meal), and a recipe used as a sub-recipe inside one logged as individual ingredients. The Apply confirmation page shows the same notes. [learn more...](#whatif-ingredients)
+
+<!--
+
+```
+Scope: db.py: meal_items.from_recipe_id (ALTER TABLE migration); meal_add_food(from_recipe_id=); meal_copy_items copies it. web/backend.py meal_add_recipe_item() tags rows in "ingredients" mode; _meal_expand_for_diaas() adds `from_recipe` to food items; meal.html shows "part of" in Notes. whatif._apply_logged_ingredient_removals(): tagged rows first, _logged_ingredient_sets() on untagged rows only. _logged_set() and _containers(); replace and sub-recipe-inside-ingredients cases reported as not_replaced_meal_ids / inside_ingredients, rendered by _whatif_changes.html ingredient_notes() on analysis_whatif.html and analysis_whatif_apply.html (plan changes carry `rep`); loose-meal note moved there and reworded. Tests (test_whatif.py TestRecipeLoggedAsIngredients): test_logging_as_ingredients_tags_each_row, test_tagged_set_altered_for_the_meal_is_still_removed, test_rows_tagged_with_another_recipe_are_not_matched_by_contents, test_replace_names_meals_holding_the_recipe_as_ingredients, test_sub_recipe_inside_a_recipe_logged_as_ingredients_is_named.
+```
+
+-->
+
+**PROGRAM: ASK CLAUDE AI FROM A FOOD'S EDIT PAGE; THE STEPS FOR FILLING MISSING DATA**
+
+A food's **Edit** page now ends with an **Ask Claude AI for help** box. Choose one nutrient group or the whole profile, and either only the values the food is missing or every value (to replace doubtful figures), and NuMa writes the prompt to paste into Claude. The *No amino acid data* box on a food's page now lists its three fixes in order: search for a better record, estimate from a similar food, then **Write a prompt for Claude AI**. The manual's new Workflow 12 explains the order. [learn more...](#fix-food-data)
+
+<!--
+
+```
+Scope: web/backend.py food_cache_claude_fetch(): new `replace` (ask for every key in the chosen groups, filled or not; all groups not marked not needed when none chosen) and `back` (local "Back to the food" link) form fields; "" group values (the Edit page's "whole profile") are dropped, as are unknown groups. claude_fetch.build_prompt(replace=) uses _INTRO_REPLACE. data_completeness.group_keys(). claude-import GET/POST take `replace`, which pre-ticks the review's overwrite box. _ask_ai_context() feeds food_custom_edit.html's new #sec-ask-ai details (last of the three solution boxes, with a sidebar entry and an intro line linking /manual#fix-food-data). food_detail.html's no-AA alert is a numbered list ending in a POST to claude-fetch with group=aa. Manual: Workflow 12 {#fix-food-data}, #edit-ask-ai paragraph, #fetch, #ts-missing-aa, #key-sources step 5 and Workflow 10 step 4 point to it. Tests: test_edit_page_ask_ai_box_comes_last_and_writes_prompts, test_food_page_no_aa_box_lists_claude_last, test_claude_import_replace_starts_with_replace_ticked, test_build_prompt_replace_asks_to_check_every_key_listed.
+```
+
+-->
+
+#### November 16 updates
+
+**PROGRAM: EDIT RECIPE'S SEARCH RESULTS SHOW DCP AND DESCRIPTION**
+
+**Edit Recipe**'s **Add Ingredient** search results have two new columns right after **Code**: **DCP/srv (g)** (a recipe's digestible complete protein per serving, as on the Recipes list) and **Description** (a recipe's description). Foods show a dash in both, since search results don't carry them.
+
+<!--
+
+```
+Scope: web/backend.py _recipe_search_rows() adds description and dcp_g (both already in db.recipe_list()). _recipe_search_rows.html: two <td>s (.col-dcp, .col-desc) after .col-id; every colspan 7 -> 9. recipe_edit.html: two <th>s and colgroup cols 4.5rem / 12rem; style.css .add-food-table-wide width 60.736 -> 77.236rem (comment updated), .col-dcp right-aligned and excluded from the left-align rule, .col-desc wraps. Test: test_recipe_edit_search_rows_show_recipe_dcp_and_description.
+```
+
+-->
+
+**PROGRAM: EDIT RECIPE GETS A CONTENTS LIST AND AN INLINE CLEAR SEARCH**
+
+**Edit Recipe** now has a **Contents** list down the left side, like a recipe's own page: Recipe details (with Introduction, Instructions, Notes and documentation, and Running totals under it), Add Ingredient and Ingredients. A click jumps there and opens the section if it was collapsed, and the list highlights the part you're looking at. **Clear search** now sits right after **Search**, always there, instead of below the filters only after a search. [learn more...](#search-keeps-results)
+
+<!--
+
+```
+Scope: Recipes → Edit (web/templates/recipe_edit.html). analysis-page layout + analysis-sidebar (#recipe-edit-toc); new ids sec-details (the Recipe details <details>) and sec-instructions (wrapper). Script: a click opens every <details> up from the target; highlight = lowest target whose top is above a third of the window (by position, since Running totals sits beside the right-hand boxes), the window's bottom at the page's end, and a clicked entry stays lit while on screen until wheel/touch/key. Clear search: the old bottom <a data-reset-search> (shown only with q) replaced by a <button data-reset-search> in the input group; group max-width 28rem -> 42rem so the box isn't squeezed. Also this day, layout only: Introduction/Instructions/Notes textareas rows 5 -> 3; Recipes list title row centered (style.css: a heading in a .d-flex.align-items-center row drops its top margin, the row gets it as padding; .section-heading excepted); the Learn more link moved after + New recipe; the empty-Ingredients hint says Add Ingredient is above.
+```
+
+-->
+
+**PROGRAM: RECIPES FILTER MATCHES EVERY WORD**
+
+The **Recipes** list's filter box now keeps only recipes whose names hold every word you type, as the other list filters do, so `coffee 2` finds Coffee 2 instead of every recipe with "coffee" or a "2" in its name.
+
+<!--
+
+```
+Scope: Recipes list (GET /recipes). web/backend.py recipes_list called _list_filter(q, any_word=True), keeping the any-word test it had before _list_filter existed; it now uses the all-words default like every other list filter, and the any_word parameter is removed (no other caller). Test: test_recipes_filter_needs_every_word.
+```
+
+-->
+
 #### November 15 updates
+
+**PROGRAM: SEE WHAT AN INGREDIENT CHANGE DOES TO A RECIPE**
+
+On a recipe's Edit page, each time you add, remove or change the amount of an ingredient, NuMa offers a short report on how the change moved the recipe's nutrients per serving. Pick the nutrient groups, **All nutrients**, or **All nutrients that changed by 5% or more**. A report covers every change since the last one, so remove-then-add shows a whole swap. Reports go into `recipe-edit-effects-data.md`, which a **Show ingredient change(s) file content** button displays. Food and recipe names on the Edit page now open in a panel over it, so a look-up no longer leaves the page. [learn more...](#recipe-edit-effects)
+
+<!--
+
+```
+Scope: Recipes → Edit. New numa_app/services/recipe_edit_effects.py (sessions in memory, per recipe: baseline snapshot taken before the first change since the last report; changes listed; offer shown once; selection remembered; file overwritten by a new session's first report, appended after). web/backend.py: recipe_edit_get starts a session unless the Referer is this Edit page, passes effects_* context; before_change/after_change in ingredient add, add-recipe, remove and edit (amount changes only); new POST /recipe/{id}/edit-effects/report and GET /recipe/{id}/edit-effects (Markdown → HTML, tables extension). recipe_edit.html: offer card (fixed, bottom right), Show button + panel, details <dialog> with an iframe for /food/N and /recipe/N links in Ingredients and the search results (capture-phase click, so base.html's leave guard isn't triggered). base.html adds .numa-embedded on <html> when framed; style.css hides the navbar there. File: project root from source, platform_utils.get_data_dir() when frozen; .gitignore'd; tests/conftest.py autouse fixture redirects it. Snapshot: recipe_total_nutrients / servings, recipe_dcp_per_serving, gl_for_leaves over expand_recipe_ingredients(portion_factor=1/servings). Groups: _shown_groups(_NUTRIENT_GROUPS) plus "Other". tests/test_recipe_edit_effects.py (8 tests).
+```
+
+-->
 
 **PROGRAM: USDA API KEY CHECKED BEFORE IT IS SAVED**
 

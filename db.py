@@ -256,6 +256,18 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        # The recipe a food row came from when that recipe was logged "as
+        # individual ingredients" (one food row per ingredient). It stays
+        # through later edits of the row (amount changed, food swapped), so
+        # the set is still that recipe after it was altered for this meal;
+        # rows added or removed by hand are simply not in it. NULL for rows
+        # logged on their own, or logged that way before this column existed
+        # (whatif._logged_ingredient_sets() still matches those by contents).
+        try:
+            conn.execute("ALTER TABLE meal_items ADD COLUMN from_recipe_id INTEGER")
+        except sqlite3.OperationalError:
+            pass
+
         try:
             conn.execute("ALTER TABLE meals ADD COLUMN complete INTEGER NOT NULL DEFAULT 0")
         except sqlite3.OperationalError:
@@ -2095,11 +2107,16 @@ def _now_hhmm() -> str:
 
 def meal_add_food(conn: sqlite3.Connection, meal_id: int, fdc_id: int,
                   food_name: str, amount: float, unit: str,
-                  notes: str | None = None, added_time: str | None = None) -> None:
+                  notes: str | None = None, added_time: str | None = None,
+                  from_recipe_id: int | None = None) -> None:
+    """Log a food. from_recipe_id: the recipe it is one ingredient of, when
+    a recipe is logged as individual ingredients (see meal_items.from_recipe_id)."""
     conn.execute("""
-        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit, notes, added_time)
-        VALUES (?, 'food', ?, ?, ?, ?, ?, ?)
-    """, (meal_id, fdc_id, food_name, amount, unit, notes or None, added_time or _now_hhmm()))
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit, notes, added_time,
+                                from_recipe_id)
+        VALUES (?, 'food', ?, ?, ?, ?, ?, ?, ?)
+    """, (meal_id, fdc_id, food_name, amount, unit, notes or None, added_time or _now_hhmm(),
+          from_recipe_id))
 
 
 def meal_add_recipe(conn: sqlite3.Connection, meal_id: int, recipe_id: int,
@@ -3044,8 +3061,9 @@ def meal_copy_items(conn: sqlite3.Connection, from_meal_id: int, to_meal_id: int
     """Copy all items from one meal to another. Returns count of items copied.
     The copies are stamped with the time now — they were entered now."""
     cur = conn.execute("""
-        INSERT INTO meal_items (meal_id, item_type, fdc_id, recipe_id, food_name, amount, unit, notes, added_time)
-        SELECT ?, item_type, fdc_id, recipe_id, food_name, amount, unit, notes, ?
+        INSERT INTO meal_items (meal_id, item_type, fdc_id, recipe_id, food_name, amount, unit, notes, added_time,
+                                from_recipe_id)
+        SELECT ?, item_type, fdc_id, recipe_id, food_name, amount, unit, notes, ?, from_recipe_id
         FROM meal_items WHERE meal_id = ? ORDER BY id
     """, (to_meal_id, _now_hhmm(), from_meal_id))
     return cur.rowcount

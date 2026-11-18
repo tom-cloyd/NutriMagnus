@@ -117,10 +117,9 @@ replaced or cut down foods and recipes. Nothing is saved or changed &mdash; your
       {% else %}Add {{ "%g"|format(e.amount|round(1)) }} {{ "g" if e.unit == "g" else "serving(s)" }} of <strong>{{ r.item_name }}</strong> per day{% endif %}
       &mdash;
       {% if r.meals %}<span class="muted">{% if e.op == "add" %}added on {{ r.days }} day(s){% else %}found in {{ r.meals }} meal(s) on {{ r.days }} day(s){% if r.as_ingredients %}{% if r.as_ingredients == r.meals %}, logged there{% else %}; in {{ r.as_ingredients }} of them{% endif %} as individual ingredients, which are {{ "removed" if e.op == "remove" else "changed" }} together{% endif %}{% endif %}</span>
+      {% elif r.not_replaced_meal_ids or r.inside_ingredients or r.loose_meal_ids %}<span class="text-warning">nothing changed: see below</span>
       {% else %}<span class="text-warning">not found in any of these meals, so it changes nothing</span>{% endif %}
-      {% if r.loose_meal_ids %}<br><span class="text-warning">Meal{{ "s" if r.loose_meal_ids|length > 1 }}
-        {% for mid in r.loose_meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{{ ", " if not loop.last }}{% endfor %}
-        {{ "seem" if r.loose_meal_ids|length > 1 else "seems" }} to have this recipe logged as individual ingredients, but they don't match the recipe as it is now (it may have changed since), so they weren't {{ "removed" if e.op == "remove" else "changed" }}. {{ "Remove" if e.op == "remove" else "Change" }} those foods one by one instead.</span>{% endif %}
+      {{ _wc.ingredient_notes(r) }}
     </li>
     {% endfor %}
   </ul>

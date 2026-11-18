@@ -20,6 +20,7 @@ Don't have a prompt yet? <a href="/food/cache">Go to the Food Cache</a> and sele
     <textarea name="response_text" class="form-control font-monospace" rows="16"
               style="font-size:0.8rem" placeholder="Paste Claude's reply here…">{{ response_text }}</textarea>
   </div>
+  {% if replace %}<input type="hidden" name="replace" value="1">{% endif %}
   <button type="submit" name="action" value="preview" class="btn btn-sm btn-primary">Review</button>
 </form>
 
@@ -109,9 +110,9 @@ Don't have a prompt yet? <a href="/food/cache">Go to the Food Cache</a> and sele
   <input type="hidden" name="response_text" value="{{ response_text }}">
   {% if any_keep %}
   <div class="form-check mb-2">
-    <input class="form-check-input" type="checkbox" name="overwrite" value="1" id="overwrite">
+    <input class="form-check-input" type="checkbox" name="overwrite" value="1" id="overwrite"{% if replace %} checked{% endif %}>
     <label class="form-check-label" for="overwrite">Also replace the values these foods already have with the reply's values
-      <small class="muted">(normally left unchecked — only missing values are filled in)</small></label>
+      <small class="muted">{% if replace %}(ticked because the prompt asked Claude to check every value; untick it to fill only missing values){% else %}(normally left unchecked — only missing values are filled in){% endif %}</small></label>
   </div>
   {% endif %}
   <button type="submit" name="action" value="confirm" class="btn btn-success">

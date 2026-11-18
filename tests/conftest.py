@@ -6,6 +6,7 @@ Key fixtures:
                       temp database so tests never touch ~/.local/share/numa/numa.db
   use_test_profile  — autouse; redirects profile._PROFILES_DIR/_ACTIVE_NAME_FILE to temp paths
   use_test_prefs    — autouse; redirects web/backend.py's prefs.json to a per-test temp path
+  use_test_edit_effects — autouse; recipe Edit change-effect reports file to a temp path
   no_off            — autouse; stubs Open Food Facts search/barcode lookup
   no_cnf            — autouse; stubs Canadian Nutrient File search/detail lookup
   no_live_search_cache — autouse; empties web/backend.py's recent online-search cache
@@ -177,6 +178,16 @@ def use_test_prefs(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> N
     # in place of the one they set up.
     from numa_app.services import manual_update as _manual_update
     monkeypatch.setattr(_manual_update, "installed_dir", lambda: tmp_path / "manual")
+
+
+@pytest.fixture(autouse=True)
+def use_test_edit_effects(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the recipe Edit page's change-effect reports file out of the
+    project root, and start every test with no edit sessions. Applied
+    automatically to every test."""
+    from numa_app.services import recipe_edit_effects as _effects
+    monkeypatch.setattr(_effects, "_FILE", tmp_path / _effects.FILE_NAME)
+    _effects.reset_for_tests()
 
 
 @pytest.fixture(autouse=True)

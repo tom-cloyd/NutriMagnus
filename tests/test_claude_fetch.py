@@ -279,3 +279,12 @@ class TestGiDiaas:
             ann = _db.get_food_annotation(conn, 170115)
             assert (ann["gi_estimate"], ann["diaas_estimate"]) == (60.0, 0.5)
             assert (ann["gi_source"], ann["diaas_source"]) == ("Claude AI reply", "Claude AI reply")
+
+
+def test_build_prompt_replace_asks_to_check_every_key_listed() -> None:
+    """replace=True (Edit page's "Every value") words the request as a check of
+    the figures the app has, not a fill of missing ones."""
+    text = _cf.build_prompt([(1, "Dark chocolate")], {1: (["aa_lysine_g"], [])}, replace=True)
+    assert "may be wrong or estimated" in text
+    assert "specific missing nutrient values" not in text
+    assert "provide only: aa_lysine_g" in text

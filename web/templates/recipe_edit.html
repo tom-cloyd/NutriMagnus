@@ -10,6 +10,30 @@
 {% import "_search_results_block.html" as _srb %}
 {% block title %}NutriMagnus — Edit {{ recipe.name }}{% endblock %}
 
+{% block layout_class %}analysis-page{% endblock %}
+{% block main_class %}analysis-content{% endblock %}
+
+{# ── Sidebar: stays in view while scrolling, highlights the section in view.
+   A click opens its section (and the one holding it) if collapsed. ── #}
+{% block sidebar_nav %}
+<aside class="analysis-sidebar no-print" id="recipe-edit-toc">
+  <a class="sb-page-title" href="#analysis-content">{{ recipe.name }}</a>
+  <div class="sb-title">Contents</div>
+  <ul class="sb-list">
+    <li class="sb-item"><a class="sb-toggle" href="#sec-details">Recipe details</a>
+      <ul class="sb-sub">
+        <li><a class="sb-link" href="#sec-introduction">Introduction</a></li>
+        <li><a class="sb-link" href="#sec-instructions">Instructions</a></li>
+        <li><a class="sb-link" href="#sec-notes">Notes and documentation</a></li>
+        {% if nutrition_summary.has_data %}<li><a class="sb-link" href="#recipe-running-totals">Running totals</a></li>{% endif %}
+      </ul>
+    </li>
+    <li class="sb-item"><a class="sb-toggle" href="#add-ingredient-section">Add Ingredient</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#sec-ingredients">Ingredients ({{ ingredients|length }})</a></li>
+  </ul>
+</aside>
+{% endblock %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -66,7 +90,7 @@
 
 {# ── Metadata form ────────────────────────────────────────────────────── #}
 {{ _failsafe.note("Recipe details", "recipe-details-failsafe-note", autosave=True) }}
-<details open>
+<details open id="sec-details">
   {# The Save button rides on the summary row rather than sitting alone on a
      row of its own further down. It is outside the <form> element, so it
      targets it by id with the HTML form="" attribute; the click handler
@@ -210,19 +234,21 @@
           <label class="col-form-label" for="introduction">Introduction <small class="text-muted">(optional)</small></label>
           <p class="muted mb-1" style="font-size:0.75rem">Background or general information about this recipe — not the step-by-step instructions. Saved by the "Save recipe details" button.</p>
           <textarea class="form-control" id="introduction" name="introduction"
-                    rows="5" style="max-width:38.4rem"
+                    rows="3" style="max-width:38.4rem"
                     placeholder="Origin, background, tips, serving suggestions…">{{ recipe.introduction or '' }}</textarea>
         </div>
 
-        <label class="col-form-label mt-3" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
-        <textarea class="form-control" id="instructions" name="instructions"
-                  rows="5" style="max-width:38.4rem">{{ recipe.instructions or '' }}</textarea>
+        <div id="sec-instructions">
+          <label class="col-form-label mt-3" for="instructions">Instructions <small class="text-muted">(optional)</small></label>
+          <textarea class="form-control" id="instructions" name="instructions"
+                    rows="3" style="max-width:38.4rem">{{ recipe.instructions or '' }}</textarea>
+        </div>
 
         <div id="sec-notes">
           <label class="col-form-label mt-3" for="notes">Notes and documentation <small class="text-muted">(optional)</small></label>
           <p class="muted mb-1" style="font-size:0.75rem">Anything you want on record about this recipe — where it came from, sources you consulted, substitutions you have tried, adjustments still to make. Saved by the "Save recipe details" button.</p>
           <textarea class="form-control" id="notes" name="notes"
-                    rows="5" style="max-width:38.4rem"
+                    rows="3" style="max-width:38.4rem"
                     placeholder="Source, references, substitutions tried, changes to make next time…">{{ recipe.notes or '' }}</textarea>
         </div>
       </div>
@@ -235,7 +261,7 @@
 // with the bottom of Running totals, so both columns sit the same distance
 // above Add Ingredient. How tall the left column is depends on how its labels
 // wrap, so this is measured, not a row count. Side-by-side layout only, and
-// the rows="5" stands wherever there is no Running totals card to line up with.
+// the rows="3" stands wherever there is no Running totals card to line up with.
 (function () {
   var card = document.getElementById('recipe-running-totals');
   if (!card) return;
@@ -258,6 +284,73 @@
 })();
 </script>
 
+{# ── Effect-of-change reports (services/recipe_edit_effects.py) ───────── #}
+<div id="effects-file" class="mt-3"{% if not effects_has_file %} hidden{% endif %}>
+  {# The button comes after the panel, so once the reports are open, Hide
+     sits right below the last table. #}
+  <div id="effects-panel" class="card card-body mb-2 effects-panel" hidden>
+    <p class="muted mb-2" style="font-size:0.8rem">From <code id="effects-path"></code>. Each report compares the recipe, per serving, with how it was at the report before it. {{ manual_link("recipe-edit-effects") }}</p>
+    <div id="effects-content"></div>
+  </div>
+  <button type="button" class="btn btn-outline-secondary btn-sm" id="effects-show-btn" aria-expanded="false">Show ingredient change(s) file content</button>
+</div>
+
+{% if effects_offer %}
+<div class="card shadow effects-offer" id="effects-offer" role="region" aria-label="Report the effect of this change">
+  <div class="card-body p-2">
+    {% set changes = effects_offer.changes %}
+    {% if changes|length == 1 %}
+    <div><strong>Changed:</strong> {{ changes[0] }}</div>
+    {% else %}
+    <div><strong>Changes since the last report:</strong></div>
+    <ol class="mb-1 ps-3">{% for c in changes %}<li>{{ c }}</li>{% endfor %}</ol>
+    {% endif %}
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-1">
+      <span>Report the effect on nutrients?</span>
+      <button type="button" class="btn btn-primary btn-sm" data-effects="no" title="Or press Esc">No (Esc)</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" data-effects="yes">Yes&hellip;</button>
+    </div>
+    <form id="effects-form" class="mt-2" hidden>
+      <div class="muted mb-1" style="font-size:0.8rem">Which nutrients? (per serving)</div>
+      {% for g in effects_groups %}
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="choice" value="{{ g }}" id="effects-g{{ loop.index }}" data-effects-group
+               {% if g in effects_offer.selection %}checked{% endif %}>
+        <label class="form-check-label" for="effects-g{{ loop.index }}">{{ g }}</label>
+      </div>
+      {% endfor %}
+      <hr class="my-1">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="choice" value="{{ effects_all }}" id="effects-all" data-effects-whole
+               {% if effects_all in effects_offer.selection %}checked{% endif %}>
+        <label class="form-check-label" for="effects-all">All nutrients</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" name="choice" value="{{ effects_all_changed }}" id="effects-all5" data-effects-whole
+               {% if effects_all_changed in effects_offer.selection %}checked{% endif %}>
+        <label class="form-check-label" for="effects-all5">All nutrients that changed by {{ effects_changed_pct|int }}% or more</label>
+      </div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <button type="submit" class="btn btn-primary btn-sm">Write report</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-effects="no" title="Or press Esc">Cancel (Esc)</button>
+        <span class="text-danger small" id="effects-error" role="alert"></span>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{# Food and recipe details open in a panel over this page, so a look-up
+   leaves this page (unsaved details, search results, the offer) as it is. #}
+<dialog id="details-overlay" class="details-overlay" aria-label="Details">
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <strong id="details-overlay-title" class="me-auto">Details</strong>
+    <a id="details-overlay-full" class="btn btn-outline-secondary btn-sm" href="#">Open as its own page</a>
+    <button type="button" class="btn btn-primary btn-sm" id="details-overlay-close">Close (Esc)</button>
+  </div>
+  <iframe id="details-overlay-frame" title="Details"></iframe>
+</dialog>
+
 {# ── Add ingredient ───────────────────────────────────────────────────── #}
 <div class="mt-3">
     <details id="add-ingredient-section" {% if show_add_section %}open{% endif %}>
@@ -265,10 +358,12 @@
 
       <form method="get" action="/recipe/{{ recipe.id }}/edit" data-persist-search data-online-search data-search-form>
         <div class="d-flex align-items-center flex-wrap gap-2 mb-1">
-          <div class="input-group" style="max-width:28rem">
+          <div class="input-group" style="max-width:42rem">
             <input type="text" data-ak="i" class="form-control" name="q" value="{{ q }}"
                    placeholder="Search foods…" title="Type part of a name, or an exact code such as U171477, UD4 or R21 (or a cached food&rsquo;s FDC ID number, or a 12/13-digit barcode) to go straight to that one food or recipe" autofocus>
             <button type="submit" class="btn btn-primary">Search</button>
+            <button type="button" class="btn btn-outline-secondary" data-reset-search
+                    title="Clear the search box and its results, and reset Source and result-limit filters back to their defaults">Clear search</button>
             <button type="button" class="btn btn-outline-secondary"
                     onclick="this.form.querySelectorAll('input[name=source]').forEach(cb => cb.checked = true); this.form.requestSubmit();"
                     title="Check every source filter and re-run the search">Reset all sources to ON</button>
@@ -278,7 +373,6 @@
         {{ _sh.hint("mb-2") }}
         <div class="mb-2">{{ _srcf.select(source, source_filters, source_labels) }}</div>
         <div class="mb-2">{{ _rli.input(limit) }}</div>
-        {% if q %}<a href="#" data-reset-search class="btn btn-sm btn-outline-secondary mb-2" title="Clear the search box and reset Source and result-limit filters back to their defaults">Clear search</a>{% endif %}
       </form>
 
       {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
@@ -307,6 +401,8 @@
           <col style="width:1.936rem">
           <col style="width:19.8rem">
           <col style="width:3.5rem">
+          <col style="width:4.5rem">
+          <col style="width:12rem">
           <col style="width:2.5rem">
           <col style="width:5rem">
           <!-- span="2" applies its width to EACH spanned column, not
@@ -323,6 +419,8 @@
             </th>
             <th>Food</th>
             <th class="col-id">Code</th>
+            <th class="num-col col-dcp" title="Digestible complete protein per serving, in grams (recipes only)">DCP/srv<br>(g)</th>
+            <th class="col-desc">Description</th>
             <th title="Amino acid data">AA</th>
             <th class="col-source">Source</th>
             <th class="col-amount" colspan="2">Amount &rarr; Add</th>
@@ -487,13 +585,71 @@
   {{ _gd.footnote(ingredients) }}
   {{ _wm.footnote(ingredients) }}
   {% else %}
-  <p class="muted mt-2">No ingredients yet. Use the search below to add them.</p>
+  <p class="muted mt-2">No ingredients yet. Use <strong>Add Ingredient</strong>, above, to add them.</p>
   {% endif %}
 </details>
 
 {% endblock %}
 
 {% block scripts %}
+<script>
+// The Contents sidebar: open what a link points into, and highlight the
+// section in view: of those whose top is above a third of the window, the
+// lowest (by position, not list order: Running totals sits beside the
+// right-hand boxes, not after them).
+(function () {
+  var toc = document.getElementById('recipe-edit-toc');
+  if (!toc) return;
+  var links = Array.from(toc.querySelectorAll('.sb-toggle, .sb-link'));
+  function target(a) { return document.getElementById(a.getAttribute('href').slice(1)); }
+  function openTo(el) {
+    for (var d = el; d; d = d.parentElement) if (d.tagName === 'DETAILS') d.open = true;
+  }
+  // A clicked entry stays lit while its section is on screen, until you
+  // scroll yourself: a jump can't always bring a section up to the line
+  // (the page ends first), and Running totals sits beside Notes.
+  var clicked = null;
+  links.forEach(function (a) {
+    a.addEventListener('click', function () {
+      var el = target(a); if (el) openTo(el);
+      clicked = a; setTimeout(update, 50);
+    });
+  });
+  ['wheel', 'touchmove', 'keydown'].forEach(function (ev) {
+    window.addEventListener(ev, function () { clicked = null; }, {passive: true});
+  });
+  function onScreen(a) {
+    var el = target(a);
+    if (!el || !el.offsetParent) return false;
+    var r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < window.innerHeight;
+  }
+  function update() {
+    // At the page's end, the line moves to the window's bottom, so the
+    // last sections, which can't scroll up to it, still get their turn.
+    var atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    var mid = atEnd ? window.innerHeight - 40 : window.innerHeight / 3;
+    var best = null, bestY = -Infinity;
+    if (clicked && onScreen(clicked)) best = clicked;
+    else links.forEach(function (a) {
+      var el = target(a);
+      if (!el || !el.offsetParent) return;
+      var y = el.getBoundingClientRect().top;
+      if (y <= mid && y >= bestY) { best = a; bestY = y; }
+    });
+    var sub = best && best.classList.contains('sb-link') ? best : null;
+    var top = sub ? sub.closest('.sb-item').querySelector('.sb-toggle') : best;
+    toc.querySelectorAll('.sb-item').forEach(function (li) {
+      li.classList.toggle('sb-active', !!top && li.contains(top));
+    });
+    links.forEach(function (a) { a.classList.toggle('sb-link-active', a === sub); });
+  }
+  window.addEventListener('scroll', update, {passive: true});
+  window.addEventListener('resize', update);
+  document.addEventListener('toggle', update, true);
+  update();
+})();
+</script>
 {% if search_results %}
 <script>
 (function () {
@@ -581,6 +737,123 @@
   }
   restore();
   window.addEventListener('load', function () { setTimeout(restore, 0); });
+})();
+</script>
+<script>
+// Effect-of-change reports: the offer after an ingredient change, and the
+// Show button for the reports file. Ignoring the offer is the same as No.
+(function () {
+  var offer = document.getElementById('effects-offer');
+  var fileBox = document.getElementById('effects-file');
+  var showBtn = document.getElementById('effects-show-btn');
+  var panel = document.getElementById('effects-panel');
+
+  function loadFile() {
+    return fetch('/recipe/{{ recipe.id }}/edit-effects')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        document.getElementById('effects-path').textContent = d.path;
+        document.getElementById('effects-content').innerHTML = d.html || '<p class="muted">The file is empty.</p>';
+      });
+  }
+  showBtn.addEventListener('click', function () {
+    var open = panel.hidden;
+    panel.hidden = !open;
+    showBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    showBtn.textContent = (open ? 'Hide' : 'Show') + ' ingredient change(s) file content';
+    if (open) loadFile();
+  });
+
+  if (!offer) return;
+  // Esc closes the box: the quick way to say No, or to close it after the
+  // report is written. Not while the food-details panel is open (Esc closes
+  // that first), and not when Esc already meant something to another control.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || e.defaultPrevented || !offer.isConnected) return;
+    var dlg = document.getElementById('details-overlay');
+    if (dlg && dlg.open) return;
+    offer.remove();
+  });
+  var form = document.getElementById('effects-form');
+  var wholes = form.querySelectorAll('[data-effects-whole]');
+  var groups = form.querySelectorAll('[data-effects-group]');
+  function sync() {
+    var whole = Array.prototype.some.call(wholes, function (b) { return b.checked; });
+    groups.forEach(function (b) { b.disabled = whole; });
+  }
+  wholes.forEach(function (box) {
+    box.addEventListener('change', function () {
+      // The two "all" choices exclude each other.
+      if (box.checked) wholes.forEach(function (o) { if (o !== box) o.checked = false; });
+      sync();
+    });
+  });
+  sync();
+  offer.addEventListener('click', function (e) {
+    var act = e.target.getAttribute && e.target.getAttribute('data-effects');
+    if (act === 'no') offer.remove();
+    if (act === 'show') {
+      offer.remove();
+      if (panel.hidden) showBtn.click(); else loadFile();
+      fileBox.scrollIntoView({block: 'start'});
+    }
+    if (act === 'yes') { form.hidden = false; e.target.hidden = true; }
+  });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var body = new FormData();
+    form.querySelectorAll('input[name=choice]').forEach(function (b) {
+      if (b.checked && !b.disabled) body.append('choice', b.value);
+    });
+    fetch('/recipe/{{ recipe.id }}/edit-effects/report', {method: 'POST', body: body})
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.ok) { document.getElementById('effects-error').textContent = d.error; return; }
+        fileBox.hidden = false;
+        if (!panel.hidden) loadFile();
+        // The Show button sits above Add Ingredient, often off screen from
+        // where the change was made, so the box itself says where it went
+        // and can show it.
+        var body = offer.querySelector('.card-body');
+        body.innerHTML = '<div><strong>Report written.</strong></div>' +
+          '<div class="d-flex flex-wrap align-items-center gap-2 mt-1">' +
+          '<button type="button" class="btn btn-primary btn-sm" data-effects="show">Show the report</button>' +
+          '<button type="button" class="btn btn-outline-secondary btn-sm" data-effects="no">Close (Esc)</button></div>' +
+          '<div class="muted mt-1" style="font-size:0.8rem">Later: <strong>Show ingredient change(s) file content</strong>, above Add Ingredient.</div>';
+        body.querySelector('[data-effects=show]').focus();
+      })
+      .catch(function () {
+        document.getElementById('effects-error').textContent = 'Could not write the report. Please try again.';
+      });
+  });
+})();
+</script>
+<script>
+// A food's or sub-recipe's name in Ingredients or the search results opens
+// its page in a panel over this one, instead of leaving this page.
+// Ctrl/Shift/middle click still opens it elsewhere, as everywhere in NuMa.
+(function () {
+  var dlg = document.getElementById('details-overlay');
+  var frame = document.getElementById('details-overlay-frame');
+  var full = document.getElementById('details-overlay-full');
+  var title = document.getElementById('details-overlay-title');
+  var sections = ['sec-ingredients', 'add-ingredient-section'];
+  document.addEventListener('click', function (e) {
+    if (e.button !== 0 || e.ctrlKey || e.shiftKey || e.metaKey || e.altKey) return;
+    var link = e.target.closest ? e.target.closest('a[href]') : null;
+    if (!link || link.target === '_blank') return;
+    if (!sections.some(function (id) { var s = document.getElementById(id); return s && s.contains(link); })) return;
+    var href = link.getAttribute('href') || '';
+    if (!/^\/(food|recipe)\/\d+(\?|$)/.test(href)) return;
+    e.preventDefault();
+    e.stopPropagation();   // not a page leave: base.html's unsaved-changes guard stays out of it
+    title.textContent = link.textContent.trim() || 'Details';
+    full.href = href;
+    frame.src = href;
+    dlg.showModal();
+  }, true);
+  document.getElementById('details-overlay-close').addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('close', function () { frame.src = 'about:blank'; });
 })();
 </script>
 <script>

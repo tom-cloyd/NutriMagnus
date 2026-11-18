@@ -10,6 +10,7 @@
   </ol>
 </nav>
 
+{% if back %}<p class="mb-2"><a href="{{ back }}" class="btn btn-sm btn-outline-secondary">&larr; Back to the food</a></p>{% endif %}
 <h2>{% if gi_only %}Ask Claude AI for a glycemic index{% else %}Fetch nutrient data from Claude AI{% endif %} {{ manual_link("fetch") }}</h2>
 
 {% if nothing_missing %}
@@ -24,6 +25,8 @@
   {% for fid in form_fdc_ids %}<input type="hidden" name="fdc_id" value="{{ fid }}">{% endfor %}
   {% for g in form_groups %}<input type="hidden" name="group" value="{{ g }}">{% endfor %}
   {% for w in form_wants %}<input type="hidden" name="want" value="{{ w }}">{% endfor %}
+  {% if replace %}<input type="hidden" name="replace" value="1">{% endif %}
+  {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
   <div class="form-check">
     <input class="form-check-input" type="checkbox" name="gi_diaas" value="1" id="gi_diaas"
            {% if gi_diaas %}checked{% endif %} onchange="this.form.submit()">
@@ -46,6 +49,13 @@ If all you want is the number, read it (and where it came from) in Claude&rsquo;
 food&rsquo;s Annotate page yourself. Or import the reply as below, which saves it there for you
 (an import only fills a blank GI unless you tell it to replace the one saved).</p>
 <p><a href="/food/annotate/{{ selected[0][0] }}" class="btn btn-sm btn-outline-secondary">&larr; Back to this food&rsquo;s Annotate page</a></p>
+{% elif replace %}
+<p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below. It asks for
+<strong>every</strong> value in the groups named, including ones the food already has, so you can replace doubtful figures.
+The import page starts with <strong>Also replace the values these foods already have</strong> ticked; untick it there to fill only gaps:</p>
+<ul class="muted" style="font-size:0.9rem">
+  {% for fid, name in selected %}<li>{{ name }} &mdash; {{ group_labels[fid]|join(", ") }}</li>{% endfor %}
+</ul>
 {% else %}
 <p class="muted">A prompt for {{ selected|length }} food{% if selected|length != 1 %}s{% endif %} is ready below. It asks only
 for the values each food is missing, so importing the reply fills gaps without touching values you already have:</p>
@@ -66,7 +76,7 @@ for the values each food is missing, so importing the reply fills gaps without t
   <li class="mb-1">Copy Claude&rsquo;s <strong>latest complete</strong> reply, using the <strong>Copy</strong> button under it.
     <br><small class="muted">All foods should appear in one response. If Claude splits its answer across
     multiple replies, copy each one and paste them together.</small></li>
-  <li class="mb-1">Go to <a href="/food/cache/claude-import">Import Claude response</a>, paste the reply, and
+  <li class="mb-1">Go to {% if replace %}<a href="/food/cache/claude-import?replace=1">Import Claude response</a>{% else %}<a href="/food/cache/claude-import">Import Claude response</a>{% endif %}, paste the reply, and
     review before importing.</li>
 </ol>
 

@@ -1884,12 +1884,12 @@ def test_settings_sections_order_and_shortcut_keys(client: TestClient) -> None:
         ("5", "Nutrient Targets - Researched"), ("6", "USDA API Key"),
         ("7", "Glycemic Index Reference Table"), ("8", "Glycemic Load"),
         ("9", "Water Tracking"), ("0", "Meals &amp; Log columns"),
-        ("t", "Starter Data"), ("k", "Keyboard Shortcuts"),
+        ("t", "Starter Data"), ("e", "Keyboard Shortcuts"),
         ("b", "Browser to Launch"), ("d", "Data Quality Reminder"),
         ("y", "System Issues"),
     ]
     # No letter may collide with a main-nav shortcut.
-    nav_keys = {"f", "r", "c", "m", "n", "s", "a"}
+    nav_keys = {"f", "r", "c", "m", "n", "s", "a", "k"}
     assert not nav_keys & {k for k, _ in found}
 
 
@@ -1900,7 +1900,7 @@ def test_items_section_shortcut(client: TestClient, cached_food, db_conn) -> Non
     _db.meal_add_food(db_conn, meal_id, cached_food["fdcId"], cached_food["name"], 100.0, "g")
     db_conn.commit()
     meal = client.get(f"/meal/{meal_id}").text
-    assert 'data-ak="y" data-ak-focus tabindex="-1">Items (1)' in meal
+    assert 'data-ak="y" data-ak-focus data-ak-label="Items in this meal" tabindex="-1">Items (1)' in meal
     rid = _make_recipe(client, "Y Stew", 1, cached_food["fdcId"], cached_food["name"], "300 g")
     compare = client.get(f"/compare?items=r{rid},f{cached_food['fdcId']}").text
     assert 'id="compare-items" data-ak="y" data-ak-focus' in compare
@@ -2478,6 +2478,50 @@ def test_claude_fetch_builds_prompt_for_selected_cached_foods(client: TestClient
     assert str(cached_food["fdcId"]) in resp.text
     assert cached_food["name"] in resp.text
     assert "1 food" in resp.text
+
+
+def test_edit_page_ask_ai_box_comes_last_and_writes_prompts(client: TestClient, cached_food) -> None:
+    """Edit Custom Profile's Ask Claude AI box sits after the two searches;
+    "whole profile" asks only for what's missing (cached_food lacks water,
+    omega and phytonutrients; it has amino acids),
+    and "every value" for one group asks for all of it, filled or not."""
+    fid = cached_food["fdcId"]
+    page = client.get(f"/food/custom-profiles/{fid}/edit").text
+    assert page.index('id="sec-copy-nutrients"') < page.index('id="sec-estimate-aa"') < page.index('id="sec-ask-ai"')
+    assert "/manual#fix-food-data" in page
+    resp = client.post("/food/cache/claude-fetch", data={"fdc_id": [fid], "group": [""]})
+    prompt = resp.text.split("Foods (")[-1]
+    assert "water_g" in prompt and "lycopene_mcg" in prompt and "aa_lysine_g" not in prompt
+    resp = client.post("/food/cache/claude-fetch", data={
+        "fdc_id": [fid], "group": ["aa"], "replace": "1",
+        "back": f"/food/custom-profiles/{fid}/edit#sec-ask-ai"})
+    assert "may be wrong or estimated" in resp.text and "aa_lysine_g" in resp.text
+    assert "calcium_mg" not in resp.text.split("Foods (")[-1]
+    assert "/food/cache/claude-import?replace=1" in resp.text
+    assert f'href="/food/custom-profiles/{fid}/edit#sec-ask-ai"' in resp.text
+
+
+def test_food_page_no_aa_box_lists_claude_last(client: TestClient, db_conn, monkeypatch) -> None:
+    _mock_api(monkeypatch)
+    import json as _json
+    db_conn.execute("INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json) VALUES (?,?,?,?,?)",
+                    (557, "Chocolate, dark, 45- 59% cacao solids", "SR Legacy",
+                     _json.dumps({"calories": 546, "protein_g": 4.9, "carbs_g": 61, "fat_g": 31}), "[]"))
+    db_conn.commit()
+    page = client.get("/food/557").text
+    box = page[page.index("No amino acid data for this food."):]
+    assert box.index("Search for") < box.index("Estimate them") < box.index("Write a prompt for Claude AI")
+    assert 'name="group" value="aa"' in box
+
+
+def test_claude_import_replace_starts_with_replace_ticked(client: TestClient, cached_food) -> None:
+    assert 'name="replace" value="1"' in client.get("/food/cache/claude-import?replace=1").text
+    text = ('```json\n{"name": "x", "fdc_id": %d, "fdc_type": "SR Legacy", "protein_g": 99.0}\n```'
+            % cached_food["fdcId"])
+    resp = client.post("/food/cache/claude-import", data={"response_text": text, "action": "preview", "replace": "1"})
+    assert 'id="overwrite" checked' in resp.text
+    resp = client.post("/food/cache/claude-import", data={"response_text": text, "action": "preview"})
+    assert 'id="overwrite" checked' not in resp.text
 
 
 def test_claude_fetch_no_matching_foods_shows_warning(client: TestClient) -> None:
@@ -5175,6 +5219,22 @@ def test_meal_search_rows_show_food_and_recipe_notes(client: TestClient, db_conn
     page = client.get(f"/meal/{meal_id}", params={"q": "lentil", "source": ["cache", "recipe"]}).text
     assert page.count('class="add-food-note"') == 2
     assert "Soak overnight first" in page and "Freezes well" in page
+
+
+def test_recipe_edit_search_rows_show_recipe_dcp_and_description(client: TestClient, db_conn) -> None:
+    """Edit Recipe's ingredient search has DCP/srv and Description columns
+    right after Code: a recipe result shows its own; a food shows dashes."""
+    _insert_food(db_conn, 900004, "Lentils raw", with_aa=True)
+    db_conn.execute("INSERT INTO recipes (name, servings, description, dcp_g)"
+                    " VALUES ('Lentil stew', 4, 'Hearty winter pot', 12.34)")
+    target = db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Dinner', 2)").lastrowid
+    db_conn.commit()
+    page = client.get(f"/recipe/{target}/edit", params={"q": "lentil", "source": ["cache", "recipe"]}).text
+    head = page[page.index('class="col-id">Code</th>'):]
+    assert head.index("DCP/srv") < head.index(">Description</th>") < head.index(">AA</th>")
+    assert "Hearty winter pot" in page
+    assert '<td class="num-col col-dcp">12.3</td>' in page
+    assert page.count('class="col-desc muted"><small>—</small>') == 1
 
 
 def test_search_rows_unknown_screen_is_404(client: TestClient) -> None:
@@ -9625,6 +9685,16 @@ def test_list_filters_honor_excluded_words(client: TestClient, db_conn) -> None:
     page = client.get("/meals/search", params={"q": "beans !kidney"}).text
     rows = page.split("<tbody")[1] if "<tbody" in page else ""
     assert small[1] in rows and kid[1] not in rows
+
+
+def test_recipes_filter_needs_every_word(client: TestClient, cached_food: dict) -> None:
+    """The Recipes filter keeps only names holding every word, like the other
+    list filters: "coffee 2" finds "Coffee 2", not every recipe with a 2."""
+    for name in ("Coffee 2", "Coffee", "Oatmeal 2"):
+        _make_recipe(client, name, 1, cached_food["fdcId"], cached_food["name"], "100 g")
+    page = client.get("/recipes", params={"q": "coffee 2"}).text
+    assert "Coffee 2" in page and "Oatmeal 2" not in page
+    assert ">Coffee<" not in page
 
 
 def test_meal_history_search_by_code(client: TestClient, cached_food, second_cached_food, db_conn) -> None:

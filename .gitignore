@@ -83,3 +83,6 @@ Archive/
 # Personal, machine-specific: notes, and this machine's launcher/menu entry
 todo-data.txt
 deploy/
+
+# Recipe Edit page's change-effect reports (written at run time)
+recipe-edit-effects-data.md

@@ -20,6 +20,7 @@
   <ul class="sb-list">
     <li class="sb-item"><a class="sb-toggle" href="#sec-copy-nutrients">Copy nutrient values</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#sec-estimate-aa">Estimate amino acids</a></li>
+    <li class="sb-item"><a class="sb-toggle" href="#sec-ask-ai">Ask Claude AI for help</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#sec-identity">Identity</a></li>
     {% for group in field_groups %}
     <li class="sb-item"><a class="sb-toggle" href="#sec-{{ group.name | lower | replace(' ', '-') }}">{{ group.name }}</a></li>
@@ -84,6 +85,10 @@
 {% elif nutrients_applied == "source_fetch_failed" %}
 <div class="alert alert-danger">Couldn't fetch the selected source food's details. Try again or pick a different food.</div>
 {% endif %}
+
+<p class="mb-2" style="max-width:44rem"><strong>Missing or doubtful values?</strong> Work down the three boxes below in order:
+  copy them from a better-documented record of this same food, then estimate them from a similar food, and
+  only then ask Claude AI. {{ manual_link("fix-food-data", "The steps, in detail") }}</p>
 
 {# ── Copy a full nutrient profile from another food ── #}
 <details id="sec-copy-nutrients" class="mb-4" open style="max-width:44rem">
@@ -180,6 +185,43 @@
   </table>
   </div>
   {% endif %}
+</details>
+
+{# ── Ask Claude AI: the last resort, after the two searches above ── #}
+<details id="sec-ask-ai" class="mb-4" open style="max-width:44rem">
+  <summary><strong>Ask Claude AI for help (when the searches above find nothing usable)</strong></summary>
+  <p class="muted mt-2 mb-2">
+    <small>NuMa writes a request (a &ldquo;prompt&rdquo;) for you to paste into Claude at claude.ai. Claude
+    answers in a form NuMa can read, and you paste its answer back into NuMa&rsquo;s import page, where you
+    review it before anything is saved. Ask Claude to name its sources, and check them: AI figures need
+    checking more than database ones.</small>
+  </p>
+  {% if ai_missing %}<p class="mb-2"><small>This food is missing: <strong>{{ ai_missing | join(", ") }}</strong>.</small></p>{% endif %}
+  <form method="post" action="/food/cache/claude-fetch" class="ask-ai-form">
+    <input type="hidden" name="fdc_id" value="{{ food.fdc_id }}">
+    <input type="hidden" name="back" value="/food/custom-profiles/{{ food.fdc_id }}/edit#sec-ask-ai">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+      <label for="ai-group" class="m-0">Ask for</label>
+      <select id="ai-group" name="group" class="form-select form-select-sm" style="max-width:20rem">
+        <option value="">the whole nutrient profile</option>
+        {% for g, label in ai_groups %}<option value="{{ g }}">{{ label }} only</option>{% endfor %}
+      </select>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="radio" name="replace" value="0" id="ai-fill" checked>
+      <label class="form-check-label" for="ai-fill">Only the values it&rsquo;s missing
+        <small class="muted">(keeps every figure it has)</small></label>
+    </div>
+    <div class="form-check mb-2">
+      <input class="form-check-input" type="radio" name="replace" value="1" id="ai-replace">
+      <label class="form-check-label" for="ai-replace">Every value, to replace doubtful figures
+        <small class="muted">(you still review each one before importing)</small></label>
+    </div>
+    <button type="submit" class="btn btn-sm btn-primary">Write the prompt for Claude AI &rarr;</button>
+    <small class="muted ms-2">Save any edits below first.</small>
+  </form>
+  <p class="mt-2 mb-0"><small>Already have Claude&rsquo;s answer? <a href="/food/cache/claude-import">Import Claude response</a>.
+    {{ manual_link("fetch", "How the prompt and import work") }}</small></p>
 </details>
 
 <form method="post" action="/food/custom-profiles/{{ food.fdc_id }}/edit"

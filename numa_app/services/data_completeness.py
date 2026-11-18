@@ -101,6 +101,11 @@ def requested_keys(nutrients: dict, groups: list[str]) -> list[str]:
     return [k for g in groups for k in _GROUP_NUTRIENTS[g] if is_blank(k, nutrients)]
 
 
+def group_keys(groups: list[str]) -> list[str]:
+    """Every nutrient key in `groups`, filled or not (GROUPS order within each)."""
+    return [k for g in groups for k in _GROUP_NUTRIENTS[g]]
+
+
 _GROUP_OF: dict[str, str] = {k: g for g, _, keys in GROUPS for k in keys}
 # Everything food_data_ignores may hold for a nutrient gap: a whole group
 # ("minerals"), or one nutrient ("iodine_mcg") — marked from the no-data list

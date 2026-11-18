@@ -8,8 +8,10 @@ recipe_nutrients.expand_recipe_ingredients() — a food used inside a recipe
 inside a meal is removed or replaced just like one logged on the meal
 directly. Removing a recipe also removes it where it was logged "as
 individual ingredients" (one meal row per ingredient, no recipe row): the
-rows whose foods and amounts match the recipe's ingredients, all at one
-scale, are taken out together (_logged_ingredient_sets). "add" puts an item on every day in the selection that has at least
+rows tagged with it when logged (meal_items.from_recipe_id), even if altered
+for that meal since; for rows logged before that tag existed, the rows whose
+foods and amounts match the recipe's ingredients, all at one scale
+(_logged_ingredient_sets). Either way they are taken out together. "add" puts an item on every day in the selection that has at least
 one meal logged (never on days with nothing logged, matching
 nutrient_trend.average_from_daily_totals: "didn't log" is not "ate nothing").
 
@@ -86,6 +88,9 @@ class _Ctx:
     row_scale: dict[int, float] = field(default_factory=dict)   # meal item id -> factor (recipe scaled as its logged ingredients)
     as_ingredients: dict[int, dict[int, list[int]]] = field(default_factory=dict)  # edit index -> meal id -> row ids (those removals/scales)
     loose: dict[int, set[int]] = field(default_factory=dict)  # edit index -> meal ids with unmatched-looking ingredients
+    not_replaced: dict[int, set[int]] = field(default_factory=dict)  # edit index -> meal ids holding the replaced recipe as ingredients
+    containers: dict[int, set[int]] = field(default_factory=dict)  # edit index -> recipes using the edited recipe as a sub-recipe
+    inside_logged: dict[int, dict[int, set[int]]] = field(default_factory=dict)  # edit index -> meal id -> those recipes, logged as ingredients there
 
     def grams_per_serving(self, recipe_id: int) -> float | None:
         if recipe_id not in self.serving_g:
@@ -287,20 +292,56 @@ def _logged_ingredient_sets(conn, meal_rows: list, recipe_id: int,
     return [], len(present) >= max(2, -(-len(wanted) * 6 // 10))
 
 
+def _logged_set(conn, meal_rows: list, recipe_id: int, claimed: set[int]) -> tuple[list[int], bool]:
+    """This meal's rows that are recipe_id logged as individual ingredients,
+    and whether there seems to be an unmatched set (see _logged_ingredient_sets).
+    Rows tagged with the recipe when it was logged (meal_items.from_recipe_id)
+    are its set, however they've been changed since. Untagged rows (logged
+    before the tag existed) are matched by contents; a row tagged with any
+    recipe is never taken for another one."""
+    ids = [r["id"] for r in meal_rows
+           if r["from_recipe_id"] == recipe_id and r["item_type"] == "food" and r["id"] not in claimed]
+    untagged = [r for r in meal_rows if r["from_recipe_id"] is None]
+    more, loose = _logged_ingredient_sets(conn, untagged, recipe_id, claimed)
+    return ids + more, loose
+
+
+def _containers(conn, recipe_id: int) -> set[int]:
+    """Every recipe that uses recipe_id as a sub-recipe, at any depth."""
+    found: set[int] = set()
+    todo = [recipe_id]
+    while todo:
+        rid = todo.pop()
+        for r in conn.execute("SELECT DISTINCT recipe_id FROM recipe_ingredients WHERE ref_recipe_id = ?", (rid,)):
+            if r["recipe_id"] not in found and r["recipe_id"] != recipe_id:
+                found.add(r["recipe_id"])
+                todo.append(r["recipe_id"])
+    return found
+
+
 def _apply_logged_ingredient_removals(conn, ctx: _Ctx, meal_id: int) -> None:
     """For each "remove a recipe" or "change a recipe's amount" edit, mark
     this meal's rows that are that recipe logged as individual ingredients
-    (see _logged_ingredient_sets): left out, or multiplied by the edit's
-    factor (ctx.row_scale)."""
+    (_logged_set): left out, or multiplied by the edit's factor
+    (ctx.row_scale).
+
+    What it can't change is noted for the page instead: a "replace a recipe"
+    edit where the meal holds that recipe as individual ingredients
+    (ctx.not_replaced; Replace needs the recipe row itself), and any recipe
+    edit where the meal holds, as individual ingredients, a recipe that uses
+    the edited one as a sub-recipe (ctx.inside_logged; its foods carry no
+    trace of which sub-recipe they came from)."""
     meal_rows = None
     for i, e in enumerate(ctx.edits):
-        if e.op not in ("remove", "scale") or e.item[0] != "recipe":
+        if e.op not in ("remove", "scale", "replace") or e.item[0] != "recipe":
             continue
         if meal_rows is None:
             meal_rows = _db.meal_get_items(conn, meal_id)
         claimed = ctx.skip_rows | set(ctx.row_scale)
-        ids, loose = _logged_ingredient_sets(conn, meal_rows, e.item[1], claimed)
-        if ids:
+        ids, loose = _logged_set(conn, meal_rows, e.item[1], claimed)
+        if ids and e.op == "replace":
+            ctx.not_replaced.setdefault(i, set()).add(meal_id)
+        elif ids:
             if e.op == "remove":
                 ctx.skip_rows.update(ids)
             else:
@@ -309,6 +350,21 @@ def _apply_logged_ingredient_removals(conn, ctx: _Ctx, meal_id: int) -> None:
             ctx.as_ingredients.setdefault(i, {})[meal_id] = ids
         elif loose:
             ctx.loose.setdefault(i, set()).add(meal_id)
+    for i, e in enumerate(ctx.edits):
+        if e.op not in ("remove", "scale", "replace") or e.item[0] != "recipe":
+            continue
+        if i not in ctx.containers:
+            ctx.containers[i] = _containers(conn, e.item[1])
+        if not ctx.containers[i]:
+            continue
+        if meal_rows is None:
+            meal_rows = _db.meal_get_items(conn, meal_id)
+        # Rows another edit already removes or changes (e.g. the parent
+        # recipe itself) are left out: nothing is missed there.
+        claimed = ctx.skip_rows | set(ctx.row_scale)
+        for parent in sorted(ctx.containers[i]):
+            if _logged_set(conn, meal_rows, parent, claimed)[0]:
+                ctx.inside_logged.setdefault(i, {}).setdefault(meal_id, set()).add(parent)
 
 
 def meal_nutrients(meal_id: int, conn, ctx: _Ctx | None = None) -> dict[str, float]:
@@ -518,7 +574,12 @@ def evaluate_meals(conn, meals: list[dict], edits: list[Edit], *,
                             "meals": len(meal_ids), "days": len(days),
                             "as_ingredients": len(ctx.as_ingredients.get(i, {})),
                             "ingredient_rows": ctx.as_ingredients.get(i, {}),
-                            "loose_meal_ids": sorted(ctx.loose.get(i, set()) - set(meal_ids))})
+                            "loose_meal_ids": sorted(ctx.loose.get(i, set()) - set(meal_ids)),
+                            "not_replaced_meal_ids": sorted(ctx.not_replaced.get(i, set())),
+                            "inside_ingredients": [
+                                {"meal_id": mid, "recipes": [{"id": rid, "name": item_name(conn, ("recipe", rid))}
+                                                             for rid in sorted(rids)]}
+                                for mid, rids in sorted(ctx.inside_logged.get(i, {}).items())]})
 
     return {
         "dates":    dates,

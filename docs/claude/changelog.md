@@ -40,7 +40,10 @@ would go stale. Numbering restarts at 1 after each release.
 previous overview if there is one, so there's only ever one. **Split it into three
 paragraphs** (adopted 2026-11-15; one long line was unreadable): `Version overview:` alone
 on its line, then the `SUMMARY: …` part, then the `DETAILS: …` part, each separated by a
-blank line. The note itself in `version.py` stays one line; only the manual's copy is split.
+blank line. **The DETAILS part is a bulleted list** (adopted 2026-11-15; a paragraph of
+details was unreadable): `DETAILS:` alone on its line, a blank line, then each detail as its
+own `* ` bullet (asterisk, so it can't be mistaken for the numbered `- **N.**` bullets).
+The note itself in `version.py` stays one line; only the manual's copy is split.
 
 **The layout to end up with in the manual**, reading down from the marker:
 
@@ -53,7 +56,10 @@ Version overview:
 
 SUMMARY: ...
 
-DETAILS: ...
+DETAILS:
+
+* One detail.
+* Another detail.
 
 - **13.** Newest bullet.    <- your new one-line summary goes on top, next number up
 - **12.** Older bullet.

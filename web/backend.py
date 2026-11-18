@@ -17,7 +17,7 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import parse_qs, parse_qsl, quote, urlencode
+from urllib.parse import parse_qs, parse_qsl, quote, urlencode, urlparse
 
 if not getattr(sys, "frozen", False):
     sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -74,6 +74,7 @@ from numa_app.services.portions import _parse_number_tokens
 from numa_app.services.portions import parse_recipe_amount as _parse_recipe_amount
 from numa_app.services.portions import _volume_ml as _portion_volume_ml
 from numa_app.services import whatif as _whatif
+from numa_app.services import recipe_edit_effects as _effects
 from numa_app.services.portions import generic_density_kind as _generic_density_kind
 from numa_app.services.portions import match_portion_label as _match_portion_label
 from numa_app.services.portions import _UNIT_TO_GRAMS as _PORTION_UNIT_TO_G
@@ -2935,6 +2936,8 @@ def _recipe_search_rows(recipes: list) -> list[dict]:
             "_type":             "recipe",
             "recipe_id":         r["id"],
             "name":              r["name"],
+            "description":       r["description"] or "",
+            "dcp_g":             r["dcp_g"],
             "servings":          float(r["servings"] or 1),
             "serving_size":      r["serving_size"],
             "total_weight":      r["total_weight"],
@@ -2995,20 +2998,19 @@ def _typed_code(text: str) -> tuple[str, int] | None:
         return None
 
 
-def _list_filter(text: str, any_word: bool = False):
+def _list_filter(text: str):
     """A list filter box's test, as match(name, extra="") -> bool: every word
-    of `text` (any one, with any_word) appears somewhere in the name or
+    of `text` appears somewhere in the name or
     `extra` (notes, say), and no "!word" is in the name — matched as a
     search's "!" is (search_ranking.has_excluded_word). A filter made only of
     "!" words keeps everything but those. Added 2026-11-14: before then "!"
     worked only in the search boxes, and a filter took "!kidney" literally."""
     words_text, excluded = _search_ranking.split_excluded_words(text or "")
     words = words_text.lower().split()
-    test = any if any_word else all
 
     def match(name: str, extra: str = "") -> bool:
         hay = f"{name or ''} {extra or ''}".lower()
-        if words and not test(w in hay for w in words):
+        if words and not all(w in hay for w in words):
             return False
         return not _search_ranking.has_excluded_word(name or "", excluded)
     return match
@@ -4061,7 +4063,9 @@ def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[
                                   group: list[str] = Form(default=[]),
                                   want: list[str] = Form(default=[]),
                                   gi_diaas: int = Form(0),
-                                  gi_only: int = Form(0)):
+                                  gi_only: int = Form(0),
+                                  replace: int = Form(0),
+                                  back: str = Form("")):
     """Build a prompt asking only for each selected food's missing nutrient
     groups (data_completeness.py), less any the user marked not needed for
     that food. `group` limits it to those groups; `want` ("fdc_id:group",
@@ -4070,8 +4074,13 @@ def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[
     its annotation has none and isn't set to stop asking. `gi_only` (the
     Annotate page's GI research link) asks for the GI alone — no nutrients,
     and even when a GI is already saved, since the user asked outright.
-    A food with nothing missing is left out."""
-    checked = set(group) or None
+    `replace` (Edit Custom Profile's "Ask Claude AI" box) asks for every
+    value in the `group`s chosen (all groups not marked not needed, when none
+    is), filled or not, to check doubtful figures; the import page then
+    starts with its replace box ticked. A food with nothing missing is left
+    out."""
+    # "" is the Edit page's "the whole nutrient profile" choice: no limit.
+    checked = {g for g in group if g in _data_completeness.GROUP_LABELS} or None
     wanted: dict[int, set[str]] = {}
     for cell in want:
         fid, _, g = cell.partition(":")
@@ -4095,9 +4104,16 @@ def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[
                 requests[fid] = ([], [])
                 ann_wanted[fid] = ["gi"]
                 continue
-            gaps = _data_completeness.active_gaps(nutrients, ignored, wanted.get(fid, checked))
-            # Single nutrients marked not needed (Top Contributors) aren't asked for either.
-            keys = [k for k in _data_completeness.requested_keys(nutrients, gaps) if k not in ignored]
+            if replace:
+                # Asked for outright, so a group named is asked for even if
+                # marked not needed; with none named, every group that isn't.
+                groups = ([g for g in _data_completeness.GROUP_KEYS if g in checked] if checked else
+                          [g for g in _data_completeness.GROUP_KEYS if g not in ignored])
+                keys = _data_completeness.group_keys(groups)
+            else:
+                gaps = _data_completeness.active_gaps(nutrients, ignored, wanted.get(fid, checked))
+                # Single nutrients marked not needed (Top Contributors) aren't asked for either.
+                keys = [k for k in _data_completeness.requested_keys(nutrients, gaps) if k not in ignored]
             if gi_diaas:
                 ann = anns.get(fid)
                 est = [k for k, col in (("gi", "gi"), ("diaas", "diaas"))
@@ -4111,7 +4127,8 @@ def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[
             requests[fid] = (keys, [_data_completeness.GROUP_LABELS[g]
                                     for g in _data_completeness.missing_groups(nutrients)
                                     if g in ignored])
-    prompt = _claude_fetch.build_prompt(selected, requests, ann_wanted) if selected else ""
+    prompt = (_claude_fetch.build_prompt(selected, requests, ann_wanted, replace=bool(replace))
+              if selected else "")
     _est_labels = {"gi": "GI", "diaas": "DIAAS"}
     return templates.TemplateResponse(request, "claude_fetch.html", {
         "prompt":          prompt,
@@ -4128,14 +4145,21 @@ def food_cache_claude_fetch(request: Request, fdc_id: list[int] = Form(default=[
         "form_wants":      want,
         "gi_diaas":        bool(gi_diaas),
         "gi_only":         bool(gi_only),
+        "replace":         bool(replace),
+        # The page that sent the user here (a food's page or its Edit
+        # page), for a "Back" link; local paths only.
+        "back":            back if back.startswith("/") and not back.startswith("//") else "",
     })
 
 
 @app.get("/food/cache/claude-import", response_class=HTMLResponse)
-def food_cache_claude_import_get(request: Request):
+def food_cache_claude_import_get(request: Request, replace: int = Query(default=0)):
+    """`replace` (from a "replace what it has" prompt) starts the review's
+    replace box ticked; it is still shown, and can be unticked."""
     return templates.TemplateResponse(request, "claude_import.html", {
         "response_text": "",
         "review":        None,
+        "replace":       bool(replace),
     })
 
 
@@ -4143,7 +4167,8 @@ def food_cache_claude_import_get(request: Request):
 def food_cache_claude_import_post(request: Request,
                                          response_text: str = Form(...),
                                          action: str = Form("preview"),
-                                         overwrite: int = Form(0)):
+                                         overwrite: int = Form(0),
+                                         replace: int = Form(0)):
     raw_blocks, curator_text, parse_warnings = _claude_fetch.parse_response(response_text)
     valid, validate_warnings = _claude_fetch.validate_all(raw_blocks)
     # Bare JSON (no ```json fences) isn't a problem when food data was found
@@ -4195,6 +4220,7 @@ def food_cache_claude_import_post(request: Request,
         "curator_text":  curator_text,
         "no_blocks":     not raw_blocks,
         "unfenced":      unfenced and bool(raw_blocks),
+        "replace":       bool(replace),
     })
 
 
@@ -5334,6 +5360,18 @@ _SOURCE_PICKER_FILTERS = (["cache"] + [key for key, _name in _STATIC_SOURCES]
                            + [key for key, _name, _fn in _LIVE_SOURCES])
 
 
+def _ask_ai_context(fdc_id: int, nutrients: dict) -> dict:
+    """Edit Custom Profile's "Ask Claude AI" box: the groups to choose from,
+    and which of them this food is missing (less any marked not needed)."""
+    with _db.get_db() as conn:
+        ignored = _db.food_data_ignores(conn).get(fdc_id, set())
+    return {
+        "ai_groups":  list(_data_completeness.GROUP_LABELS.items()),
+        "ai_missing": [_data_completeness.GROUP_LABELS[g]
+                       for g in _data_completeness.active_gaps(nutrients, ignored)],
+    }
+
+
 @app.get("/food/custom-profiles/{fdc_id}/edit", response_class=HTMLResponse)
 def food_custom_profiles_edit_get(request: Request, fdc_id: int,
                                         aa_applied: str = Query(default=""),
@@ -5376,6 +5414,7 @@ def food_custom_profiles_edit_get(request: Request, fdc_id: int,
         "nutrient_omitted_sources": _omitted_source_labels(nut["source"], _SOURCE_PICKER_FILTERS),
         "source_filters": _SOURCE_PICKER_FILTERS,
         "source_labels": _SEARCH_SOURCE_LABELS,
+        **_ask_ai_context(fdc_id, nutrients),
     })
 
 
@@ -5415,6 +5454,7 @@ def _custom_edit_response(request: Request, food: dict, values: dict, *, saved: 
         "nutrient_source": _SOURCE_PICKER_FILTERS,
         "source_filters": _SOURCE_PICKER_FILTERS,
         "source_labels": _SEARCH_SOURCE_LABELS,
+        **_ask_ai_context(food["fdc_id"], json.loads(food.get("nutrients_json") or "{}")),
     })
 
 
@@ -7287,6 +7327,17 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
     items = []
     ingredients = []
     total_nutrients: dict = {}
+    recipe_names: dict[int, str | None] = {}
+
+    def _from_recipe(rid):
+        # A food logged as one ingredient of a recipe: (id, name), shown as
+        # "part of" on the meal page. None once the recipe is deleted.
+        if not rid:
+            return None
+        if rid not in recipe_names:
+            r = _db.recipe_get(conn, rid)
+            recipe_names[rid] = r["name"] if r else None
+        return {"id": rid, "name": recipe_names[rid]} if recipe_names[rid] else None
 
     for row in raw_items:
         if row["item_type"] == "food" and row["fdc_id"]:
@@ -7311,6 +7362,7 @@ def _meal_expand_for_diaas(meal_id: int, conn) -> tuple[list, dict, list]:
                 "added_time": row["added_time"] or "",
                 "has_nuts":  bool(nuts_100g),
                 "portions":  portions,
+                "from_recipe": _from_recipe(row["from_recipe_id"]),
             })
             if nuts_100g:
                 ingredients.append({
@@ -8231,8 +8283,11 @@ def meal_add_recipe_item(
         with _db.get_db() as conn:
             for leaf in leaves:
                 grams = leaf["grams"]
+                # Each row remembers the recipe, so What-if can still find
+                # the set after it's been altered for this meal.
                 _db.meal_add_food(conn, meal_id, leaf["fdc_id"],
-                                  leaf["food_name"], grams, f"{grams:.4g} g")
+                                  leaf["food_name"], grams, f"{grams:.4g} g",
+                                  from_recipe_id=recipe_id)
     else:
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         with _db.get_db() as conn:
@@ -9462,7 +9517,9 @@ def recipes_list(request: Request, q: str = "", sort: str | None = None,
     if code:
         all_recipes = [r for r in all_recipes if code == ("recipe", r["id"])]
     elif q:
-        match = _list_filter(q, any_word=True)
+        # Every word must match, as in the other list filters (any one word
+        # until 2026-11-16, so "coffee 2" listed every recipe with a 2 in it).
+        match = _list_filter(q)
         all_recipes = [r for r in all_recipes if match(r["name"])]
     reverse = sort in ("recent", "dcp")
     all_recipes.sort(key=_RECIPE_SORT_KEYS[sort], reverse=reverse)
@@ -10869,6 +10926,12 @@ def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = 
     # the query box is empty — otherwise a source-filter change with no q
     # yet typed would collapse the panel the user was just using.
     show_add_section = bool(q) or "source" in request.query_params or "limit" in request.query_params
+    # Arriving from any other page starts a new edit session for the
+    # "effect of this change" reports; this page's own reloads (after an
+    # add, remove, search or save) continue it.
+    if urlparse(request.headers.get("referer", "")).path != f"/recipe/{recipe_id}/edit":
+        _effects.start_session(recipe_id)
+    effects_offer = _effects.take_offer(recipe_id)
     with _db.get_db() as conn:
         recipe = _db.recipe_get(conn, recipe_id)
         if not recipe:
@@ -10944,7 +11007,41 @@ def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = 
         "relinked_to":        relinked_to,
         "source_filters":     _SEARCH_SOURCE_FILTERS,
         "source_labels":      _SEARCH_SOURCE_LABELS,
+        "effects_offer":      effects_offer,
+        "effects_groups":     [name for name, _keys in _shown_groups(_NUTRIENT_GROUPS)],
+        "effects_all":        _effects.ALL,
+        "effects_all_changed": _effects.ALL_CHANGED,
+        "effects_changed_pct": _effects.CHANGED_PCT,
+        "effects_has_file":   _effects.has_reports(recipe_id),
     })
+
+
+def _ing_amount_text(ing) -> str:
+    """A recipe ingredient's amount as the Edit page shows it."""
+    if ing["ref_recipe_id"]:
+        return f"{ing['amount']:g} serving" + ("s" if ing["amount"] != 1 else "")
+    return _ing_amount_display(ing["unit"], ing["amount"], ing["food_name"])
+
+
+@app.post("/recipe/{recipe_id}/edit-effects/report")
+def recipe_edit_effects_report(recipe_id: int, choice: list[str] = Form([])):
+    """Write an "effect of the changes" report (services/recipe_edit_effects.py)
+    on the ingredient changes since the last one."""
+    with _db.get_db() as conn:
+        path = _effects.write_report(conn, recipe_id, choice, _shown_groups(_NUTRIENT_GROUPS),
+                                     include_gl=_track_gl(), gi_opt_out=_gi_opt_out())
+    if path is None:
+        return JSONResponse({"ok": False, "error": "Choose at least one group of nutrients."
+                             if not choice else "There is no change to report since the last report."})
+    return JSONResponse({"ok": True, "path": str(path)})
+
+
+@app.get("/recipe/{recipe_id}/edit-effects")
+def recipe_edit_effects_show(recipe_id: int):
+    """The reports file's content, as HTML, for the Edit page's Show button."""
+    text = _effects.read_file()
+    return JSONResponse({"path": str(_effects.file_path()),
+                         "html": _md.markdown(text, extensions=["tables"]) if text else ""})
 
 
 @app.post("/recipe/{recipe_id}/relink", response_class=RedirectResponse)
@@ -11231,10 +11328,12 @@ def recipe_ingredient_add(
     if grams is None:
         return _redirect(error=msg)
     with _db.get_db() as conn:
+        _effects.before_change(conn, recipe_id, gi_opt_out=_gi_opt_out())
         _db.recipe_add_ingredient(conn, recipe_id, fdc_id, name, grams, msg,
                                    notes.strip() or None)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
         check = _added_food_check(conn, fdc_id)
+    _effects.after_change(recipe_id, f"Added {name}, {_added_amount(grams, msg)}")
     # The search stays (q kept, explicitly even when empty so the
     # persist-search JS in base.html doesn't restore an older one), so
     # several results can be added one after another.
@@ -11287,20 +11386,27 @@ def recipe_ingredient_add_recipe(
             return _redirect(error=f"{name}: {e}")
         servings = round(servings_n, 4)
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
+        _effects.before_change(conn, recipe_id, gi_opt_out=_gi_opt_out())
         _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
                                    notes.strip() or None, ref_recipe_id=ref_recipe_id)
         sub_serving_g = recipe_serving_grams(ref_recipe_id, conn)
         amount_shown = unit + (f" ({servings * sub_serving_g:.4g} g)" if sub_serving_g else "")
         _db.recipe_auto_weight(conn, recipe_id)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+    _effects.after_change(recipe_id, f"Added {name} (recipe), {amount_shown}")
     return RedirectResponse(f"/recipe/{recipe_id}/edit?" + urlencode({"q": q, "added": name, "added_amount": amount_shown}), status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/ingredient/{ing_id}/remove", response_class=RedirectResponse)
 def recipe_ingredient_remove(recipe_id: int, ing_id: int):
     with _db.get_db() as conn:
+        ing = next((i for i in _db.recipe_get_ingredients(conn, recipe_id) if i["id"] == ing_id), None)
+        if ing:
+            _effects.before_change(conn, recipe_id, gi_opt_out=_gi_opt_out())
         _db.recipe_remove_ingredient(conn, ing_id)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+    if ing:
+        _effects.after_change(recipe_id, f"Removed {ing['food_name']}, {_ing_amount_text(ing)}")
     return RedirectResponse(f"/recipe/{recipe_id}/edit", status_code=303)
 
 
@@ -11352,10 +11458,17 @@ def recipe_ingredient_edit(
         grams, label = _parse_portion_str(portion_str.strip(), portions, food_name.strip())
         if grams is None:
             return _redirect(error=label)
+    amount_changed = bool(ing) and abs(float(ing["amount"]) - grams) > 1e-9
     with _db.get_db() as conn:
+        if amount_changed:
+            _effects.before_change(conn, recipe_id, gi_opt_out=_gi_opt_out())
         _db.recipe_update_ingredient(conn, ing_id, grams, label,
                                       food_name.strip(), notes.strip() or None)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
+        new_ing = next((i for i in _db.recipe_get_ingredients(conn, recipe_id) if i["id"] == ing_id), None)
+    if amount_changed and new_ing:
+        _effects.after_change(recipe_id, f"Changed {new_ing['food_name']} from {_ing_amount_text(ing)} "
+                                         f"to {_ing_amount_text(new_ing)}")
     return _redirect()
 
 
@@ -13471,7 +13584,7 @@ def _whatif_apply_plan(conn, page: str, query: str) -> dict:
                 if e.op == "replace" and e.replacement[0] == "recipe":
                     direct = [rid for rid in direct if rid != e.replacement[1]]
                 reached = rep["recipes"]
-            changes.append({"edit": e, "text": _whatif.describe(rep, page),
+            changes.append({"edit": e, "text": _whatif.describe(rep, page), "rep": rep,
                             "direct": direct, "ingredient_rows": ingredient_rows,
                             "new_meal_days": new_meal_days,
                             "nested_only": max(reached - len(direct), 0)})

@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — What-if: Apply for real{% endblock %}
 
+{% import "_whatif_changes.html" as _wc %}
+
 {% block content %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
@@ -33,6 +35,7 @@
       {% if page == "meals" %}Changes {{ ch.direct|length }} meal(s): {% for mid in ch.direct %}<a href="/meal/{{ mid }}">M{{ mid }}</a>{% if mid in ch.ingredient_rows %} (logged as {{ ch.ingredient_rows[mid]|length }} individual ingredients, all {{ "deleted" if ch.edit.op == "remove" else "changed" }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}.
       {% else %}Changes {{ ch.direct|length }} recipe(s): {% for rid in ch.direct %}<a href="/recipe/{{ rid }}">R{{ rid }}</a>{% if not loop.last %}, {% endif %}{% endfor %}.{% endif %}
     {% else %}<span class="text-warning">Nothing to change: it isn't {{ "logged straight on any of these meals" if page == "meals" else "listed straight in any of these recipes" }}.</span>{% endif %}
+    {% if page == "meals" %}{{ _wc.ingredient_notes(ch.rep, applying=True) }}{% endif %}
     {% if ch.nested_only %}
     <br><span class="text-warning">
       {% if page == "meals" %}{{ ch.nested_only }} other meal(s) have it only inside a recipe; those stay as they are, because changing the recipe changes it everywhere it's used.

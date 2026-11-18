@@ -21,6 +21,13 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 0.3rem;
 }
 
+/* A heading in a row centered with buttons or links (Recipes, a meal...):
+   its top margin would push it below the others' center line, so the row
+   carries that space instead (as padding, which doesn't merge with the
+   margin above). A .section-heading has no top margin, so it's left out. */
+.d-flex.align-items-center > :is(h1, h2, h3, h4, h5, h6):not(.section-heading) { margin-top: 0; }
+.d-flex.align-items-center:has(> :is(h1, h2, h3, h4, h5, h6):not(.section-heading)) { padding-top: 0.6rem; }
+
 p { margin-bottom: 0.4rem; }
 
 /* ── Expandable sections (details/summary) ───────────────────────────── */
@@ -116,6 +123,32 @@ html {
 .nav-quick-return:focus {
   background: #fff;
   color: #1a3a6b !important;
+}
+
+/* ── Command palette (Alt+Shift+K; see base.html) ────────────────────── */
+
+/* Navbar button: names the keys while shortcuts are on, "Commands" when off. */
+.palette-btn { white-space: nowrap; }
+.palette-btn .palette-btn-keys { display: none; }
+.shortcuts-on .palette-btn .palette-btn-keys { display: inline; }
+.shortcuts-on .palette-btn .palette-btn-name { display: none; }
+/* Compact rows, so the whole list fits a laptop screen without scrolling;
+   two columns (read down, then across, the order the arrow keys move)
+   when more than 8 match. A faded hint, not a fixed grey, so it stays
+   readable on the blue highlighted row. */
+.palette-results { display: block; }
+.palette-results .list-group-item {
+  border-width: 0 0 1px 0;
+  padding-block: 0.12rem !important;
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+.palette-keys { opacity: 0.7; }
+@media (min-width: 768px) {
+  .palette-dialog { max-width: min(1100px, 96vw); margin-block: 0.75rem; }
+  .palette-two-cols { columns: 2; column-gap: 0; }
+  /* A long row wraps rather than being cut off, which would hide its keys. */
+  .palette-two-cols > a { display: block; break-inside: avoid; }
 }
 
 /* ── Navbar brand ────────────────────────────────────────────────────── */
@@ -371,14 +404,15 @@ table td.sticky-col, table th.sticky-col {
    deterministic width regardless of content or container. Fixed layout
    only activates when the table's own width is a definite value, not
    auto — hence the explicit width below, sized to the colgroup's sum
-   (1.936 + 19.8 + 3.5 + 2.5 + 5 + 28 = 60.736rem — the colgroup's last
+   (1.936 + 19.8 + 3.5 + 4.5 + 12 + 2.5 + 5 + 28 = 77.236rem — Food, Code,
+   DCP/srv, Description, AA, Source, Amount — the colgroup's last
    <col> is 14rem with span="2", i.e. 28rem total for that colspan=2 cell;
    a col's width applies per spanned column, not divided, so writing 28rem
    there directly would silently mean 56rem). max-width/overflow-x:auto (on
    the wrapping div) are the safety net for narrow viewports. */
 .add-food-table-wide {
   table-layout: fixed;
-  width: 60.736rem;
+  width: 77.236rem;
   max-width: 100%;
 }
 
@@ -396,8 +430,8 @@ table td.sticky-col, table th.sticky-col {
    its auto-sized column, which reads as a big left indent. Narrow metadata
    columns (.col-aa/.col-gi/.col-diaas/.col-id/.col-source) already force
    their own center below and are excluded here so that still applies. */
-.add-food-table td:not(:first-child):not(.col-aa):not(.col-gi):not(.col-diaas):not(.col-id):not(.col-source),
-.add-food-table th:not(:first-child):not(.col-aa):not(.col-gi):not(.col-diaas):not(.col-id):not(.col-source) {
+.add-food-table td:not(:first-child):not(.col-aa):not(.col-gi):not(.col-diaas):not(.col-id):not(.col-source):not(.col-dcp),
+.add-food-table th:not(:first-child):not(.col-aa):not(.col-gi):not(.col-diaas):not(.col-id):not(.col-source):not(.col-dcp) {
   text-align: left;
 }
 
@@ -426,6 +460,11 @@ table td.sticky-col, table th.sticky-col {
   word-break: break-word;
   line-height: 1.1;
 }
+
+/* Recipe edit's DCP/srv number: right-aligned like the Recipes list's;
+   Description wraps within its fixed colgroup width. */
+.add-food-table .col-dcp { text-align: right; white-space: nowrap; }
+.add-food-table .col-desc { white-space: normal; word-break: break-word; line-height: 1.2; }
 
 /* Narrow metadata columns: shrink to content */
 .add-food-table .col-aa,
@@ -1365,3 +1404,26 @@ td.compare-val-col {
 .row-toggles { margin-top: 0.2rem; font-size: 0.8rem; color: var(--bs-secondary-color, #6c757d); }
 .row-toggle-label { cursor: pointer; white-space: nowrap; }
 .row-toggles .form-check-input { margin-top: 0.15em; }
+
+/* Recipe Edit: the "report the effect of this change" offer floats in the
+   corner, so it is seen wherever the page was scrolled to after the change. */
+.effects-offer {
+  position: fixed; right: 1rem; bottom: 1rem; z-index: 1050;
+  max-width: 26rem; max-height: 80vh; overflow-y: auto;
+  border: 2px solid #1a3a6b;
+}
+.effects-panel { max-width: 60rem; max-height: 70vh; overflow-y: auto; }
+.effects-panel table { border-collapse: collapse; margin-bottom: 0.75rem; font-size: 0.85rem; }
+.effects-panel th, .effects-panel td { border: 1px solid #ccc; padding: 0.15rem 0.5rem; }
+.effects-panel h1 { font-size: 1.2rem; }
+.effects-panel h2 { font-size: 1.05rem; margin-top: 1rem; }
+.effects-panel h3 { font-size: 0.95rem; }
+
+/* Recipe Edit: a food's or sub-recipe's page in a panel over the page. */
+.details-overlay { width: min(92vw, 75rem); height: 88vh; padding: 0.75rem; border: 1px solid #888; border-radius: 0.4rem; }
+.details-overlay[open] { display: flex; flex-direction: column; }
+.details-overlay iframe { flex: 1; width: 100%; border: 1px solid #ddd; }
+.details-overlay::backdrop { background: rgba(0, 0, 0, 0.4); }
+
+/* A NuMa page shown inside another one's panel: no second navbar. */
+.numa-embedded #main-navbar { display: none !important; }

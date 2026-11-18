@@ -37,6 +37,13 @@ usda.search_foods = _stub_search
 openfoodfacts.search_foods = _stub_search
 cnf_api.search_foods = _stub_search
 
+# The recipe Edit page's change-effect reports would otherwise be written to
+# the project root (where a from-source NuMa keeps them): the temp data dir.
+import platform_utils
+from numa_app.services import recipe_edit_effects
+
+recipe_edit_effects._FILE = platform_utils.get_data_dir() / recipe_edit_effects.FILE_NAME
+
 import uvicorn
 
 if __name__ == "__main__":

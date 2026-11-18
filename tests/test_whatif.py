@@ -671,6 +671,101 @@ class TestRecipeLoggedAsIngredients:
         db_conn.commit()
         assert "don't match the recipe as it is now" in web.get(q).text
 
+    def _logged_via_web(self, data, db_conn, web):
+        """30 g oats on its own, then Bowl x1 added as individual ingredients
+        through the meal page (rows tagged with the recipe)."""
+        mid = _db.meal_create(db_conn, "Lunch", "2026-01-05")
+        _db.meal_add_food(db_conn, mid, OATS, "Oats", 30.0, "30 g")
+        db_conn.commit()
+        web.post(f"/meal/{mid}/add-recipe", data={"recipe_id": data["bowl"], "amount": "1 serving",
+                                                  "mode": "ingredients"})
+        rows = db_conn.execute("SELECT * FROM meal_items WHERE meal_id=? ORDER BY id", (mid,)).fetchall()
+        return mid, rows
+
+    def test_logging_as_ingredients_tags_each_row(self, data, db_conn, web):
+        mid, rows = self._logged_via_web(data, db_conn, web)
+        assert [(r["fdc_id"], r["amount"], r["from_recipe_id"]) for r in rows] == [
+            (OATS, 30.0, None), (OATS, 50.0, data["bowl"]), (OATS, 100.0, data["bowl"]),
+            (MILK, 250.0, data["bowl"])]
+        assert "part of" in web.get(f"/meal/{mid}").text
+        # A copied meal keeps the tags.
+        mid2 = _db.meal_create(db_conn, "Lunch again", "2026-01-06")
+        _db.meal_copy_items(db_conn, mid, mid2)
+        db_conn.commit()
+        tags = [r["from_recipe_id"] for r in db_conn.execute(
+            "SELECT from_recipe_id FROM meal_items WHERE meal_id=? ORDER BY id", (mid2,))]
+        assert tags == [None, data["bowl"], data["bowl"], data["bowl"]]
+
+    def test_tagged_set_altered_for_the_meal_is_still_removed(self, data, db_conn, web):
+        mid, rows = self._logged_via_web(data, db_conn, web)
+        # Altered for this meal: one ingredient dropped, one amount changed,
+        # one food swapped, and a food added by hand.
+        _db.meal_remove_item(db_conn, rows[2]["id"], mid)
+        _db.meal_update_item(db_conn, rows[3]["id"], mid, 300.0, "300 g")
+        _db.meal_replace_food(db_conn, rows[1]["id"], mid, LENTILS, "Lentils", 60.0, "60 g")
+        _db.meal_add_food(db_conn, mid, KELP, "Kelp", 10.0, "10 g")
+        db_conn.commit()
+        meals = [{"id": mid, "meal_date": "2026-01-05"}]
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["bowl"]))], groups=GROUPS)
+        assert row(res, "calories")["after"] == pytest.approx(389.0 * 0.3 + 43.0 * 0.1)
+        rep = res["edits"][0]
+        assert rep["meals"] == 1 and rep["as_ingredients"] == 1 and rep["loose_meal_ids"] == []
+        from urllib.parse import urlencode
+        q = urlencode({"mode": "ids", "meal_ids": str(mid), "e_op": "remove", "e_item": f"R{data['bowl']}",
+                       "e_with": "", "e_amt": "", "e_basis": "grams", "days": "all"})
+        confirm, resp = _apply(web, "meals", q)
+        assert "logged as 2 individual ingredients, all deleted" in confirm
+        left = db_conn.execute("SELECT fdc_id, amount FROM meal_items WHERE meal_id=? ORDER BY id", (mid,)).fetchall()
+        assert [(r["fdc_id"], r["amount"]) for r in left] == [(OATS, 30.0), (KELP, 10.0)]
+
+    def test_replace_names_meals_holding_the_recipe_as_ingredients(self, data, db_conn, web):
+        from urllib.parse import urlencode
+        mid, _ = self._logged_via_web(data, db_conn, web)
+        meals = [{"id": mid, "meal_date": "2026-01-05"}]
+        edit = Edit("replace", ("recipe", data["bowl"]), replacement=("recipe", data["soup"]), basis="servings")
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [edit], groups=GROUPS)
+        rep = res["edits"][0]
+        assert rep["meals"] == 0 and rep["not_replaced_meal_ids"] == [mid]
+        r = row(res, "calories")
+        assert r["after"] == pytest.approx(r["before"])
+        q = urlencode({"mode": "ids", "meal_ids": str(mid), "e_op": "replace", "e_item": f"R{data['bowl']}",
+                       "e_with": f"R{data['soup']}", "e_amt": "", "e_basis": "servings", "days": "all"})
+        page = web.get("/analysis/whatif?" + q).text
+        assert "Replace works only where the recipe itself was logged" in page
+        assert "nothing changed: see below" in page
+        confirm = web.get("/analysis/whatif/apply?" + urlencode({"page": "meals", "query": q})).text
+        assert "won't be replaced" in confirm
+
+    def test_sub_recipe_inside_a_recipe_logged_as_ingredients_is_named(self, data, db_conn, web):
+        from urllib.parse import urlencode
+        mid, _ = self._logged_via_web(data, db_conn, web)
+        meals = [{"id": mid, "meal_date": "2026-01-05"}]
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["sub"]))], groups=GROUPS)
+            both = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["sub"])),
+                                                    Edit("remove", ("recipe", data["bowl"]))], groups=GROUPS)
+        rep = res["edits"][0]
+        assert rep["meals"] == 0
+        assert rep["inside_ingredients"] == [{"meal_id": mid, "recipes": [{"id": data["bowl"], "name": "Bowl"}]}]
+        # Removing the parent too: its foods go, so nothing is missed.
+        assert both["edits"][0]["inside_ingredients"] == []
+        q = urlencode({"mode": "ids", "meal_ids": str(mid), "e_op": "remove", "e_item": f"R{data['sub']}",
+                       "e_with": "", "e_amt": "", "e_basis": "grams", "days": "all"})
+        page = web.get("/analysis/whatif?" + q).text
+        assert "uses Oat base as a sub-recipe" in page and "wasn't removed there" in page
+
+    def test_rows_tagged_with_another_recipe_are_not_matched_by_contents(self, data, db_conn):
+        meals, mid = self._meal(db_conn, [(OATS, "Oats", 50.0), (OATS, "Oats", 100.0),
+                                          (MILK, "Almond milk", 250.0)])
+        db_conn.execute("UPDATE meal_items SET from_recipe_id=? WHERE meal_id=?", (data["soup"], mid))
+        db_conn.commit()
+        with _db.get_db() as conn:
+            res = _wi.evaluate_meals(conn, meals, [Edit("remove", ("recipe", data["bowl"]))], groups=GROUPS)
+        r = row(res, "calories")
+        assert r["after"] == pytest.approx(r["before"])
+
 
 def _apply(web, page, query):
     from urllib.parse import urlencode

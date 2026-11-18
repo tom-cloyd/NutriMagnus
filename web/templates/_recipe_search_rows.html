@@ -7,14 +7,14 @@
           {% for food in search_results %}
             {% if is_local_source(food.source) %}{% set ns.seen_local = true %}{% endif %}
             {% if not is_local_source(food.source) and ns.seen_local and not ns.divider_shown %}
-          <tr class="search-group-divider"><td colspan="7"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
+          <tr class="search-group-divider"><td colspan="9"><small class="muted">From USDA, Open Food Facts, and other external sources</small></td></tr>
             {% set ns.divider_shown = true %}
             {% endif %}
             {% if is_local_source(food.source) and ns.divider_shown and not ns.partial_shown %}
-          <tr class="search-group-divider"><td colspan="7"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
+          <tr class="search-group-divider"><td colspan="9"><small class="muted">Partial matches from your recipes, pantry, and food cache</small></td></tr>
             {% set ns.partial_shown = true %}
             {% endif %}
-{{ _ro.divider(food, loop.previtem, search_results.also, 7) }}
+{{ _ro.divider(food, loop.previtem, search_results.also, 9) }}
           <tr data-row-key="{{ 'recipe:%s' % food.recipe_id if food._type == 'recipe' else 'food:%s' % food.fdc_id }}">
             <td class="confirm-col">
               {% if food.aa == "~✓" %}
@@ -31,6 +31,8 @@
               {{ _rt.labeled(food) }}
             </td>
             <td class="col-id muted"><small>{{ food_id_short(food.fdc_id | default(none), food.recipe_id | default(none) if food._type == "recipe" else none) }}</small></td>
+            <td class="num-col col-dcp">{% if food._type == "recipe" and food.dcp_g is not none %}{{ "%.1f"|format(food.dcp_g) }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            <td class="col-desc muted"><small>{{ food.description or "—" if food._type == "recipe" else "—" }}</small></td>
             <td>
               {% if food.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
               {% elif food.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely (Foundation/SR Legacy) — not yet confirmed">~✓</span>
@@ -85,5 +87,5 @@
             {% endif %}
           </tr>
           {% endfor %}
-{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 7) }}
-{{ _ro.offer(search_results, 'q', 7) }}
+{% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 9) }}
+{{ _ro.offer(search_results, 'q', 9) }}

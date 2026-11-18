@@ -264,3 +264,22 @@
 })();
 </script>
 {% endmacro %}
+
+{# What a recipe change (What-if: Meals) can't reach in meals holding a
+   recipe logged as individual ingredients: an unmatched older set, a
+   Replace (needs the recipe row itself), and a sub-recipe inside a recipe
+   logged that way. `r` is one whatif edit-report row; `applying` words it
+   for the Apply confirmation page. #}
+{% macro ingredient_notes(r, applying=False) %}
+{%- set e = r.edit -%}
+{%- set done = {"remove": "removed", "scale": "changed", "replace": "replaced"}[e.op] if e.op in ("remove", "scale", "replace") else "" -%}
+{% if r.loose_meal_ids %}<br><span class="text-warning">Meal{{ "s" if r.loose_meal_ids|length > 1 }}
+  {% for mid in r.loose_meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{{ ", " if not loop.last }}{% endfor %}
+  {{ "seem" if r.loose_meal_ids|length > 1 else "seems" }} to have this recipe logged as individual ingredients, but they don't match the recipe as it is now (they were logged before NuMa recorded which recipe such foods came from, and the recipe or that meal has changed since), so it {% if applying %}won't be{% else %}wasn't{% endif %} {{ done }} there. Change those foods one by one instead.</span>{% endif %}
+{% if r.not_replaced_meal_ids %}<br><span class="text-warning">Meal{{ "s" if r.not_replaced_meal_ids|length > 1 }}
+  {% for mid in r.not_replaced_meal_ids %}<a href="/meal/{{ mid }}">{{ mid }}</a>{{ ", " if not loop.last }}{% endfor %}
+  {{ "hold" if r.not_replaced_meal_ids|length > 1 else "holds" }} this recipe logged as individual ingredients, so it {% if applying %}won't be{% else %}wasn't{% endif %} {{ done }} there: Replace works only where the recipe itself was logged. In {{ "those meals" if r.not_replaced_meal_ids|length > 1 else "that meal" }}, remove the recipe's foods and add {{ r.replacement_name }} by hand.</span>{% endif %}
+{% for x in r.inside_ingredients %}<br><span class="text-warning">In meal <a href="/meal/{{ x.meal_id }}">{{ x.meal_id }}</a>,
+  {% for p in x.recipes %}<a href="/recipe/{{ p.id }}">{{ p.name }}</a>{{ ", " if not loop.last }}{% endfor %}
+  {{ "were" if x.recipes|length > 1 else "was" }} logged as individual ingredients and {{ "use" if x.recipes|length > 1 else "uses" }} {{ r.item_name }} as a sub-recipe. Those foods don't record which sub-recipe they came from, so {{ r.item_name }} {% if applying %}won't be{% else %}wasn't{% endif %} {{ done }} there. Change its foods in that meal by hand.</span>{% endfor %}
+{% endmacro %}

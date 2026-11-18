@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-15:2317* / Reading time: 7 hours, 18 minutes
+*Updated 2026-11-17:1603* / Reading time: 7 hours, 29 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -205,11 +205,12 @@ With NuMa installed and set up, here's a good order for your first week:
 
 ### D. Tips for new users {: #new-user-tips}
 
-*Search terms: getting started, beginner, how to learn, learning curve, practice, weigh, food scale, measuring, guess, help, support, stuck.*
+*Search terms: getting started, beginner, how to learn, learning curve, practice, weigh, food scale, measuring, guess, help, support, stuck, mouse, touchpad, trackpad, accessibility, tremor, hand pain.*
 
 - **Start with what's easiest.** NuMa is a powerful program, and unusually deep. Approach it slowly: single foods and simple recipes give real benefit early. Don't expect to learn it all in a few sessions, and [contact us](#feedback) early, not late, if it starts to feel overwhelming.
 - **Use it every day for the first week.** Without daily use for about a week you won't get past the slow-fumbling stage. This is a Boeing 727, not a Piper Cub: learn the cockpit and you can be a world traveler. There are two things to learn: the ideas ([Part 7](#coreNutrition), or the short version in [Part 2](#ideas-primer)) and the menus ([Part 4](#part-3-using-numa)). The learning can be gradual; daily contact is what counts.
 - **Look carefully at each screen.** NuMa's pages are rich in information. You needn't use it all at once, but watch for **Learn more** and **Why?** links: they open the part of this manual that explains what you're looking at.
+- **You can leave the mouse alone.** NuMa can be used entirely from the keyboard, which is faster once learned, and a real help if a mouse or touchpad is awkward or tiring for you, for example because of a tremor or limited fine motor control. Press `Alt+Shift+K` on any page: a panel lists every page and everything the current page has a shortcut for, with the keys for each, so it's the one shortcut you need to remember. Type a few letters to narrow the list, then press Enter. Within a page, Tab moves from box to box and Enter saves or searches, and in search results ↑ and ↓ move from one result to the next. See [Finding your way around](#web-shortcuts).
 - **Weigh your food if you can.** NuMa needs to know what you ate and how much, and a weight is by far the most accurate way to say how much. A cup or a named portion works too, and NuMa converts it, with some error; an estimate is still much better than nothing. Still, a kitchen scale is worth having. I have had a small Oxo scale for years, and it's excellent.
 - **It gets faster.** NuMa remembers what you've typed and chosen, and your [Food Cache](#FoodCache) keeps every food you've used, so foods you've had before appear instantly, without going online.
 - **Stuck?** Search this manual for a word or two, with **Only show things you can do** ticked, or look in [Part 6 — Help and troubleshooting](#feedback). If that doesn't solve it, [help is close at hand](#quickhelp).
@@ -389,7 +390,7 @@ The full account is in [Data, testing, and validation](#data-testing-validation)
 
 ## Part 3 — Workflow examples {: #sample-workflows-web}
 
-*(Reading time: 18 minutes)*
+*(Reading time: 21 minutes)*
 
 
 <span id="sample-workflows"></span>
@@ -411,6 +412,7 @@ Workflows 1 and 2 are the place to start, in that order. The rest can be done in
 9. [Comparing foods while you shop](#wf-compare)
 10. [Cleaning up your data, monthly](#wf-cleanup)
 11. [A kidney-stone concern: oxalate](#wf-oxalate)
+12. [A food is missing nutrient data, or its figures look wrong](#fix-food-data): search, borrow, then ask [AI](#gloss-artificial-intelligence).
 
 At the end, [A few more things worth trying](#wf-more) lists some features the workflows don't reach.
 
@@ -645,7 +647,7 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 **Step 3 — Dismiss what doesn't matter.** Basil doesn't need macronutrients; a supplement doesn't need amino acids. Mark such gaps **not needed** and NuMa stops listing them.
 
-**Step 4 — Fill amino acid gaps.** Foods with no amino acid data can't be scored for protein quality. Look for a plain, unbranded equivalent in a search (look for the ✓ in the [AA](#gloss-aa) column), or ask Claude AI for the figures: **Fetch missing data from Claude AI** builds the request for you, and you paste the answer back.
+**Step 4 — Fill amino acid gaps.** Foods with no amino acid data can't be scored for protein quality. Look for a plain, unbranded equivalent in a search (look for the ✓ in the [AA](#gloss-aa) column), or ask Claude AI for the figures: **Fetch missing data from Claude AI** builds the request for you, and you paste the answer back. [Workflow 12](#fix-food-data) gives the order to try these in.
 
 **Step 5 — See what changed.** After a fix, NuMa lists every recipe and meal whose figures moved. Past days are recalculated too, and say so.
 
@@ -673,6 +675,37 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 ---
 
+### Workflow 12 — A food is missing nutrient data, or its figures look wrong {: #fix-food-data}
+
+*Search terms: no amino acid data, missing data, missing nutrients, incomplete food, fill gaps, AI help, ask AI, ask Claude, chatbot, ChatGPT, prompt, doubtful values, bad data, wrong numbers, borrow values.*
+
+**What this does:** gets better figures for a food whose data is incomplete (the common case is "No amino acid data for this food") or looks wrong. There are three ways, and the order matters: each is less certain than the one before it.
+
+**Step 1 — Look for a better-documented record of the same food.** [USDA](#gloss-usda)'s Foundation and [SR](#gloss-sr) Legacy records are the most complete there are; branded records list only what's on the label. Search for the food's plain name ("chocolate, dark" rather than a brand) and look for a ✓ in the [AA](#gloss-aa) column, or for whichever nutrients you need. The search also covers the Canadian, UK, Australian and French national food tables. If you find a good match, use it in your meals and recipes instead, or copy its values into your food (Step 2's first box does that).
+
+**Step 2 — Borrow values from a similar food.** If no record of the same food has the figures, a close relative often does: another dark chocolate, another bean. Open the food's **Edit** page (Foods → 7. Custom food profiles → **Edit**, or the links in the warning on the food's own page). Its first two boxes do this:
+
+- **Copy nutrient values from another food** copies the figures you tick, exactly as the other food has them.
+- **Estimate amino acids from another food** copies only amino acids, scaled to your food's own protein. A food with twice the protein gets twice the amino acids.
+
+Copied values are marked *estimated* on the food's page.
+
+**Step 3 — Ask Claude [AI](#gloss-artificial-intelligence).** When neither search turns up anything usable, use the Edit page's third box, **Ask Claude AI for help**. (Claude is the AI chatbot at [claude.ai](https://claude.ai), made by Anthropic.)
+
+1. Under **Ask for**, choose **the whole nutrient profile** or one nutrient group (only amino acids, say).
+2. Choose **Only the values it's missing** (it keeps every figure the food already has) or **Every value, to replace doubtful figures** (for figures you don't trust).
+3. Click **Write the prompt for Claude AI**. NuMa writes the request (a "prompt") for you; click **Copy prompt to clipboard**.
+4. Open a new chat at claude.ai, paste the prompt and send it. Claude answers in a form NuMa can read.
+5. Copy Claude's whole answer, go to **Import Claude response**, paste it and click **Review**. Check the figures and the sources Claude names, then click **Import**. Nothing is saved before this.
+
+The food's own page offers a shortcut for amino acids: the *No amino acid data* warning ends with **Write a prompt for Claude AI**. Step 3 comes last because AI figures need the most checking. Claude can be wrong, so look at the sources it cites.
+
+**What you now have:** a food with the best figures available, and a note of where each came from. If even Claude finds nothing, the honest answer is that nobody has measured it; mark the gap **not needed** so NuMa stops asking ([how](#key-sources)).
+
+*Sections used:* [When a food has no data for a nutrient](#key-sources) · [Custom food profiles](#drafted-foods) · [Fetching missing data with Claude AI](#fetch) · [Missing amino acid profiles](#missing-aa)
+
+---
+
 ### A few more things worth trying {: #wf-more}
 
 *Search terms: more features, what else, tips.*
@@ -689,7 +722,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 2 minutes)*
+*(Reading time: 2 hours, 7 minutes)*
 
 
 
@@ -726,18 +759,29 @@ The bottom of the page gives the release and build numbers, e.g. *NutriMagnus 0.
 
 ### B. Finding your way around {: #web-shortcuts}
 
-*Search terms: hotkeys, menu bar, exit, close the program, shut down.*
+*Search terms: hotkeys, menu bar, exit, close the program, shut down, command palette, list of commands, cheat sheet, Ctrl+K.*
 
 Every page has the same navigation bar across the top: **NuMa** (home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings** and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open drop-down menus; the others go straight to their page.
 
-**Keyboard shortcuts.** Hold **Alt+Shift** and press the underlined letter of a menu item: `F` Foods, `R` Recipes, `C` Compare, `M` Meals & Log, `N` Analysis, `S` Settings, `A` Manual. Settings sections have them too: `Alt+Shift+3` jumps to section 3, Dietary Preferences; section 10 is `Alt+Shift+0`; sections 11 to 15 use a letter of their name (`T` Starter Data, `K` Keyboard Shortcuts, `B` Browser to Launch, `D` Data Quality Reminder, `Y` System Issues). They work in any desktop browser.
+**Keyboard shortcuts.** Hold **Alt+Shift** and press the underlined letter of a menu item: `F` Foods, `R` Recipes, `C` Compare, `M` Meals & Log, `N` Analysis, `S` Settings, `A` Manual. Settings sections have them too: `Alt+Shift+3` jumps to section 3, Dietary Preferences; section 10 is `Alt+Shift+0`; sections 11 to 15 use a letter of their name (`T` Starter Data, `E` Keyboard Shortcuts, `B` Browser to Launch, `D` Data Quality Reminder, `Y` System Issues). They work in any desktop browser.
+
+<span id="command-palette"></span>
+**Can't remember a shortcut? Press `Alt+Shift+K`.** It opens the *command palette*: a panel listing every page in the menus, plus anything the page you're on has a shortcut for (its search box, its Items section, Settings' sections), each followed by the keys that reach it, such as *Foods: Food Cache (Alt+Shift+F, then 5)*. So the only shortcut you need to remember is `K`. The **⌘ Alt+Shift+K** button at the right end of the menu bar opens it too.
+
+- Start typing to narrow the list: *cache* leaves Food Cache; *water* leaves Settings' Water Tracking.
+- Whatever you type can also be searched for: the bottom of the list offers *Search foods for …*, *Search recipes for …* and *Meals that contain …*.
+- ↑ and ↓ move the highlight, Enter opens it, Escape closes the panel. Clicking an entry works too.
+- Choosing something you could have done with a shortcut does exactly what that shortcut does, on the page you were on.
+- **Quit NuMa** is in the list as well, which is handy in Firefox, where `Ctrl+Q` quits Firefox instead (see below).
+
+Used to other programs? `Ctrl+K` opens the same panel.
 
 - On a drop-down menu the shortcut also puts you on its first item: ↑ and ↓ move, Enter or Space picks, Escape closes.
 - `Alt+Shift+I`, on any page with a search box, puts the cursor in it with the text selected, ready for a new search, and clears the old results (opening the box's section first if it's closed).
 - `Alt+Shift+U`, in the manual, returns to the NuMa page you opened it from (see [Getting back to where you were](#manual-back)).
 - `Alt+Shift+Y`, on a page with an Items section (a meal, Compare, Analyze a recipe portion, or a recipe's Edit page, where it's Ingredients), moves to that section.
 
-Turn shortcuts on or off in **Settings → Keyboard Shortcuts**. The setting is kept in your browser and takes effect at once.
+Turn shortcuts on or off in **Settings → Keyboard Shortcuts** (`Alt+Shift+E` there). The setting is kept in your browser and takes effect at once. With shortcuts off, the menu bar's button reads **⌘ Commands** and still opens the command palette, as does `Ctrl+K`; the palette then lists pages without their keys.
 
 <span id="quit-numa"></span>
 **To quit NuMa, press `Ctrl+Q`** on any NuMa page. NuMa stops and its window closes; if the page has unsaved changes, it asks first. This works whether or not the Alt+Shift shortcuts are on.
@@ -749,7 +793,7 @@ Turn shortcuts on or off in **Settings → Keyboard Shortcuts**. The setting is 
 <span id="search-keys"></span>
 **Moving through search results from the keyboard.** After a search, the first result is outlined in red (on a meal's or recipe's add search, its amount box). `↓` and `↑` move the outline; `Enter` opens that result. When you come back (`Alt+←` or Back), the outline is where you left it. This works in every search list.
 
-**Outlines and unsaved changes.** Long pages (a food, a recipe, a meal) have an outline down the side: click a heading to jump to it. A form with unsaved changes lights up its Save button (solid blue, red border) with "Unsaved changes" beside it, and the browser warns you before you leave. The big edit forms (Edit Recipe, a meal, Edit Custom Profile, Annotate a Food) go further, as their "Data-entered safety" note says: follow a link elsewhere in NuMa with unsaved edits and NuMa offers to save them, leave without saving, or stay. On Edit Custom Profile, Edit Recipe and a meal page, running or re-sorting a search saves your edits first, and a note above the results offers to undo that. Closing or refreshing the tab is the one case NuMa can't catch; only the browser's own warning appears, so save first.
+**Outlines and unsaved changes.** Long pages (a food, a recipe, Edit Recipe, a meal) have an outline down the side: click a heading to jump to it. A form with unsaved changes lights up its Save button (solid blue, red border) with "Unsaved changes" beside it, and the browser warns you before you leave. The big edit forms (Edit Recipe, a meal, Edit Custom Profile, Annotate a Food) go further, as their "Data-entered safety" note says: follow a link elsewhere in NuMa with unsaved edits and NuMa offers to save them, leave without saving, or stay. On Edit Custom Profile, Edit Recipe and a meal page, running or re-sorting a search saves your edits first, and a note above the results offers to undo that. Closing or refreshing the tab is the one case NuMa can't catch; only the browser's own warning appears, so save first.
 
 #### Search boxes remember your last search {: #search-memory}
 
@@ -926,7 +970,7 @@ Every food NuMa has fetched from [USDA](#gloss-usda), Open Food Facts[^3] or ano
 - **Compare** checkboxes send foods to [Comparison](#comparison) ([Compare selected](#compare-checkboxes)).
 - **Fetch missing data from Claude AI** and **Import Claude response**: below.
 
-**Fetching missing data with Claude [AI](#gloss-artificial-intelligence).**{: #fetch} Some foods, especially branded or prepared ones, arrive without amino acid data, and a few without even calories or protein. Claude can usually find the figures. Tick the foods you want (**Select all missing [AA](#gloss-aa) data** ticks every food missing amino acids) and click **Fetch missing data from Claude AI**. You can also start from the [missing nutrient data check](#data-completeness) or from the warning on a food's page. NuMa builds a request (a "prompt") and shows it with a **Copy prompt to clipboard** button.
+**Fetching missing data with Claude [AI](#gloss-artificial-intelligence).**{: #fetch} Some foods, especially branded or prepared ones, arrive without amino acid data, and a few without even calories or protein. Claude can usually find the figures. Tick the foods you want (**Select all missing [AA](#gloss-aa) data** ticks every food missing amino acids) and click **Fetch missing data from Claude AI**. You can also start from the [missing nutrient data check](#data-completeness), from the *No amino acid data* warning on a food's page (**Write a prompt for Claude AI**), or from the **Ask Claude AI for help** box on a food's [Edit page](#edit-ask-ai), which also asks for one group or the whole profile, and can ask for every value rather than only the missing ones. In what order to try Claude and the other ways of filling gaps: [Workflow 12](#fix-food-data). NuMa builds a request (a "prompt") and shows it with a **Copy prompt to clipboard** button.
 
 The prompt asks only for the values each food is missing. Groups you've marked "not needed" are named as not needed, and a food with nothing missing is left out (the page says which).
 
@@ -1169,6 +1213,8 @@ To change a custom food's nutrients, open it from the Food Cache or this list an
 **Comparing search results before you copy.** On the edit page, results of both searches ("Copy nutrient values from another food" and "Estimate amino acids from another food") have **Compare** checkboxes. Tick the ones to weigh up, from as many searches as you like (up to 7), and click **Compare checked foods with this one**. These ticks belong to this profile only. [Compare](#comparison) opens with your profile first and the ticked foods beside it, per 100 g; **← Back to editing …** returns you. Unsaved edits are saved first, as with a search, and the Undo offer waits for you when you come back.
 
 **Estimating amino acids from another food.** Wherever NuMa asks for a food's amino acids (creating or copying a custom food, or editing any food's data), you can pick a similar food that has amino acid data instead of typing values. Its amino acids are **scaled to this food's protein content**, not copied as they are: a food with half the protein gets half the amino acids. A note naming the source food and the scale factor is offered for the Note field. On the custom-profile edit page this is the "Estimate amino acids from another food" panel. Editing any food this way marks it user-drafted, like any other edit.
+
+**Asking Claude AI for help.**{: #edit-ask-ai} The edit page's third box, **Ask Claude AI for help**, is the last resort, for when neither search finds a usable food. Choose the whole nutrient profile or one nutrient group, and whether to ask only for the values the food is missing or for every value (to replace figures you doubt), then click **Write the prompt for Claude AI**. NuMa writes the prompt; you paste it into Claude and import its answer, reviewing it first. With **Every value**, the import page starts with **Also replace the values these foods already have** ticked. The steps are in [Workflow 12](#fix-food-data); how the prompt and import work, in [Fetching missing data with Claude AI](#fetch).
 
 **A shortcut from search results:** every food row in [Food Search](#food-search), Food Cache and the Pantry's search has a **Copy as custom-food draft** button. It copies the food as an editable draft and opens its edit page, with the amino-acid source search ready.
 
@@ -1810,6 +1856,31 @@ A recipe used as an ingredient (code starting with R) is scaled from its serving
 **Adding a recipe as an ingredient, by servings or grams.**{: #subrecipe-amount} A recipe in the ingredient search can be added like a food: type servings, or switch the box beside the amount to **grams**, and NuMa converts using the recipe's serving weight ("1 serving = 1 cup, 240 g"). Grams are offered only when NuMa knows that weight (a total weight was entered, or every ingredient has a weight). It's saved as servings either way.
 
 
+#### Seeing what an ingredient change does {: #recipe-edit-effects}
+
+*Search terms: ingredient change effect, swap an ingredient, substitute ingredient, recipe development, before and after, nutrient change report, recipe-edit-effects-data.md.*
+
+While you work on a recipe, NuMa can tell you how a change moved its nutrients. Nothing happens unless you ask.
+
+1. Open the recipe's **Edit** page (or start a new recipe).
+2. Add an ingredient, remove one, or change an ingredient's amount with its **Edit** button.
+3. A small box appears in the bottom right corner, naming the change and asking **Report the effect on nutrients?** The answer is **No** unless you say otherwise: press **Esc**, click **No (Esc)**, or just carry on, and the box goes away. Esc also closes the box at any later step.
+4. Click **Yes…** and tick the groups of nutrients you want: the same groups as in a food's, meal's or recipe's nutrient table (Macronutrients, Minerals, Vitamins and so on). Or tick one of the two "all" choices: **All nutrients**, or **All nutrients that changed by 5% or more**, which leaves out everything that barely moved. Then click **Write report**.
+
+Each report numbers the changes it covers and shows a table for each group, per serving: **Before** (the recipe before change 1), then the recipe after each change (**After 1**, **After 2** and so on, or just **After** for a single change), then **Change** and **Change %**, the whole effect from Before to the last After. A **?** means a figure can't be worked out at that point. Protein (DCP) is always listed under Protein, even when it can't be worked out at all. Protein (DCP), the protein your body can actually use, follows Protein, and glycemic load (how much a serving is likely to raise blood sugar) ends the Macronutrients table when you track it.
+
+**A report covers every change since the last one.** To swap one ingredient for another, remove the old one (answer **No**), then add the new one and answer **Yes**: the report compares the recipe with how it was before the removal, so it shows the whole swap. The first report of a session covers everything since you opened the Edit page.
+
+**Your choice of nutrients is remembered** and ticked for you at the next offer, until you change it or the session ends.
+
+**Reading the reports.** Once a report is written, the corner box says so: **Show the report** opens it right away. After the first report, a **Show ingredient change(s) file content** button sits above **Add Ingredient** for as long as the page is open. It shows every report from this session, newest last; the button, now **Hide ingredient change(s) file content**, moves below the last report.
+
+**The file.** Reports go into a file named `recipe-edit-effects-data.md`, so you can read them after you close the page. Run from the program's own folder, NuMa keeps the file there. The downloadable NuMa keeps it in its data folder, beside its database; the Show button gives the full location. The file holds one session: the first report of the next session replaces it.
+
+**What counts as a session.** A session starts each time you open the Edit page from another page (the recipe's own page, the Recipes list, a new recipe and so on). Adding, removing, searching and saving the recipe's details all happen on the Edit page itself, so they keep the same session.
+
+**Looking up a food without leaving.** On the Edit page, clicking a food's or a recipe's name in **Ingredients** or in the search results opens its full page in a panel over the Edit page. Close the panel (**Close**, or the Esc key) and you are back exactly where you were, with any search results, unsaved details and an open report box still there. **Open as its own page** leaves the Edit page for that page instead.
+
 #### Deleting a recipe that's used elsewhere {: #delete-recipe-elsewhere}
 
 *Search terms: remove recipe, recipe in use, can't delete, broken recipe references, relink, reconnect.*
@@ -2241,7 +2312,10 @@ The four actions:
                     1.5 or 150% = half again as much; 0.5 or 50% = half.
 
 <span id="whatif-ingredients"></span>**A recipe logged as individual ingredients.** When you add a recipe to a
-meal as separate ingredients, the meal holds the foods, not the recipe. **Remove** and **Change amount** still find it: the foods matching the recipe's ingredients at the same portion size are changed together (another copy of one of them, logged separately, stays), and the change's line says so. If the recipe has changed since, nothing matches and a note names the meal; change the foods one by one. This needs at least two ingredients, and works for Remove and Change amount (including [applying for real](#whatif-apply)); Replace needs the recipe itself in the meal.
+meal as separate ingredients, the meal holds the foods, not the recipe. Each of those foods remembers which recipe it came from (the meal page shows *part of* and the recipe's name beside it), so **Remove** and **Change amount** still find it, and change those foods together; the change's line says so. That holds even after you changed them for that meal: an ingredient left out, an amount changed, or a food swapped for another. A food you added to the meal yourself is not part of the recipe and stays. Foods logged this way before 2026-11-17 don't carry that link; for them, NuMa looks for foods matching the recipe's ingredients at the same portion size. If those were changed, or the recipe has changed since, nothing matches and a note names the meal; change the foods one by one. This works for Remove and Change amount (including [applying for real](#whatif-apply)). Two things it can't do, and the change's line names the meals where they happen, so you can fix those by hand:
+
+- **Replace** works only where the recipe itself was logged, not its separate foods. In those meals, remove the recipe's foods and add the replacement yourself.
+- **A recipe used inside another recipe** (a sub-recipe) is found wherever the outer recipe was logged whole, but not where the outer recipe was logged as individual ingredients: those foods record the outer recipe, not which sub-recipe each came from. Change those foods in the meal yourself.
 
 To swap foods: **Replace** puts the new food only where the old one was; a **Remove** row plus an **Add** row drops the old and adds the new on every logged day.
 
@@ -2981,7 +3055,7 @@ A recipe deleted by an older version, while still in use, leaves its lines flagg
 
 *Search terms: no amino acids, AA missing, amino acid warning.*
 
-Many foods, especially branded or prepared ones, have no published amino acid data. That's a data gap, not a bug. Search for a [USDA](#gloss-usda) Foundation or [SR](#gloss-sr) Legacy version (plain foods are far likelier to have it), or ask Claude [AI](#gloss-artificial-intelligence) for the values ([how](#fetch)). See also [Missing amino acid profiles](#missing-aa).
+Many foods, especially branded or prepared ones, have no published amino acid data. That's a data gap, not a bug. Search for a [USDA](#gloss-usda) Foundation or [SR](#gloss-sr) Legacy version (plain foods are far likelier to have it), then estimate the amino acids from a similar food, and last, ask Claude [AI](#gloss-artificial-intelligence) for the values. [Workflow 12](#fix-food-data) walks through all three. See also [Missing amino acid profiles](#missing-aa).
 
 *See also:* [No brand or equivalent of a food has amino acid data anywhere in USDA](#ts-no-aa-anywhere), for the harder case where neither fix above applies.
 
@@ -5329,7 +5403,7 @@ A food with no figure for a nutrient adds nothing to a meal's or recipe's total 
 2. **Another national food database**: the Canadian Nutrient File (searched online), and the UK CoFID, Australian AFCD and French CIQUAL databases bundled with NuMa. *In NuMa:* the same search covers all four; their codes say which a result came from: CNF (Canadian Nutrient File), [CoFID](#gloss-cofid), [AFCD](#gloss-afcd) and [CIQUAL](#gloss-ciqual).
 3. **The package label**, for a packaged food: calories, fat, saturated fat, carbohydrate, sugar, fiber, protein and sodium, and on US labels also calcium, iron, potassium and vitamin D. Open Food Facts holds many labels; the same search includes it (code [OFF](#gloss-off)). A label never lists water, amino acids, carotenoids or most vitamins.
 4. **A close, similar food** — tomato purée for a tomato sauce, another bean for a bean. Same search; a value borrowed this way is marked *estimated* on the food's page. A homemade dish is usually better entered as a [recipe](#recipes-menu-web) of its ingredients, so its values come from them.
-5. **Claude AI.** On Foods → 9, tick the food's group in *Missing nutrient data* and [fetch the missing values from Claude](#fetch). Last, because the figures need checking: ask for the source and look at it. An import only fills blanks.
+5. **Claude AI.** On the food's Edit page, use **Ask Claude AI for help** ([Workflow 12](#fix-food-data)), or on Foods → 9 tick the food's group in *Missing nutrient data* and [fetch the missing values from Claude](#fetch). Last, because the figures need checking: ask for the source and look at it. An import only fills blanks.
 6. **Nobody has it.** Some nutrients are measured for few foods anywhere (several phytonutrients, below). Then the honest answer is that the total is a minimum. Marking the gap **not needed**, from the Top Contributors list ([how](#contrib-no-data-answers)) or for its whole group in Foods → 9's *Missing nutrient data* list, stops NuMa asking about it and leaves it out of Claude prompts. The total is still a minimum. If you know the food has none, **Has none — record 0** says so instead.
 
 **Amino acids.**{: #key-sources-aa} The same order, with these differences. USDA SR Legacy has full amino acid profiles for thousands of foods, and the Canadian Nutrient File for many; the Australian database has them for about one food in eight; the UK and French databases have none, and labels never list them. When you copy amino acids from a similar food, NuMa scales them to this food's own protein rather than copying them raw (see [Fill in nutrients from another food](#review-incoming)). A food with very little protein can simply be marked **Amino acids not needed** (see [Missing Amino Acid Profiles](#missing-aa-off)).
@@ -6109,10 +6183,54 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 Version overview: 
 
-SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button.
+SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut.
 
-DETAILS: New Problems by food page (Foods → 9) and an Everything to check on this food box on each food's page: all of a food's data problems in one place, with their fixes. Searches no longer put partial matches from your own data above full matches when you already have an item matching every word, singular and plural search words match each other, a food can be deleted from its own page, and each meal item now records and shows the time of day it was entered. Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search; arrow keys move through search results, and Back returns to the one you opened; Print pages and other NuMa links stay in NuMa's own window; quiet buttons are blue; the manual's search opens the section you picked, with your words highlighted; and Compare ticks are kept as you search again or move between lists, so one comparison can gather foods from several searches. A `!` before a search word leaves out results with that word (`beans red !kidney cooked`), and the list says how many results they hid; a search for a cooked food no longer misses canned products online; a hint under every search box sums up how to write a search; and NuMa offers to search USDA again with your words reversed, which finds many branded products. On the Annotate page, each estimate being asked for has its own Skip button beside it, and the Meals & Log list's Complete column is a checkbox, so a meal can be marked complete without opening it. On a meal, the Add Food or Recipe header, search box and search hint line up along the top, and the hint's Learn more opens the manual at word order. A `!` word works in list filter boxes too (Recipes, Food Cache, My Pantry, Search meal history and the rest). Removing an item from a meal no longer makes the page jump around. The User Manual is reorganized and much shorter, with step-by-step workflows. A Return button above the manual (Alt+Shift+U) goes straight back to the page you came from, and Manual reopens it where you left off; and Settings checks a USDA API key with USDA before saving it, with a Test key button. The Daily Summary page now says it covers several days and drops its date box and Today's summary button; a day opens from its date in the table. Its buttons now say what they show: Nutrient averages over a period (the last 7, 14 or 30 days, any dates, or chosen meals; this replaces the separate Nutrient totals button, which opened the same page) and Week-by-week averages (was Blocks of days); the date-range buttons read Average these dates and Average these meals, and each block's All nutrients link (was Full nutrient totals).
+DETAILS:
 
+* New **Problems by food** page (Foods → 9), and an **Everything to check on this food** box on each food's page: all of a food's data problems in one place, with their fixes.
+* Searches no longer put partial matches from your own data above full matches when you already have an item matching every word.
+* Singular and plural search words match each other.
+* A food can be deleted from its own page.
+* Each meal item now records and shows the time of day it was entered.
+* Recipes can be marked complete or as drinks, and foods as drinks, straight from the Recipes list and every search.
+* Arrow keys move through search results, and Back returns to the one you opened.
+* Print pages and other NuMa links stay in NuMa's own window.
+* Quiet buttons are blue.
+* The manual's search opens the section you picked, with your words highlighted.
+* Compare ticks are kept as you search again or move between lists, so one comparison can gather foods from several searches.
+* A `!` before a search word leaves out results with that word (`beans red !kidney cooked`), and the list says how many results it hid.
+* A `!` word works in list filter boxes too (Recipes, Food Cache, My Pantry, Search meal history and the rest).
+* A search for a cooked food no longer misses canned products online.
+* A hint under every search box sums up how to write a search.
+* NuMa offers to search USDA again with your words reversed, which finds many branded products.
+* On the Annotate page, each estimate being asked for has its own **Skip** button beside it.
+* The Meals & Log list's **Complete** column is a checkbox, so a meal can be marked complete without opening it.
+* On a meal, the Add Food or Recipe header, search box and search hint line up along the top, and the hint's **Learn more** opens the manual at word order.
+* Removing an item from a meal no longer makes the page jump around.
+* The User Manual is reorganized and much shorter, with step-by-step workflows.
+* A **Return** button above the manual (Alt+Shift+U) goes straight back to the page you came from, and **Manual** reopens it where you left off.
+* Settings checks a USDA API key with USDA before saving it, with a **Test key** button.
+* The Daily Summary page now says it covers several days and drops its date box and Today's summary button; a day opens from its date in the table.
+* Daily Summary buttons now say what they show: **Nutrient averages over a period** (the last 7, 14 or 30 days, any dates, or chosen meals; this replaces the separate Nutrient totals button, which opened the same page) and **Week-by-week averages** (was Blocks of days).
+* The date-range buttons read **Average these dates** and **Average these meals**, and each block's link is **All nutrients** (was Full nutrient totals).
+* On a recipe's Edit page, adding, removing or changing the amount of an ingredient offers a short report on how the recipe's nutrients per serving moved since the last report (nutrient groups you pick, all nutrients, or only those that changed by 5% or more), shown by a button above Add Ingredient; food and recipe names there open in a panel over the page.
+* The Recipes list's filter keeps only recipes whose names hold every word you type, like the other list filters.
+* Edit Recipe has a Contents list down the side and a **Clear search** button after Search; its search results show each recipe's DCP per serving and description.
+* A food's Edit page ends with an **Ask Claude AI for help** box, which writes a prompt for one nutrient group or the whole profile, for missing values only or for every value.
+* The *No amino acid data* box on a food's page lists its three fixes in order, ending with **Write a prompt for Claude AI**, and the manual's new Workflow 12 gives the order to try them.
+* A recipe added to a meal as individual ingredients marks each of those foods with the recipe, so **What-if: meals** can remove it or change its amount even after it was changed for that meal; where a change can't reach such foods, What-if and its Apply page name the meals to fix by hand.
+* **Alt+Shift+K** (or Ctrl+K) opens a command palette: every menu page and this page's own shortcuts, each with its keys, filtered as you type, plus searches for the typed text and Quit. Settings' Keyboard Shortcuts section moves to **Alt+Shift+E**.
+* A page that reloads after a change below its search results keeps your place even when the online results arrive late.
+
+- **35.** MANUAL: [Tips for new users](#new-user-tips) now says NuMa can be used entirely from the keyboard, starting from `Alt+Shift+K`.
+- **34.** A meal page that reloads after you change a setting on its search results keeps your place reliably: when the online results arrived at the wrong moment, it used to jump back to the top.
+- **33.** **Alt+Shift+K** opens a *command palette*: every page in the menus, and whatever the page you're on has a shortcut for, each with its keys, narrowed as you type; it can also search foods, recipes and meals for what you typed, or quit NuMa. `Ctrl+K` opens it too. Settings' Keyboard Shortcuts section is now `Alt+Shift+E`. See [Finding your way around](#command-palette).
+- **32.** What-if: Meals removes (or changes the amount of) a recipe logged as individual ingredients even after you changed it for that meal: each of those foods now remembers its recipe, shown as *part of* on the meal page. Where a change can't reach such foods (a Replace, or a sub-recipe inside a recipe logged that way), it names the meals. [learn more...](#whatif-ingredients)
+- **31.** A food's **Edit** page ends with **Ask Claude AI for help** (one nutrient group or the whole profile; missing values only, or every value), and the *No amino acid data* box lists its fixes in order, ending with a Claude AI prompt. New [Workflow 12](#fix-food-data) gives the steps.
+- **30.** **Edit Recipe**'s search results show each recipe's **DCP/srv** and **Description**, right after **Code**.
+- **29.** **Edit Recipe** has a **Contents** list down the side that jumps to each part (opening it if collapsed), and a **Clear search** button right after **Search**.
+- **28.** The **Recipes** list's filter now keeps only recipes whose names hold every word you type, like the other list filters: `coffee 2` finds Coffee 2, not every recipe with a 2 in its name.
+- **27.** On a recipe's **Edit** page, each add, remove or amount change offers a short report on how it moved the recipe's nutrients per serving (groups you pick, all nutrients, or only those that changed by 5% or more); reports go into `recipe-edit-effects-data.md`, shown by a button above **Add Ingredient**. Food and recipe names there now open in a panel over the page. [learn more...](#recipe-edit-effects)
 - **26.** In **Settings → 6**, NuMa now checks a USDA API key with USDA when you save it, and won't save one USDA rejects; **Test key** checks the saved key again, and the card shows when it was last checked.
 - **25.** The yellow bar above the manual now has **↩ Return to …** (Alt+Shift+U), which goes straight back to the NuMa page you came from however many jumps you've made in the manual; **Manual** then reopens it where you left off. **← Back one step** (Alt+←) still retraces your jumps one at a time.
 - **24.** MANUAL: The User Manual is reorganized and about a fifth shorter. New: an Overview with a short primer on the ideas NuMa uses, eleven step-by-step Workflow examples (starting with taking stock of your own food), and a Menu by menu Part with each page's tables and columns beside its menu item. The science moved to its own Part, the help and troubleshooting sections are together, and this What's new section now keeps one line per change.

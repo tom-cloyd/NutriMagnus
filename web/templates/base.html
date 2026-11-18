@@ -11,6 +11,8 @@
     if (localStorage.getItem('numa_accesskeys') !== 'false') {
       document.documentElement.classList.add('shortcuts-on');
     }
+    // Shown inside another NuMa page's panel (recipe Edit's food details).
+    if (window.self !== window.top) document.documentElement.classList.add('numa-embedded');
   </script>
 </head>
 <body>
@@ -188,6 +190,11 @@
                href="/manual" data-ak="a" data-section="manual">M<u class="ak">a</u>nual</a>
           </li>
         </ul>
+        {# Command palette (Alt+Shift+K; Ctrl+K also works): every page and
+           action, each with its shortcut. The modal is #palette, below. #}
+        <button class="btn btn-sm btn-outline-light palette-btn" type="button" id="palette-btn"
+                data-ak="k" title="Command palette: every page and action, with its shortcut (Alt+Shift+K)">&#x2318;
+          <span class="palette-btn-keys">Alt+Shift+K</span><span class="palette-btn-name">Commands</span></button>
       </div>
     </div>
   </nav>
@@ -232,11 +239,27 @@
     <small class="text-secondary d-block">NuMa — local nutritional analysis &middot; data per 100 g unless noted
       &middot; <a href="/disclaimer">Disclaimer</a></small>
     <small class="text-secondary" id="shortcut-hint" style="display:none">
-      Keyboard shortcuts active (<kbd>Alt+Shift</kbd>+key).
+      Keyboard shortcuts active (<kbd>Alt+Shift</kbd>+key); <kbd>Alt+Shift+K</kbd> lists them all.
       <a href="/settings">Can turn off in Settings.</a>
     </small>
   </footer>
   {% endblock %}
+
+  {# Command palette: every menu page, this page's own shortcuts, and
+     actions, filtered as you type; keyboard driven. Script below. #}
+  <div class="modal" id="palette" tabindex="-1" aria-label="Command palette">
+    <div class="modal-dialog modal-dialog-scrollable palette-dialog">
+      <div class="modal-content">
+        <div class="modal-header py-1">
+          <input id="palette-input" class="form-control" type="search" autocomplete="off"
+                 placeholder="Type to filter: a page, an action, or a food to search for…"
+                 aria-label="Filter commands" aria-controls="palette-results">
+        </div>
+        <div class="modal-body p-0"><div id="palette-results" class="list-group list-group-flush palette-results" role="listbox"></div></div>
+        <div class="modal-footer py-1 justify-content-start"><small class="text-secondary">&uarr;&darr; choose &middot; Enter open &middot; Esc close</small></div>
+      </div>
+    </div>
+  </div>
 
   <script src="/static/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script>
@@ -1095,10 +1118,12 @@
       if (y > 0) {
         // Two frames: let tables, images and the panel restores above settle
         // first, and don't jump past the end of a page that came back
-        // shorter than it was.
+        // shorter than it was. Instant, not Bootstrap's smooth scrolling:
+        // online results landing mid-animation would read the half-way
+        // position, put the page back there, and cancel the restore.
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
-            if (document.body.scrollHeight > y) window.scrollTo(0, y);
+            if (document.body.scrollHeight > y) window.scrollTo({top: y, left: 0, behavior: 'instant'});
           });
         });
       }
@@ -1304,9 +1329,19 @@
       var key = e.key.toLowerCase();
       if (digit) key = digit[1];
       else if (!/^[a-z]$/.test(key) && letter) key = letter[1].toLowerCase();
+      if (akRun(key)) e.preventDefault();
+    });
+
+    // akRun(key) does what Alt+Shift+key does on this page, and returns false
+    // if the page has nothing for that key. The command palette (Alt+Shift+K)
+    // runs its "key" commands through it too, so a palette entry and its
+    // shortcut can never behave differently.
+    function akRun(key) {
+      // K opens the palette directly rather than clicking its navbar button,
+      // which on a narrow window sits inside the collapsed menu.
+      if (key === 'k' && window.numaPalette) { window.numaPalette.open(); return true; }
       var target = document.querySelector('[data-ak="' + key + '"]');
-      if (!target) return;
-      e.preventDefault();
+      if (!target) return false;
       // Alt+Shift+I jumps to the page's main search box (data-ak="i" on the
       // input itself). It may sit inside a collapsed section (the meal
       // page's "Add Food or Recipe", the recipe editor's "Add Ingredient"),
@@ -1324,7 +1359,7 @@
         }
         target.focus();
         target.select();
-        return;
+        return true;
       }
       // Alt+Shift+Y moves focus to the page's Items section (a meal's
       // Items, Compare's items being compared, Analyze a recipe portion's
@@ -1338,7 +1373,7 @@
         }
         target.scrollIntoView({block: 'start'});
         target.focus({preventScroll: true});
-        return;
+        return true;
       }
       // Below the navbar's collapse breakpoint (narrow/mobile window), the
       // nav links live inside a collapsed <div id="main-nav"> (display:
@@ -1380,7 +1415,9 @@
       } else {
         target.focus();
       }
-    });
+      return true;
+    }
+    window.numaAkRun = akRun;
 
     // Each numa dropdown menu (Foods/Recipes/Analysis) numbers its items
     // ("1. Search", "2. Analyze", ...) to look like the Settings sections,
@@ -1416,6 +1453,217 @@
         applyShortcuts(enabled);
       });
     }
+  })();
+  </script>
+  <script>
+  // ── Command palette (Alt+Shift+K, or Ctrl+K) ─────────────────────────────
+  // Lists this page's own shortcuts, every menu page, and actions, each with
+  // the keys that reach it, filtered as you type. Pages are read from the
+  // navbar itself (names, links, letters, menu positions), so the palette
+  // can never fall out of step with the menus. README → base.html →
+  // "Command palette".
+  (function () {
+    var modalEl = document.getElementById('palette');
+    var nav = document.getElementById('main-nav');
+    if (!modalEl || !nav || document.documentElement.classList.contains('numa-embedded')) return;
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    var input = document.getElementById('palette-input');
+    var box = document.getElementById('palette-results');
+    var opener = null;    // what had focus when the palette opened
+    var pending = null;   // action chosen; runs once the palette has closed
+    var active = 0;       // highlighted row
+
+    function shortcutsOn() { return document.documentElement.classList.contains('shortcuts-on'); }
+    function clean(t) { return (t || '').replace(/\s+/g, ' ').trim(); }
+    // An element's own words, without its "Learn more →" link or grey hints.
+    function textOf(el) {
+      var c = el.cloneNode(true);
+      c.querySelectorAll('.manual-link, .dd-hint, .muted').forEach(function (x) { x.remove(); });
+      return clean(c.textContent);
+    }
+
+    // Shortcuts that belong to this page only: its search box (I), Items
+    // section (Y), Settings sections (1-0, T, E, B, D, Y), the manual's
+    // Return (U). Any [data-ak] outside the menu, so a new one is listed
+    // automatically; data-ak-label names it when its own text wouldn't.
+    function pageCommands() {
+      var out = [];
+      document.querySelectorAll('[data-ak]').forEach(function (el) {
+        if (nav.contains(el)) return;
+        var label = el.getAttribute('data-ak-label'), tags = '';
+        if (!label && el.tagName === 'INPUT') {
+          label = 'Search box on this page';
+          tags = 'find search ' + (el.placeholder || '');
+        }
+        if (!label) {
+          var strong = el.querySelector('strong');
+          label = strong ? textOf(strong) : textOf(el);
+          var n = /^(\d+)\./.exec(textOf(el));
+          if (n && strong) label = n[1] + '. ' + label;
+        }
+        if (label.length > 70) label = label.slice(0, 69) + '…';
+        out.push({label: 'This page: ' + label, key: el.getAttribute('data-ak'), tags: tags});
+      });
+      return out;
+    }
+
+    // The ↩ quick-return chips beside Foods/Recipes/Analysis, when shown.
+    function chipCommands() {
+      var out = [];
+      nav.querySelectorAll('.nav-quick-return:not(.d-none)').forEach(function (a) {
+        out.push({label: a.title || textOf(a), url: a.getAttribute('href'), tags: 'return back last'});
+      });
+      return out;
+    }
+
+    // Every menu page. A top-level link's keys are Alt+Shift+its letter; a
+    // drop-down entry's are the menu's letter, then the entry's number
+    // (counted as the digit handler above counts them).
+    function navCommands() {
+      var out = [{label: 'Home', url: '/', tags: 'start numa home page'}];
+      nav.querySelectorAll('.navbar-nav > .nav-item').forEach(function (li) {
+        var link = li.querySelector(':scope > .nav-link[data-ak]');
+        if (!link) return;
+        var ak = link.getAttribute('data-ak').toUpperCase(), name = textOf(link);
+        if (!link.classList.contains('dropdown-toggle')) {
+          out.push({label: name, url: link.getAttribute('href'), keys: 'Alt+Shift+' + ak, tags: ''});
+          return;
+        }
+        li.querySelectorAll('.numa-dropdown > li > .dropdown-item').forEach(function (a, i) {
+          var hint = a.querySelector('.dd-hint');
+          out.push({label: name + ': ' + textOf(a).replace(/^\d+\.\s*/, ''),
+                    url: a.getAttribute('href'),
+                    keys: 'Alt+Shift+' + ak + ', then ' + (i + 1),
+                    tags: hint ? clean(hint.textContent) : ''});
+        });
+      });
+      return out;
+    }
+
+    var ACTIONS = [
+      {label: 'Manual: keyboard shortcuts', url: '/manual#web-shortcuts', tags: 'help keys hotkeys alt shift'},
+      {label: 'Disclaimer', url: '/disclaimer', tags: ''},
+      // Ctrl+Q works whether or not the Alt+Shift shortcuts are on.
+      {label: 'Quit NuMa', keys: 'Ctrl+Q', always: true, tags: 'exit close stop shut down',
+       run: function () { if (window.numaQuit) window.numaQuit(); }},
+    ];
+
+    // Whatever is typed can also be searched for.
+    function searchCommands(q) {
+      var e = encodeURIComponent(q);
+      return [
+        {label: 'Search foods for “' + q + '”', url: '/food/search?query=' + e},
+        {label: 'Search recipes for “' + q + '”', url: '/recipes?q=' + e},
+        {label: 'Meals that contain “' + q + '”', url: '/meals/search?q=' + e},
+      ];
+    }
+
+    function row(c) {
+      var a = document.createElement('a');
+      a.className = 'list-group-item list-group-item-action py-1';
+      a.href = c.url || '#';
+      a.appendChild(document.createTextNode(c.label));
+      var keys = c.always ? c.keys
+               : !shortcutsOn() ? ''
+               : c.key ? 'Alt+Shift+' + c.key.toUpperCase() : c.keys;
+      if (keys) {
+        var k = document.createElement('span');
+        k.className = 'palette-keys';
+        k.textContent = ' (' + keys + ')';
+        a.appendChild(k);
+      }
+      if (!c.url) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          pending = c.run || function () { if (window.numaAkRun) window.numaAkRun(c.key); };
+          modal.hide();
+        });
+      }
+      return a;
+    }
+
+    function rows() { return box.querySelectorAll('a.list-group-item'); }
+    function mark() {
+      rows().forEach(function (r, i) { r.classList.toggle('active', i === active); });
+      var r = rows()[active];
+      if (r) r.scrollIntoView({block: 'nearest'});
+    }
+
+    function render() {
+      var q = clean(input.value);
+      var words = q.toLowerCase().split(' ').filter(Boolean);
+      var shown = pageCommands().concat(chipCommands(), navCommands(), ACTIONS).filter(function (c) {
+        var hay = (c.label + ' ' + (c.tags || '')).toLowerCase();
+        return words.every(function (w) { return hay.indexOf(w) !== -1; });
+      });
+      box.textContent = '';
+      var cmds = document.createElement('div');
+      // Two columns once the list is long: CSS columns fill down, then
+      // across, the same order ↑↓ moves through.
+      cmds.className = 'palette-cmds' + (shown.length > 8 ? ' palette-two-cols' : '');
+      shown.forEach(function (c) { cmds.appendChild(row(c)); });
+      box.appendChild(cmds);
+      if (q) {
+        var finds = document.createElement('div');
+        finds.className = 'palette-finds border-top';
+        searchCommands(q).forEach(function (c) { finds.appendChild(row(c)); });
+        box.appendChild(finds);
+      }
+      active = 0;
+      mark();
+    }
+
+    input.addEventListener('input', render);
+    input.addEventListener('keydown', function (e) {
+      var list = rows();
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!list.length) return;
+        active = (active + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length;
+        mark();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (list[active]) list[active].click();
+      }
+    });
+
+    // A chosen action must act on the page as it was left, so: remember
+    // what had focus before Bootstrap moves it into the dialog, and once
+    // the dialog has closed, put it back and run the action. One tick
+    // later, because Bootstrap refocuses in its own "hidden" handler.
+    modalEl.addEventListener('show.bs.modal', function () {
+      opener = document.activeElement;
+      pending = null;
+      input.value = '';
+      render();
+    });
+    modalEl.addEventListener('shown.bs.modal', function () { input.focus(); });
+    modalEl.addEventListener('hidden.bs.modal', function () {
+      var run = pending;
+      pending = null;
+      if (!run) return;
+      setTimeout(function () {
+        if (opener && opener !== document.body && document.contains(opener)) {
+          opener.focus({preventScroll: true});
+        }
+        run();
+      }, 0);
+    });
+
+    function open() {
+      if (modalEl.classList.contains('show')) modal.hide();
+      else modal.show();
+    }
+    window.numaPalette = {open: open};
+    document.getElementById('palette-btn').addEventListener('click', open);
+    // Ctrl+K: a habit from other programs. Untaught, and on even with the
+    // Alt+Shift shortcuts switched off.
+    document.addEventListener('keydown', function (e) {
+      if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+      if ((e.key || '').toLowerCase() !== 'k' && e.code !== 'KeyK') return;
+      e.preventDefault();
+      open();
+    });
   })();
   </script>
   <script>
@@ -2159,6 +2407,12 @@
       if (!e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
       if ((e.key || '').toLowerCase() !== 'q' && e.code !== 'KeyQ') return;
       e.preventDefault();
+      quit();
+    });
+    // Also the palette's "Quit NuMa" (the only way to reach it in Firefox,
+    // which keeps Ctrl+Q for itself).
+    window.numaQuit = quit;
+    function quit() {
       if (quitting) return;
       var dg = window.numaDirtyGuard, lg = window.numaLeaveGuard;
       var unsaved = (dg && dg.anyDirty && dg.anyDirty()) ||
@@ -2174,7 +2428,7 @@
           '<p>You can close this window. Start NuMa again the way you usually do.</p></div>';
         window.close();
       });
-    });
+    }
   })();
   </script>
 </body>
