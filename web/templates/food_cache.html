@@ -266,13 +266,92 @@
 {% include "_code_key.html" %}
 <p class="muted"><small>AA = amino acid data available &middot; GI = user-annotated estimate &middot; DIAAS = your saved estimate (&#9733;) when you've annotated one, otherwise the built-in reference-table value for foods with amino acid data &middot; <a href="/food/annotate">Annotate a food</a> &middot; Archive hides a food from search and complement suggestions without losing it &mdash; archived foods are also protected from Prune</small></p>
 <script>
+// Fetch ticks are remembered for this browser tab, so leaving the Food Cache
+// (to look at a meal, say) and clicking back to it keeps them; coming back
+// by a keyboard shortcut clears them. Ticks on foods
+// a filter hides are kept too, and show again when the filter is cleared;
+// only the visible ticks are sent. (Compare ticks: base.html, compare picks.)
+var FETCH_KEY = 'numa_fetch_picks';
+var BLOCKED_KEY = 'numa_delete_blocked';
+// Opened from the keyboard (menu shortcut or command palette): start fresh.
+// base.html sets numaArrivedByKey.
+if (window.numaArrivedByKey) {
+  try { sessionStorage.removeItem(FETCH_KEY); sessionStorage.removeItem(BLOCKED_KEY); } catch (e) {}
+}
+function loadFetchPicks() {
+  try { return JSON.parse(sessionStorage.getItem(FETCH_KEY) || '[]') || []; } catch (e) { return []; }
+}
+function saveFetchPicks() {
+  var boxes = document.querySelectorAll('.claude-fetch-cb');
+  var onPage = Array.prototype.map.call(boxes, function (cb) { return cb.value; });
+  var picks = loadFetchPicks().filter(function (id) { return onPage.indexOf(id) === -1; });
+  boxes.forEach(function (cb) { if (cb.checked) picks.push(cb.value); });
+  try {
+    if (picks.length) sessionStorage.setItem(FETCH_KEY, JSON.stringify(picks));
+    else sessionStorage.removeItem(FETCH_KEY);
+  } catch (e) {}
+}
+function restoreFetchPicks() {
+  var picks = loadFetchPicks();
+  document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) {
+    cb.checked = picks.indexOf(cb.value) !== -1;
+  });
+}
+document.addEventListener('change', function (e) {
+  if (e.target.classList && e.target.classList.contains('claude-fetch-cb')) saveFetchPicks();
+});
+restoreFetchPicks();
+// Back/Forward from the page cache can show stale ticks; storage wins.
+window.addEventListener('pageshow', function (e) { if (e.persisted) restoreFetchPicks(); });
+// A refused delete's warning ("Deletion not possible. Food used in…") is
+// remembered for this tab too. On return, each one is checked again with
+// the server: still used, it shows under its row with where it's used now;
+// no longer used (or deleted), it's forgotten.
+function loadBlocked() {
+  try { return JSON.parse(sessionStorage.getItem(BLOCKED_KEY) || '[]') || []; } catch (e) { return []; }
+}
+function saveBlocked(ids) {
+  try {
+    if (ids.length) sessionStorage.setItem(BLOCKED_KEY, JSON.stringify(ids));
+    else sessionStorage.removeItem(BLOCKED_KEY);
+  } catch (e) {}
+}
+document.addEventListener('numa:row-blocked', function (e) {
+  var id = (e.target.id || '').replace(/^food-/, '');
+  if (!id) return;
+  var ids = loadBlocked().filter(function (x) { return x !== id; });
+  ids.push(id);
+  saveBlocked(ids);
+});
+function restoreBlocked() {
+  loadBlocked().forEach(function (id) {
+    var row = document.getElementById('food-' + id);
+    if (!row || !window.numaShowRowBlocked) return;  // filtered out: kept for later
+    fetch('/food/cache/' + encodeURIComponent(id) + '/delete-blocked')
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (data) {
+        if (data.blocked_html) {
+          window.numaShowRowBlocked(row.querySelector('form.js-row-remove'), data.blocked_html);
+        } else {
+          var next = row.nextElementSibling;
+          if (next && next.classList.contains('js-row-blocked')) next.remove();
+          saveBlocked(loadBlocked().filter(function (x) { return x !== id; }));
+        }
+      })
+      .catch(function () {});
+  });
+}
+document.addEventListener('DOMContentLoaded', restoreBlocked);
+window.addEventListener('pageshow', function (e) { if (e.persisted) restoreBlocked(); });
 function selectMissingAA() {
   document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) {
     cb.checked = (cb.dataset.hasAa === '0');
   });
+  saveFetchPicks();
 }
 function selectNone() {
   document.querySelectorAll('.claude-fetch-cb').forEach(function (cb) { cb.checked = false; });
+  saveFetchPicks();
 }
 // The Compare button's color and picks note: base.html (compare picks).
 function toggleNotes(fdcId) {

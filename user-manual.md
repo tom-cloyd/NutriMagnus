@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-17:1638* / Reading time: 7 hours, 32 minutes
+*Updated 2026-11-18:0136* / Reading time: 7 hours, 33 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -968,10 +968,10 @@ Every food NuMa has fetched from [USDA](#gloss-usda), Open Food Facts[^3] or ano
 - **Portions** adds or edits named portion sizes.
 - **Refresh** fetches USDA's current copy, and lets you [choose which changed values to take](#review-incoming).
 - **Archive/Restore** hides a food without deleting it ([Archiving](#archive)).
-- **Delete** is refused while a pantry entry, recipe or meal uses the food. The refusal links every one by number ("pantry: 34 | recipe: 12 | meal: 9, 72"), so you can remove or replace it, or archive the food instead.
+- **Delete** is refused while a pantry entry, recipe or meal uses the food. The refusal links every one by number ("pantry: 34 | recipe: 12 | meal: 9, 72"), so you can remove or replace it, or archive the food instead. The refusal stays under the food's row when you leave the Food Cache and come back (to open that meal, say), brought up to date: once nothing uses the food, it's gone. A keyboard shortcut back clears it, as it does the Fetch ticks.
 - **Prune unused foods** removes foods nothing uses, with a box per food (ticked) so you can keep some.
 - **Compare** checkboxes send foods to [Comparison](#comparison) ([Compare selected](#compare-checkboxes)).
-- **Fetch missing data from Claude AI** and **Import Claude response**: below.
+- **Fetch missing data from Claude AI** and **Import Claude response**: below. Your **Fetch** ticks are kept when you leave the Food Cache and click your way back, for as long as that browser tab stays open. Coming back with a keyboard shortcut (a menu shortcut, or the [command palette](#command-palette)) starts the page fresh.
 
 **Fetching missing data with Claude [AI](#gloss-artificial-intelligence).**{: #fetch} Some foods, especially branded or prepared ones, arrive without amino acid data, and a few without even calories or protein. Claude can usually find the figures. Tick the foods you want (**Select all missing [AA](#gloss-aa) data** ticks every food missing amino acids) and click **Fetch missing data from Claude AI**. You can also start from the [missing nutrient data check](#data-completeness), from the *No amino acid data* warning on a food's page (**Write a prompt for Claude AI**), or from the **Ask Claude AI for help** box on a food's [Edit page](#edit-ask-ai), which also asks for one group or the whole profile, and can ask for every value rather than only the missing ones. In what order to try Claude and the other ways of filling gaps: [Workflow 12](#fix-food-data). NuMa builds a request (a "prompt") and shows it with a **Copy prompt to clipboard** button.
 
@@ -2257,6 +2257,8 @@ On either Food Use page, after you've searched:
 1. Tick **Replace** (on Food Use in Meals, **Replace or remove**) beside the item to get rid of; only one at a time. The panel opens with "Replace this" filled in.
 2. In **Replace it with**, type part of the replacement's name and pick it from the list (mouse, or arrows and **Enter**). The list covers your Food Cache and recipes. A line reads back what will replace what.
 3. Click **Substitute everywhere in this selection** (on Food Use in Meals, **Replace everywhere in this selection**) and confirm.
+
+The page then comes back to this panel with the outcome in a colored box at its top. Green names what was changed and where: "Replaced “Oats, rolled” (U173904) with “Barley, pearled” (U170284) in 3 meals." Red means nothing was changed, and says why: a code no food or recipe has, or an item that isn't in the selected meals or recipes. After a red box the codes you typed are still in their boxes, so you can correct a typo and try again.
 
 A dash instead of a tick-box means the item can't be reached from this selection: on Food Use in Meals it was eaten only *inside* a recipe; on Food Use in Recipes it's only inside an unselected sub-recipe (select that too, or choose "All recipes"). A food not yet in NuMa won't be listed; add it through [Food Search](#food-search) first.
 
@@ -6190,7 +6192,7 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 Version overview: 
 
-SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again.
+SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again; the Food Cache keeps your Fetch ticks and delete warnings when you leave and click back; replacing a food across meals or recipes always says whether it worked.
 
 DETAILS:
 
@@ -6230,7 +6232,11 @@ DETAILS:
 * A page that reloads after a change below its search results keeps your place even when the online results arrive late.
 * On the Recipes list, Meals & Log and Search meal history, pressing Alt+Shift+G, typing a row's ID (21 for R21) and pressing Enter opens that recipe or meal; a box shows what the digits match.
 * NuMa's own window now runs as a separate browser process with its own profile, so KDE shows it in Alt+Tab with its own icon even while an ordinary Chromium window is open, and your browser's extensions (and their keyboard shortcuts) no longer reach it.
+* On the Food Cache, Fetch ticks and "Deletion not possible" warnings are kept when you leave the page and click your way back (a keyboard shortcut back starts it fresh); each warning is checked again, so it shows what uses the food now, and goes once nothing does.
+* On both Food Use pages, a replace, remove or add always reports what happened, in a colored box the page opens at: what was changed and in how many meals or recipes, or that nothing was and why. After a mistake, the codes you typed are still there to correct.
 
+- **39.** On both Food Use pages, a replace, remove or add now always says what happened, in a colored box the page opens at. It names what was changed and in how many meals or recipes, or says nothing was changed and why (a mistyped code used to change nothing and say nothing). After a mistake, the codes you typed are still there to correct. See [Replace a Food or Recipe Everywhere](#fooduse-substitute).
+- **38.** On the [Food Cache](#cached), your **Fetch** ticks and any "Deletion not possible" warnings are still there when you leave the page and click your way back, so you can look at the meal that's using a food without losing your place. Coming back with a keyboard shortcut starts the page fresh.
 - **37.** NuMa's own window shows NuMa's icon in Alt+Tab again, even while your everyday Chromium is open. The window now runs separately from your browser, with its own browser settings, so your browser's extensions no longer reach it. See [Browser to Launch](#browser-to-launch).
 - **36.** On the **Recipes** list, **Meals & Log** and **Search meal history**, press **Alt+Shift+G**, type a row's ID (`21` for R21), and press **Enter**: that recipe or meal opens. See [Opening a recipe or meal by its ID](#go-to-id).
 - **35.** MANUAL: [Tips for new users](#new-user-tips) now says NuMa can be used entirely from the keyboard, starting from `Alt+Shift+K`.

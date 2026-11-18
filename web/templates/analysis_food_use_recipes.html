@@ -117,7 +117,7 @@
 <p class="text-warning">Recipe ID(s) not found: {{ missing_ids|join(", ") }}</p>
 {% endif %}
 
-<details class="mb-3" id="substitute-panel" {% if sub_id %}open{% endif %}>
+<details class="mb-3" id="substitute-panel" {% if sub_id or error or done or substituted %}open{% endif %}>
   <summary><strong>Substitute a food or recipe</strong> {{ manual_link("fooduse-substitute") }}</summary>
   <p class="muted mt-2 mb-2">
     <small>Replace every ingredient occurrence of one food or recipe with another, across the recipes selected
@@ -132,12 +132,7 @@
     you've never added, find it with <a href="/food/search">Food Search</a> first
     (Back returns here). If you already know the codes, you can type them straight into the code boxes instead.</small>
   </p>
-  {% if error %}
-  <p class="text-danger"><small>{{ error }}</small></p>
-  {% endif %}
-  {% if substituted %}
-  <p class="text-success"><small>Updated ingredients in {{ substituted }} recipe(s).</small></p>
-  {% endif %}
+  {{ _rp.outcome(error, done, "Updated ingredients in %d recipe(s)." % substituted if substituted else "") }}
   <form method="post" action="/analysis/food-use-recipes/substitute" class="d-flex flex-wrap align-items-end gap-2"
         onsubmit="return confirm('Replace every ingredient occurrence of the old item with the new one, across every recipe in the current selection above? This writes to the database immediately and has no automatic undo.');">
     <input type="hidden" name="mode" value="{{ mode }}">
@@ -146,7 +141,7 @@
     <input type="hidden" name="protein_only" value="{{ 'true' if protein_only else '' }}">
     <input type="hidden" name="name" value="{{ name or '' }}">
     <input type="hidden" name="sort" value="{{ sort or 'frequency' }}">
-    {{ _rp.fields(sub_id, sub_kind) }}
+    {{ _rp.fields(sub_id, sub_kind, old_code, new_code) }}
     <button type="submit" class="btn btn-sm btn-warning">Substitute everywhere in this selection</button>
   </form>
   <p class="mt-2 mb-0" id="replace-summary" aria-live="polite"><small></small></p>

@@ -10,6 +10,26 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 #### November 17 updates
 
+**PROGRAM: FOOD USE PAGES ALWAYS SAY WHETHER A REPLACE WORKED**
+
+On Food Use in Meals and Food Use in Recipes, a replace (or, on the meals page, a remove or add) now always reports its outcome in a colored box the page opens at. Green names both items and how many meals or recipes changed. Red says nothing changed and why: a code no food or recipe has, or an item that isn't in the selected meals or recipes. After a red box, the codes you typed are still in their boxes to correct. [learn more...](#fooduse-substitute)
+
+<!--
+```
+Scope: web/backend.py (analysis_food_use_substitute: checks the replacement exists and that the old item is logged directly in a selected meal, via meals_with_direct_item, before writing; zero hits is now an error naming the item, where it used to redirect with no count and so no message; success adds done=<sentence> via _food_use_label / _meal_count_text; _food_use_back lands on #substitute-panel and on error carries action/old_code/new_code/amount back; analysis_food_use_recipes_substitute likewise, zero affected recipes is an error; both GET routes take done/old_code/new_code), web/templates/_replace_picker.html (outcome macro; fields takes old_text/new_text), analysis_food_use.html (action radio and amount refilled), analysis_food_use_recipes.html (panel now opens on error or success too; it opened only for sub_id, so its error was hidden in a closed panel), tests/test_web.py.
+```
+-->
+
+**PROGRAM: FOOD CACHE KEEPS FETCH TICKS AND DELETE WARNINGS WHEN YOU CLICK BACK**
+
+On the Food Cache, the boxes you tick in the Fetch column, and any "Deletion not possible" warning under a food, are still there when you go to another page (to look at the meal using that food, say) and click back. Coming back with a keyboard shortcut (a menu shortcut or the command palette) starts the page fresh. Each warning is checked again on return, so it lists what uses the food now, and disappears once nothing does. [learn more...](#cached)
+
+<!--
+```
+Scope: web/templates/food_cache.html (numa_fetch_picks and numa_delete_blocked in sessionStorage, per tab; Select all missing AA / Clear selection save too; restored on load and on pageshow from the back/forward cache), web/templates/base.html (showBlocked fires numa:row-blocked on the row and is exposed as window.numaShowRowBlocked), web/backend.py (new read-only GET /food/cache/{fdc_id}/delete-blocked returning {blocked_html} or null; _food_delete_blocked_html shared with the delete route), tests/test_web.py. Compare ticks already persisted (base.html compare picks); Fetch ticks, the first column and easily mistaken for Compare, did not. Ticks on foods a filter hides are kept and only visible ticks are sent. Keyboard vs mouse: base.html's head script flags, in sessionStorage numa_nav_by_key, a click on a #main-navbar or #palette link whose event.detail is 0 (Enter, or the shortcut code's element.click(); a mouse click is always 1 or more), and exposes it on the next page as window.numaArrivedByKey; food_cache.html then drops both keys before restoring.
+```
+-->
+
 **PROGRAM: NUMA'S WINDOW GETS ITS ICON BACK IN ALT+TAB**
 
 NuMa's own window now runs as its own browser process, with a browser profile of its own, so KDE shows it in Alt+Tab with NuMa's icon even while an ordinary Chromium window is open. Your browser's extensions no longer run in NuMa's window either. [learn more...](#browser-to-launch)

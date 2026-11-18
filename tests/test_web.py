@@ -2301,6 +2301,21 @@ def test_food_cache_delete_blocked_ajax_returns_explanation(client: TestClient, 
     ).fetchone() is not None
 
 
+def test_food_cache_delete_blocked_check_is_current_and_read_only(client: TestClient, cached_food, db_conn) -> None:
+    """The Food Cache re-asks this on return for each refused delete it
+    remembers, so the warning must reflect what uses the food now: shown
+    while still used, null once nothing does. It must never delete."""
+    fid = cached_food["fdcId"]
+    db_conn.execute("INSERT INTO pantry (food_name, fdc_id) VALUES (?, ?)", (cached_food["name"], fid))
+    db_conn.commit()
+    data = client.get(f"/food/cache/{fid}/delete-blocked").json()
+    assert "Deletion not possible" in data["blocked_html"]
+    db_conn.execute("DELETE FROM pantry WHERE fdc_id = ?", (fid,))
+    db_conn.commit()
+    assert client.get(f"/food/cache/{fid}/delete-blocked").json() == {"blocked_html": None}
+    assert db_conn.execute("SELECT 1 FROM foods WHERE fdc_id = ?", (fid,)).fetchone() is not None
+
+
 def test_food_cache_delete_blocked_offers_bulk_replace_link(client: TestClient, cached_food, db_conn) -> None:
     """The delete-blocked message must not only explain how to remove the
     food from each blocking recipe/meal one at a time — it should also link
@@ -4278,7 +4293,7 @@ def test_food_use_remove_from_selected_meals(client: TestClient, cached_food: di
     assert "removed=1" in resp.headers["location"]
     assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (m1,)).fetchone()[0] == 0
     assert db_conn.execute("SELECT COUNT(*) FROM meal_items WHERE meal_id=?", (m2,)).fetchone()[0] == 1
-    assert "Removed 1 meal item(s)." in client.get(resp.headers["location"]).text
+    assert "Removed “" in client.get(resp.headers["location"]).text
 
 
 def test_food_use_change_limited_to_picked_dates(client: TestClient, cached_food: dict, db_conn) -> None:
@@ -4522,6 +4537,78 @@ def test_substitute_rejects_unknown_replacement(client: TestClient, cached_food:
     )
     assert resp.status_code == 303
     assert "error=" in resp.headers["location"]
+
+
+def test_food_use_meals_change_always_says_what_happened(client: TestClient, cached_food: dict, db_conn) -> None:
+    """A replace on Food Use in Meals whose "Replace this" code wasn't in the
+    selected meals used to change nothing and say nothing. Every outcome now
+    names what was (or wasn't) changed, lands on the panel, and an error puts
+    the typed codes back so a typo can be corrected."""
+    import html
+    import urllib.parse
+    _db.cache_food(db_conn, fdc_id=999003, name="Barley, pearled", data_type="Foundation",
+                   brand=None, serving_size=100.0, serving_unit="g", nutrients=SAMPLE_NUTRIENTS)
+    _db.cache_food(db_conn, fdc_id=999005, name="Rye, whole", data_type="Foundation",
+                   brand=None, serving_size=100.0, serving_unit="g", nutrients=SAMPLE_NUTRIENTS)
+    db_conn.commit()
+    meal_id = int(client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-07-20"},
+                              follow_redirects=False).headers["location"].rsplit("/", 1)[-1])
+    client.post(f"/meal/{meal_id}/add", data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                                              "portion_str": "100 g"}, follow_redirects=False)
+    sel = {"mode": "range", "ranges_raw": "2026-07-01:2026-07-31"}
+
+    # Wrong "Replace this" code: a real food, but not in these meals.
+    resp = client.post("/analysis/food-use/substitute",
+                       data={**sel, "old_code": "U999005", "new_code": "U999003"}, follow_redirects=False)
+    loc = resp.headers["location"]
+    assert loc.endswith("#substitute-panel")
+    page = html.unescape(client.get(loc).text)
+    assert "alert-danger" in page and "Nothing was replaced" in page
+    assert "Rye, whole" in page and "isn't logged directly in any of the selected meals" in page
+    assert 'id="old_code"' in page and 'value="U999005"' in page and 'value="U999003"' in page
+
+    # Wrong replacement code.
+    page = client.get(client.post("/analysis/food-use/substitute",
+                                  data={**sel, "old_code": f"U{cached_food['fdcId']}", "new_code": "U4242"},
+                                  follow_redirects=False).headers["location"]).text
+    page = html.unescape(page)
+    assert "Nothing was replaced: the replacement code U4242" in page
+
+    # A replace that happened names both items and the meals.
+    loc = client.post("/analysis/food-use/substitute",
+                      data={**sel, "old_code": f"U{cached_food['fdcId']}", "new_code": "U999003"},
+                      follow_redirects=False).headers["location"]
+    assert "substituted=1" in loc
+    page = html.unescape(client.get(loc).text)
+    assert "alert-success" in page
+    assert (f"Replaced “{cached_food['name']}” (U{cached_food['fdcId']}) with “Barley, pearled” (U999003) in 1 meal."
+            in urllib.parse.unquote(page))
+
+
+def test_food_use_recipes_change_always_says_what_happened(client: TestClient, cached_food: dict, db_conn) -> None:
+    """Food Use in Recipes: a replace that reaches no recipe says so (it used
+    to say nothing, and its panel stayed closed), and one that happens names
+    both items."""
+    import html
+    _db.cache_food(db_conn, fdc_id=999003, name="Barley, pearled", data_type="Foundation",
+                   brand=None, serving_size=100.0, serving_unit="g", nutrients=SAMPLE_NUTRIENTS)
+    db_conn.commit()
+    rid = int(client.post("/recipe/new", data={"name": "Bowl", "servings": 1}, follow_redirects=False)
+              .headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(f"/recipe/{rid}/ingredient/add", data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
+                                                       "portion_str": "100 g"}, follow_redirects=False)
+    sel = {"mode": "ids", "recipe_ids": str(rid)}
+    page = client.get(client.post("/analysis/food-use-recipes/substitute",
+                                  data={**sel, "old_code": "U999003", "new_code": f"U{cached_food['fdcId']}"},
+                                  follow_redirects=False).headers["location"]).text
+    page = html.unescape(page)
+    assert 'id="substitute-panel" open' in page
+    assert "Nothing was replaced" in page and "isn't an ingredient of any of the selected recipes" in page
+    page = client.get(client.post("/analysis/food-use-recipes/substitute",
+                                  data={**sel, "old_code": f"U{cached_food['fdcId']}", "new_code": "U999003"},
+                                  follow_redirects=False).headers["location"]).text
+    page = html.unescape(page)
+    assert "alert-success" in page and "with “Barley, pearled” (U999003) in 1 recipe." in page
 
 
 def test_food_annotate_edit_skip_forever(client: TestClient, cached_food, db_conn) -> None:

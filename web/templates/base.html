@@ -13,6 +13,24 @@
     }
     // Shown inside another NuMa page's panel (recipe Edit's food details).
     if (window.self !== window.top) document.documentElement.classList.add('numa-embedded');
+    // Reached a menu page from the keyboard (a menu shortcut or the command
+    // palette)? Then a page that remembers its state for the tab starts
+    // fresh; a mouse click keeps it (Food Cache's ticks and warnings). A
+    // click on a navbar or palette link with detail 0 came from the
+    // keyboard (Enter, or the shortcut code's element.click()); a mouse
+    // click always counts at least 1.
+    try {
+      window.numaArrivedByKey = sessionStorage.getItem('numa_nav_by_key') === '1';
+      sessionStorage.removeItem('numa_nav_by_key');
+    } catch (e) { window.numaArrivedByKey = false; }
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('#main-navbar a[href], #palette a[href]');
+      if (!a || (a.getAttribute('href') || '#').charAt(0) === '#') return;
+      try {
+        if (e.detail === 0) sessionStorage.setItem('numa_nav_by_key', '1');
+        else sessionStorage.removeItem('numa_nav_by_key');
+      } catch (err) {}
+    }, true);
   </script>
 </head>
 <body>
@@ -2198,8 +2216,11 @@
       td.innerHTML = html;
       tr.appendChild(td);
       row.insertAdjacentElement('afterend', tr);
+      row.dispatchEvent(new CustomEvent('numa:row-blocked', {bubbles: true}));
       return true;
     }
+    // For a page that re-shows a remembered refusal on return (food_cache.html).
+    window.numaShowRowBlocked = showBlocked;
     function handleRowForm(form, onSuccess) {
       form.addEventListener('submit', function (e) {
         // An inline onsubmit="return confirm(...)" (delete buttons) runs

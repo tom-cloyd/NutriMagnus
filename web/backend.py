@@ -4008,6 +4008,24 @@ def food_cache_export_csv(q: str = "", show_archived: bool | None = None):
     )
 
 
+def _food_delete_blocked_html(fdc_id: int, refs: dict) -> str:
+    return templates.env.get_template("_food_delete_blocked.html").render(
+        blocked_fdc_id=fdc_id, blocked_pantry=refs["pantry"],
+        blocked_recipes=refs["recipes"], blocked_meals=refs["meals"])
+
+
+@app.get("/food/cache/{fdc_id}/delete-blocked")
+def food_cache_delete_blocked(fdc_id: int):
+    """Read-only: why this food can't be deleted right now, or null once
+    nothing uses it. The Food Cache asks this on return for each refused
+    delete it remembers, so the warning comes back current, not stale."""
+    with _db.get_db() as conn:
+        refs = _db.food_references(conn, fdc_id)
+    if refs["pantry"] or refs["recipes"] or refs["meals"]:
+        return JSONResponse({"blocked_html": _food_delete_blocked_html(fdc_id, refs)})
+    return JSONResponse({"blocked_html": None})
+
+
 @app.post("/food/cache/delete", response_class=RedirectResponse)
 def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form(""),
                              sort: str = Form(""), show_archived: int = Form(0),
@@ -4028,10 +4046,7 @@ def food_cache_delete(request: Request, fdc_id: int = Form(...), q: str = Form("
                 # The explanation (which pantry entry/recipe/meal is holding
                 # it) goes back rendered, for base.html to show under the
                 # row — a full reload here would lose the list's place.
-                html = templates.env.get_template("_food_delete_blocked.html").render(
-                    blocked_fdc_id=fdc_id, blocked_pantry=refs["pantry"],
-                    blocked_recipes=refs["recipes"], blocked_meals=refs["meals"])
-                return JSONResponse({"ok": False, "blocked_html": html})
+                return JSONResponse({"ok": False, "blocked_html": _food_delete_blocked_html(fdc_id, refs)})
             params["delete_blocked"] = 1
             params["blocked_fdc_id"] = fdc_id
             if refs["pantry"]:
@@ -12840,6 +12855,11 @@ def analysis_food_use(
     removed: int = Query(default=0),
     added: int = Query(default=0),
     error: str = Query(default=""),
+    done: str = Query(default=""),
+    action: str = Query(default="replace"),
+    old_code: str = Query(default=""),
+    new_code: str = Query(default=""),
+    amount: str = Query(default=""),
     sub_kind: str = Query(default=""),
     sub_id: int | None = Query(default=None),
 ):
@@ -12987,6 +13007,13 @@ def analysis_food_use(
         "removed":       removed,
         "added":         added,
         "error":         error,
+        "done":          done,
+        # What was typed into the change form, put back after an error so
+        # a mistyped code can be corrected instead of re-entered.
+        "action":        action if action in ("replace", "remove", "add") else "replace",
+        "old_code":      old_code if error else "",
+        "new_code":      new_code if error else "",
+        "amount":        amount if error else "",
         "sub_kind":      sub_kind,
         "sub_id":        sub_id,
     })
@@ -13017,10 +13044,13 @@ def analysis_food_use_replacement_search(q: str = Query(default="")):
 
 
 def _food_use_back(mode: str, ranges_raw: str, meal_ids: str, protein_only: bool, sort: str,
-                   error: str | None = None, name: str = "", **done: int) -> RedirectResponse:
+                   error: str | None = None, name: str = "", message: str = "",
+                   typed: dict | None = None, **done: int) -> RedirectResponse:
     """Back to Food Use in Meals with the same selection and name filter,
-    plus an error or a count of what was just changed (substituted= /
-    removed= / added=)."""
+    plus an error (with what was typed, `typed`, to put back in the form) or
+    a count of what was just changed (substituted= / removed= / added=) and
+    `message`, a sentence naming it. Lands on the change panel (#substitute-
+    panel, which base.html opens), so the outcome is on screen."""
     params = {"mode": mode, "protein_only": protein_only, "sort": sort}
     if name.strip():
         params["name"] = name.strip()
@@ -13030,9 +13060,12 @@ def _food_use_back(mode: str, ranges_raw: str, meal_ids: str, protein_only: bool
         params["meal_ids"] = meal_ids
     if error:
         params["error"] = error
+        params.update({k: v for k, v in (typed or {}).items() if v})
     else:
         params.update({k: n for k, n in done.items() if n})
-    return RedirectResponse(f"/analysis/food-use?{urlencode(params)}", status_code=303)
+        if message:
+            params["done"] = message
+    return RedirectResponse(f"/analysis/food-use?{urlencode(params)}#substitute-panel", status_code=303)
 
 
 @app.post("/analysis/food-use/substitute", response_class=RedirectResponse)
@@ -13057,8 +13090,12 @@ def analysis_food_use_substitute(
     at `amount`, to every selected meal. only_meals (from the table's "pick
     dates" lists) narrows that to the meals on the dates ticked there — never
     widens it past the on-screen selection. Writes at once; no undo."""
-    def _back(error: str | None = None, **done: int) -> RedirectResponse:
-        return _food_use_back(mode, ranges_raw, meal_ids, protein_only, sort, error, name, **done)
+    typed = {"action": action, "old_code": old_code.strip(), "new_code": new_code.strip(),
+             "amount": amount.strip()}
+
+    def _back(error: str | None = None, message: str = "", **done: int) -> RedirectResponse:
+        return _food_use_back(mode, ranges_raw, meal_ids, protein_only, sort, error, name,
+                              message, typed, **done)
 
     only_ids = set(_parse_id_list_tokens(only_meals)) if only_meals.strip() else None
 
@@ -13114,19 +13151,51 @@ def analysis_food_use_substitute(
                 # Its stored DCP/nutrient snapshot (Recent Days, trends) is
                 # recomputed before the next page loads.
                 _db.mark_meal_stale(conn, meal_id)
-        return _back(added=len(meals_by_id))
+        n = len(meals_by_id)
+        return _back(added=n, message=f"Added {_food_use_label(row['name'], new_code)} "
+                                      f"to {n} meal{'s' if n != 1 else ''}.")
 
+    verb = "removed" if action == "remove" else "replaced"
     try:
         with _db.get_db() as conn:
             meals_by_id = _meals(conn)
             if only_ids is not None and not meals_by_id:
                 return _back(error="None of the dates you ticked are in the current selection.")
+            old_name = _db.item_current_name(conn, *old)
+            if action == "replace":
+                new_name = _db.item_current_name(conn, *new)
+                if new_name is None:
+                    return _back(error=f"Nothing was replaced: the replacement code {new_code.strip()} "
+                                       f"isn't a food in your Food Cache or one of your recipes. Check the code, "
+                                       f"or pick the replacement by typing part of its name.")
+            hit = _db.meals_with_direct_item(conn, list(meals_by_id), *old)
+            if not hit:
+                what = _food_use_label(old_name, old_code) if old_name else old_code.strip()
+                why = ("isn't logged directly in any of the selected meals"
+                       if old_name else "isn't a food in your Food Cache or one of your recipes")
+                return _back(error=f"Nothing was {verb}: {what} {why}. Check the code, "
+                                   f"or tick its row in the table below.")
             if action == "remove":
-                return _back(removed=_db.remove_item_from_meals(conn, list(meals_by_id), *old))
+                n = _db.remove_item_from_meals(conn, list(meals_by_id), *old)
+                return _back(removed=n, message=f"Removed {_food_use_label(old_name, old_code)} from "
+                                                f"{_meal_count_text(len(hit), n)}.")
             n = _db.substitute_item_in_meals(conn, list(meals_by_id), *old, *new)
     except ValueError as exc:
         return _back(error=str(exc))
-    return _back(substituted=n)
+    return _back(substituted=n, message=f"Replaced {_food_use_label(old_name, old_code)} with "
+                                        f"{_food_use_label(new_name, new_code)} in {_meal_count_text(len(hit), n)}.")
+
+
+def _food_use_label(name: str | None, code: str) -> str:
+    """“Oats, rolled” (U173904): how a change's message names an item."""
+    code = code.strip().upper()
+    return f"“{name}” ({code})" if name else code
+
+
+def _meal_count_text(meals: int, items: int) -> str:
+    """'3 meals', or '3 meals (4 items)' when some meal had it twice."""
+    text = f"{meals} meal{'s' if meals != 1 else ''}"
+    return text + (f" ({items} items)" if items != meals else "")
 
 
 # ---------------------------------------------------------------------------
@@ -13717,6 +13786,9 @@ def analysis_food_use_recipes(
     sort: str = Query(default="frequency"),
     substituted: int = Query(default=0),
     error: str = Query(default=""),
+    done: str = Query(default=""),
+    old_code: str = Query(default=""),
+    new_code: str = Query(default=""),
     sub_kind: str = Query(default=""),
     sub_id: int | None = Query(default=None),
 ):
@@ -13818,6 +13890,9 @@ def analysis_food_use_recipes(
         "submitted":      mode == "all" or bool(ranges or requested_ids),
         "substituted":    substituted,
         "error":          error,
+        "done":           done,
+        "old_code":       old_code if error else "",
+        "new_code":       new_code if error else "",
         "sub_kind":       sub_kind,
         "sub_id":         sub_id,
     })
@@ -13840,7 +13915,7 @@ def analysis_food_use_recipes_substitute(
     (recompute_recipe_dcp cascades up to any ancestor recipe on its own)."""
     from urllib.parse import urlencode
 
-    def _back(error: str | None = None, n: int = 0) -> RedirectResponse:
+    def _back(error: str | None = None, n: int = 0, message: str = "") -> RedirectResponse:
         params = {"mode": mode, "protein_only": protein_only, "sort": sort}
         if name.strip():
             params["name"] = name.strip()
@@ -13850,9 +13925,14 @@ def analysis_food_use_recipes_substitute(
             params["recipe_ids"] = recipe_ids
         if error:
             params["error"] = error
+            params.update({k: v.strip() for k, v in (("old_code", old_code), ("new_code", new_code)) if v.strip()})
         elif n:
             params["substituted"] = n
-        return RedirectResponse(f"/analysis/food-use-recipes?{urlencode(params)}", status_code=303)
+            if message:
+                params["done"] = message
+        # Lands on the change panel, which base.html opens, so the outcome shows.
+        return RedirectResponse(f"/analysis/food-use-recipes?{urlencode(params)}#substitute-panel",
+                                status_code=303)
 
     try:
         old_kind, old_id = _parse_code(old_code)
@@ -13863,6 +13943,12 @@ def analysis_food_use_recipes_substitute(
         return _back(error="Old and new selections are the same item.")
     try:
         with _db.get_db() as conn:
+            old_name = _db.item_current_name(conn, old_kind, old_id)
+            new_name = _db.item_current_name(conn, new_kind, new_id)
+            if new_name is None:
+                return _back(error=f"Nothing was replaced: the replacement code {new_code.strip()} "
+                                   f"isn't a food in your Food Cache or one of your recipes. Check the code, "
+                                   f"or pick the replacement by typing part of its name.")
             recipes_by_id, _, _ = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids)
             affected_ids = _db.substitute_item_in_recipes(
                 conn, list(recipes_by_id), old_kind, old_id, new_kind, new_id
@@ -13871,7 +13957,14 @@ def analysis_food_use_recipes_substitute(
                 _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     except ValueError as exc:
         return _back(error=str(exc))
-    return _back(n=len(affected_ids))
+    if not affected_ids:
+        what = _food_use_label(old_name, old_code) if old_name else old_code.strip()
+        why = ("isn't an ingredient of any of the selected recipes"
+               if old_name else "isn't a food in your Food Cache or one of your recipes")
+        return _back(error=f"Nothing was replaced: {what} {why}. Check the code, or tick its row in the table below.")
+    n = len(affected_ids)
+    return _back(n=n, message=f"Replaced {_food_use_label(old_name, old_code)} with "
+                              f"{_food_use_label(new_name, new_code)} in {n} recipe{'s' if n != 1 else ''}.")
 
 
 @app.get("/manual", response_class=HTMLResponse)
