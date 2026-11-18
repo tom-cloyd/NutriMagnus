@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-17:1603* / Reading time: 7 hours, 29 minutes
+*Updated 2026-11-17:1616* / Reading time: 7 hours, 31 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -722,7 +722,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 7 minutes)*
+*(Reading time: 2 hours, 8 minutes)*
 
 
 
@@ -759,7 +759,7 @@ The bottom of the page gives the release and build numbers, e.g. *NutriMagnus 0.
 
 ### B. Finding your way around {: #web-shortcuts}
 
-*Search terms: hotkeys, menu bar, exit, close the program, shut down, command palette, list of commands, cheat sheet, Ctrl+K.*
+*Search terms: hotkeys, menu bar, exit, close the program, shut down, command palette, list of commands, cheat sheet, Ctrl+K, open by ID, open by number, recipe code, meal number, go to ID.*
 
 Every page has the same navigation bar across the top: **NuMa** (home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings** and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open drop-down menus; the others go straight to their page.
 
@@ -780,6 +780,9 @@ Used to other programs? `Ctrl+K` opens the same panel.
 - `Alt+Shift+I`, on any page with a search box, puts the cursor in it with the text selected, ready for a new search, and clears the old results (opening the box's section first if it's closed).
 - `Alt+Shift+U`, in the manual, returns to the NuMa page you opened it from (see [Getting back to where you were](#manual-back)).
 - `Alt+Shift+Y`, on a page with an Items section (a meal, Compare, Analyze a recipe portion, or a recipe's Edit page, where it's Ingredients), moves to that section.
+
+<span id="go-to-id"></span>
+**Opening a recipe or meal by its ID.** On the **Recipes** list, **Meals & Log** and **Search meal history**, every row has an [ID](#gloss-id): the Code column on Recipes (**[R21](#gloss-code)**; type just `21`), the ID column on the meal lists. Hold **Alt+Shift**, type the ID's digits, and let go: that recipe or meal opens, just as if you'd clicked its name. While you type, a box at the bottom of the window shows the ID so far and the row it matches, so you can see you've got the right one before letting go. If no row on the page has that ID, the box says so and nothing opens (only rows shown in the list count; a meal further back, or an archived recipe while archived ones are hidden, needs the list to show it first). Settings has no ID list, so there `Alt+Shift` + a digit still opens a section.
 
 Turn shortcuts on or off in **Settings → Keyboard Shortcuts** (`Alt+Shift+E` there). The setting is kept in your browser and takes effect at once. With shortcuts off, the menu bar's button reads **⌘ Commands** and still opens the command palette, as does `Ctrl+K`; the palette then lists pages without their keys.
 
@@ -1806,7 +1809,8 @@ Columns:
     Compare     Tick to compare recipes side by side (see Compare selected).
                 Ticks are kept when you search again or go to another list
                 (see Picking from several searches).
-    Code        The recipe's code (R21).
+    Code        The recipe's code (R21). Hold Alt+Shift, type 21, and let
+                go to open it (see Opening a recipe or meal by its ID).
     Name        Recipe name; click it to open the recipe.
     Description Short recipe description, if any.
     Servings    Number of servings (1 or more; fractions allowed).
@@ -1963,7 +1967,8 @@ Your recent meals, newest first, 9 at a time unless you change **Number shown**.
 
 Columns:
 
-    ID              The meal's number.
+    ID              The meal's number. Hold Alt+Shift, type it, and let go
+                    to open the meal (see Opening a recipe or meal by its ID).
     Meal            Name you gave the meal (e.g. Breakfast, Lunch).
     Date            Date of the meal (YYYY-MM-DD).
     Complete        A checkbox, ticked when the meal is finished. Tick or
@@ -6183,7 +6188,7 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 Version overview: 
 
-SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut.
+SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; hold Alt+Shift and type a recipe's or meal's ID to open it from its list.
 
 DETAILS:
 
@@ -6221,7 +6226,9 @@ DETAILS:
 * A recipe added to a meal as individual ingredients marks each of those foods with the recipe, so **What-if: meals** can remove it or change its amount even after it was changed for that meal; where a change can't reach such foods, What-if and its Apply page name the meals to fix by hand.
 * **Alt+Shift+K** (or Ctrl+K) opens a command palette: every menu page and this page's own shortcuts, each with its keys, filtered as you type, plus searches for the typed text and Quit. Settings' Keyboard Shortcuts section moves to **Alt+Shift+E**.
 * A page that reloads after a change below its search results keeps your place even when the online results arrive late.
+* On the Recipes list, Meals & Log and Search meal history, holding Alt+Shift and typing a row's ID (21 for R21), then letting go, opens that recipe or meal; a box shows what the digits match.
 
+- **36.** On the **Recipes** list, **Meals & Log** and **Search meal history**, hold **Alt+Shift**, type a row's ID (`21` for R21), and let go: that recipe or meal opens. See [Opening a recipe or meal by its ID](#go-to-id).
 - **35.** MANUAL: [Tips for new users](#new-user-tips) now says NuMa can be used entirely from the keyboard, starting from `Alt+Shift+K`.
 - **34.** A meal page that reloads after you change a setting on its search results keeps your place reliably: when the online results arrived at the wrong moment, it used to jump back to the top.
 - **33.** **Alt+Shift+K** opens a *command palette*: every page in the menus, and whatever the page you're on has a shortcut for, each with its keys, narrowed as you type; it can also search foods, recipes and meals for what you typed, or quit NuMa. `Ctrl+K` opens it too. Settings' Keyboard Shortcuts section is now `Alt+Shift+E`. See [Finding your way around](#command-palette).

@@ -156,6 +156,14 @@ html {
 /* Access key underlines: visible only when shortcuts are enabled */
 .ak { text-decoration: none; }
 .shortcuts-on .ak { text-decoration: underline; }
+/* Alt+Shift + digits on a list with IDs: what's been typed and what it matches */
+#go-id-box {
+  position: fixed; bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); left: 50%;
+  transform: translateX(-50%); z-index: 1080; max-width: calc(100vw - 2rem);
+  padding: 0.4rem 0.9rem; border-radius: 0.4rem; font-weight: 600;
+  background: #0d6efd; color: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.25);
+}
+#go-id-box.go-id-miss { background: #6c757d; }
 /* "(put cursor here: Alt + Shift + I)" beside a search section's heading;
    hidden when keyboard shortcuts are turned off in Settings. */
 .ak-hint { display: none; font-size: 0.8rem; font-weight: normal; color: #6c757d; }

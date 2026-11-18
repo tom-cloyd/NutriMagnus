@@ -102,7 +102,7 @@
                name="recipe_id" value="{{ r.id }}" aria-label="Select {{ r.name }} to compare">
       </td>
       <td class="muted">{{ food_id_short(none, r.id) }}</td>
-      <td class="js-name-cell"><a href="/recipe/{{ r.id }}"><strong>{{ r.name }}</strong></a>
+      <td class="js-name-cell"><a href="/recipe/{{ r.id }}" data-go-id="{{ r.id }}" data-go-label="{{ food_code(none, r.id) }} {{ r.name }}"><strong>{{ r.name }}</strong></a>
         {% if r.archived %}<span class="badge bg-secondary ms-1 js-archived-badge">Archived</span>{% endif %}
       </td>
       <td class="muted"><small>{{ r.description or "—" }}</small></td>

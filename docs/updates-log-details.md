@@ -10,6 +10,16 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 #### November 17 updates
 
+**PROGRAM: OPEN A RECIPE OR MEAL BY TYPING ITS ID**
+
+On the Recipes list, Meals & Log and Search meal history, hold Alt+Shift, type a row's ID (21 for R21) and let go: that recipe or meal opens. A box at the bottom of the window shows what the digits typed so far match. [learn more...](#go-to-id)
+
+<!--
+```
+Scope: web/templates/base.html (Alt+Shift keydown handler + "Go to a row by its ID" keyup block), web/static/style.css (#go-id-box), recipes.html, meals.html, meals_search.html (data-go-id / data-go-label on each row's main link), tests/e2e/test_go_to_id_e2e.py. With any [data-go-id] on the page, an Alt+Shift+digit keydown appends to a buffer (preventDefault) instead of calling akRun; keyup of Alt or Shift clicks the first [data-go-id="<Number(buffer)>"], or shows "No ID N in this list" for 2.5 s. Window blur clears the buffer (Alt+Tab never delivers the keyup). Settings' Alt+Shift+digit section shortcuts are unaffected: it has no data-go-id rows.
+```
+-->
+
 **MANUAL: USING NUMA WITHOUT A MOUSE**
 
 [Tips for new users](#new-user-tips) now points out that NuMa can be run entirely from the keyboard, for speed or for anyone who finds a mouse or touchpad hard to use, starting from `Alt+Shift+K`, the panel that lists every page and shortcut.

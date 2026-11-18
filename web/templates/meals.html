@@ -133,7 +133,7 @@ pinned to, or, with the <strong>current profile</strong> switch under its date t
     {% for meal in meals %}
     <tr>
       <td class="num-col muted">{{ meal.id }}</td>
-      <td><a href="/meal/{{ meal.id }}">{{ meal.name }}</a></td>
+      <td><a href="/meal/{{ meal.id }}" data-go-id="{{ meal.id }}" data-go-label="{{ meal.name }}, {{ meal.meal_date }}">{{ meal.name }}</a></td>
       <td>{{ meal.meal_date }}{% if meal.first_of_date and meal.day_has_profile %}
         {{ _dps.switch(meal.meal_date, meal.day_follows_current,
                        request.url.path ~ ('?' ~ request.url.query if request.url.query else ''), compact=true) }}{% endif %}</td>
