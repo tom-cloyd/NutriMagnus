@@ -1,0 +1,67 @@
+{# Foods → 10 (Archived), its second table: the archived recipes, from
+   backend.py's _archived_recipe_rows(). A recipe has no nutrient data of
+   its own, so "Other nutrients" judges its ingredient foods (sub-recipes
+   searched too) by the Food Cache's own check, and also flags a food no
+   longer cached or a deleted sub-recipe. #}
+<h3 id="archived-recipes" class="mt-4">Archived recipes</h3>
+<p class="result-count">{{ recipes|length }} archived recipe{% if recipes|length != 1 %}s{% endif %}{% if q %} matching <strong>{{ q }}</strong>{% endif %}</p>
+{% if recipes %}
+{% set recipes_url = "/food/archived?q=%s&sort=%s#archived-recipes" % ((q or "") | urlencode, sort) %}
+<table class="table table-sm table-hover align-middle" data-show-archived="true">
+  <thead class="table-light">
+    <tr>
+      <th>Code</th>
+      <th>Name</th>
+      <th style="text-align:right">Servings</th>
+      <th class="text-center" title="Whether every ingredient food has the macronutrients, water, minerals, vitamins and amino acids NuMa needs for a full analysis (the Food Cache's Other nutrients check). A food no longer in the cache, or a deleted sub-recipe, counts as a gap too.">Other<br>nutrients</th>
+      <th title="Logged meals that use this recipe, and recipes that use it as a sub-recipe">Used<br>in</th>
+      <th>Notes</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in recipes %}
+    <tr id="recipe-{{ r.id }}" class="text-muted">
+      <td class="muted" style="white-space:nowrap">{{ food_id_short(none, r.id) }}</td>
+      <td class="js-name-cell"><a href="/recipe/{{ r.id }}" data-go-id="{{ r.id }}" data-go-label="{{ food_code(none, r.id) }} {{ r.name }}"><strong>{{ r.name }}</strong></a>
+        <span class="badge bg-secondary ms-1 js-archived-badge">Archived</span>
+      </td>
+      <td style="text-align:right">{{ r.servings }}{% if r.serving_size %}<br><small class="muted">{{ r.serving_size }}</small>{% endif %}</td>
+      <td class="text-center"><small>
+        {% if not r.problems %}<span class="status-met" title="Every ingredient food is complete, or its gaps are marked not needed">complete</span>
+        {% else %}
+        <details class="text-start">
+          <summary class="text-warning-emphasis" title="Click to see which ingredients have gaps">incomplete ({{ r.problems|length }})</summary>
+          <ul class="mb-0 ps-3">
+            {% for p in r.problems %}
+            {# A deleted sub-recipe (no fdc_id) has no code left to show. #}
+            <li>{% if p.fdc_id %}<a href="/food/{{ p.fdc_id }}">{{ p.name }}</a> {{ food_id_tag(p.fdc_id) }}{% else %}{{ p.name }}{% endif %}: {{ p.missing | join(", ") }}</li>
+            {% endfor %}
+          </ul>
+        </details>
+        {% endif %}
+      </small></td>
+      <td style="white-space:nowrap"><small>
+        {% if r.meals or r.sub_users %}
+        {{ r.meals }} meal{{ "s" if r.meals != 1 }}{% if r.last_used %} <span class="muted" title="Most recent logged meal">(last {{ r.last_used }})</span>{% endif %}
+        {% if r.sub_users %}<br><span title="Used as a sub-recipe in: {{ r.sub_users | join(', ') }}">{{ r.sub_users|length }} recipe{{ "s" if r.sub_users|length != 1 }}</span>{% endif %}
+        {% else %}<span class="muted">not used</span>{% endif %}
+      </small></td>
+      <td>{% if r.notes %}<small title="{{ r.notes }}">{{ r.notes | truncate(60) }}</small>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td style="white-space:nowrap">
+        <a href="/recipe/{{ r.id }}/edit" class="btn btn-outline-secondary btn-sm me-1">Edit</a>
+        <form method="post" action="/recipe/{{ r.id }}/archive" style="display:inline"
+              class="js-row-archive" data-archive-title="Hide from default lists and search, without losing it"
+              data-restore-title="Restore to normal use">
+          <input type="hidden" name="next" value="{{ recipes_url }}">
+          <button type="submit" class="btn btn-outline-secondary btn-sm" title="Restore to normal use">Restore</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No archived recipes{% if q %} matching that filter{% endif %}.</p>
+{% endif %}
+<p class="muted"><small>Restore puts an item back in search and the default lists; it changes no logged meal. To fill a food's gaps, tick it in the foods table and use "Fetch missing data from Claude AI", or open the food. A recipe's gaps are fixed in its ingredient foods.</small></p>

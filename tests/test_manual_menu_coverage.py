@@ -24,6 +24,7 @@ NAV_ANCHORS = {
     "/food/custom-profiles": "custom-foods",
     "/food/annotate": "annotate-web",
     "/food/cache/db-check": "checking-your-data",
+    "/food/archived": "archived-web",
     "/recipes": "recipes-menu-web",
     "/recipe/import-csv": "recipe-import-web",
     "/compare": "compare-web",

@@ -3986,6 +3986,63 @@ def test_food_cache_and_pantry_other_nutrients_column(client: TestClient, db_con
     assert "complete" not in cell(body, "Otherq Unlinked")
 
 
+def test_archived_page_lists_archived_foods_and_recipes_with_gaps(client: TestClient, db_conn) -> None:
+    """Foods → 10 lists only archived foods (Food Cache columns) and archived
+    recipes; a recipe is incomplete when an ingredient food is. Incomplete
+    items used in logged meals come first and are counted in the summary."""
+    full = {"calories": 884, "protein_g": 0, "carbs_g": 0, "fat_g": 100, "water_g": 0,
+            "iron_mg": 0.1, "vitamin_e_mg": 14}
+    nowater = {k: v for k, v in full.items() if k != "water_g"}
+    for fid, name, n in ((999211, "Archq Aaa Complete", full), (999212, "Archq Zzz Nowater", nowater),
+                         (999213, "Archq Active", full)):
+        _db.cache_food(db_conn, fdc_id=fid, name=name, data_type="SR Legacy", brand=None,
+                       serving_size=100.0, serving_unit="g", nutrients=n)
+    _db.set_food_archived(db_conn, 999211, True)
+    _db.set_food_archived(db_conn, 999212, True)
+    meal_id = _db.meal_create(db_conn, "Lunch", "2026-10-01")
+    _db.meal_add_food(db_conn, meal_id, 999212, "Archq Zzz Nowater", 50.0, "g")
+    db_conn.commit()
+    rids = {}
+    for name, fid in (("Archq Aaa Stew", 999211), ("Archq Zzz Soup", 999212)):
+        rids[name] = int(client.post("/recipe/new", data={"name": name, "servings": 2}, follow_redirects=False)
+                         .headers["location"].split("/recipe/")[1].split("/")[0])
+        _db.recipe_add_ingredient(db_conn, rids[name], fid, "x", 30, "g")
+        _db.set_recipe_archived(db_conn, rids[name], True)
+        db_conn.commit()
+    _db.meal_add_recipe(db_conn, meal_id, rids["Archq Zzz Soup"], "Archq Zzz Soup", 1)
+    db_conn.commit()
+
+    html = client.get("/food/archived", params={"q": "archq", "sort": "problems"}).text
+    foods = html[html.index('id="archived-foods"'):html.index('id="archived-recipes"')]
+    recipes = html[html.index('id="archived-recipes"'):]
+    assert "Archq Active" not in html
+    # Incomplete and used sorts ahead of the alphabetically first complete one.
+    assert foods.index("Archq Zzz Nowater") < foods.index("Archq Aaa Complete")
+    assert "Missing: Water." in foods
+    assert recipes.index("Archq Zzz Soup") < recipes.index("Archq Aaa Stew")
+    soup = recipes[recipes.index("Archq Zzz Soup"):recipes.index("Archq Aaa Stew")]
+    assert "incomplete (1)" in soup and "Archq Zzz Nowater</a>" in soup and ": Water</li>" in soup
+    assert "1 meal" in soup
+    assert ">complete</span>" in recipes[recipes.index("Archq Aaa Stew"):]
+    assert "Archived foods: 2, 1 incomplete (1 used in logged meals)." in html
+    assert "Archived recipes: 2, 1 with incomplete ingredients (1 used in logged meals)." in html
+    assert 'href="/food/archived"' in client.get("/").text
+
+
+def test_archived_page_restore_and_empty(client: TestClient, db_conn) -> None:
+    """A food restored from Foods → 10 leaves the list; with nothing
+    archived the page says so for both tables."""
+    _db.cache_food(db_conn, fdc_id=999221, name="Archq Restoreme", data_type="SR Legacy", brand=None,
+                   serving_size=100.0, serving_unit="g", nutrients={"calories": 10})
+    _db.set_food_archived(db_conn, 999221, True)
+    db_conn.commit()
+    assert "Archq Restoreme" in client.get("/food/archived").text
+    client.post("/food/cache/999221/archive", follow_redirects=False)
+    html = client.get("/food/archived").text
+    assert "Archq Restoreme" not in html
+    assert "No archived foods." in html and "No archived recipes." in html
+
+
 def test_food_cache_and_pantry_sort_by_used_in(client: TestClient, db_conn) -> None:
     """Sort "used" puts the most-used food first, on Food Cache and Pantry;
     Pantry shows the Used in counts too."""

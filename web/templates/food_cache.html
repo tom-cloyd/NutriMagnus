@@ -1,21 +1,40 @@
 {% extends "base.html" %}
 {% import "_other_nutrients.html" as _on %}
 {% from "_archived_toggle.html" import archived_toggle %}
-{% block title %}NutriMagnus — Food Cache{% endblock %}
+{% block title %}NutriMagnus — {{ "Archived Foods & Recipes" if archived_only else "Food Cache" }}{% endblock %}
 
 {% block content %}
+{# Also Foods → 10, the Archived page (archived_only: food_archived_get),
+   which lists only archived foods, then archived recipes. #}
+{% set page_url = "/food/archived" if archived_only else "/food/cache" %}
 <nav aria-label="breadcrumb">
   <ol class="breadcrumb">
     <li class="breadcrumb-item"><a href="/food/search">Foods</a></li>
-    <li class="breadcrumb-item active" aria-current="page">Food Cache</li>
+    <li class="breadcrumb-item active" aria-current="page">{{ "Archived" if archived_only else "Food Cache" }}</li>
   </ol>
 </nav>
 
+{% if archived_only %}
+<h2>Archived Foods &amp; Recipes {{ manual_link("archived-web") }}</h2>
+<p class="muted">Archiving hides a food or recipe from search and suggestions, but meals you already logged with it still count in every nutrient total and long-run average. A gap in its nutrient data therefore still matters, and the other completeness checks skip archived items, so they're listed here. Incomplete items used in meals come first. <a href="/food/cache?show_archived=1">Food Cache with archived foods shown</a> &middot; <a href="/recipes?show_archived=1">Recipes with archived shown</a></p>
+<div class="alert {{ 'alert-warning' if incomplete_used or incomplete_recipes_used else 'alert-light' }} py-2">
+  Archived foods: {{ foods|length }}, {{ incomplete_foods }} incomplete{% if incomplete_foods %} ({{ incomplete_used }} used in logged meals){% endif %}.
+  Archived recipes: {{ recipes|length }}, {{ incomplete_recipes }} with incomplete ingredients{% if incomplete_recipes %} ({{ incomplete_recipes_used }} used in logged meals){% endif %}.
+  {% if q %}<small class="muted">(Filtered: “{{ q }}”.)</small>{% endif %}
+</div>
+{% else %}
 <h2>Food Cache {{ manual_link("cached") }}</h2>
 <p class="muted">All foods that have been loaded from USDA or Open Food Facts are stored here.</p>
+{# At the top, as on My Pantry. #}
+<p class="mb-2">
+  {{ archived_toggle("/food/cache", show_archived, "foods", {"q": q, "sort": sort}) }}
+  <a href="/food/archived" class="btn btn-sm btn-outline-secondary"
+     title="Only the archived foods and recipes, with their nutrient-data gaps (Foods → 10)">Archived only</a>
+</p>
+{% endif %}
 
 <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
-  <form method="get" action="/food/cache" data-search-form>
+  <form method="get" action="{{ page_url }}" data-search-form>
     <input type="hidden" name="sort" value="{{ sort }}">
     <p class="muted mb-1"><small><strong>Filter this list</strong> narrows the foods already in your cache. <strong>Search online</strong> looks for these words in USDA, Open Food Facts and the other sources, on Foods&nbsp;→&nbsp;Search.</small></p>
     <div class="input-group" style="max-width:40rem">
@@ -26,12 +45,13 @@
               title="Opens Foods → Search with these words, to look in USDA, Open Food Facts and the other sources"
               onclick="location.href = '/food/search?query=' + encodeURIComponent(this.form.q.value.trim())">Search online</button>
       {% if q %}
-      <a href="/food/cache?sort={{ sort }}" class="btn btn-outline-secondary">Clear</a>
+      <a href="{{ page_url }}?sort={{ sort }}" class="btn btn-outline-secondary">Clear</a>
       {% endif %}
     </div>
   </form>
 </div>
 
+{% if not archived_only %}
 <p class="mb-3">
   <a href="/food/cache/prune" class="btn btn-sm btn-outline-secondary"
      title="Remove foods not used in any pantry entry, recipe, or meal">Prune unused foods</a>
@@ -44,8 +64,8 @@
      title="Import foods from a CSV file exported from this or another NuMa install">Import CSV</a>
   <a href="/food/cache/db-check" class="btn btn-sm btn-outline-secondary"
      title="Check for pantry/recipe/meal entries pointing at a food that's no longer in the cache">Check database integrity</a>
-  {{ archived_toggle("/food/cache", show_archived, "foods", {"q": q, "sort": sort}) }}
 </p>
+{% endif %}
 
 {% if pruned %}
 <div class="alert alert-success">Pruned {{ pruned }} unused food{% if pruned != 1 %}s{% endif %} from the cache.</div>
@@ -76,7 +96,10 @@
 {% endif %}
 
 <div{% if q %} data-search-output{% endif %}>
-{% if q %}
+{% if archived_only %}
+<h3 id="archived-foods">Archived foods</h3>
+<p class="result-count">{{ foods|length }} archived food{% if foods|length != 1 %}s{% endif %}{% if q %} matching <strong>{{ q }}</strong>{% endif %}</p>
+{% elif q %}
 <p class="result-count">
   {{ foods|length }} result{% if foods|length != 1 %}s{% endif %}
   matching <strong>{{ q }}</strong>
@@ -96,14 +119,14 @@
 {# Where a row button that leaves this page comes back to: this same list,
    same filter/sort/archived view — base.html's js-keep-scroll restores the
    scroll position there too. #}
-{% set list_url = "/food/cache?q=%s&sort=%s&show_archived=%d" % ((q or "") | urlencode, sort, 1 if show_archived else 0) %}
+{% set list_url = "%s?q=%s&sort=%s&show_archived=%d" % (page_url, (q or "") | urlencode, sort, 1 if show_archived else 0) %}
 {# Compare form is likewise external — same nesting restriction as claude-fetch-form above. #}
 <form method="post" action="/compare/add-multiple" id="compare-form"></form>
 <p class="muted mb-1"><small>Check the box next to any food below (or click "Select all missing AA data"), then click "Fetch missing data from Claude AI" to build a ready-to-paste prompt asking Claude AI to fill in that food's missing amino acid or nutrient data. {{ manual_link("fetch") }}</small></p>
 {% set fetchable_foods = foods | rejectattr('has_aa') | list %}
 {# A div, not a p: the sort form can't sit inside a p. #}
 <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
-  <form method="get" action="/food/cache" class="d-inline-flex align-items-center me-2">
+  <form method="get" action="{{ page_url }}" class="d-inline-flex align-items-center me-2">
     <input type="hidden" name="q" value="{{ q or '' }}">
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
@@ -114,6 +137,7 @@
       <option value="diaas" {% if sort == "diaas" %}selected{% endif %}>DIAAS</option>
       <option value="gi"    {% if sort == "gi"    %}selected{% endif %}>GI estimate</option>
       <option value="used"  {% if sort == "used"  %}selected{% endif %}>Used in (most first)</option>
+      <option value="problems" {% if sort == "problems" %}selected{% endif %}>Incomplete first</option>
     </select>
   </form>
   <button type="submit" form="claude-fetch-form" class="btn btn-sm {{ 'btn-primary' if fetchable_foods else 'btn-outline-secondary' }}" title="Builds a prompt you copy and paste into Claude AI (claude.ai), asking it for the amino acid and nutrient values the ticked foods are missing. You then paste Claude's reply back into NuMa to fill those gaps. Nothing is sent anywhere automatically.">Fetch missing data from Claude AI</button>
@@ -362,9 +386,12 @@ function toggleNotes(fdcId) {
   if (row) row.style.display = (row.style.display === 'none') ? '' : 'none';
 }
 </script>
+{% elif archived_only %}
+<p>No archived foods{% if q %} matching that filter{% endif %}.</p>
 {% else %}
 <p>No foods in cache{% if q %} matching that filter{% else %} yet. <a href="/settings#starter-data">Load starter data</a> to explore the app{% endif %}.</p>
 {% if q %}<span class="search-no-results" data-query="{{ q }}" data-field="q"></span>{% endif %}
 {% endif %}
 </div>
+{% if archived_only %}{% include "_archived_recipes.html" %}{% endif %}
 {% endblock %}

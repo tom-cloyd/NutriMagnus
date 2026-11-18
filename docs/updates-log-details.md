@@ -10,6 +10,16 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 #### November 18 updates
 
+**PROGRAM: ARCHIVED FOODS AND RECIPES PAGE FINDS THEIR MISSING NUTRIENT DATA**
+
+The new **Archived foods & recipes** page (Foods → 10, key `0` in the Foods menu; also Recipes → 3) lists only what you've archived: foods with the Food Cache's columns, and recipes, whose **Other nutrients** column checks every ingredient food. Incomplete items used in logged meals come first, with a count at the top, because those meals still count in your long-run nutrient averages while Foods → 9's checks skip archived foods. Restore works in place. The Food Cache's **Sort by** gains **Incomplete first**. [learn more...](#archived-web)
+
+<!--
+```
+Scope: Foods → 10, Recipes → 3. web/backend.py (_food_cache_rows() factored out of food_cache_get and reused by the refresh-error render, which had lacked "use" and would have failed on the Used in column; "problems" sort key; _archived_recipe_rows() via db.recipe_expand_ingredient_use(), flagging gap foods, uncached foods and deleted sub-recipes; GET /food/archived, pref sort_food_archived), web/templates/food_cache.html (archived_only mode: page_url, summary alert, no toolbar; "Archived only" button on the Food Cache), _archived_recipes.html (new), base.html (menu items; digit picker maps 0 to the tenth item; command palette shows 0), tests/test_web.py, tests/test_manual_menu_coverage.py.
+```
+-->
+
 **PROGRAM: FOOD CACHE AND PANTRY SHOW WHETHER A FOOD'S OTHER NUTRIENTS ARE COMPLETE**
 
 The Food Cache and My Pantry lists have an **Other nutrients** column after DIAAS. It reads "complete" when a food has its macronutrients, water, minerals, vitamins and the amino acids its DCP is worked out from (or each missing group is marked "not needed"), and "incomplete" otherwise. Pointing at "incomplete" lists what's missing, and clicking it opens the food. To make room, the Used in counts and the longer button labels ("Add to pantry", "Copy as draft") take two lines. [learn more...](#cached)

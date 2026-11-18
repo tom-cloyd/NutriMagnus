@@ -3932,6 +3932,10 @@ _FOOD_CACHE_SORT_KEYS = {
     "gi":    lambda f: (f["gi"] is None, -(f["gi"] or 0), (f["name"] or "").lower()),
     # Most-used first: recipes + meals using the food directly.
     "used":  lambda f: (-(f["use"]["recipes"] + f["use"]["meals"]), (f["name"] or "").lower()),
+    # Incomplete first (Other nutrients), most-used first within each half:
+    # a used food with gaps is what skews long-run nutrient averages.
+    "problems": lambda f: (not f["other_missing"], -(f["use"]["recipes"] + f["use"]["meals"]),
+                           (f["name"] or "").lower()),
 }
 
 # Pantry list sorts — the Food Cache's, read off a pantry row (food_name,
@@ -3943,22 +3947,14 @@ _PANTRY_SORT_KEYS = {
 _PANTRY_SORT_KEYS["added"] = lambda i: (i["added_at"] or "", (i["food_name"] or "").lower())
 
 
-@app.get("/food/cache", response_class=HTMLResponse)
-def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
-                          show_archived: bool | None = None, archived: int = 0, restored: int = 0,
-                          still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
-                          blocked_fdc_id: int | None = None,
-                          blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = "",
-                          impact: str = "", deleted: str = ""):
-    sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
-    show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
-    with _db.get_db() as conn:
-        rows = _filtered_cached_foods(conn, q, include_archived=show_archived)
-        fdc_ids = [r["fdc_id"] for r in rows]
-        annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
-        pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
-        usage = _data_quality.usage_counts(conn)
-        ignores = _db.food_data_ignores(conn)
+def _food_cache_rows(conn, rows) -> list[dict]:
+    """The Food Cache table's rows, built from cached-food DB rows — shared
+    with the Archived page (Foods → 10), which shows the same columns."""
+    fdc_ids = [r["fdc_id"] for r in rows]
+    annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
+    pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
+    usage = _data_quality.usage_counts(conn)
+    ignores = _db.food_data_ignores(conn)
     track_water = _track_water()
 
     foods = []
@@ -3987,6 +3983,21 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
             "in_pantry":      row["fdc_id"] in pantry_fdc_ids,
             "use":            usage.get(row["fdc_id"], {"recipes": 0, "meals": 0}),
         })
+    return foods
+
+
+@app.get("/food/cache", response_class=HTMLResponse)
+def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | None = None,
+                          show_archived: bool | None = None, archived: int = 0, restored: int = 0,
+                          still_used: int = 0, imported: int = 0, delete_blocked: int = 0,
+                          blocked_fdc_id: int | None = None,
+                          blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = "",
+                          impact: str = "", deleted: str = ""):
+    sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
+    show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
+    with _db.get_db() as conn:
+        rows = _filtered_cached_foods(conn, q, include_archived=show_archived)
+        foods = _food_cache_rows(conn, rows)
     foods.sort(key=_FOOD_CACHE_SORT_KEYS[sort])
     return templates.TemplateResponse(request, "food_cache.html", {
         "foods":         foods,
@@ -4005,6 +4016,95 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
         "blocked_pantry":  [int(i) for i in blocked_pantry.split(",") if i],
         "blocked_recipes": [int(i) for i in blocked_recipes.split(",") if i],
         "blocked_meals":   [int(i) for i in blocked_meals.split(",") if i],
+    })
+
+
+_ARCHIVED_RECIPE_SORT_KEYS = {
+    "name":     lambda r: (r["name"] or "").lower(),
+    "used":     lambda r: (-r["meals"], (r["name"] or "").lower()),
+    "problems": lambda r: (not r["problems"], -r["meals"], (r["name"] or "").lower()),
+}
+
+
+def _archived_recipe_rows(conn, q: str) -> list[dict]:
+    """The archived recipes for Foods → 10, filtered as the food list is.
+    Each carries `problems`: the ingredient foods (sub-recipes searched too)
+    whose Other nutrients check finds gaps, plus any food no longer cached
+    and any deleted sub-recipe — each adds nothing, or too little, to a
+    logged meal's totals — and how many logged meals use the recipe."""
+    recipes = [r for r in _db.recipe_list(conn, include_archived=True) if r["archived"]]
+    code = _typed_code(q)
+    if code:
+        recipes = [r for r in recipes if code == ("recipe", r["id"])]
+    elif q.strip():
+        match = _list_filter(q)
+        recipes = [r for r in recipes if match(r["name"])]
+    meal_use = _db.recipe_meal_use(conn)
+    sub_users = _db.recipe_subrecipe_users(conn)
+    ignores = _db.food_data_ignores(conn)
+    track_water = _track_water()
+    food_gaps: dict[int, list[str]] = {}
+    out = []
+    for r in recipes:
+        problems, seen = [], set()
+        for fid, name, kind, _protein, ref_id in _db.recipe_expand_ingredient_use(conn, r["id"]):
+            if kind == "recipe":
+                if ref_id is None and ("recipe", name) not in seen:   # a deleted sub-recipe
+                    seen.add(("recipe", name))
+                    problems.append({"fdc_id": None, "name": name, "missing": ["sub-recipe deleted"]})
+                continue
+            if not fid or fid in seen:
+                continue
+            seen.add(fid)
+            if fid not in food_gaps:
+                row = _db.get_cached_food(conn, fid)
+                if row is None:
+                    food_gaps[fid] = ["not in the Food Cache"]
+                else:
+                    nuts = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
+                    food_gaps[fid] = _other_nutrients(nuts, fid, ignores, row["is_supplement"], track_water) or []
+            if food_gaps[fid]:
+                problems.append({"fdc_id": fid, "name": name, "missing": food_gaps[fid]})
+        use = meal_use.get(r["id"], {})
+        out.append({
+            "id":           r["id"],
+            "name":         r["name"],
+            "servings":     r["servings"],
+            "serving_size": r["serving_size"],
+            "notes":        r["notes"] or "",
+            "problems":     problems,
+            "meals":        use.get("meals", 0),
+            "last_used":    use.get("last"),
+            "sub_users":    sub_users.get(r["id"], []),
+        })
+    return out
+
+
+@app.get("/food/archived", response_class=HTMLResponse)
+def food_archived_get(request: Request, q: str = "", sort: str | None = None):
+    """Foods → 10: every archived food (the Food Cache's columns) and every
+    archived recipe, incomplete-and-used first by default. Archiving hides
+    an item from search, and the completeness checks (data_quality) skip
+    archived foods, but meals already logged with it still count in every
+    nutrient total and average — so its gaps are found here."""
+    sort = _resolve_sort(sort, "sort_food_archived", "problems", set(_FOOD_CACHE_SORT_KEYS))
+    with _db.get_db() as conn:
+        rows = [r for r in _filtered_cached_foods(conn, q, include_archived=True) if r["archived"]]
+        foods = _food_cache_rows(conn, rows)
+        recipes = _archived_recipe_rows(conn, q)
+    foods.sort(key=_FOOD_CACHE_SORT_KEYS[sort])
+    recipes.sort(key=_ARCHIVED_RECIPE_SORT_KEYS.get(sort, _ARCHIVED_RECIPE_SORT_KEYS["name"]))
+    return templates.TemplateResponse(request, "food_cache.html", {
+        "archived_only":  True,
+        "foods":          foods,
+        "recipes":        recipes,
+        "q":              q,
+        "sort":           sort,
+        "show_archived":  True,
+        "incomplete_foods":  sum(1 for f in foods if f["other_missing"]),
+        "incomplete_used":   sum(1 for f in foods if f["other_missing"] and f["use"]["meals"]),
+        "incomplete_recipes": sum(1 for r in recipes if r["problems"]),
+        "incomplete_recipes_used": sum(1 for r in recipes if r["problems"] and r["meals"]),
     })
 
 
@@ -5126,27 +5226,7 @@ def food_cache_refresh(request: Request, fdc_id: int):
         error = str(exc)
     if error:
         with _db.get_db() as conn:
-            rows = _db.list_cached_foods(conn)
-            fdc_ids = [r["fdc_id"] for r in rows]
-            annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
-        foods = []
-        for row in rows:
-            ann = annotations.get(row["fdc_id"])
-            nuts = json.loads(row["nutrients_json"]) if row["nutrients_json"] else {}
-            foods.append({
-                "fdc_id":        row["fdc_id"],
-                "name":          row["name"],
-                "data_type":     row["data_type"] or "",
-                "brand":         row["brand"] or "",
-                "has_aa":        _usda.has_confirmed_aa_data(nuts),
-                "gi":            ann["gi_estimate"] if ann else None,
-                "gi_source":     _ann_source(ann),
-                "diaas":         ann["diaas_estimate"] if ann else None,
-                "other_missing": None,
-                "notes":         row["notes"] or "",
-                "curator_notes": row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
-                "archived":      bool(row["archived"]),
-            })
+            foods = _food_cache_rows(conn, _db.list_cached_foods(conn))
         return templates.TemplateResponse(request, "food_cache.html", {
             "foods":         foods,
             "q":             "",

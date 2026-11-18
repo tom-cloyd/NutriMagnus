@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-18:0242
+UPDATED: 2026-11-18:0300
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -330,7 +330,8 @@ numa/
       food_analyze_portion.html    — Select food + enter grams → nutrient table
       food_analyze_recipe_portion.html — Select saved recipe + servings → nutrient table
       food_convert.html            — Portion ↔ weight conversion (density lookup)
-      food_cache.html              — Browse/search cached foods; delete/archive from cache
+      food_cache.html              — Browse/search cached foods; delete/archive from cache; also the Archived page (archived_only)
+      _archived_recipes.html       — Archived page's recipe table (ingredient gaps, meal use)
       food_cache_prune.html        — Preview/confirm pruning of unused cached foods
       food_cache_portions.html     — Manage a cached food's USDA-style named portions
       food_cache_import_csv.html   — Import foods from a CSV file into the cache
@@ -1075,6 +1076,7 @@ One consequence worth knowing when writing code that deletes foods: `demo_data.c
 - `list_unused_cached_foods` / `prune_unused_cached_foods` always exclude archived rows: archiving is meant to protect data from being lost, so an archived-but-unreferenced food is never swept up by Food Cache's prune-unused action.
 - Per-list "show archived" visibility is a persisted preference, not a query default (`show_archived_food_cache`/`show_archived_pantry`/`show_archived_recipes` keys in `prefs.json`) — the same way sort choices are persisted. Any future per-list view-state toggle should follow this same pattern: `web/backend.py`'s `_resolve_bool_pref()` (an explicit query param wins and is saved to `prefs.json` as the new default; otherwise the saved value is used).
 - `web/backend.py`'s `/food/cache`, `/pantry`, and `/recipes` GET routes accept a `show_archived` query param resolved via `_resolve_bool_pref()` (mirrors `_resolve_sort()`), and each has a `POST .../{{id}}/archive` route that flips the flag and redirects with `?archived=1`/`?restored=1` (plus `&still_used=1` when the item was still referenced) for a flash-banner message. The web flow archives immediately (one click, no confirm dialog) — a warn-but-never-block policy. On the list pages the Archive/Restore button is a `js-row-archive` form, which `base.html` submits via `fetch()` with an `X-Numa-Ajax: 1` header; the route sees that through `_is_ajax_row_action()` and replies with a small JSON `{ok, archived}` instead of redirecting, so the row updates in place and the page keeps its search/sort/filter state. In that in-place path the "still referenced" warning is not shown; it appears as the post-action flash message only when the form falls back to a full POST-and-redirect (no JavaScript, or the fetch failed). `fetch()` is also used elsewhere in `web/` — e.g. the `*-search-api-results` endpoints that fill in online search results after a page's local-only first render.
+- **Archived page (Foods → 10, also Recipes → 3; added 2026-11-18).** `GET /food/archived` (`food_archived_get`) renders `food_cache.html` with `archived_only` (its own `page_url`, no toolbar, a summary alert, `data-show-archived="true"` so Restore flips the row in place) from `_food_cache_rows()`, the row builder the Food Cache shares, then `_archived_recipes.html`. Why it exists: `data_quality._foods_in_use()` and so Foods → 9 skip archived foods, yet meals logged with them still count in every total and average. `_archived_recipe_rows()` judges a recipe by its ingredient foods (`db.recipe_expand_ingredient_use()`, sub-recipes included) with the same `_other_nutrients()` check, adding a food not in the cache and a deleted sub-recipe as gaps. Sort pref `sort_food_archived`, default `problems` (a `_FOOD_CACHE_SORT_KEYS` entry, so the Food Cache offers it too: incomplete first, then most used). The menu digit picker in `base.html` maps key `0` to a menu's tenth item, and the command palette labels it `0`.
 
 ### `usda_api.py` — USDA HTTP client (~290 lines)
 
@@ -1315,6 +1317,7 @@ All FastAPI routes and backend helpers are in this single file. Key patterns:
 | GET | `/compare/load/{cmp_id}` | Load a saved comparison |
 | POST | `/compare/saved/rename`, `saved/delete` | Manage saved comparisons |
 | GET | `/food/cache` | Browse/search cached foods (`show_archived` supported) |
+| GET | `/food/archived` | Foods → 10: archived foods (Food Cache columns) and archived recipes, incomplete-and-used first |
 | GET | `/food/cache/export.csv` | Export the food cache as CSV |
 | POST | `/food/cache/delete` | Remove a food from the cache |
 | POST | `/food/cache/{fdc_id}/archive` | Archive/restore a cached food |
@@ -1738,7 +1741,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,598 tests**, all passing (2,544 in the default run plus 54 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,600 tests**, all passing (2,546 in the default run plus 54 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 

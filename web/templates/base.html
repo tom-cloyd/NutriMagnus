@@ -107,6 +107,13 @@
                   <span class="dd-hint">(fix broken references, fill missing nutrients)</span>
                 </a>
               </li>
+              <li>
+                {# The tenth item: key 0 (see the digit picker below). #}
+                <a class="dropdown-item" href="/food/archived">
+                  10. <strong>Archived</strong> foods &amp; recipes
+                  <span class="dd-hint">(find their missing nutrient data; key 0)</span>
+                </a>
+              </li>
             </ul>
           </li>
           {# Quick-return chip: only shown by JS once there's a remembered Foods
@@ -134,6 +141,12 @@
                 <a class="dropdown-item" href="/recipe/import-csv">
                   2. <strong>Import CSV</strong>
                   <span class="dd-hint">(bundle exported from this or another NuMa install)</span>
+                </a>
+              </li>
+              <li>
+                <a class="dropdown-item" href="/food/archived#archived-recipes">
+                  3. <strong>Archived</strong> recipes
+                  <span class="dd-hint">(with Foods → 10's archived foods)</span>
                 </a>
               </li>
             </ul>
@@ -1529,12 +1542,13 @@
     document.addEventListener('keydown', function (e) {
       if (!enabled) return;
       if (e.altKey || e.ctrlKey || e.metaKey) return;
-      if (!/^[1-9]$/.test(e.key)) return;
+      if (!/^[0-9]$/.test(e.key)) return;
       var openMenu = document.querySelector('.numa-dropdown.show');
       if (!openMenu) return;
       e.preventDefault();
       var items = openMenu.querySelectorAll(':scope > li > .dropdown-item');
-      var item = items[Number(e.key) - 1];
+      // 0 is the tenth item, as on the keyboard's number row (Foods → 10).
+      var item = items[(Number(e.key) || 10) - 1];
       if (item) item.click();
     });
 
@@ -1628,7 +1642,7 @@
           var hint = a.querySelector('.dd-hint');
           out.push({label: name + ': ' + textOf(a).replace(/^\d+\.\s*/, ''),
                     url: a.getAttribute('href'),
-                    keys: 'Alt+Shift+' + ak + ', then ' + (i + 1),
+                    keys: 'Alt+Shift+' + ak + ', then ' + ((i + 1) % 10),
                     tags: hint ? clean(hint.textContent) : ''});
         });
       });

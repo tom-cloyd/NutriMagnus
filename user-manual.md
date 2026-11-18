@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-18:0242* / Reading time: 7 hours, 35 minutes
+*Updated 2026-11-18:0300* / Reading time: 7 hours, 37 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -722,7 +722,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 10 minutes)*
+*(Reading time: 2 hours, 12 minutes)*
 
 
 
@@ -763,7 +763,7 @@ The bottom of the page gives the release and build numbers, e.g. *NutriMagnus 0.
 
 Every page has the same navigation bar across the top: **NuMa** (home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings** and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open drop-down menus; the others go straight to their page.
 
-**Keyboard shortcuts.** Hold **Alt+Shift** and press the underlined letter of a menu item: `F` Foods, `R` Recipes, `C` Compare, `M` Meals & Log, `N` Analysis, `S` Settings, `A` Manual. Settings sections have them too: `Alt+Shift+3` jumps to section 3, Dietary Preferences; section 10 is `Alt+Shift+0`; sections 11 to 15 use a letter of their name (`T` Starter Data, `E` Keyboard Shortcuts, `B` Browser to Launch, `D` Data Quality Reminder, `Y` System Issues). They work in any desktop browser.
+**Keyboard shortcuts.** Hold **Alt+Shift** and press the underlined letter of a menu item: `F` Foods, `R` Recipes, `C` Compare, `M` Meals & Log, `N` Analysis, `S` Settings, `A` Manual. Settings sections have them too: `Alt+Shift+3` jumps to section 3, Dietary Preferences; section 10 is `Alt+Shift+0`; sections 11 to 15 use a letter of their name (`T` Starter Data, `E` Keyboard Shortcuts, `B` Browser to Launch, `D` Data Quality Reminder, `Y` System Issues). With a menu open, pressing an item's number opens it; in the Foods menu, item 10 (Archived foods & recipes) is `0`. They work in any desktop browser.
 
 <span id="command-palette"></span>
 **Can't remember a shortcut? Press `Alt+Shift+K`.** It opens the *command palette*: a panel listing every page in the menus, plus anything the page you're on has a shortcut for (its search box, its Items section, Settings' sections), each followed by the keys that reach it, such as *Foods: Food Cache (Alt+Shift+F, then 5)*. So the only shortcut you need to remember is `K`. The **⌘ Alt+Shift+K** button at the right end of the menu bar opens it too.
@@ -1432,6 +1432,21 @@ Each can be undone on the same page (**Undo**, or **Check them again**). Estimat
 Under each food's name are the ways to fix it by hand: **Refresh from USDA** (USDA foods), **Fill in from another food** (already searching for its name), and **Edit values** (your own custom foods).
 
 **Every fix is recorded** on the food's page, under **Corrected on Foods → 9**: which value, from what, to what, why, and when. On a USDA or other outside food a corrected value counts as yours, so a later **Refresh from USDA** shows the source's figure beside it, unticked, instead of quietly restoring it. Recipes and meals using the food are recalculated at once.
+
+#### Archived foods & recipes (Foods → 10) {: #archived-web}
+
+*Search terms: archive, hidden foods, retired recipes, restore, unarchive, old foods.*
+
+**Archiving** a food or recipe hides it from search, suggestions and the default lists without deleting it. That's useful for something you no longer eat. But every meal you already logged with it still counts in your daily totals and in your long-run nutrient averages. If an archived food is missing data (no vitamin values, say), those past days come out too low for those nutrients, and nothing reminds you, because Foods → 9's completeness checks look only at foods in current use.
+
+**Foods → 10** (also **Recipes → 3**) lists only what you've archived, in two tables:
+
+- **Archived foods**, with the same columns as the [Food Cache](#food-cache-web), including **Other nutrients** (*complete* or *incomplete*; point at *incomplete* to see what's missing) and **Used in** (how many recipes and logged meals use the food).
+- **Archived recipes.** A recipe has no nutrient data of its own; its figures come from its ingredients. So its **Other nutrients** column checks every ingredient food, including those inside sub-recipes. Click *incomplete* to see which ingredients have gaps and what each is missing. An ingredient food that is no longer in the Food Cache, or a sub-recipe that was deleted, counts as a gap too, since it adds nothing to the recipe. **Used in** gives the number of logged meals (and the most recent date) and how many other recipes use it as a sub-recipe.
+
+A summary line at the top counts the incomplete items and how many of them are in logged meals: those are the ones affecting your averages. By default both tables sort **incomplete first**, with the most-used first within each group (**Sort by** changes it; **Incomplete first** is on the Food Cache's list too). The filter box narrows both tables by name or code.
+
+**Fixing a gap.** Tick foods in the first column and click **Fetch missing data from Claude AI**, as on the Food Cache (see [Fetching missing data](#fetch)), or open a food and refresh or edit it. For a recipe, fix its ingredient foods; the recipe and the meals using it are recalculated. If a group truly doesn't apply to a food, mark it *not needed* on the food's page, and the food then counts as complete. **Restore** returns an item to normal use (click again to re-archive it); neither changes any logged meal.
 
 ### D. A food's page, and every analysis page {: #analysis-pages}
 
@@ -6201,7 +6216,7 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 Version overview: 
 
-SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again; the Food Cache keeps your Fetch ticks and delete warnings when you leave and click back; replacing a food across meals or recipes always says whether it worked.
+SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again; the Food Cache keeps your Fetch ticks and delete warnings when you leave and click back; replacing a food across meals or recipes always says whether it worked; a new Archived page (Foods → 10) finds archived foods and recipes with missing nutrient data.
 
 DETAILS:
 
@@ -6245,7 +6260,9 @@ DETAILS:
 * On both Food Use pages, a replace, remove or add always reports what happened, in a colored box the page opens at: what was changed and in how many meals or recipes, or that nothing was and why. After a mistake, the codes you typed are still there to correct.
 * When you add a recipe to a meal, the hint under its Amount box says what one serving weighs ("1 serving = 24 g"), even with no serving description.
 * The Food Cache and My Pantry lists have an Other nutrients column, complete or incomplete, covering macronutrients, water, minerals, vitamins and the amino acids DCP needs; the Used in counts and longer button labels there now take two lines.
+* New **Archived foods & recipes** page (Foods → 10, key 0; also Recipes → 3) lists only archived items, foods with the Food Cache's columns and recipes judged by their ingredient foods, incomplete-and-used first, since meals logged with them still count in long-run averages but Foods → 9 skips them; **Incomplete first** is also a Food Cache sort.
 
+- **42.** New **Archived foods & recipes** page (Foods → 10, or press `0` in the Foods menu; also Recipes → 3): lists only what you've archived, with the Food Cache's columns, and shows which archived foods and recipes are missing nutrient data. Meals logged with them still count in your long-run averages. [learn more...](#archived-web)
 - **41.** The [Food Cache](#cached) and My Pantry lists have an **Other nutrients** column after DIAAS: "complete" when a food has its macronutrients, water, minerals, vitamins and the amino acids DCP needs, otherwise "incomplete", with what's missing shown when you point at it.
 - **40.** When you add a recipe to a meal, the hint under its Amount box now says what one serving weighs ("1 serving = 24 g"), even when the recipe has no serving description. [learn more...](#portions-vs-servings)
 - **39.** On both Food Use pages, a replace, remove or add now always says what happened, in a colored box the page opens at. It names what was changed and in how many meals or recipes, or says nothing was changed and why (a mistyped code used to change nothing and say nothing). After a mistake, the codes you typed are still there to correct. See [Replace a Food or Recipe Everywhere](#fooduse-substitute).
