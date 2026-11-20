@@ -512,8 +512,9 @@ most of all). Canned beans are already safe.</p>
 <h2>Notes and Documentation</h2>
 <p style="white-space:pre-wrap;line-height:1.6">{{ recipe.notes }}</p>
 {% endif %}
-{% if "notes" in enabled and food and (food.notes or food.prep_context) and not recipe %}
+{% if "notes" in enabled and food and (food.notes or food.user_notes or food.prep_context) and not recipe %}
 <h2>Notes</h2>
+{% if food.user_notes %}<p style="white-space:pre-wrap;line-height:1.6"><strong>Your notes:</strong> {{ food.user_notes }}</p>{% endif %}
 {% if food.notes %}<p style="white-space:pre-wrap;line-height:1.6">{{ food.notes }}</p>{% endif %}
 {% if food.prep_context %}<p><strong>Prep context:</strong> {{ food.prep_context }}</p>{% endif %}
 {% endif %}

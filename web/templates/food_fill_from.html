@@ -52,7 +52,7 @@
 <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/compare" id="fill-compare-picks"
       class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <input type="hidden" name="return_to" value="/food/{{ food.fdc_id }}/fill-from?q={{ q | urlencode }}">
-  <button type="submit" class="btn btn-sm btn-outline-primary">Compare checked foods with this one &rarr;</button>
+  <button type="submit" class="btn btn-sm btn-outline-secondary">Compare checked foods with this one &rarr;</button>
   <small class="muted">Opens Compare with this food first; its <strong>&larr; Back</strong> button returns you here.</small>
 </form>
 <p class="result-count mb-1">{{ _srb.count(search_results|length) }}

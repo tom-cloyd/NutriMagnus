@@ -131,6 +131,7 @@
     <label class="muted me-1" style="font-size:0.875rem"><small>Sort by</small></label>
     <select name="sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
+      <option value="meals90" {% if sort == "meals90" %}selected{% endif %}>Most meals, last 90 days</option>
       <option value="name"  {% if sort == "name"  %}selected{% endif %}>Name</option>
       <option value="id"    {% if sort == "id"    %}selected{% endif %}>Code</option>
       <option value="type"  {% if sort == "type"  %}selected{% endif %}>Type</option>
@@ -205,9 +206,10 @@
         {% if food.use.recipes or food.use.meals %}
         {{ food.use.recipes }} recipe{{ "s" if food.use.recipes != 1 }},<br>{{ food.use.meals }} meal{{ "s" if food.use.meals != 1 }}
         {% else %}<span class="muted">not used</span>{% endif %}
+        {% if sort == "meals90" and food.meals90 %}<br><span class="muted" title="Meals it was in over the last 90 days, on its own or in a recipe">{{ food.meals90 }} in last 90 days</span>{% endif %}
       </small></td>
       <td>
-        {% if food.notes or food.curator_notes %}
+        {% if food.notes or food.curator_notes or food.user_notes %}
         <button type="button" class="btn btn-outline-secondary btn-sm py-0 align-baseline" onclick="toggleNotes({{ food.fdc_id }})">
           <small>Notes ▸</small>
         </button>
@@ -275,9 +277,12 @@
         </form>
       </td>
     </tr>
-    {% if food.notes or food.curator_notes %}
+    {% if food.notes or food.curator_notes or food.user_notes %}
     <tr id="notes-row-{{ food.fdc_id }}" style="display:none">
       <td colspan="12" style="padding-top:0; padding-bottom:0.5rem; border-top:none">
+        {% if food.user_notes %}
+        <div class="mt-1" style="white-space:pre-wrap"><small><strong>Your notes:</strong><br>{{ food.user_notes }}</small></div>
+        {% endif %}
         {% if food.notes %}
         <div class="mt-1"><small><strong>Source/confidence:</strong><br>{{ food.notes }}</small></div>
         {% endif %}

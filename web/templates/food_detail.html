@@ -15,11 +15,9 @@
 <a class="sb-page-title" href="#analysis-content">{{ food.name }}</a>
 <div class="sb-title">Contents</div>
 <ul class="sb-list">
-  {% if food.notes or food.prep_context %}
   <li class="sb-item" data-target="sec-food-notes">
     <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Notes</button>
   </li>
-  {% endif %}
   {% if protein %}
   <li class="sb-item" data-target="sec-protein-summary">
     <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Protein Summary</button>
@@ -379,26 +377,41 @@
   {% endif %}
 </div>
 
-{# ── Notes: the food's own notes and Annotate's prep context ─────────── #}
-{% if food.notes or food.prep_context %}
+{# ── Notes: your own notes (any food: POST /food/{id}/my-notes), the
+   source's notes, and Annotate's prep context. A custom food's notes are
+   already the user's, so for one the box edits those. #}
+{% set _mine = food.notes if food.custom else food.user_notes %}
 <section id="sec-food-notes" class="analysis-section">
-  <h3 class="section-heading">Notes</h3>
+  <h3 class="section-heading">Notes {{ manual_link("food-notes") }}</h3>
+  {% if request.query_params.get("notes_saved") %}
+  <p class="status-met mb-1"><small>&#10003; Notes saved.</small></p>
+  {% endif %}
+  <details class="mb-2"{% if _mine %} open{% endif %}>
+    <summary>{% if _mine %}<strong>Your notes</strong>{% else %}Add your own notes on this food{% endif %}</summary>
+    <form method="post" action="/food/{{ food.fdc_id }}/my-notes" class="mt-1" style="max-width:48rem">
+      <textarea class="form-control form-control-sm" name="notes" rows="{{ 4 if _mine else 2 }}" maxlength="5000"
+                aria-label="Your notes on this food"
+                placeholder="Anything you want to remember: taste, brand, where you buy it, how you cook it…">{{ _mine }}</textarea>
+      <div class="d-flex align-items-center gap-2 mt-1">
+        <button type="submit" class="btn btn-sm btn-primary">Save notes</button>
+        <small class="muted">{% if food.custom %}The same notes as on this food&rsquo;s Edit values page.{% else %}Kept when you Refresh from USDA. Clear the box and save to remove them.{% endif %}</small>
+      </div>
+    </form>
+  </details>
   {# Same small grey type as the missing-data line near the top of the page. #}
+  {% if (food.notes and not food.custom) or food.prep_context %}
   <div class="muted" style="font-size:0.85rem">
-  {% if food.notes %}
+  {% if food.notes and not food.custom %}
+  <p class="mb-0"><strong>From the food&rsquo;s source:</strong></p>
   <div style="white-space:pre-wrap;line-height:1.6">{{ food.notes }}</div>
   {% endif %}
   {% if food.prep_context %}
-  <p class="mb-0 {% if food.notes %}mt-2{% endif %}"><strong>Prep context:</strong> {{ food.prep_context }}</p>
+  <p class="mb-0 {% if food.notes and not food.custom %}mt-2{% endif %}"><strong>Prep context:</strong> {{ food.prep_context }}
+    &middot; <a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Edit prep context</a></p>
   {% endif %}
-  <p class="mt-2 mb-0">
-    {% if food.user_drafted %}<a href="/food/custom-profiles/{{ food.fdc_id }}/edit">Edit notes</a>{% endif %}
-    {% if food.user_drafted and food.prep_context %} &middot; {% endif %}
-    {% if food.prep_context %}<a href="/food/annotate/{{ food.fdc_id }}?next={{ ('/food/%s' % food.fdc_id) | urlencode }}">Edit prep context</a>{% endif %}
-  </p>
   </div>
+  {% endif %}
 </section>
-{% endif %}
 
 {# ── Protein Summary ──────────────────────────────────────────────────── #}
 {% if protein %}

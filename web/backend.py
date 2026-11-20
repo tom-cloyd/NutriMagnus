@@ -4,6 +4,7 @@ Docs: README-numa-documentation.md, Architecture: "web/ — Local web app"
 """
 import contextvars
 import datetime
+import functools
 import io
 import json
 import math
@@ -65,6 +66,7 @@ from numa_app.services.glycemic_load import day_gl as _day_gl
 from numa_app.services.glycemic_load import gl_target_status as _gl_target_status
 from numa_app.services.glycemic_load import gl_target_options as _gl_target_options
 from numa_app.services import protein_per_meal as _ppm
+from numa_app.services import meal_item_views as _miv
 from numa_app.services.glycemic_load import gi_measured_impaired as _gi_measured_impaired
 from numa_app.services.glycemic_load import gl_for_leaves as _gl_for_leaves
 from numa_app.services.meal_bcp import recipe_dcp_fallback
@@ -3936,6 +3938,9 @@ _FOOD_CACHE_SORT_KEYS = {
     # a used food with gaps is what skews long-run nutrient averages.
     "problems": lambda f: (not f["other_missing"], -(f["use"]["recipes"] + f["use"]["meals"]),
                            (f["name"] or "").lower()),
+    # Most meals in the last 90 days, on its own or in a recipe (the
+    # default, as on Foods → 9): the foods you actually eat come first.
+    "meals90": lambda f: (-f["meals90"], (f["name"] or "").lower()),
 }
 
 # Pantry list sorts — the Food Cache's, read off a pantry row (food_name,
@@ -3954,6 +3959,7 @@ def _food_cache_rows(conn, rows) -> list[dict]:
     annotations = _db.annotations_for_fdcids(conn, fdc_ids) if fdc_ids else {}
     pantry_fdc_ids = {r["fdc_id"] for r in _db.pantry_list(conn, include_archived=True)}
     usage = _data_quality.usage_counts(conn)
+    meals90 = _data_quality.meals_eaten_counts(conn, datetime.date.today().isoformat())
     ignores = _db.food_data_ignores(conn)
     track_water = _track_water()
 
@@ -3979,9 +3985,11 @@ def _food_cache_rows(conn, rows) -> list[dict]:
             "other_missing":  _other_nutrients(nuts, row["fdc_id"], ignores, row["is_supplement"], track_water),
             "notes":          row["notes"] or "",
             "curator_notes":  row["curator_notes"] or "" if "curator_notes" in row.keys() else "",
+            "user_notes":     row["user_notes"] or "" if "user_notes" in row.keys() else "",
             "archived":       bool(row["archived"]),
             "in_pantry":      row["fdc_id"] in pantry_fdc_ids,
             "use":            usage.get(row["fdc_id"], {"recipes": 0, "meals": 0}),
+            "meals90":        meals90.get(row["fdc_id"], 0),
         })
     return foods
 
@@ -3993,7 +4001,7 @@ def food_cache_get(request: Request, q: str = "", pruned: int = 0, sort: str | N
                           blocked_fdc_id: int | None = None,
                           blocked_pantry: str = "", blocked_recipes: str = "", blocked_meals: str = "",
                           impact: str = "", deleted: str = ""):
-    sort = _resolve_sort(sort, "sort_food_cache", "name", set(_FOOD_CACHE_SORT_KEYS))
+    sort = _resolve_sort(sort, "sort_food_cache", "meals90", set(_FOOD_CACHE_SORT_KEYS))
     show_archived = _resolve_bool_pref(show_archived, "show_archived_food_cache")
     with _db.get_db() as conn:
         rows = _filtered_cached_foods(conn, q, include_archived=show_archived)
@@ -4440,6 +4448,16 @@ def food_rename(fdc_id: int, name: str = Form("")):
     return RedirectResponse(f"/food/{fdc_id}?renamed={copied}", status_code=303)
 
 
+@app.post("/food/{fdc_id}/my-notes", response_class=RedirectResponse)
+def food_my_notes(fdc_id: int, notes: str = Form("")):
+    """Save the user's own notes on any food, from its page's Notes section
+    (db.food_set_user_notes: a custom food's notes, else user_notes, which
+    a Refresh from USDA never overwrites)."""
+    with _db.get_db() as conn:
+        _db.food_set_user_notes(conn, fdc_id, notes[:5000])
+    return RedirectResponse(f"/food/{fdc_id}?notes_saved=1#sec-food-notes", status_code=303)
+
+
 @app.post("/food/{fdc_id}/supplement", response_class=RedirectResponse)
 def food_set_supplement(fdc_id: int, is_supplement: int = Form(0), next: str = Form("")):
     """The "This is a supplement" switch on a food's page (supplements.py):
@@ -4513,12 +4531,16 @@ def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0,
                                   check: list[str] | None = Query(default=None),
                                   show_ignored: bool | None = None,
                                   gi_show_ignored: bool | None = None,
-                                  de_days: str | None = None, de_end: str | None = None):
+                                  de_days: str | None = None, de_end: str | None = None,
+                                  order: str | None = None):
     """Scan for referential-integrity problems (see db.check_db_integrity),
     then for cached foods missing whole nutrient groups (see
     numa_app/services/data_completeness.py). `check` picks which groups the
-    completeness scan looks at; remembered like other list-view toggles."""
+    completeness scan looks at; remembered like other list-view toggles.
+    `order`: every list of foods by meals eaten in the last 90 days
+    ("meals", the default) or by name ("name"); remembered too."""
     show_ignored = _resolve_bool_pref(show_ignored, "data_check_show_ignored")
+    order = _resolve_sort(order, "data_check_order", "meals", {"meals", "name"})
     gi_asked = gi_show_ignored is not None
     gi_show_ignored = _resolve_bool_pref(gi_show_ignored, "data_check_gi_show_ignored")
     if check is None:
@@ -4585,6 +4607,21 @@ def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0,
             days_eaten_end = None
         days_eaten_end = days_eaten_end or datetime.date.today().isoformat()
         days_eaten = _data_quality.foods_days_eaten(conn, days_eaten_end, days_eaten_n)
+        meals90 = (_data_quality.meals_eaten_counts(conn, datetime.date.today().isoformat())
+                   if order == "meals" else None)
+    # Every list of foods: most meals in the last 90 days first, or by name.
+    # "Foods: days eaten" keeps its own ranking (days, in the span chosen
+    # there) unless by name is chosen.
+    by = functools.partial(_data_quality.order_by_meals, counts=meals90)
+    gap_rows = by(gap_rows)
+    wet_dry = by(wet_dry)
+    quality["food_issues"] = by(quality["food_issues"])
+    missing_aa, missing_portions = by(missing_aa), by(missing_portions)
+    missing_gi, gi_not_needed = by(missing_gi), by(gi_not_needed)
+    generic_density, old_copies = by(generic_density), by(old_copies)
+    quality["stale_amounts"] = by(quality["stale_amounts"], name_key="food_name")
+    if meals90 is None:
+        days_eaten = by(days_eaten)
     # A finished water backfill's outcome is shown once, then forgotten.
     water_run = _water_backfill.status()
     if not water_run["running"]:
@@ -4637,6 +4674,9 @@ def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0,
         "vitamin_k_run": vitamin_k_run,
         "days_eaten": days_eaten,
         "days_eaten_asked": bool(de_days or de_end),
+        "order": order,
+        "meals90": meals90 or {},
+        "meals_days": _data_quality.MEALS_EATEN_DAYS,
         "days_eaten_n": days_eaten_n,
         "days_eaten_end": days_eaten_end,
         "days_eaten_start": (datetime.date.fromisoformat(days_eaten_end)
@@ -5242,10 +5282,11 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
                       link_id: int = 0, filter: str = "", sort: str | None = None,
                       show_archived: bool | None = None, archived: int = 0, restored: int = 0):
     show_archived = _resolve_bool_pref(show_archived, "show_archived_pantry")
-    sort = _resolve_sort(sort, "sort_pantry", "name", set(_PANTRY_SORT_KEYS))
+    sort = _resolve_sort(sort, "sort_pantry", "meals90", set(_PANTRY_SORT_KEYS))
     with _db.get_db() as conn:
         rows = _db.pantry_list(conn, include_archived=show_archived)
         usage = _data_quality.usage_counts(conn)
+        meals90 = _data_quality.meals_eaten_counts(conn, datetime.date.today().isoformat())
         ignores = _db.food_data_ignores(conn)
         track_water = _track_water()
         fdc_ids = [r["fdc_id"] for r in rows if r["fdc_id"]]
@@ -5269,6 +5310,7 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
                 "other_missing": (_other_nutrients(nuts, r["fdc_id"], ignores, cached["is_supplement"], track_water)
                                   if cached else None),
                 "use":         usage.get(r["fdc_id"], {"recipes": 0, "meals": 0}),
+                "meals90":     meals90.get(r["fdc_id"], 0) if r["fdc_id"] else 0,
             })
             items.append(item)
     items.sort(key=_PANTRY_SORT_KEYS[sort])
@@ -5386,6 +5428,14 @@ def pantry_remove(request: Request, pantry_id: int, next: str = Form("")):
         _db.pantry_remove(conn, pantry_id)
     if _is_ajax_row_action(request):
         return JSONResponse({"ok": True})
+    return RedirectResponse(_list_return(next, "/pantry"), status_code=303)
+
+
+@app.post("/pantry/{pantry_id}/notes", response_class=RedirectResponse)
+def pantry_notes(pantry_id: int, notes: str = Form(""), next: str = Form("")):
+    """Change a pantry entry's note from its row on the Pantry list."""
+    with _db.get_db() as conn:
+        _db.pantry_set_notes(conn, pantry_id, notes[:1000])
     return RedirectResponse(_list_return(next, "/pantry"), status_code=303)
 
 
@@ -6132,6 +6182,11 @@ def _food_detail_context(
         "water_estimated": (_water.WATER_KEY in nutrients and "estimated_keys_json" in cached.keys()
                             and _water.WATER_KEY in json.loads(cached["estimated_keys_json"] or "[]")),
         "notes":         (cached["notes"] or "").strip() if "notes" in cached.keys() else "",
+        # The user's own notes (Notes → Your notes): a custom food's `notes`
+        # are already theirs; any other food's are kept in `user_notes`.
+        "user_notes":    ((cached["user_notes"] or "").strip()
+                          if "user_notes" in cached.keys() else ""),
+        "custom":        bool(cached["user_drafted"]) and fdc_id < 0,
     }
 
     # Resolve portion: free-form string takes priority over plain gram amount
@@ -6692,7 +6747,7 @@ def oxalate_link_post(
 def _food_available_sections(ctx: dict) -> list[str]:
     available = []
     food = ctx.get("food") or {}
-    if food.get("notes") or food.get("prep_context"):
+    if food.get("notes") or food.get("user_notes") or food.get("prep_context"):
         available.append("notes")
     if ctx.get("nutrient_sections"):
         available.append("nutrient_table")
@@ -7870,7 +7925,8 @@ def meal_refresh_aa(meal_id: int):
 
 @app.get("/meal/{meal_id}", response_class=HTMLResponse)
 def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", sort: str | None = None,
-                     item_sort: str | None = None, source: list[str] | None = Query(default=None),
+                     item_sort: str | None = None, item_view: str | None = None,
+                     source: list[str] | None = Query(default=None),
                      limit: int | None = None,
                      ignore_complements: list[str] = Query(default=[]),
                      unignore: list[str] = Query(default=[]),
@@ -7882,6 +7938,7 @@ def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", 
                      aa_refreshed: int | None = None, aa_differs: str = "", added_check: str = ""):
     sort = _resolve_sort(sort, "sort_food_search", "relevance", _SEARCH_SORT_MODES)
     item_sort = _resolve_sort(item_sort, "sort_meal_items", "alpha", {"alpha", "entry"})
+    item_view = _resolve_sort(item_view, "view_meal_items", "logged", set(_miv.VIEWS))
     # "Refresh from USDA" result: foods it filled, and foods whose USDA copy
     # also differs on values they already have (left alone; review offered).
     aa_differ_foods: list[dict] = []
@@ -7911,6 +7968,13 @@ def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", 
         return RedirectResponse("/meals", status_code=303)
 
     items, total_nutrients, diaas_result, meal_ingredients = _meal_totals(meal_id)
+    # Items' other two views (Foods; Foods & recipes) — built from entry order.
+    item_view_rows = None
+    if item_view != "logged":
+        with _db.get_db() as conn:
+            item_view_rows = (_miv.foods_view(items, conn) if item_view == "foods"
+                              else _miv.whole_view(items))
+        item_view_rows = _miv.sort_rows(item_view_rows, item_sort)
     items = _sort_meal_items_display(items, item_sort)
 
     contributor_options = _contributor_rank_options(total_nutrients)
@@ -8024,6 +8088,8 @@ def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", 
         "meal":                dict(meal),
         "items":               items,
         "item_sort":           item_sort,
+        "item_view":           item_view,
+        "item_view_rows":      item_view_rows,
         "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients,
                                                   optimal=optimal, max_limits=max_limits,
                                                   dcp_g=diaas_display["dcp_g"] if diaas_display else None,

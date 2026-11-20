@@ -199,6 +199,14 @@ def init_db() -> None:
             conn.execute("ALTER TABLE foods ADD COLUMN curator_notes TEXT")
         except sqlite3.OperationalError:
             pass
+        # The user's own notes on a food (food page → Notes → Your notes).
+        # Kept apart from `notes`, which cache_food() overwrites with the
+        # source's notes on every Refresh from USDA; nothing but
+        # food_set_user_notes() writes this column.
+        try:
+            conn.execute("ALTER TABLE foods ADD COLUMN user_notes TEXT")
+        except sqlite3.OperationalError:
+            pass
         # Migrate: clear curator notes holding no words at all. The Claude
         # fetch import used to save the commas left between foods, when a reply
         # listed them as a bare JSON array, as every imported food's "curator
@@ -1033,9 +1041,23 @@ def list_cached_foods(conn: sqlite3.Connection, *, include_archived: bool = Fals
     archived_clause = "" if include_archived else "WHERE archived = 0"
     return conn.execute(
         "SELECT fdc_id, name, data_type, brand, serving_size, serving_unit, "
-        "nutrients_json, portions_json, notes, curator_notes, archived, is_supplement "
+        "nutrients_json, portions_json, notes, curator_notes, user_notes, archived, is_supplement "
         f"FROM foods {archived_clause} ORDER BY name"
     ).fetchall()
+
+
+def food_set_user_notes(conn: sqlite3.Connection, fdc_id: int, notes: str) -> bool:
+    """Save the user's own notes on a food (blank clears them). A custom
+    food's `notes` are already the user's (its Edit values page writes
+    them), so for one those are what change; any other food's go in
+    `user_notes`, which a Refresh from USDA never touches. True if the
+    food exists."""
+    row = conn.execute("SELECT user_drafted FROM foods WHERE fdc_id = ?", (fdc_id,)).fetchone()
+    if row is None:
+        return False
+    column = "notes" if row["user_drafted"] and fdc_id < 0 else "user_notes"
+    conn.execute(f"UPDATE foods SET {column} = ? WHERE fdc_id = ?", (notes.strip() or None, fdc_id))
+    return True
 
 
 def delete_cached_food(conn: sqlite3.Connection, fdc_id: int) -> bool:
@@ -3000,6 +3022,15 @@ def merge_food_into(conn: sqlite3.Connection, keep_id: int, drop_id: int) -> dic
     for table in ("food_annotations", "oxalate_links"):
         if not conn.execute(f"SELECT 1 FROM {table} WHERE fdc_id = ?", (keep_id,)).fetchone():
             conn.execute(f"UPDATE {table} SET fdc_id = ? WHERE fdc_id = ?", (keep_id, drop_id))
+    # The user's own notes on the dropped food are added to the kept one's.
+    def own_notes(fid):
+        row = conn.execute("SELECT user_notes FROM foods WHERE fdc_id = ?", (fid,)).fetchone()
+        return ((row["user_notes"] if row else None) or "").strip()
+    dropped = own_notes(drop_id)
+    if dropped:
+        kept = own_notes(keep_id)
+        conn.execute("UPDATE foods SET user_notes = ? WHERE fdc_id = ?",
+                     (f"{kept}\n\n{dropped}" if kept else dropped, keep_id))
     # Both foods in the pantry would now mean two entries for one food.
     pantry_merge_duplicates(conn, keep_id)
     delete_cached_food(conn, drop_id)
@@ -3101,6 +3132,12 @@ def pantry_update(conn: sqlite3.Connection, pantry_id: int,
         "UPDATE pantry SET food_name = ?, fdc_id = ?, notes = ? WHERE id = ?",
         (food_name, fdc_id, notes or None, pantry_id)
     )
+    return cur.rowcount > 0
+
+
+def pantry_set_notes(conn: sqlite3.Connection, pantry_id: int, notes: str) -> bool:
+    """Change a pantry entry's note (blank clears it). True if it exists."""
+    cur = conn.execute("UPDATE pantry SET notes = ? WHERE id = ?", (notes.strip() or None, pantry_id))
     return cur.rowcount > 0
 
 

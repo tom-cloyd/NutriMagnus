@@ -54,6 +54,18 @@
 <p><a href="/food/cache/problems" class="btn btn-sm btn-outline-primary" title="The same checks, one entry per food: everything wrong with a food and how to fix it, together">Problems by food</a>
   <a href="/food/cache/duplicates" class="btn btn-sm btn-outline-secondary">Find duplicate foods</a> {{ manual_link("checking-your-data", "All of NuMa’s data checks") }}</p>
 <p class="muted" style="max-width:48rem"><small>This page lists by problem. To see everything wrong with each food in one place, use <strong>Problems by food</strong>.</small></p>
+<form method="get" action="/food/cache/db-check" class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <label class="d-flex align-items-center gap-1 m-0" for="db-check-order">Order every list of foods:
+    <select name="order" id="db-check-order" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="meals" {% if order == "meals" %}selected{% endif %}>most meals in the last {{ meals_days }} days first</option>
+      <option value="name" {% if order == "name" %}selected{% endif %}>alphabetically</option>
+    </select>
+  </label>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary">Show</button></noscript>
+</form>
+{# "· 12 meals": beside a food in each list while lists are ordered by meals
+   eaten (meals90, the last meals_days days, recipes included). #}
+{% macro _m90(fid) %}{% if order == "meals" and meals90.get(fid) %} <small class="muted" title="Meals it was in over the last {{ meals_days }} days, on its own or in a recipe">&middot; {{ meals90[fid] }} meal{{ "s" if meals90[fid] != 1 }}</small>{% endif %}{% endmacro %}
 
 <h3 id="integrity" class="mt-4">Broken references {{ manual_link("db-check") }}</h3>
 <p class="muted">Looks for pantry entries, recipe ingredients, or logged meal items that still point at a food or recipe no longer in the database — a food page for one of these will fail to open, and a deleted recipe's nutrients are left out of every meal and recipe that names it. This can't happen through normal use anymore (deleting a still-used food or recipe is now refused), but can be left over from before that, or from a manually edited database file.</p>
@@ -320,7 +332,7 @@ each of the group&rsquo;s missing values, so the food counts, as 0, everywhere. 
     <tbody>
     {% for r in wet_dry %}
       <tr>
-        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{{ _m90(r.fdc_id) }}</td>
         <td class="num-col">{{ r.water | round(1) }}&thinsp;g</td>
         <td>&ldquo;{{ r.flagged_name }}&rdquo; <span class="muted">({{ r.word }})</span></td>
         <td><small>
@@ -398,7 +410,7 @@ what&rsquo;s missing &mdash; see {{ manual_link("fetch") }}. Save any &ldquo;not
     <tbody>
       {% for r in gap_rows %}
       <tr>
-        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}</td>
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{{ _m90(r.fdc_id) }}</td>
         {% for g, label, _ in groups if g in checked %}
         <td class="text-center" style="white-space:nowrap">
           {% if g in r.missing %}
@@ -489,7 +501,7 @@ listed here for information, not as a problem. A food whose macronutrients you&r
     <tbody>
       {% for r in food_issue_rows %}
       <tr>
-        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}
+        <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{{ _m90(r.fdc_id) }}
           {# The ways to fix it by hand, for whatever the one-click fixes don't cover. #}
           <div class="small mt-1">
             {% if r.is_usda %}<a href="/food/{{ r.fdc_id }}/review-incoming?source=usda" title="Fetch USDA&rsquo;s current figures and compare them with this food&rsquo;s, value by value, before taking any">Refresh from USDA</a> &middot; {% endif %}
@@ -526,13 +538,13 @@ listed here for information, not as a problem. A food whose macronutrients you&r
 {% for sec in [
      {"id": "missing-aa", "rows": missing_aa, "key": "aa", "title": "Foods you use with no amino acid data",
       "manual": "missing-aa",
-      "intro": "Foods with real protein (1 g or more per 100 g) but no amino acid figures, so they are left out of protein quality (DCP, DIAAS) wherever they appear. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, open it: look for a Foundation or SR Legacy version, use Refresh from USDA, or estimate its amino acids from a similar food. If it doesn&rsquo;t matter (a little cheese on a salad, say), tick not needed."},
+      "intro": "Foods with real protein (1 g or more per 100 g) but no amino acid figures, so they are left out of protein quality (DCP, DIAAS) wherever they appear. Only foods used in a recipe, a meal or your pantry are listed. To fix one, open it: look for a Foundation or SR Legacy version, use Refresh from USDA, or estimate its amino acids from a similar food. If it doesn&rsquo;t matter (a little cheese on a salad, say), tick not needed."},
      {"id": "missing-portions", "rows": missing_portions, "key": "portions", "title": "Foods you use with no portion weights",
       "manual": "ts-no-volume-portion",
-      "intro": "Foods with no cup, spoon, piece or other portion weight, so an amount for them can only be typed as a weight. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, add a weight once on its Portions page. If you always weigh it anyway, tick not needed."}]
+      "intro": "Foods with no cup, spoon, piece or other portion weight, so an amount for them can only be typed as a weight. Only foods used in a recipe, a meal or your pantry are listed. To fix one, add a weight once on its Portions page. If you always weigh it anyway, tick not needed."}]
    + ([{"id": "missing-gi", "rows": missing_gi, "key": "gi", "title": "Foods you use with no GI",
       "manual": "missing-gi",
-      "intro": "Foods with 5 g or more carbohydrate per 100 g but no glycemic index (GI), so they leave glycemic load incomplete wherever they appear, and can&rsquo;t be suggested as lower-GI swaps. Only foods used in a recipe, a meal or your pantry are listed, most-used first. To fix one, click look up a GI and pick the matching row from the reference table. If its GI doesn&rsquo;t matter to you, tick not needed (the same as &ldquo;don&rsquo;t prompt me&rdquo; on its Annotate page)."}] if not gi_opt_out else []) %}
+      "intro": "Foods with 5 g or more carbohydrate per 100 g but no glycemic index (GI), so they leave glycemic load incomplete wherever they appear, and can&rsquo;t be suggested as lower-GI swaps. Only foods used in a recipe, a meal or your pantry are listed. To fix one, click look up a GI and pick the matching row from the reference table. If its GI doesn&rsquo;t matter to you, tick not needed (the same as &ldquo;don&rsquo;t prompt me&rdquo; on its Annotate page)."}] if not gi_opt_out else []) %}
 {% set open_rows = sec.rows | rejectattr("ignored") | list %}
 {# GI only: the button below swaps the in-use "not needed" rows for every food
    whose GI is marked not needed — used or not, any carbohydrate, GI recorded
@@ -569,7 +581,7 @@ listed here for information, not as a problem. A food whose macronutrients you&r
         <tbody>
           {% for r in rows %}
           <tr>
-            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% elif sec.key == "aa" and r.fill_url %} &middot; <a href="{{ r.fill_url }}" class="small" title="Opens Fill in nutrients from another food, already searching USDA, the other food tables and your Food Cache for this food&rsquo;s name. Pick a similar food and its amino acids are copied, scaled to this food&rsquo;s protein, as an estimate.">find amino acid data</a>{% endif %}</td>
+            <td><a href="/food/{{ r.fdc_id }}">{{ r.name }}</a>{{ food_id_tag(r.fdc_id) }}{{ _m90(r.fdc_id) }}{% if sec.key == "portions" %} &middot; <a href="/food/cache/{{ r.fdc_id }}/portions" class="small">add a portion</a>{% elif sec.key == "gi" %} &middot; <a href="/food/annotate/{{ r.fdc_id }}?next=/food/cache/db-check%23missing-gi" class="small">look up a GI</a>{% elif sec.key == "aa" and r.fill_url %} &middot; <a href="{{ r.fill_url }}" class="small" title="Opens Fill in nutrients from another food, already searching USDA, the other food tables and your Food Cache for this food&rsquo;s name. Pick a similar food and its amino acids are copied, scaled to this food&rsquo;s protein, as an estimate.">find amino acid data</a>{% endif %}</td>
             <td>{{ _uses(r.use) or ("" if not gi_all else "&mdash; not used"|safe) }}</td>
             {% if sec.key == "aa" %}<td class="text-end">{{ "%.1f"|format(r.protein) }}&thinsp;g</td>{% elif sec.key == "gi" %}<td class="text-end">{% if r.carbs is none %}<span class="muted">unknown</span>{% else %}{{ "%.1f"|format(r.carbs) }}&thinsp;g{% endif %}{% if r.gi is defined and r.gi is not none %}<br><span class="muted small">has GI {{ "%g"|format(r.gi) }}</span>{% endif %}</td>{% endif %}
             <td><input type="hidden" name="shown" value="{{ r.fdc_id }}:{{ sec.key }}">
@@ -639,7 +651,8 @@ listed here for information, not as a problem. A food whose macronutrients you&r
 </script>
 
 {% macro _days_cell(r) %}{{ r.days }}{% if r.recipe_days %} <span class="muted small">({{ "all" if r.recipe_days == r.days else r.recipe_days }} in a recipe)</span>{% endif %}{% endmacro %}
-{% set de_no_gi = days_eaten | selectattr("gi_gap_days") | sort(attribute="gi_gap_days", reverse=True) | list %}
+{% set de_no_gi = days_eaten | selectattr("gi_gap_days") | list %}
+{% if order == "meals" %}{% set de_no_gi = de_no_gi | sort(attribute="gi_gap_days", reverse=True) | list %}{% endif %}
 {% set de_no_carbs = days_eaten | selectattr("carbs", "none") | rejectattr("carbs_not_needed") | list %}
 <hr class="mt-5">
 <details id="days-eaten" class="mt-4"{% if days_eaten_asked %} open{% endif %}>
@@ -722,7 +735,7 @@ listed here for information, not as a problem. A food whose macronutrients you&r
       <tbody>
         {% for f in generic_density %}
         <tr>
-          <td style="vertical-align:top"><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }}<br>
+          <td style="vertical-align:top"><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }}{{ _m90(f.fdc_id) }}<br>
             <a href="/food/cache/{{ f.fdc_id }}/portions" class="small">add its cup or spoon weight</a></td>
           <td><ul class="mb-0 ps-3 small">{% for u in f.uses %}
             <li>{% if u.where == "recipe" %}<a href="/recipe/{{ u.owner_id }}">{{ u.owner_label }}</a>{% else %}<a href="/meal/{{ u.owner_id }}">{{ u.owner_label }}</a> <span class="muted">(logged meal)</span>{% endif %}:
@@ -775,7 +788,7 @@ whether anything changed and lets you choose what to take.</p>
 {% set _summary %}<strong>{{ old_copies|length }}</strong> food{{ "s" if old_copies|length != 1 }} last fetched over {{ old_copy_days }} days ago.{% endset %}
 {% call fold_list(old_copies|length, "old-copies", _summary, only_when_folded=True) %}
 <ul>
-  {% for f in old_copies %}<li><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }} <small class="muted">(last fetched {{ f.cached_at[:10] }})</small></li>{% endfor %}
+  {% for f in old_copies %}<li><a href="/food/{{ f.fdc_id }}">{{ f.name }}</a>{{ food_id_tag(f.fdc_id) }}{{ _m90(f.fdc_id) }} <small class="muted">(last fetched {{ f.cached_at[:10] }})</small></li>{% endfor %}
 </ul>
 {% endcall %}
 {% endif %}

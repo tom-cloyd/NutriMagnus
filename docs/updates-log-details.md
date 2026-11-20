@@ -8,7 +8,69 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+#### November 19 updates
+
+**PROGRAM: "COMPARE CHECKED FOODS WITH THIS ONE" TURNS BLUE WHEN READY; COMPARE KEEPS YOUR TICKS**
+
+On **Fill in nutrients from another food** and a custom food's **Edit values** page, the **Compare checked foods with this one** button now starts grey and turns blue once one food is ticked (the page's own food is the other), like the Compare buttons on searches and lists, which turn blue at two. Before, it stayed a blue outline whatever was ticked. And every Compare button (these two, and Compare nutrition of selected on searches and lists) now keeps your ticks after comparing: coming back (its **← Back** button), the foods you ticked are still ticked, so you can untick or add one and compare again; before, comparing cleared them. **Clear all picks** unticks them all. [learn more...](#compare-picks)
+
+<!--
+```
+Scope: web/templates/base.html (Compare picks script: a group's `min`, 1 for the custom-profile compare forms, ; picks are no longer cleared when Compare opens, for any Compare button: the SENT/clearSent step is gone), food_fill_from.html and food_custom_edit.html (button starts btn-outline-secondary), tests/e2e/test_compare_picks_e2e.py.
+```
+-->
+
+**PROGRAM: YOUR OWN NOTES ON ANY FOOD; PANTRY NOTES CAN BE CHANGED**
+
+Every food's page now has a **Notes** section with **Add your own notes on this food**: type, **Save notes**; clear the box and save to remove them. They're kept apart from the notes a food came with (now shown as **From the food's source**), so **Refresh from USDA** never overwrites them, and they show in the Food Cache's **Notes ▸** and on the printout. A custom food's box edits its existing notes (the same as on Edit values). Merging duplicate foods keeps both foods' notes. On the Pantry list, each entry's note is now editable in place (click it, or **add a note**); before, it could only be typed when the food was first added. [learn more...](#food-notes)
+
+<!--
+```
+Scope: db.py (foods.user_notes column; food_set_user_notes(), custom food → notes; pantry_set_notes(); merge_food_into() appends the dropped food's user_notes; list_cached_foods selects user_notes), web/backend.py (POST /food/{id}/my-notes, POST /pantry/{id}/notes; food ctx user_notes/custom; Food Cache rows user_notes; print "notes" section counts user_notes), web/templates/food_detail.html (Notes section always shown, sidebar entry too), food_cache.html, pantry.html, print.html, tests/test_web.py, docs/claude/data-shapes.md.
+```
+-->
+
+**PROGRAM: FOOD CACHE AND PANTRY CAN LIST THE FOODS YOU EAT MOST FIRST**
+
+The Food Cache's and My Pantry's **Sort by** menus gain **Most meals, last 90 days**, the same order as Foods → 9's lists: foods in the most meals over the last 90 days first (on their own or inside a recipe), then the rest by name. While it's chosen, **Used in** adds "N in last 90 days". It is the default sort; a sort you'd already chosen is kept, and **Name** is still there for alphabetical. [learn more...](#food-cache-web)
+
+<!--
+```
+Scope: web/backend.py (_FOOD_CACHE_SORT_KEYS["meals90"], so also _PANTRY_SORT_KEYS and the Archived page's menu; meals90 field in _food_cache_rows and pantry_get via data_quality.meals_eaten_counts; default sort "meals90" for sort_food_cache / sort_pantry), web/templates/food_cache.html and pantry.html (option, count line), tests/test_data_quality.py.
+```
+-->
+
+**PROGRAM: FOODS → 9 LISTS START WITH THE FOODS YOU EAT MOST**
+
+On Foods → 9 (Check database), every list of foods (missing nutrient data, named dry but mostly water, food data problems, no amino acid data, no portion weights, no GI, generic density, amounts that no longer match, old USDA copies) now starts with the foods that were in the most meals over the last 90 days, on their own or inside a recipe, and shows that count beside each name ("· 12 meals"). Ties keep the list's previous order. A new **Order every list of foods** menu at the top switches all of them to alphabetical, and is remembered. *Foods: days eaten* keeps its own ranking by days eaten unless alphabetical is chosen; *Broken references* is unchanged. [learn more...](#checking-your-data)
+
+<!--
+```
+Scope: numa_app/services/data_quality.py (MEALS_EATEN_DAYS, meals_eaten_counts(), order_by_meals()), web/backend.py (food_cache_db_check_get: order param, pref data_check_order, lists re-sorted), web/templates/food_cache_db_check.html (order select, _m90 macro beside each food; "most-used first" dropped from three intros; de_no_gi sorted only in meals order), tests/test_data_quality.py, tests/test_web.py.
+```
+-->
+
+**PROGRAM: CTRL+CLICK ON CONTENTS AND MANUAL LINKS EXPLAINS THE BROWSER TAB TOO**
+
+In NuMa's own window, a Ctrl/Shift+click or middle-click on a link to a part of the same page, such as an entry in a meal's, day's or recipe's **Contents** sidebar, now shows the "Opening in a browser tab" explanation before the tab (a second copy of the page) opens; before, it opened unannounced. Likewise, a Ctrl/Shift+click or middle-click on a link in the User Manual (its contents, or a link in its text) now shows the same "Opening in a browser tab" explanation as one on a NuMa page; before, the tab opened without it. A link to a manual section opens the tab at that section, shown under NuMa's menu like the manual itself. "Don't show this again" covers both. [learn more...](#two-windows)
+
+<!--
+```
+Scope: web/templates/base.html (notice's show() split out; onHashClick, a bubble-phase listener for same-page #links, skipped when a page handler already preventDefault()ed or the link has data-bs-toggle; window.numaNewTabNotice(href) for the manual frame), web/templates/manual_frame.html (capture click/auxclick listener on the frame's document hands modified clicks to it, /manual/page#x mapped to /manual#x; the plain-click redirect skips modified clicks).
+```
+-->
+
 #### November 18 updates
+
+**PROGRAM: A MEAL'S ITEMS CAN BE VIEWED AS FOODS, OR WITH EACH RECIPE KEPT WHOLE**
+
+On a meal's page, Items has a **View** menu beside **Sort by**. **As logged** is the list as before. **Foods** lists every food eaten, with recipes (and recipes inside them) broken down and a food reached more than once shown as one row, with where it came from. **Foods & recipes** keeps each recipe whole, gathering a recipe you added as individual ingredients back into one row. The choice is remembered; only As logged has Edit and remove. [learn more...](#meal-items-view)
+
+<!--
+```
+Scope: meal page. numa_app/services/meal_item_views.py (new: foods_view() via expand_recipe_ingredients, whole_view() via items' from_recipe, sort_rows()), web/backend.py (meal_view: item_view param, pref view_meal_items, item_view_rows), web/templates/meal.html (View select; read-only table for the two new views; footnotes only in As logged), tests/test_meal_item_views.py (new), README (tree entry, test table, count).
+```
+-->
 
 **PROGRAM: ARCHIVED FOODS AND RECIPES PAGE FINDS THEIR MISSING NUTRIENT DATA**
 

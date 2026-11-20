@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-18:0300
+UPDATED: 2026-11-19:2154
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -232,6 +232,12 @@ numa/
                                       day pages' per-meal table (_protein_per_meal.html; the day table
                                       reads each meal's stored bcp_g + nutrients snapshot). Sources:
                                       manual #protein-per-meal
+      meal_item_views.py             — the meal page's Items "View": As logged (built by backend),
+                                      Foods (foods_view(): recipes broken down, sub-recipes too, one
+                                      row per food with where it came from) and Foods & recipes
+                                      (whole_view(): ingredients logged separately, tagged
+                                      from_recipe_id, gathered back under their recipe). Read-only;
+                                      pref view_meal_items
       water.py                       — water from drinks vs from food: tag() adds the split of a
                                       food's water_g when meals/recipes are totalled; is_drink()
                                       reads foods.is_drink / recipes.is_drink; looks_like_drink()
@@ -1741,7 +1747,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,600 tests**, all passing (2,546 in the default run plus 54 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,611 tests**, all passing (2,557 in the default run plus 54 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1764,6 +1770,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_recipe_edit_effects.py` | `numa_app/services/recipe_edit_effects.py` and its Edit page routes: the offer after an add, remove or amount change (shown once), one report covering every change since the last, appending within a session and replacing the file at a new session's first report, remembered nutrient choice, the 5% filter, the Show button's HTML, the food-details panel |
 | `tests/test_recipe_csv.py` | `numa_app/services/recipe_csv.py`: recipe CSV export/import, sub-recipe closure collection, two-pass dedup-and-create import |
+| `tests/test_meal_item_views.py` | `numa_app/services/meal_item_views.py`: Foods view (recipes broken down, sub-recipes scaled, one food combined with its sources), Foods & recipes view (separately logged ingredients gathered under their recipe), sorting; the meal page's View selector, remembered choice and fallback |
 | `tests/test_protein_per_meal.py` | `numa_app/services/protein_per_meal.py`: per-meal amount by age/weight (adult g/kg, 65+ PROT-AGE, no-profile general), DCP preferred over raw protein, a large meal never flagged; meal page line and day page per-meal table |
 | `tests/test_gl_swaps.py` | `top_contributors.rank_contributors_by_gl()` (sums to the meal GL, merges a food reached twice, names no-GI foods, coverage) and `numa_app/services/gl_swaps.py` (shared-name-words ordering, carbohydrate-similarity and minimum-GI-drop filters, archived foods excluded); meal and recipe pages' "rank by glycemic load" view, swap links that open a working What-if (this meal and last 30 days; recipe); the swap notes' count of foods with a GI and link to Foods → 9's no-GI list; `data_quality.missing_gi_in_use()` and its "not needed" (GI "don't prompt me") save; `data_quality.gi_not_needed()` and the section's "Also list foods for which the GI is marked 'not needed'" button (retitled section, remembered, undo by unticking); impaired-tolerance GI values marked on the food, Annotate and meal pages and in swaps; Compare's glycemic table (GI, GL per 100 g, lowest complete GL highlighted, "≥" with coverage for a recipe missing a GI); Recent Days' Day GL column; links from every impaired-tolerance mark to `#gi-impaired`; the daily GL target (Settings save keeps the active profile's name; day page line, Recent Days colour, trend days-over, blank turns it off; Settings' "Help me choose" panel and its manual link) |
 | `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL worked out live through sub-recipes (cycles, deleted sub-recipes), partial totals with gaps and their reasons (no GI / "don't prompt" / no data), the 1 g negligible-carbohydrate floor, impaired-tolerance GI values named (`impaired`), carbohydrate coverage (`coverage_pct`, summed by `combine_gl()`), daily GL target suggestions (`gl_target_options()`), `gl_for_leaves()` matching `gl_for_items()`, available carbohydrate by source (`available_carbs_100g()`), the estimated mixture GI (weighting, 10 g floor, coverage, band closeness, day combination) and uncooked recipe ingredients (`looks_uncooked()`, `recipes.gi_as_eaten`, per-recipe scope), serving-vs-day band boundaries, day totals and multi-day averaging; multi-item accumulation, items after each blocker kind, and `meal_line_items()` shape (from the 2026-09-30 mutation run) |
@@ -1785,7 +1792,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_csv_import.py` | `numa_app/services/csv_import.py`: Food Cache CSV import parsing |
 | `tests/test_claude_fetch.py` | `numa_app/services/claude_fetch.py`: prompt-building and response-parsing for the Claude AI fetch/import workflow |
 | `tests/test_incoming_review.py` | `numa_app/services/incoming_review.py` and its review screen: fill/differs/same/dropped classification and default ticks, USDA Refresh keeping an edited food's own values, portions only ever added, fill-from-another-food marking the food edited (not custom), amino acids scaled to this food's (or the ticked incoming) protein, estimated values yielding to USDA's measured ones, and the meal page's blanks-only "Refresh from USDA"; renaming any food (POST `/food/{id}/rename`: name copied to recipes/meals, `name_by_user` keeps it through a Refresh, a blank name refused) |
-| `tests/test_data_quality.py` | `numa_app/services/data_quality.py` and its pages: impossible values, one-click fixes for food data problems (kilojoules, per-serving calories, mg-as-g, sugars/fat parts, negatives, estimates; applied, logged, shown as the user's edit, stale fix refused), stale amounts found and fixed (with the change-impact summary; from Foods → 9 and from a food's Portions page, with its default ticks, bracketed-weight rows, Keep as entered rewriting the amount as its own weight, and old keeps converted at startup), Home reminder new/seen/off, the note after adding a problem food, the past-meal recalculation note, in-use missing-AA/portion lists with "not needed", duplicate merge/dismiss, Claude-import impact |
+| `tests/test_data_quality.py` | `numa_app/services/data_quality.py` and its pages: impossible values, one-click fixes for food data problems (kilojoules, per-serving calories, mg-as-g, sugars/fat parts, negatives, estimates; applied, logged, shown as the user's edit, stale fix refused), stale amounts found and fixed (with the change-impact summary; from Foods → 9 and from a food's Portions page, with its default ticks, bracketed-weight rows, Keep as entered rewriting the amount as its own weight, and old keeps converted at startup), Home reminder new/seen/off, the note after adding a problem food, the past-meal recalculation note, in-use missing-AA/portion lists with "not needed", Foods → 9's lists, the Food Cache and My Pantry ordered by meals in the last 90 days or by name, duplicate merge/dismiss, Claude-import impact |
 | `tests/test_supplements.py` | `numa_app/services/supplements.py` and its pages: the split tag, every food check skipped (and back when unmarked), no weight and no GL gap, bare numbers counting tablets, the from-supplements line on meal/day/summary/trend pages, the food page switch and per-tablet reading, supplement mode marking a custom food |
 | `tests/test_entry_parse.py` | `numa_app/services/entry_parse.py`: numbers (thousands/decimal commas, fractions, ½), nutrient units and conversions (mg/mcg/g, IU for A/D/E, kJ), blanks and "trace", refused inputs and their messages, pasted amino acid tables in four units, supplement-mode portion |
 | `tests/test_energy_check.py` | `numa_app/services/energy_check.py` and `db._calorie_check()`: 4/4/9 estimate, fill-and-mark on save, re-estimate on macro edits, real value clears the mark, mismatch rule |

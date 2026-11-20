@@ -4253,8 +4253,16 @@ def test_food_page_and_printout_show_its_notes_and_prep_context(client: TestClie
     assert 'id="sec-food-notes"' in client.get(f"/food/{fid}").text
 
 
-def test_food_page_has_no_notes_section_without_notes(client: TestClient, cached_food) -> None:
-    assert 'id="sec-food-notes"' not in client.get(f"/food/{cached_food['fdcId']}").text
+def test_food_page_without_notes_offers_to_add_them(client: TestClient, cached_food) -> None:
+    """With no notes, the Notes section is just a folded "Add your own
+    notes" box (so a note can be added to any food), and the printout has
+    no Notes heading."""
+    fid = cached_food["fdcId"]
+    page = client.get(f"/food/{fid}").text
+    notes = page.split('id="sec-food-notes"')[1].split("</section>")[0]
+    assert "Add your own notes on this food" in notes and "<details class=\"mb-2\">" in notes
+    assert "From the food&rsquo;s source" not in notes and "Prep context" not in notes
+    assert "<h2>Notes</h2>" not in client.get(f"/food/{fid}/print").text
 
 
 def test_recipe_portion_analysis_shows_recipe_notes(client: TestClient, cached_food, db_conn) -> None:
@@ -10200,3 +10208,63 @@ def test_settings_api_key_save_test_and_clear(client, usda_config, monkeypatch):
     r = client.post("/settings/api-key", data={"api_key": ""})
     assert usda_api.get_api_key() == "" and usda_api.get_api_key_check() is None
     assert "API key cleared." in r.text
+
+
+# --- Your own notes on a food, and pantry notes ------------------------------
+
+def test_your_notes_on_a_usda_food_survive_a_refresh(client: TestClient) -> None:
+    """Notes → Your notes on any food's page: saved apart from the source's
+    notes, so re-caching the food (Refresh from USDA) keeps them; shown in
+    the Food Cache's Notes ▸; a blank box clears them."""
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 997501, "Lentils, test", "SR Legacy", None, 100.0, "g",
+                       {"calories": 116.0}, [], notes="USDA source note")
+    page = client.get("/food/997501").text
+    assert "Add your own notes on this food" in page and "USDA source note" in page
+    resp = client.post("/food/997501/my-notes", data={"notes": "  Soak overnight  "}, follow_redirects=False)
+    assert resp.headers["location"] == "/food/997501?notes_saved=1#sec-food-notes"
+    page = client.get(resp.headers["location"]).text
+    assert "Notes saved." in page and ">Soak overnight</textarea>" in page
+    with _db.get_db() as conn:
+        _db.cache_food(conn, 997501, "Lentils, test", "SR Legacy", None, 100.0, "g",
+                       {"calories": 116.0}, [], notes="New USDA note")
+        food = _db.get_cached_food(conn, 997501)
+    assert (food["user_notes"], food["notes"]) == ("Soak overnight", "New USDA note")
+    assert "<strong>Your notes:</strong><br>Soak overnight" in client.get("/food/cache?sort=name").text
+    client.post("/food/997501/my-notes", data={"notes": "   "})
+    with _db.get_db() as conn:
+        assert _db.get_cached_food(conn, 997501)["user_notes"] is None
+
+
+def test_your_notes_on_a_custom_food_are_its_own_notes(client: TestClient) -> None:
+    with _db.get_db() as conn:
+        _db.cache_food(conn, -997502, "My granola", "Custom", None, 100.0, "g",
+                       {"calories": 450.0}, [], user_drafted=True, notes="old")
+    client.post("/food/-997502/my-notes", data={"notes": "Less honey next time"})
+    with _db.get_db() as conn:
+        food = _db.get_cached_food(conn, -997502)
+    assert (food["notes"], food["user_notes"]) == ("Less honey next time", None)
+    assert "From the food&rsquo;s source" not in client.get("/food/-997502").text
+
+
+def test_merging_duplicates_keeps_both_foods_notes() -> None:
+    with _db.get_db() as conn:
+        for fid in (997503, 997504):
+            _db.cache_food(conn, fid, "Oats test", "SR Legacy", None, 100.0, "g", {"calories": 389.0}, [])
+        _db.food_set_user_notes(conn, 997503, "kept note")
+        _db.food_set_user_notes(conn, 997504, "dropped note")
+        _db.merge_food_into(conn, 997503, 997504)
+        assert _db.get_cached_food(conn, 997503)["user_notes"] == "kept note\n\ndropped note"
+
+
+def test_a_pantry_note_can_be_changed_from_the_list(client: TestClient) -> None:
+    with _db.get_db() as conn:
+        pid = _db.pantry_add(conn, "Rice test", None, "old note")
+    page = client.get("/pantry").text
+    assert "old note" in page and f'action="/pantry/{pid}/notes"' in page
+    resp = client.post(f"/pantry/{pid}/notes", data={"notes": " 5 lb bag ", "next": "/pantry"},
+                       follow_redirects=False)
+    assert resp.status_code == 303
+    with _db.get_db() as conn:
+        assert _db.pantry_get(conn, pid)["notes"] == "5 lb bag"
+    assert "5 lb bag" in client.get("/pantry").text

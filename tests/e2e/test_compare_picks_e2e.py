@@ -3,7 +3,7 @@ tests/e2e/test_compare_picks_e2e.py — Compare picks carried across searches
 and lists (base.html's "Compare picks" script): a tick in one search's
 Compare column survives a new search and a move to another list, the note
 under the Compare button lists every pick, and the Compare button sends
-them all — then the picks are cleared.
+them all — and they are still picked on coming back.
 
 Uses the demo data seeded on a fresh install (demo_data.py): the foods
 "Quinoa, cooked" and "Onions, raw" and the recipe "Walnut milk".
@@ -48,7 +48,12 @@ def test_picks_survive_searches_and_lists_then_all_go_to_compare(live_server, pa
     page.wait_for_url(re.compile(r"/compare\?items="))
     items = re.search(r"items=([^&]+)", page.url).group(1)
     assert len(items.replace("%2C", ",").split(",")) == 3
-    assert page.evaluate("sessionStorage.getItem('numa_compare_picks')") is None
+    # The picks are kept after comparing: back on the list, still ticked.
+    page.go_back()
+    page.wait_for_url(re.compile(r"/recipes"))
+    assert "Picked for comparison (3 of 8)" in recipes_note.inner_text()
+    assert page.locator("tr", has_text="Walnut milk").first.locator(
+        'input[form="compare-recipe-form"]').is_checked()
 
 
 def test_unpicking_from_the_note_unticks_the_box(live_server, page):
@@ -110,7 +115,11 @@ def test_fill_from_page_keeps_picks_across_searches(live_server, page):
     fdc_id = page.locator("#search-tbody tr", has_text="Quinoa, cooked").first.locator(
         'input[form="compare-form"]').get_attribute("value")
     page.goto(f"{live_server}/food/{fdc_id}/fill-from?q=Onions")
+    button = page.locator('#fill-compare-picks button[type="submit"]')
+    assert "btn-outline-secondary" in button.get_attribute("class")
     page.locator('input[name="pick"][form="fill-compare-picks"]').first.check()
+    # One pick is enough beside this page's own food: the button turns blue.
+    assert "btn-primary" in button.get_attribute("class")
     page.goto(f"{live_server}/food/{fdc_id}/fill-from?q=Chickpeas")
     note = page.locator('[data-compare-picks-for="fill-compare-picks"]')
     assert "Onions" in note.inner_text()
@@ -119,3 +128,9 @@ def test_fill_from_page_keeps_picks_across_searches(live_server, page):
     page.wait_for_url(re.compile(r"/compare\?items="))
     items = re.search(r"items=([^&]+)", page.url).group(1)
     assert len(items.replace("%2C", ",").split(",")) == 3
+    # Back on the page, the ticks are still there, and the button still blue.
+    page.go_back()
+    page.wait_for_url(re.compile(r"/fill-from\?q=Chickpeas"))
+    assert page.locator('input[name="pick"][form="fill-compare-picks"]').first.is_checked()
+    assert "Onions" in page.locator('[data-compare-picks-for="fill-compare-picks"]').inner_text()
+    assert "btn-primary" in page.locator('#fill-compare-picks button[type="submit"]').get_attribute("class")

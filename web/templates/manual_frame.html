@@ -92,11 +92,33 @@
     doc.addEventListener('click', function (e) {
       var a = e.target.closest && e.target.closest('a[href]');
       if (!a || a.target) return;
+      if (e.ctrlKey || e.shiftKey || e.metaKey) return;  // newTab() below
       var href = a.getAttribute('href') || '';
       if (href.charAt(0) !== '/' || href.indexOf('/manual') === 0) return;
       e.preventDefault();
       window.location.href = href;
     });
+    // A Ctrl/Shift/Cmd+click or middle-click on a manual link (its table of
+    // contents, say) gets the same "Opening in a browser tab" notice as one
+    // on a NuMa page (base.html). A link within the manual opens the tab at
+    // /manual#section, so the tab shows it under NuMa's menu like this one.
+    function newTab(e) {
+      var modified = e.type === 'click' && e.button === 0 && (e.ctrlKey || e.shiftKey || e.metaKey);
+      if (!modified && !(e.type === 'auxclick' && e.button === 1)) return;
+      if (!window.numaNewTabNotice) return;
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+      var url;
+      try { url = new URL(a.href); } catch (err) { return; }
+      if (url.origin !== location.origin || /^javascript:/i.test(a.getAttribute('href') || '')) return;
+      var href = url.pathname.indexOf('/manual') === 0 ? '/manual' + url.hash : url.href;
+      if (window.numaNewTabNotice(href)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
+    doc.addEventListener('click', newTab, true);
+    doc.addEventListener('auxclick', newTab, true);
     // NuMa's Ctrl+Q and Alt+Shift menu shortcuts listen on this page, which
     // never sees keys typed while the manual has focus — pass those on.
     doc.addEventListener('keydown', function (e) {

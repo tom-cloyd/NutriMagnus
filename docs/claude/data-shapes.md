@@ -40,6 +40,7 @@ with _db.get_db() as conn:
 
 `get_cached_food()` rows:
 `fdc_id, name, data_type, brand, serving_size, serving_unit, nutrients_json, portions_json, user_drafted, notes`
+(`SELECT *`, so every `foods` column. `notes` are the source's (overwritten by a Refresh), except on a custom food, where they are the user's; `user_notes` are the user's own notes on any other food, written only by `food_set_user_notes()`.)
 
 ## Nutrients Dict
 

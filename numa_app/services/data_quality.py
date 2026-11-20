@@ -694,6 +694,39 @@ def foods_days_eaten(conn, end_date: str, days: int = DAYS_EATEN_DEFAULT) -> lis
     return rows
 
 
+MEALS_EATEN_DAYS = 90
+
+
+def meals_eaten_counts(conn, end_date: str, days: int = MEALS_EATEN_DAYS) -> dict[int, int]:
+    """{fdc_id: number of meals it was in} for the `days` days ending on
+    end_date (ISO): logged on its own, or inside a logged recipe (through
+    sub-recipes); a meal counts once however many times the food is in it.
+    Foods → 9 orders its lists by this (order_by_meals)."""
+    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    start = (end - timedelta(days=max(days, 1) - 1)).isoformat()
+    memo: dict[int, set[int]] = {}
+    counts: dict[int, int] = {}
+    for meal in _db.meal_list_by_date_range(conn, start, end.isoformat()):
+        ids: set[int] = set()
+        for item in _db.meal_get_items(conn, meal["id"]):
+            if item["item_type"] == "recipe" and item["recipe_id"]:
+                ids |= _recipe_food_ids(conn, item["recipe_id"], memo)
+            elif item["fdc_id"] is not None:
+                ids.add(item["fdc_id"])
+        for fid in ids:
+            counts[fid] = counts.get(fid, 0) + 1
+    return counts
+
+
+def order_by_meals(rows: list[dict], counts: dict[int, int] | None, *,
+                   name_key: str = "name") -> list[dict]:
+    """Foods → 9's list order: with `counts` (meals_eaten_counts), most
+    meals first, ties keeping the list's own order; with None, by name."""
+    if counts is None:
+        return sorted(rows, key=lambda r: (r.get(name_key) or "").lstrip("* ").lower())
+    return sorted(rows, key=lambda r: -counts.get(r.get("fdc_id"), 0))
+
+
 def wet_dry_in_use(conn) -> list[dict]:
     """Foods whose own name, or the name typed for them in a recipe or meal,
     says dry ("okara flour") while their data says mostly water

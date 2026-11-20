@@ -577,8 +577,16 @@
   <div>
   <div>
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-    <h3 class="section-heading mb-0" data-ak="y" data-ak-focus data-ak-label="Items in this meal" tabindex="-1">Items ({{ items|length }}) {{ manual_link("meal-detail") }}</h3>
+    <h3 class="section-heading mb-0" data-ak="y" data-ak-focus data-ak-label="Items in this meal" tabindex="-1">Items ({{ (item_view_rows if item_view_rows is not none else items)|length }}) {{ manual_link("meal-detail") }}</h3>
     <form method="get" action="/meal/{{ meal.id }}" class="d-flex align-items-center gap-1">
+      <label class="muted me-1" for="item_view"><small>View</small></label>
+      <select name="item_view" id="item_view" class="form-select form-select-sm d-inline-block me-2" style="width:auto"
+              onchange="this.form.requestSubmit()"
+              title="As logged: what you entered. Foods: every food, recipes broken down. Foods &amp; recipes: each recipe kept whole, even if you logged its ingredients separately.">
+        <option value="logged" {% if item_view == "logged" %}selected{% endif %}>As logged</option>
+        <option value="foods" {% if item_view == "foods" %}selected{% endif %}>Foods</option>
+        <option value="whole" {% if item_view == "whole" %}selected{% endif %}>Foods &amp; recipes</option>
+      </select>
       <label class="muted me-1" for="item_sort"><small>Sort by</small></label>
       <select name="item_sort" id="item_sort" class="form-select form-select-sm d-inline-block" style="width:auto"
               onchange="this.form.requestSubmit()">
@@ -587,6 +595,50 @@
       </select>
     </form>
   </div>
+  {% if item_view_rows is not none %}
+  <p class="muted mb-0 mt-1"><small>{% if item_view == "foods" %}Every food in this meal, recipes broken down to their foods; a food reached more than once is one row.{% else %}Each recipe kept whole, including one whose ingredients you logged separately.{% endif %} To edit or remove an item, choose <em>As logged</em>.</small></p>
+  <table class="nutrient-table list-table meal-items-table mt-2">
+    <thead>
+      <tr>
+        {% if item_view == "whole" %}<th class="fit" title="Time of day the item was entered (your computer's clock)">Time</th>{% endif %}
+        <th class="fit">{% if item_view == "foods" %}Food{% else %}Food / Recipe{% endif %}</th>
+        <th class="fit num-col">Amount</th>
+        <th>{% if item_view == "foods" %}From{% else %}Notes{% endif %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in item_view_rows %}
+      <tr>
+        {% if item_view == "foods" %}
+        <td class="fit">{% if row.fdc_id %}<a href="/food/{{ row.fdc_id }}?amount={{ row.grams | round(1) }}&from_context=meal">{{ row.food_name }}</a>{{ food_id_tag(row.fdc_id) }}{% else %}{{ row.food_name }}{% endif %}</td>
+        <td class="fit num-col">{% if row.is_supplement %}{{ "%g" | format((row.grams / 100) | round(2)) }} unit{{ "" if row.grams == 100 else "s" }}{% else %}{{ row.grams | round(1) }}&thinsp;g{% endif %}</td>
+        <td><small class="muted">{% for src in row.sources %}{{ src or "logged on its own" }}{% if not loop.last %}; {% endif %}{% endfor %}</small></td>
+        {% elif row.gathered %}
+        <td class="fit muted"><small>{{ row.added_time or "—" }}</small></td>
+        <td class="fit"><a href="/recipe/{{ row.recipe_id }}">{{ row.food_name }}</a>{{ food_id_tag(None, recipe_id=row.recipe_id) }}</td>
+        <td class="fit num-col">{{ row.grams | round(1) }}&thinsp;g</td>
+        <td><small class="muted">logged as {{ row.parts }} separate ingredient{{ "" if row.parts == 1 else "s" }}</small></td>
+        {% else %}
+        <td class="fit muted"><small>{{ row.added_time or "—" }}</small></td>
+        <td class="fit">
+          {% if row.recipe_deleted %}
+            {{ row.food_name }} <span class="text-danger">(recipe deleted)</span>
+          {% elif row.fdc_id %}
+            <a href="/food/{{ row.fdc_id }}?amount={{ row.amount | round(1) }}&from_context=meal">{{ row.food_name }}</a>{{ food_id_tag(row.fdc_id) }}
+          {% elif row.recipe_id %}
+            <a href="/recipe/{{ row.recipe_id }}">{{ row.food_name }}</a>{{ food_id_tag(None, recipe_id=row.recipe_id) }}
+          {% else %}
+            {{ row.food_name }}
+          {% endif %}
+        </td>
+        <td class="fit num-col">{% if row.recipe_id %}{{ _ramt.amount(row) }}{% else %}{{ _famt.amount(row) }}{% endif %}</td>
+        <td>{% if row.notes %}<small class="muted">{{ row.notes }}</small>{% endif %}</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
   <table class="nutrient-table list-table meal-items-table mt-2">
     <thead>
       <tr>
@@ -701,10 +753,13 @@
       {% endfor %}
     </tbody>
   </table>
+  {% endif %}
   </div>
+  {% if item_view_rows is none %}
   {{ _ramt.weight_note(items | selectattr("recipe_id") | list | length > 0) }}
   {{ _gd.footnote(items) }}
   {{ _wm.footnote(items) }}
+  {% endif %}
   </div>
 </section>
 {% else %}

@@ -151,7 +151,7 @@
     <label class="muted me-1" style="font-size:0.875rem" for="pantry-sort"><small>Sort by</small></label>
     <select name="sort" id="pantry-sort" class="form-select form-select-sm d-inline-block" style="width:auto"
             onchange="this.form.submit()">
-      {% for v, label in [("name", "Name"), ("id", "Code"), ("type", "Type"), ("diaas", "DIAAS"),
+      {% for v, label in [("meals90", "Most meals, last 90 days"), ("name", "Name"), ("id", "Code"), ("type", "Type"), ("diaas", "DIAAS"),
                           ("gi", "GI estimate"), ("used", "Used in (most first)"), ("added", "Added")] %}
       <option value="{{ v }}" {% if sort == v %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
@@ -225,8 +225,20 @@
         {% if item.use.recipes or item.use.meals %}
         {{ item.use.recipes }} recipe{{ "s" if item.use.recipes != 1 }},<br>{{ item.use.meals }} meal{{ "s" if item.use.meals != 1 }}
         {% else %}<span class="muted">not used</span>{% endif %}
+        {% if sort == "meals90" and item.meals90 %}<br><span class="muted" title="Meals it was in over the last 90 days, on its own or in a recipe">{{ item.meals90 }} in last 90 days</span>{% endif %}
       </small></td>
-      <td class="muted">{{ item.notes or "—" }}</td>
+      <td class="muted" style="min-width:9rem">
+        {# Edit this entry's note in place (POST /pantry/{id}/notes). #}
+        <details class="pantry-note">
+          <summary title="{{ 'Change this note' if item.notes else 'Add a note to this pantry entry' }}"><span style="white-space:pre-wrap">{{ item.notes or "" }}</span>{% if item.notes %} {% endif %}<small class="text-primary">{{ "edit" if item.notes else "add a note" }}</small></summary>
+          <form method="post" action="/pantry/{{ item.id }}/notes" class="mt-1">
+            <input type="hidden" name="next" value="{{ list_url }}">
+            <textarea class="form-control form-control-sm" name="notes" rows="2" maxlength="1000"
+                      aria-label="Note for {{ item.food_name }}" placeholder="e.g. brand, size, where it&rsquo;s kept">{{ item.notes or "" }}</textarea>
+            <button type="submit" class="btn btn-sm btn-primary mt-1">Save note</button>
+          </form>
+        </details>
+      </td>
       <td class="muted">{{ item.added_at or "—" }}</td>
       <td class="actions-stack" style="white-space:nowrap">
         {% if not item.fdc_id %}

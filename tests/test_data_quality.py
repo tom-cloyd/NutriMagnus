@@ -572,6 +572,71 @@ def test_days_eaten_section_on_db_check(client):
     assert client.get("/food/cache/db-check?de_days=abc&de_end=nope").status_code == 200
 
 
+def test_meals_eaten_counts_meals_with_recipes_and_orders_lists():
+    """A meal counts once per food, foods inside a logged recipe included;
+    meals outside the span don't count. order_by_meals puts the most
+    meals first (ties keep their order), or sorts by name without counts."""
+    with _db.get_db() as conn:
+        _days_eaten_setup(conn)
+        m4 = _db.meal_create(conn, "Dinner", "2026-10-02")
+        _db.meal_add_food(conn, m4, 997101, "Rice test", 50.0, "g")
+        _db.meal_add_food(conn, m4, 997101, "Rice test", 50.0, "g")   # same meal: once
+        counts = dq.meals_eaten_counts(conn, "2026-10-02", 30)
+    assert counts == {997101: 3, 997102: 1, 997103: 1}
+    rows = [{"fdc_id": 997103, "name": "Vitamin test"}, {"fdc_id": 1, "name": "* apple"},
+            {"fdc_id": 997102, "name": "Cinnamon test"}, {"fdc_id": 997101, "name": "Rice test"}]
+    assert [r["name"] for r in dq.order_by_meals(rows, counts)] == [
+        "Rice test", "Vitamin test", "Cinnamon test", "* apple"]
+    assert [r["name"] for r in dq.order_by_meals(rows, None)] == [
+        "* apple", "Cinnamon test", "Rice test", "Vitamin test"]
+
+
+def test_db_check_order_choice_is_remembered(client):
+    """Foods → 9 orders its food lists by meals in the last 90 days by
+    default, shown beside each name; "name" switches them to alphabetical
+    and is remembered."""
+    import datetime
+    today = datetime.date.today().isoformat()
+    with _db.get_db() as conn:
+        for fid, name in ((997201, "Aardvark meat test"), (997202, "Zucchini noAA test")):
+            _food(conn, fid, name, {"protein_g": 10.0, "carbs_g": 1.0, "fat_g": 1.0, "calories": 53.0})
+        m = _db.meal_create(conn, "Lunch", today)
+        _db.meal_add_food(conn, m, 997202, "Zucchini noAA test", 100.0, "g")
+        m = _db.meal_create(conn, "Dinner", today)
+        _db.meal_add_food(conn, m, 997202, "Zucchini noAA test", 100.0, "g")
+        _db.meal_add_food(conn, m, 997201, "Aardvark meat test", 100.0, "g")
+    def aa_list(page):
+        sec = page.split('id="missing-aa"')[1].split("</details>")[0]
+        return sec.index("Zucchini noAA test") < sec.index("Aardvark meat test"), sec
+    first, sec = aa_list(client.get("/food/cache/db-check").text)
+    assert first and "&middot; 2 meals" in sec
+    first, sec = aa_list(client.get("/food/cache/db-check?order=name").text)
+    assert not first and "&middot; 2 meals" not in sec
+    page = client.get("/food/cache/db-check").text   # remembered
+    assert '<option value="name" selected>' in page
+
+
+def test_food_cache_and_pantry_sort_by_meals_in_90_days(client):
+    """The Food Cache and My Pantry default to most meals in the last 90
+    days first, with the count in Used in; Name still sorts by name."""
+    import datetime
+    today = datetime.date.today().isoformat()
+    with _db.get_db() as conn:
+        for fid, name in ((997301, "Aaa often eaten test"), (997302, "Zzz often eaten test")):
+            _food(conn, fid, name, {**GOOD})
+            _db.pantry_add(conn, name, fid)
+        for meal in ("Lunch", "Dinner"):
+            m = _db.meal_create(conn, meal, today)
+            _db.meal_add_food(conn, m, 997302, "Zzz often eaten test", 100.0, "g")
+    for url in ("/food/cache", "/pantry"):
+        page = client.get(url).text
+        assert page.index("Zzz often eaten test") < page.index("Aaa often eaten test"), url
+        assert "2 in last 90 days" in page and '<option value="meals90" selected>' in page.replace("  ", " ")
+        page = client.get(url + "?sort=name").text
+        assert page.index("Aaa often eaten test") < page.index("Zzz often eaten test"), url
+        assert "in last 90 days" not in page
+
+
 # --- One-click fixes for food data problems (Foods → 9) -------------------
 
 def _fix_ids(n, **kw):

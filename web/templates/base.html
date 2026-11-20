@@ -2032,13 +2032,14 @@
       var action = form && form.getAttribute('action');
       if (action === '/compare/add-multiple') {
         return {key: 'numa_compare_picks', names: ['fdc_id', 'recipe_id'], max: 8,
-                kept: 'Kept when you search again or go to another list (' + LISTS + ')',
+                kept: 'Kept when you search again, go to another list (' + LISTS + ') or compare',
                 hint: 'Ticks are kept when you search again or go to another list (' + LISTS +
                       ') &mdash; gather up to 8 from as many searches as you like, then click Compare.'};
       }
       if (action && PROFILE.test(action)) {
-        return {key: 'numa_compare_picks:' + action, names: ['pick'], max: 7,
-                kept: 'Kept when you search again on this page',
+        // min: 1, since this page's own food is compared too.
+        return {key: 'numa_compare_picks:' + action, names: ['pick'], max: 7, min: 1,
+                kept: 'Kept when you search again on this page, and after you compare',
                 hint: 'Ticks are kept when you search again on this page &mdash; ' +
                       'gather up to 7 foods from several searches, then click Compare.'};
       }
@@ -2127,14 +2128,16 @@
           anchor.insertAdjacentElement('afterend', note);
         }
         note.innerHTML = noteHtml(g, picks);
-        // A Compare button that starts outlined turns blue once 2+ are picked.
+        // A Compare button that starts outlined turns blue once there is
+        // something to compare: 2+ picks, or 1 beside this page's own food.
+        var ready = picks.length >= (g.min || 2);
         btns.forEach(function (b) {
           if (!b.hasAttribute('data-compare-btn-auto')) {
             if (!b.classList.contains('btn-outline-secondary')) return;
             b.setAttribute('data-compare-btn-auto', '');
           }
-          b.classList.toggle('btn-primary', picks.length >= 2);
-          b.classList.toggle('btn-outline-secondary', picks.length < 2);
+          b.classList.toggle('btn-primary', ready);
+          b.classList.toggle('btn-outline-secondary', !ready);
         });
       });
     }
@@ -2180,24 +2183,14 @@
           form.appendChild(input);
         });
       });
-      // Cleared when Compare actually opens (see below), not now: a submit
-      // stopped by another handler (a failed save first) keeps them.
-      if (load(g).length || g.names.some(function (n) { return have.getAll(n).length; })) {
-        try { sessionStorage.setItem(SENT, JSON.stringify(g.key)); } catch (e) {}
-      }
+      // Picks are kept after Compare opens, so coming back finds them still
+      // ticked to change and compare again; "Clear all picks" empties them.
     }
-    var SENT = 'numa_compare_picks_sent';
     window.addEventListener('submit', function (e) { addPicksTo(e.target); }, true);
-    // Every Compare submit lands on /compare: the picks it sent are done.
-    function clearSent() {
-      var key = null;
-      try { key = JSON.parse(sessionStorage.getItem(SENT) || 'null'); sessionStorage.removeItem(SENT); } catch (e) {}
-      if (key && window.location.pathname === '/compare') save({key: key}, []);
-    }
     // For code that submits a pick form with form.submit(), which fires no
     // submit event (Compare's "search again with ticks" — compare.html).
     window.numaComparePicks = {addTo: addPicksTo};
-    document.addEventListener('DOMContentLoaded', function () { clearSent(); refresh(); });
+    document.addEventListener('DOMContentLoaded', refresh);
     document.addEventListener('numa:search-rows', refresh);
     window.addEventListener('pageshow', function (e) { if (e.persisted) refresh(); });
   })();
@@ -2495,14 +2488,46 @@
       if (url.origin !== location.origin) return;
       e.preventDefault();
       e.stopPropagation();
+      show(url.href);
+    }
+
+    function show(href) {
       if (!dialog) build();
-      pending = url.href;
+      pending = href;
       document.getElementById('new-tab-notice-off').checked = false;
       dialog.showModal();
       dialog.querySelector('[data-act="open"]').focus();
     }
     window.addEventListener('click', onClick, true);
     window.addEventListener('auxclick', onClick, true);
+
+    // A link to a part of this same page (a sidebar's "#sec-items", say)
+    // also opens a tab on Ctrl+click: a second copy of this page, scrolled
+    // there. Checked after the page's own handlers (bubble phase, not
+    // capture like onClick): one that takes over such a link calls
+    // preventDefault(), and then no tab opens and no notice is needed.
+    function onHashClick(e) {
+      if (!noticeOn || e.defaultPrevented) return;
+      var middle = e.type === 'auxclick' && e.button === 1;
+      var modified = e.type === 'click' && e.button === 0 && (e.ctrlKey || e.shiftKey || e.metaKey);
+      if (!middle && !modified) return;
+      var link = e.target.closest ? e.target.closest('a[href]') : null;
+      if (!link || link.target === '_blank' || link.hasAttribute('data-bs-toggle')) return;
+      var href = link.getAttribute('href') || '';
+      if (href.charAt(0) !== '#' || href.length < 2) return;
+      e.preventDefault();
+      show(link.href);
+    }
+    window.addEventListener('click', onHashClick);
+    window.addEventListener('auxclick', onHashClick);
+    // The manual is a frame inside this window (manual_frame.html); its
+    // clicks never reach the listeners above, so it hands them over here.
+    // True if the notice is shown (the caller then cancels the click).
+    window.numaNewTabNotice = function (href) {
+      if (!noticeOn) return false;
+      show(href);
+      return true;
+    };
   })();
   </script>
   <script>

@@ -38,7 +38,7 @@
 <form method="get" action="/food/custom-profiles/{{ food.fdc_id }}/compare" id="{{ form_id }}"
       class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <input type="hidden" name="return_to" value="/food/custom-profiles/{{ food.fdc_id }}/edit#{{ 'sec-copy-nutrients' if form_id == 'compare-nutrient-picks' else 'sec-estimate-aa' }}">
-  <button type="submit" class="btn btn-sm btn-outline-primary">Compare checked foods with this one &rarr;</button>
+  <button type="submit" class="btn btn-sm btn-outline-secondary">Compare checked foods with this one &rarr;</button>
   <small class="muted">Opens Compare with this profile first, showing full nutrient values side by side;
     its <strong>&larr; Back to editing</strong> button at the top returns you here.</small>
 </form>
