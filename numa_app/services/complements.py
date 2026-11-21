@@ -186,6 +186,7 @@ def two_step_combo(
     aa_effects_limit: int = 3,
     ingredients: list[dict] | None = None,
     exclude_names: set[str] | None = None,
+    recipe_candidates: list[dict] | None = None,
 ) -> dict | None:
     """Pair a gap-closer (Step 1) with the best DIAAS-booster for the resulting
     protein pool (Step 2, if one qualifies). Returns None if `gc` has no cached
@@ -215,6 +216,7 @@ def two_step_combo(
         combined, pantry_candidates, diet_pref=diet_pref,
         base_digestibility=gc_diaas, max_improver_grams=max_improver_grams,
         exclude_names=exclude_names,
+        recipe_candidates=recipe_candidates,
     )
     qualifying = [
         b for b in sub.get("diaas_improvers", [])
@@ -301,8 +303,13 @@ def build_complement_display(
     diaas_sort: str = "effect",
     anchor_overrides: dict[str, float] | None = None,
     uncap_names: set[str] | None = None,
+    recipe_candidates: list[dict] | None = None,
 ) -> dict:
     """Build the full complement-suggestion display structure for one base food/meal/recipe.
+
+    `pantry_candidates` is what the user has on hand: pantry foods and the
+    recipes marked on hand. `recipe_candidates` is the user's other recipes,
+    offered in the general tier (see usda.suggest_complements).
 
     `digestibility` is the basis gaps/scores are computed and compared at: 1.0 for
     meal/daily contexts (a pooled DIAAS can't be re-applied as a per-food multiplier),
@@ -369,6 +376,7 @@ def build_complement_display(
             cache_candidates=cache_candidates,
             exclude_names=exclude_names,
             uncap_names=uncap_names,
+            recipe_candidates=recipe_candidates,
         )
     except Exception:
         return {"no_data": True}
@@ -642,6 +650,7 @@ def build_complement_display(
                 fallback_digestibility=digestibility,
                 ingredients=ingredients,
                 exclude_names=exclude_names,
+                recipe_candidates=recipe_candidates,
             )
             # A combo with no qualifying Step 2 adds nothing this section doesn't
             # already show in the Pantry/General gap-closer tier above — showing

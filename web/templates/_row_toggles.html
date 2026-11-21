@@ -25,6 +25,10 @@
   name ~ " is complete",
   "Complete (same as the meal page's \"Mark complete\"): tick or untick to change; saved at once", reload=true) }}{% endmacro %}
 
+{% macro pantry_box(recipe_id, checked, name, text="") %}{{ box("/recipe/%s/on-hand" % recipe_id, "on_hand", checked,
+  name ~ " is in my pantry",
+  "In My Pantry: a batch is made and on hand, so complement suggestions offer it as something you have. Tick or untick to change; saved at once", text) }}{% endmacro %}
+
 {% macro drink_box(action, checked, name, text="") %}{{ box(action, "is_drink", checked,
   name ~ " is a drink",
   "A drink: its water counts as water from drinks in your totals. Tick or untick to change; saved at once", text) }}{% endmacro %}

@@ -29,7 +29,7 @@
         </select>
       </div>
       <div class="js-pick-wrap" style="position:relative">
-        <label class="form-label mb-0"><small>Food or recipe</small></label>
+        <label class="form-label mb-0"><small class="js-item-label">Food or recipe</small></label>
         <input type="text" class="form-control form-control-sm js-pick" name="e_item" value="{{ r.item }}"
                autocomplete="off" placeholder="name or code" style="width:16rem">
         <div class="small muted js-pick-name" style="max-width:16rem">{{ r.item_name }}</div>
@@ -141,12 +141,18 @@
 {% endif %}
 {% endmacro %}
 
-{# add_label: the Amount box's label when the action is Add. #}
-{% macro script(max_rows, add_label) %}
+{# add_label: the Amount box's label when the action is Add.
+   ingredient_source (recipes page): a URL listing the ingredients of the
+   recipes the form selects; the "Food or recipe" box then lists those for
+   Remove and Change amount (on click, narrowed as you type), and searches
+   every food and recipe for Add and Replace. #}
+{% macro script(max_rows, add_label, ingredient_source=none) %}
 <script>
 (function () {
   var container = document.getElementById('edit-rows');
   var maxRows = {{ max_rows }};
+  var ingredientSource = {{ ingredient_source|tojson }};
+  var form = container.closest('form');
   var blank = container.querySelector('.whatif-row').cloneNode(true);
   blank.querySelectorAll('input').forEach(function (el) { el.value = ''; });
   blank.querySelectorAll('.js-pick-name, .js-pick-results').forEach(function (el) { el.innerHTML = ''; });
@@ -171,52 +177,95 @@
       (op === 'replace' && basis === 'factor') ? 'Old weight times: 1.1 or 110%' : (amtLabels[op] || 'Amount');
     var per = row.querySelector('.js-per');
     if (per) per.classList.toggle('d-none', op !== 'add');
+    if (ingredientSource) {
+      var fromList = op === 'remove' || op === 'scale';
+      row.querySelector('.js-item-label').textContent = fromList ? 'Ingredient of the chosen recipes'
+        : op === 'add' ? 'Food or recipe to add' : 'Food or recipe';
+      row.querySelector('.js-pick').placeholder = fromList ? 'click to list, or type to narrow' : 'name or code';
+    }
+  }
+
+  // The recipe selection in step 1, as query parameters for ingredientSource.
+  function selectionQuery() {
+    var params = new URLSearchParams();
+    ['mode', 'ranges_raw', 'recipe_ids', 'recipe_name'].forEach(function (name) {
+      var el = form.querySelector(name === 'mode' ? 'input[name=mode]:checked' : '[name=' + name + ']');
+      if (el && !el.disabled) params.set(name, el.value);
+    });
+    return params.toString();
   }
 
   function wirePicker(wrap) {
     var input = wrap.querySelector('.js-pick');
     var nameEl = wrap.querySelector('.js-pick-name');
     var results = wrap.querySelector('.js-pick-results');
+    var row = wrap.closest('.whatif-row');
     var timer = null, seq = 0;
-    input.addEventListener('input', function () {
-      nameEl.textContent = '';
+    // For Remove and Change amount, the "Food or recipe" box lists the
+    // chosen recipes' ingredients; Add and Replace search everything.
+    function fromIngredients() {
+      var op = row.querySelector('.js-op').value;
+      return ingredientSource && !wrap.classList.contains('js-with') && (op === 'remove' || op === 'scale');
+    }
+    function note(text, cls) {
+      var div = document.createElement('div');
+      div.className = 'list-group-item small py-1 ' + (cls || 'muted');
+      div.textContent = text;
+      results.appendChild(div);
+    }
+    function show(data, ingredients, q) {
+      results.innerHTML = '';
+      active = -1;
+      if (ingredients) {
+        if (!data.selected) { note('No recipes are chosen yet: choose them in step 1.', 'text-warning'); return; }
+        note(data.results.length
+          ? (q ? data.results.length + ' ingredient(s) matching "' + q + '"' : 'Ingredients of the ' + data.selected + ' chosen recipe(s), most used first') + ':'
+          : 'None of the ' + data.selected + ' chosen recipe(s) uses anything matching "' + q + '".');
+      }
+      data.results.forEach(function (item) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'list-group-item list-group-item-action small py-1';
+        btn.setAttribute('role', 'option');
+        var code = document.createElement('span');
+        code.className = 'muted me-2';
+        code.textContent = item.code;
+        btn.appendChild(code);
+        btn.appendChild(document.createTextNode(item.name));
+        if (item.detail) {
+          var det = document.createElement('span');
+          det.className = 'muted ms-2';
+          det.textContent = '(' + item.detail + ')';
+          btn.appendChild(det);
+        }
+        btn.addEventListener('click', function () {
+          input.value = item.code;
+          nameEl.textContent = item.name;
+          results.innerHTML = '';
+        });
+        results.appendChild(btn);
+      });
+    }
+    function lookup(delay) {
       clearTimeout(timer);
       var q = input.value.trim();
-      if (q.length < 2) { results.innerHTML = ''; return; }
+      var ingredients = fromIngredients();
+      if (!ingredients && q.length < 2) { results.innerHTML = ''; return; }
       timer = setTimeout(function () {
         var mine = ++seq;
-        fetch('/analysis/food-use/replacement-search?q=' + encodeURIComponent(q))
+        var url = ingredients
+          ? ingredientSource + '?' + selectionQuery() + '&q=' + encodeURIComponent(q)
+          : '/analysis/food-use/replacement-search?q=' + encodeURIComponent(q);
+        fetch(url)
           .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (mine !== seq) return;
-            results.innerHTML = '';
-            active = -1;
-            data.results.forEach(function (item) {
-              var btn = document.createElement('button');
-              btn.type = 'button';
-              btn.className = 'list-group-item list-group-item-action small py-1';
-              btn.setAttribute('role', 'option');
-              var code = document.createElement('span');
-              code.className = 'muted me-2';
-              code.textContent = item.code;
-              btn.appendChild(code);
-              btn.appendChild(document.createTextNode(item.name));
-              if (item.detail) {
-                var det = document.createElement('span');
-                det.className = 'muted ms-2';
-                det.textContent = '(' + item.detail + ')';
-                btn.appendChild(det);
-              }
-              btn.addEventListener('click', function () {
-                input.value = item.code;
-                nameEl.textContent = item.name;
-                results.innerHTML = '';
-              });
-              results.appendChild(btn);
-            });
-          });
-      }, 200);
-    });
+          .then(function (data) { if (mine === seq) show(data, ingredients, q); });
+      }, delay);
+    }
+    input.addEventListener('input', function () { nameEl.textContent = ''; lookup(200); });
+    // Clicking the box opens the ingredient list straight away, with
+    // whatever is already typed narrowing it.
+    input.addEventListener('focus', function () { if (fromIngredients() && !nameEl.textContent) lookup(0); });
+    input.addEventListener('click', function () { if (fromIngredients() && !results.children.length) lookup(0); });
     // Arrow keys move a highlight through the list; Enter picks the
     // highlighted item (or the top one), Escape closes the list.
     var active = -1;
@@ -244,7 +293,10 @@
   }
 
   function wireRow(row) {
-    row.querySelector('.js-op').addEventListener('change', function () { layout(row); });
+    row.querySelector('.js-op').addEventListener('change', function () {
+      layout(row);
+      row.querySelectorAll('.js-pick-results').forEach(function (el) { el.innerHTML = ''; });
+    });
     row.querySelector('select[name=e_basis]').addEventListener('change', function () { layout(row); });
     row.querySelectorAll('.js-pick-wrap').forEach(wirePicker);
     row.querySelector('.js-remove-row').addEventListener('click', function () {

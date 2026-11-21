@@ -89,6 +89,7 @@
       <th style="width:6rem;text-align:right">Servings</th>
       <th style="width:7rem;text-align:right">DCP/srv (g)</th>
       <th style="width:6rem;text-align:center" title="Tick to mark the recipe complete (same as Edit Recipe's &quot;Mark recipe as complete&quot;); saved at once">Complete</th>
+      <th style="width:4.5rem;text-align:center" title="Tick when a batch is made and on hand: it goes in My Pantry, and complement suggestions offer it as something you have; saved at once">Pantry</th>
       {% if track_water() %}<th style="width:4rem;text-align:center" title="Tick if the recipe is a drink: its water then counts as water from drinks in your totals; saved at once">Drink</th>{% endif %}
       <th style="width:7rem">Created</th>
       <th style="width:9rem"></th>
@@ -111,6 +112,7 @@
         {% if r.dcp_g is not none %}{{ "%.1f"|format(r.dcp_g) }}{% else %}<span class="muted">NC (not computed)</span> {{ manual_link("recipes") }}{% endif %}
       </td>
       <td style="text-align:center">{{ _rt.complete_box(r.id, r.complete, r.name) }}</td>
+      <td style="text-align:center">{{ _rt.pantry_box(r.id, r.on_hand, r.name) }}</td>
       {% if track_water() %}
       <td style="text-align:center">{{ _rt.drink_box("/recipe/%s/drink" % r.id, r.is_drink, r.name) }}</td>
       {% endif %}

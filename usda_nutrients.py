@@ -880,6 +880,7 @@ def suggest_complements(
     cache_candidates: list[dict] | None = None,
     exclude_names: set[str] | None = None,
     uncap_names: set[str] | None = None,
+    recipe_candidates: list[dict] | None = None,
 ) -> dict[str, list[dict]]:
     """
     Suggest complement foods to close essential amino acid gaps.
@@ -893,6 +894,10 @@ def suggest_complements(
         pantry_candidates. When one is found for a given curated entry, it's
         used in place of that entry's generic profile in the "general" tier
         (see complement_table_names() for the names to search the cache for).
+    recipe_candidates: the user's recipes that are NOT on hand (not in the
+        pantry) — same dict shape as pantry_candidates, plus "recipe_id". They
+        join the "general" tier: things the user could make, beside the
+        curated table's foods. Recipes that are on hand go in pantry_candidates.
     diet_pref: "all" includes all sources; "vegetarian" allows dairy/eggs but not
         meat/fish; "plant_only" excludes all animal-sourced entries.
     exclude_names: suggestion names (case-insensitive) to omit entirely — e.g. foods
@@ -1193,6 +1198,13 @@ def suggest_complements(
             general_candidates.append(
                 {"name": c["name"], "fdc_id": c.get("fdc_id"), "nutrients": c["nutrients"], "diaas": c["diaas"]}
             )
+    for r in (recipe_candidates or []):
+        name_lower = r["name"].lower()
+        if name_lower in pantry_names_lower or name_lower in exclude_lower:
+            continue
+        if diet_pref != "all" and not _diet_allows_by_name(r["name"]):
+            continue
+        general_candidates.append(r)
     general_gap_closers, general_diaas_improvers = _build_suggestions(general_candidates)
 
     # Merge DIAAS-improvers from both sources, excluding names already in gap-closer lists.

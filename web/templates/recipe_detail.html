@@ -69,7 +69,7 @@
     {% if not complements.no_gaps %}
     <ul class="sb-sub">
       {% if complements.pantry %}
-      <li><a class="sb-link" href="#cmpl-pantry">From your pantry &amp; recipes</a></li>
+      <li><a class="sb-link" href="#cmpl-pantry">From your pantry</a></li>
       {% endif %}
       {% if complements.general %}
       <li><a class="sb-link" href="#cmpl-general">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</a></li>
@@ -131,6 +131,16 @@
   <small class="text-muted">{{ recipe.servings }} serving{% if recipe.servings != 1 %}s{% endif %} defined{{ _sn.note(recipe.serving_size) }}</small>
 </div>
 {% import "_drink_toggle.html" as _drink %}{{ _drink.toggle("/recipe/%s/drink" % recipe.id, recipe.is_drink, "recipe") }}
+<form method="post" action="/recipe/{{ recipe.id }}/on-hand" class="mb-2" id="pantry-toggle">
+  <div class="form-check">
+    <input class="form-check-input" type="checkbox" name="on_hand" value="1" id="on_hand"
+           {% if recipe.on_hand %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="on_hand">In <a href="/pantry">My Pantry</a>
+      <small class="muted">(a batch is made and on hand, so complement suggestions offer it as something you have; untick when it&rsquo;s used up)</small>
+      {{ manual_link("pantry-recipes") }}</label>
+  </div>
+  <noscript><button type="submit" class="btn btn-sm btn-outline-secondary mt-1">Save the pantry setting</button></noscript>
+</form>
 {% if drink_water %}
 <div class="alert alert-info py-2 small" id="drink-water-note" role="note">
   <strong>Water from drink ingredients counts as water from food here.</strong>
@@ -775,7 +785,7 @@
   {% endif %}
 
   {% if complements.pantry %}
-  <h5 class="mt-3" id="cmpl-pantry">From your pantry &amp; recipes</h5>
+  <h5 class="mt-3" id="cmpl-pantry">From your pantry</h5>
   {% for s in complements.pantry %}{{ suggest_card(s, "Add to recipe") }}{% endfor %}
   {% endif %}
 

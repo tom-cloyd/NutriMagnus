@@ -2593,7 +2593,7 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
         digestibility, _digest_source = _diaas.get_digestibility(food_name, conn)
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
-    pantry = _web_pantry_candidates() + _web_recipe_candidates()
+    pantry, other_recipes = _web_complement_pools()
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     comp_sort = comp_sort or _resolve_sort(None, "sort_complements", "dcp", _COMP_SORT_MODES)
     diaas_sort = diaas_sort or _resolve_sort(None, "sort_diaas_improvers", "effect", _DIAAS_SORT_MODES)
@@ -2606,6 +2606,7 @@ def _food_complement_section(food_name: str, nutrients: dict, exclude_names: set
         diaas_sort=diaas_sort,
         anchor_overrides=anchor_overrides,
         uncap_names=uncap_names,
+        recipe_candidates=other_recipes,
     )
 
 
@@ -2961,6 +2962,7 @@ def _recipe_search_rows(recipes: list) -> list[dict]:
             # The Foods search's Complete / Drink boxes (recipe rows have both).
             "complete":          bool(r["complete"]),
             "is_drink":          bool(r["is_drink"]),
+            "on_hand":           bool(r["on_hand"]),
         })
     return results
 
@@ -3322,8 +3324,11 @@ def _rows_ctx(searched: str, results: list[dict], source: list[str], external: b
 
 
 def _screen_pantry(params, external: bool, ident: int | None = None):
+    """My Pantry's search: foods, and recipes (a made batch goes in the
+    pantry too) — foods only when linking a name-only entry to a food."""
     q, source, limit = _screen_query(params, "search")
-    results = (_run_food_search(q, source, limit, external=external, foods_only=True,
+    linking = bool(_param_int(params, "link_id"))
+    results = (_run_food_search(q, source, limit, external=external, foods_only=linking,
                                 also=_also(params, "search")) if q else [])
     return "_pantry_search_rows.html", _rows_ctx(q, results, source, external, search=q,
                                                  limit=limit, link_id=_param_int(params, "link_id"))
@@ -5331,6 +5336,8 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
     _rows_template, search_ctx = _screen_pantry(request.query_params, False)
 
     link_name = next((i["food_name"] for i in all_items if i["id"] == link_id), None) if link_id else None
+    with _db.get_db() as conn:
+        recipes_on_hand = [dict(r) for r in _db.recipes_on_hand(conn)]
 
     return templates.TemplateResponse(request, "pantry.html", {
         "items": items,
@@ -5347,6 +5354,7 @@ def pantry_get(request: Request, added: str = "", linked: str = "",
         "source_labels": _SEARCH_SOURCE_LABELS,
         "restored": restored,
         "sort": sort,
+        "recipes_on_hand": recipes_on_hand,
     })
 
 
@@ -7019,8 +7027,19 @@ def _web_pantry_candidates() -> list[dict]:
         return []
 
 
+def _web_complement_pools(exclude_recipe_id: int | None = None) -> tuple[list[dict], list[dict]]:
+    """(on hand, other recipes) for complement suggestions: pantry foods plus
+    the recipes in the pantry, then every other recipe, which is offered in
+    the general tier as something the user could make."""
+    recipes = _web_recipe_candidates(exclude_recipe_id)
+    on_hand = [c for c in recipes if c["on_hand"]]
+    others = [c for c in recipes if not c["on_hand"]]
+    return _web_pantry_candidates() + on_hand, others
+
+
 def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
-    """Return analyzed recipes as complement-suggestion candidates.
+    """Return analyzed, unarchived recipes as complement-suggestion candidates,
+    each marked "on_hand" when it's in the pantry (see _web_complement_pools).
 
     `exclude_recipe_id` leaves a recipe out of its own candidate list when
     suggesting complements for that same recipe.
@@ -7028,8 +7047,8 @@ def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
     try:
         with _db.get_db() as conn:
             rows = conn.execute(
-                "SELECT id, name, servings, dcp_g, total_weight, total_weight_unit, nutrients_json"
-                " FROM recipes WHERE nutrients_json IS NOT NULL"
+                "SELECT id, name, servings, dcp_g, total_weight, total_weight_unit, nutrients_json, on_hand"
+                " FROM recipes WHERE nutrients_json IS NOT NULL AND archived = 0"
             ).fetchall()
     except Exception:
         return []
@@ -7066,6 +7085,7 @@ def _web_recipe_candidates(exclude_recipe_id: int | None = None) -> list[dict]:
             "nutrients": nutrients,
             "diaas": diaas_val,
             "serving_weight_g": serving_weight_g,
+            "on_hand": bool(row["on_hand"]),
         })
     return candidates
 
@@ -7115,7 +7135,7 @@ def _complement_suggestions(
     """
     prefs = _load_prefs_file()
     diet_pref = prefs.get("diet_pref", "all")
-    pantry = _web_pantry_candidates() + _web_recipe_candidates(exclude_recipe_id)
+    pantry, other_recipes = _web_complement_pools(exclude_recipe_id)
     cache_candidates = _complements.load_cache_candidates({c["name"].lower() for c in pantry})
     max_improver_grams = 300 if context == "recipe" else 120
     digestibility = min(pooled_tid, 1.0) if pooled_tid else 1.0
@@ -7131,6 +7151,7 @@ def _complement_suggestions(
         diaas_sort=diaas_sort,
         anchor_overrides=anchor_overrides,
         uncap_names=uncap_names,
+        recipe_candidates=other_recipes,
     )
 
 
@@ -11331,6 +11352,21 @@ def recipe_set_complete(request: Request, recipe_id: int, complete: str = Form("
     return RedirectResponse(_list_return(next, "/recipes"), status_code=303)
 
 
+@app.post("/recipe/{recipe_id}/on-hand", response_class=RedirectResponse)
+def recipe_set_on_hand(request: Request, recipe_id: int, on_hand: str = Form(""), next: str = Form("")):
+    """Put a recipe in My Pantry (a batch is made) or take it out: the
+    recipe page's box, the Recipes list's Pantry column, My Pantry's
+    search results and its Recipes on hand list. Saved in place (JSON) from a list."""
+    found = False
+    with _db.get_db() as conn:
+        if _db.recipe_get(conn, recipe_id):
+            found = True
+            _db.set_recipe_on_hand(conn, recipe_id, bool(on_hand))
+    if _is_ajax_row_action(request):
+        return JSONResponse({"ok": found})
+    return RedirectResponse(_local_next(next, f"/recipe/{recipe_id}#pantry-toggle"), status_code=303)
+
+
 @app.post("/recipe/{recipe_id}/cooked-water", response_class=RedirectResponse)
 def recipe_set_cooked_water(recipe_id: int, value: str = Form(""), next: str = Form("")):
     """Set the recipe's water once cooked, g per 100 g of the finished dish
@@ -13470,9 +13506,11 @@ def _whatif_meals_compute(conn, mode: str, ranges_raw: str, meal_ids: str,
 
 
 def _whatif_recipes_compute(conn, mode: str, ranges_raw: str, recipe_ids: str,
-                            rows: list[dict], days: str = "", max_columns=_whatif.MAX_RECIPE_COLUMNS) -> dict:
+                            rows: list[dict], days: str = "", max_columns=_whatif.MAX_RECIPE_COLUMNS,
+                            recipe_name: str = "") -> dict:
     """What-if: Recipes' counterpart of _whatif_meals_compute (days unused)."""
-    recipes_by_id, ranges, missing_ids = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids)
+    recipes_by_id, ranges, missing_ids = _parse_food_use_recipes_selection(
+        conn, mode, ranges_raw, recipe_ids, recipe_name)
     edits, errors = _whatif_edits(rows, conn)
     result = None
     if edits and not errors:
@@ -13502,7 +13540,7 @@ def _whatif_args(query: str) -> dict:
         return q.get(k, [default])[0]
     return {
         "mode": one("mode"), "ranges_raw": one("ranges_raw"), "sel_ids": one("meal_ids") or one("recipe_ids"),
-        "days": one("days", "all"),
+        "days": one("days", "all"), "recipe_name": one("recipe_name"),
         "rows": _whatif_rows_from_query(*(q.get(f"e_{k}", []) for k in ("op", "item", "with", "amt", "basis", "per"))),
     }
 
@@ -13594,15 +13632,31 @@ def analysis_whatif(
     })
 
 
+def _recipes_named(conn, text: str) -> list:
+    """Recipes whose names hold every word of `text` (a list filter's rules:
+    "!word" leaves names with that word out; a whole code such as R21 finds
+    that recipe). Nothing typed selects nothing, not everything."""
+    text = (text or "").strip()
+    if not text:
+        return []
+    code = _typed_code(text)
+    match = _list_filter(text)
+    return [r for r in _db.recipe_list(conn)
+            if (code == ("recipe", r["id"]) if code else match(r["name"]))]
+
+
 def _parse_food_use_recipes_selection(
-    conn, mode: str, ranges_raw: str, recipe_ids: str
+    conn, mode: str, ranges_raw: str, recipe_ids: str, recipe_name: str = ""
 ) -> tuple[dict[int, dict], list[tuple[str, str]], list[int]]:
     """Resolve Food Use in Recipes' mode="all"/"range"/"ids" selection into
     the actual set of (container) recipes — shared by the analysis page and
-    the substitution action."""
+    the substitution action. mode="name" (What-if: Recipes) takes the recipes
+    whose names hold every word of `recipe_name` (_recipes_named)."""
     if mode == "all":
         recipes_by_id = {row["id"]: dict(row) for row in _db.recipe_list(conn)}
         return recipes_by_id, [], []
+    if mode == "name":
+        return {row["id"]: dict(row) for row in _recipes_named(conn, recipe_name)}, [], []
 
     ranges = _parse_date_range_lines(ranges_raw) if mode == "range" else []
     requested_ids = _parse_id_list_tokens(recipe_ids) if mode == "ids" else []
@@ -13627,6 +13681,7 @@ def analysis_whatif_recipes(
     mode: str = Query(default="all"),
     ranges_raw: str = Query(default=""),
     recipe_ids: str = Query(default=""),
+    recipe_name: str = Query(default=""),
     e_op: list[str] = Query(default=[]),
     e_item: list[str] = Query(default=[]),
     e_with: list[str] = Query(default=[]),
@@ -13642,7 +13697,7 @@ def analysis_whatif_recipes(
     Use in Recipes. Nothing is written; the scenario lives in the URL."""
     rows = _whatif_rows_from_query(e_op, e_item, e_with, e_amt, e_basis, e_per)
     with _db.get_db() as conn:
-        c = _whatif_recipes_compute(conn, mode, ranges_raw, recipe_ids, rows)
+        c = _whatif_recipes_compute(conn, mode, ranges_raw, recipe_ids, rows, recipe_name=recipe_name)
         _whatif_name_rows(conn, rows)
     result, errors = c["result"], c["errors"]
     if result:
@@ -13657,13 +13712,62 @@ def analysis_whatif_recipes(
         rows = [{"op": "remove", "item": "", "with": "", "amt": "", "basis": "grams", "per": "batch",
                  "item_name": "", "with_name": ""}]
     return templates.TemplateResponse(request, "analysis_whatif_recipes.html", {
-        "mode": mode, "ranges_raw": ranges_raw, "recipe_ids_raw": recipe_ids,
+        "mode": mode, "ranges_raw": ranges_raw, "recipe_ids_raw": recipe_ids, "recipe_name": recipe_name,
         "missing_ids": c["missing_ids"], "bad_dates": _bad_date_lines(ranges_raw) if mode == "range" else [],
         "rows": rows, "max_rows": _WHATIF_MAX_EDITS, "errors": errors, "result": result,
         "selected": len(c["recipes_by_id"]), "show_all": show_all, "applied": applied,
         "max_columns": _whatif.MAX_RECIPE_COLUMNS,
         **_whatif_page_extras(request, "recipes", result, c["edits"]),
     })
+
+
+_WHATIF_NAME_PREVIEW_MAX = 40
+
+
+@app.get("/analysis/whatif-recipes/name-matches", response_class=JSONResponse)
+def analysis_whatif_recipes_name_matches(recipe_name: str = Query(default="")):
+    """What-if: Recipes' "By name" box, as you type: how many recipes the
+    words select, and the first few of them by name."""
+    with _db.get_db() as conn:
+        found = _recipes_named(conn, recipe_name)
+    return JSONResponse({"count": len(found), "recipes": [
+        {"id": r["id"], "code": _food_code(None, r["id"]), "name": r["name"]}
+        for r in found[:_WHATIF_NAME_PREVIEW_MAX]]})
+
+
+@app.get("/analysis/whatif-recipes/ingredients", response_class=JSONResponse)
+def analysis_whatif_recipes_ingredients(
+    mode: str = Query(default="all"),
+    ranges_raw: str = Query(default=""),
+    recipe_ids: str = Query(default=""),
+    recipe_name: str = Query(default=""),
+    q: str = Query(default=""),
+):
+    """The "Food or recipe" box's list on What-if: Recipes (Remove, Change
+    amount): every food and sub-recipe used in the selected recipes,
+    at any depth, since those changes reach inside sub-recipes. Each with how
+    many of the selected recipes use it, most used first; `q` narrows it by
+    name (a list filter's rules) or picks one item by its code."""
+    agg: dict[tuple[str, int], dict] = {}
+    with _db.get_db() as conn:
+        recipes_by_id, _, _ = _parse_food_use_recipes_selection(conn, mode, ranges_raw, recipe_ids, recipe_name)
+        for recipe_id in recipes_by_id:
+            for fdc_id, name, kind, _protein, ref_id in _db.recipe_expand_ingredient_use(conn, recipe_id):
+                key = ("food", fdc_id) if fdc_id is not None else ("recipe", ref_id) if ref_id else None
+                if key is None:      # a deleted sub-recipe: nothing left to change
+                    continue
+                agg.setdefault(key, {"name": name, "kind": kind, "in": set()})["in"].add(recipe_id)
+    q = q.strip()
+    code = _typed_code(q)
+    match = _list_filter(q)
+    rows = [(key, e) for key, e in agg.items() if (code == key if code else match(e["name"]))]
+    rows.sort(key=lambda ke: (-len(ke[1]["in"]), ke[1]["name"].lower()))
+    total = len(recipes_by_id)
+    return JSONResponse({"selected": total, "results": [{
+        "code": _food_code(key[1]) if key[0] == "food" else _food_code(None, key[1]),
+        "name": e["name"], "kind": e["kind"],
+        "detail": ("recipe, " if e["kind"] == "recipe" else "") + f"in {len(e['in'])} of {total}",
+    } for key, e in rows]})
 
 
 @app.get("/analysis/whatif/export.csv")
@@ -13686,7 +13790,7 @@ def _whatif_csv_response(page: str, query: str) -> Response:
             text = _whatif.meals_csv(c["result"]) if c["result"] else ""
         else:
             c = _whatif_recipes_compute(conn, a["mode"] or "all", a["ranges_raw"], a["sel_ids"], a["rows"],
-                                        max_columns=None)
+                                        max_columns=None, recipe_name=a["recipe_name"])
             text = _whatif.recipes_csv(c["result"]) if c["result"] else ""
     if not text:
         text = "Nothing to export: " + ("; ".join(c["errors"]) or "no result for this selection") + "\n"
@@ -13782,7 +13886,8 @@ def _whatif_apply_plan(conn, page: str, query: str) -> dict:
         c = _whatif_meals_compute(conn, a["mode"] or "range", a["ranges_raw"], a["sel_ids"], a["rows"], "all")
         targets = list(c["meals_by_id"])
     else:
-        c = _whatif_recipes_compute(conn, a["mode"] or "all", a["ranges_raw"], a["sel_ids"], a["rows"])
+        c = _whatif_recipes_compute(conn, a["mode"] or "all", a["ranges_raw"], a["sel_ids"], a["rows"],
+                                    recipe_name=a["recipe_name"])
         targets = list(c["recipes_by_id"])
     problems = list(c["errors"])
     if not problems and not c["result"]:

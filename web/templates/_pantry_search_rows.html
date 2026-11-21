@@ -14,6 +14,38 @@
       {% set ns.partial_shown = true %}
       {% endif %}
 {{ _ro.divider(r, loop.previtem, search_results.also, 8) }}
+    {% if r._type == "recipe" %}
+    {# A recipe goes in the pantry when a batch is made (recipes.on_hand). #}
+    <tr data-row-key="recipe:{{ r.recipe_id }}">
+      <td>
+        <input type="checkbox" class="form-check-input compare-cb" form="compare-search-form"
+               name="recipe_id" value="{{ r.recipe_id }}" aria-label="Select {{ r.name }} to compare">
+      </td>
+      <td class="muted"><small>{{ food_id_short(none, r.recipe_id) }}</small></td>
+      <td><a href="/recipe/{{ r.recipe_id }}"><strong>{{ r.name }}</strong></a></td>
+      <td class="muted">—</td>
+      <td class="muted">Recipe</td>
+      <td>
+        {% if r.aa == "✓" %}<span class="status-met" title="Amino acid data confirmed">✓</span>
+        {% elif r.aa == "~✓" %}<span class="text-warning" title="Amino acid data likely">~✓</span>
+        {% else %}<span class="text-danger" title="No amino acid data">✗</span>{% endif %}
+      </td>
+      <td><span class="source-badge source-recipe">recipe</span></td>
+      <td>
+        <form method="post" action="/recipe/{{ r.recipe_id }}/on-hand" style="display:inline">
+          <input type="hidden" name="next" value="/pantry?search={{ search | urlencode }}">
+          {% if r.on_hand %}
+          <button type="submit" class="btn btn-sm btn-outline-danger"
+                  title="Take this recipe out of your pantry (its batch is used up)">Remove from pantry</button>
+          {% else %}
+          <input type="hidden" name="on_hand" value="1">
+          <button type="submit" class="btn btn-sm btn-primary"
+                  title="A batch is made and on hand">Add to pantry</button>
+          {% endif %}
+        </form>
+      </td>
+    </tr>
+    {% else %}
     <tr data-row-key="food:{{ r.fdc_id }}">
       <td>
         <input type="checkbox" class="form-check-input compare-cb" form="compare-search-form"
@@ -66,6 +98,7 @@
         {% endif %}
       </td>
     </tr>
+    {% endif %}
     {% endfor %}
 {% import "_excluded_note.html" as _xn %}{{ _xn.note(search_results, 8) }}
 {{ _ro.offer(search_results, 'search', 8) }}

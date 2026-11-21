@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-19:2250* / Reading time: 7 hours, 43 minutes
+*Updated 2026-11-20:1417* / Reading time: 7 hours, 45 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -278,7 +278,7 @@ NuMa uses some specialized words. You don't need to master them before you start
 
 **[DCP](#gloss-dcp) is the protein that counts.** [Digestible complete protein](#dcp) (DCP) is the grams of protein in a food, meal or day that your body can actually digest and use, after allowing for digestibility and the limiting amino acid. It is NuMa's main protein figure, and the one compared with your daily protein goal. It is usually lower than the protein figure on a label, sometimes much lower.
 
-**Foods can make up for each other.** A food rich in the amino acid another lacks *complements* it: rice and beans is the classic pair. They don't have to be eaten together, only within about a day. When a food, recipe or meal has a gap, NuMa suggests [complements](#comp), from your own pantry and recipes first.
+**Foods can make up for each other.** A food rich in the amino acid another lacks *complements* it: rice and beans is the classic pair. They don't have to be eaten together, only within about a day. When a food, recipe or meal has a gap, NuMa suggests [complements](#comp), from your own pantry first.
 
 **Your targets are personal.** How much of each nutrient you need depends on your age, sex, weight, height and activity level, which you enter once in your profile. NuMa starts from the official [Recommended Dietary Allowances](#rda) (RDAs), and lets you add more recent [research-based targets](#optimal) and [upper limits](#maxlimits).
 
@@ -448,7 +448,7 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 - **Protein Summary:** the food's protein, and its **DCP** (digestible complete protein), the part of that protein your body can actually use. For most plant foods DCP is noticeably lower.
 - **Protein Quality:** a score for each essential amino acid. A score below 1.0 marks a shortfall; the lowest is the food's *limiting amino acid*. Brown rice, for example, is short of lysine.
-- **Protein Complement Suggestions:** if the food has a gap, foods that would close it, and how much of each. Suggestions from your own pantry come first, under **From your pantry & recipes**.
+- **Protein Complement Suggestions:** if the food has a gap, foods that would close it, and how much of each. Suggestions from your own pantry come first, under **From your pantry**.
 
 **Step 8 — Check for missing data.** Go to **Foods → 9. Check database**. It lists foods with problems, such as no calorie value or no amino acid data. Fix your starred foods first. **Problems by food** at the top of the page lists each food's problems together, with a button for each fix. Don't try to fix everything now; [Workflow 10](#wf-cleanup) covers this properly.
 
@@ -497,7 +497,7 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 **Step 3 — Save, and read the analysis.** Click **Save recipe details**. The recipe's page shows the same sections as a food's page, per serving: nutrients, protein quality with each ingredient's contribution, complement suggestions and glycemic load.
 
-**Step 4 — See it used as a complement.** Open a food that's short of lysine, such as corn tortillas (**Foods → 2. Analyze a food portion**, then `46 g`, about two tortillas). Open **Protein Complement Suggestions**. Under **From your pantry & recipes**, your lentil soup appears as a candidate, with its recipe code (R followed by a number) and how much of it would close the gap.
+**Step 4 — See it used as a complement.** Open a food that's short of lysine, such as corn tortillas (**Foods → 2. Analyze a food portion**, then `46 g`, about two tortillas). Open **Protein Complement Suggestions**. Your lentil soup appears as a candidate, with its recipe code (R followed by a number) and how much of it would close the gap: under **Other options**, as something you could make. Once you've made a batch, tick **In My Pantry** on the recipe's page and it moves up to **From your pantry**, as something you have ([Recipes in your pantry](#pantry-recipes)).
 
 **Step 5 — Log it.** In a meal, search for the recipe by name and enter the number of servings you ate.
 
@@ -517,7 +517,7 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 **Step 2 — Read its protein analysis.** Open **Meal-Level Protein Analysis**. Rice on its own is short of lysine, so its [DCP](#gloss-dcp) (digestible complete protein) is well below its raw protein.
 
-**Step 3 — Read the suggestions.** Open **Protein Complement Suggestions**. NuMa names the amino acid(s) you're short of under **Gaps**, then foods that would close them. Foods and recipes from your pantry come first, under **From your pantry & recipes**, and the built-in list follows under **Other options**. Each says how much would be needed.
+**Step 3 — Read the suggestions.** Open **Protein Complement Suggestions**. NuMa names the amino acid(s) you're short of under **Gaps**, then foods that would close them. Foods and recipes from your pantry come first, under **From your pantry**; your other recipes and the built-in list follow under **Other options**. Each says how much would be needed.
 
 **Step 4 — Add one, and look again.** Add a suggested food to the meal (black beans, ½ cup, say). The meal's DCP rises, often by more than the beans' own protein would suggest, because each food now supplies what the other lacks.
 
@@ -722,7 +722,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 14 minutes)*
+*(Reading time: 2 hours, 16 minutes)*
 
 
 
@@ -1128,11 +1128,13 @@ The foods you keep at home. NuMa looks here first for [complement suggestions](#
 - **Edit** on a row opens that food's Food Cache entry; **Archive/Restore** hides an entry without deleting it ([Archiving](#archive)).
 - **Compare** checkboxes, on the list and on search results, send foods to [Comparison](#comparison) ([Picking from several searches](#compare-picks)). A name-only entry can't be compared.
 
+**Recipes in your pantry.**{: #pantry-recipes} A batch you've made, such as a loaf of bread or a pot of soup, is food on hand too. Put a recipe in your pantry with **Add to pantry** on a search result here (the search finds your recipes as well as foods), the **In My Pantry** box on the recipe's page, or the **Pantry** column of the [Recipes list](#recipes-menu-web). It's listed under **Recipes on hand** on this page, and complement suggestions offer it under **From your pantry**. Your other recipes are still suggested, under **Other options**, as things you could make. When the batch is used up, click **Remove from pantry** or untick the box; the recipe itself is kept. An archived recipe isn't suggested.
+
 ##### My Pantry Table {: #pantry}
 
 *Search terms: staples, groceries, kitchen cupboard, pantry columns.*
 
-The foods you've marked as on hand. When NuMa suggests a food to fill an amino acid gap, it looks here first, and lists matches under "From your pantry & recipes".
+The foods you've marked as on hand. When NuMa suggests a food to fill an amino acid gap, it looks here first, and lists matches under "From your pantry". Recipes you've made are listed separately, under Recipes on hand ([Recipes in your pantry](#pantry-recipes)).
 
 **Sort by**, above the list, orders it by **Most meals, last 90 days** (as in the Food Cache: the foods you actually eat first, with the count under Used in), Name, Code, Type, [DIAAS](#gloss-diaas), [GI](#gloss-gi) estimate, Used in (most-used first) or date Added, and remembers your choice. Columns:
 
@@ -1862,6 +1864,10 @@ Columns:
                 button above the table recomputes every recipe at once.
     Complete    Ticked if you have marked the recipe finished. Tick or
                 untick it right here; it's saved at once.
+    Pantry      Ticked if a batch is made and on hand: the recipe is in
+                My Pantry, and complement suggestions offer it as something
+                you have (see Recipes in your pantry). Tick or untick it
+                right here; it's saved at once.
     Drink       Ticked if the recipe is a drink: its water counts as
                 water from drinks in your totals (see Water). Tick or
                 untick it right here; it's saved at once, and the recipes
@@ -2380,12 +2386,12 @@ Targets come from each day's pinned profile; days with nothing logged are left o
 
 #### What-if: Recipes {: #whatif-recipes}
 
-*Search terms: what-if recipes, recipe scenario, change ingredient.*
+*Search terms: what-if recipes, recipe scenario, change ingredient, recipes by name, ingredient list.*
 
 The recipe version of [What-if: Meals](#whatif): how each recipe's nutrition **per serving** would change if you removed, added, replaced or cut down an ingredient. Nothing is changed.
 
-1. **Which recipes.** All recipes (the default), recipes created on certain dates, or a list of recipe IDs.
-2. **What to change.** The same rows as What-if: Meals. Remove, Replace and Change amount reach the ingredient wherever it's used, sub-recipes included. **Add** puts an amount into each recipe, for **each serving** or **the whole recipe**.
+1. **Which recipes.** All recipes (the default), **By name**, recipes created on certain dates, or a list of recipe IDs. **By name** takes the recipes whose names hold every word you type (`chicken soup`); `!word` leaves out names with that word (`soup !lentil`). As you type, the matching recipes are listed under the box.
+2. **What to change.** The same rows as What-if: Meals. Remove, Replace and Change amount reach the ingredient wherever it's used, sub-recipes included. For **Remove** and **Change amount**, click the food/recipe box: it lists every food and sub-recipe in the recipes chosen in step 1, most used first, with how many of them use each ("in 3 of 5"). Type to narrow the list, then pick one. For **Add** and **Replace**, the box searches all your foods and recipes, as on What-if: Meals. **Add** puts an amount into each recipe, for **each serving** or **the whole recipe**.
 3. Click **Show the effect**.
 
 Servings never change, so removing an ingredient makes each serving lighter: "if I left out the nutritional yeast, what would one serving give me?"
@@ -2396,7 +2402,7 @@ To use more or less of an ingredient, use **Change amount (multiply: 1.5 or 150%
 
 The results are a grid, a column per recipe: each cell the value per serving **after** your changes, in bold, with the change below (**Also show the before values** adds the old one). **Average change**, the first column, averages each recipe's percent change over every recipe reached; recipes that had none of the nutrient are left out of it ("over N" says when). Only changed nutrients are listed; a link shows the rest. Protein ([DCP](#gloss-dcp)) is worked out as on the recipe page; NC (not computed) means an ingredient with 1 g or more of protein lacks amino acid data.
 
-Only recipes the change reaches are shown (with only Add rows, all selected ones), at most 8, the most-changed; the rest are named, so you can choose with **Recipe IDs**.
+Only recipes the change reaches are shown (with only Add rows, all selected ones), at most 8, the most-changed; the rest are named, so you can choose with **Recipe IDs** or **By name**.
 
 Unselected recipes that use a changed recipe are listed under the grid, since they'd change too; **Show them too** adds them.
 
@@ -3932,7 +3938,7 @@ On a recipe's own page, every suggested amount is for the **whole batch**, all s
 
 So a suggestion can look large (80 g or more of soy protein isolate for a 4-serving recipe): that's for the pot, not a serving. Each also shows the per-serving equivalent.
 
-**Where candidates come from**, in order: your [pantry](#pantry) and [recipes](#recipes-menu-web); then your wider Food Cache (matched by name against the built-in list); then the built-in list itself[^10], filtered by your [dietary preferences](#diet). The header says which were used. Tags like "(estimated)" are explained in [Amino acid estimates in suggestions](#comp-estimate); to drop a suggestion, see [Ignoring a complement suggestion](#ignore-complement).
+**Where candidates come from**, in order: your [pantry](#pantry), including the recipes in it ([Recipes in your pantry](#pantry-recipes)); then your other [recipes](#recipes-menu-web), your wider Food Cache (matched by name against the built-in list); then the built-in list itself[^10], filtered by your [dietary preferences](#diet). The header says which were used. Tags like "(estimated)" are explained in [Amino acid estimates in suggestions](#comp-estimate); to drop a suggestion, see [Ignoring a complement suggestion](#ignore-complement).
 
 
 #### Amino acid estimates in complement suggestions {: #comp-estimate}
@@ -6285,6 +6291,8 @@ DETAILS:
 * A pantry entry's note can now be changed from the Pantry list.
 * **Compare checked foods with this one** (Fill in nutrients from another food, a custom food's Edit values) turns blue once a food is ticked. Every Compare button keeps your ticks after comparing, so coming back finds them still ticked; Clear all picks clears them.
 
+- **50.** What-if: Recipes can choose recipes **By name** (every word you type, listed as you type), and for **Remove** and **Change amount** its food/recipe box lists the ingredients of the chosen recipes to pick from, most used first ([What-if: Recipes](#whatif-recipes)).
+- **49.** A recipe you've made can now go in My Pantry (**Add to pantry** on My Pantry's search, **In My Pantry** on the recipe's page, or the Recipes list's **Pantry** column), and complement suggestions offer it under **From your pantry**. Your other recipes are suggested under **Other options**, as things you could make. [learn more...](#pantry-recipes)
 - **48.** On Fill in nutrients from another food and a custom food's Edit values page, **Compare checked foods with this one** turns blue once a food is ticked, as Compare buttons do elsewhere. Every Compare button now keeps your ticks after comparing, so coming back finds them still ticked; **Clear all picks** clears them. [learn more...](#compare-picks)
 - **47.** Any food can now carry notes of your own: on its page, under **Notes**, click **Add your own notes on this food**. They're kept when you Refresh from USDA. A pantry entry's note can now be changed from the Pantry list. [learn more...](#food-notes)
 - **46.** The Food Cache and My Pantry can be sorted by **Most meals, last 90 days**, the same order as Foods → 9's lists, and start that way unless you've already chosen another sort. [learn more...](#food-cache-web)

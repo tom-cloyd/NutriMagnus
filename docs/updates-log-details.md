@@ -8,6 +8,28 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+#### November 20 updates
+
+**PROGRAM: WHAT-IF: RECIPES FINDS RECIPES BY NAME, AND LISTS THEIR INGREDIENTS TO PICK FROM**
+
+What-if: Recipes can now choose its recipes **By name**: type words, and the recipes whose names hold all of them are listed as you type. For **Remove** and **Change amount**, clicking the food/recipe box lists every food and sub-recipe in the chosen recipes, most used first, so you pick what to change from what's actually there instead of typing a name blind. Add and Replace still search all your foods and recipes. [learn more...](#whatif-recipes)
+
+<!--
+```
+Scope: Analysis → What-if: Recipes. web/backend.py: _recipes_named() (list-filter rules, a typed R-code, empty selects nothing); _parse_food_use_recipes_selection gains mode="name" + recipe_name (Food Use in Recipes doesn't offer it yet); _whatif_recipes_compute/_whatif_args carry recipe_name, so CSV export, Apply for real and saved scenarios keep the selection; new GET /analysis/whatif-recipes/name-matches (count + first 40) and /analysis/whatif-recipes/ingredients (db.recipe_expand_ingredient_use over the selection, every depth, deleted sub-recipes skipped; counts per selected recipe; q = list filter or a code). Templates: analysis_whatif_recipes.html (By name radio, box, live preview; help text), _whatif_changes.html script(ingredient_source=...): the item picker reads the step-1 selection from the form and opens on focus/click for remove/scale; the Meals page passes none and is unchanged. Tests: test_web.py (4), tests/e2e/test_whatif_recipe_picks_e2e.py.
+```
+-->
+
+**PROGRAM: RECIPES YOU'VE MADE CAN GO IN MY PANTRY**
+
+A batch you've made, such as a loaf of bread, is now food on hand: put it in My Pantry with **Add to pantry** on My Pantry's search results (the search now finds your recipes too), the **In My Pantry** box on the recipe's page, or the Recipes list's new **Pantry** column. It's listed under **Recipes on hand** on My Pantry, with **Remove from pantry** for when the batch is used up. Protein complement suggestions offer the recipes in your pantry under **From your pantry** (renamed from "From your pantry & recipes"); your other recipes now appear under **Other options**, as things you could make, and archived recipes aren't suggested. [learn more...](#pantry-recipes)
+
+<!--
+```
+Scope: db.py (recipes.on_hand column; set_recipe_on_hand(), recipes_on_hand(); recipe_list/recipe_list_recent select on_hand), usda_nutrients.py (suggest_complements recipe_candidates → general tier, name/diet/ignore filtered), numa_app/services/complements.py (build_complement_display and two_step_combo pass recipe_candidates through), web/backend.py (_web_complement_pools splits recipes by on_hand, archived recipes dropped from _web_recipe_candidates; POST /recipe/{id}/on-hand; /pantry passes recipes_on_hand; _screen_pantry finds recipes unless linking a name-only entry; recipe search rows carry on_hand), templates: _row_toggles.html (pantry_box), recipes.html (Pantry column), recipe_detail.html (In My Pantry box), pantry.html (Recipes on hand), _pantry_search_rows.html (recipe rows), complement headings in meal, meal_day, food_detail, recipe_detail, food_analyze_recipe_portion, print. Before this every analyzed recipe counted as on hand. Tests: test_complements.py TestRecipeCandidates, test_web.py (three new; pantry search test now expects recipes).
+```
+-->
+
 #### November 19 updates
 
 **PROGRAM: "COMPARE CHECKED FOODS WITH THIS ONE" TURNS BLUE WHEN READY; COMPARE KEEPS YOUR TICKS**

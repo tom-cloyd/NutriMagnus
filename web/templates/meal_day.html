@@ -71,7 +71,7 @@
     <a class="sb-toggle" href="#sec-complements">Complement Suggestions</a>
     {% if not complements.no_gaps %}
     <ul class="sb-sub">
-      {% if complements.pantry %}<li><a class="sb-link" href="#cmpl-pantry">From your pantry &amp; recipes</a></li>{% endif %}
+      {% if complements.pantry %}<li><a class="sb-link" href="#cmpl-pantry">From your pantry</a></li>{% endif %}
       {% if complements.general %}<li><a class="sb-link" href="#cmpl-general">{% if complements.pantry %}Other options{% else %}Suggestions{% endif %}</a></li>{% endif %}
       {% if complements.pairs %}<li><a class="sb-link" href="#cmpl-pairs">Two-food combinations</a></li>{% endif %}
       {% if complements.diaas_improvers %}<li><a class="sb-link" href="#cmpl-diaas-boost">DIAAS-boosting options</a></li>{% endif %}
@@ -467,7 +467,7 @@
   {% endif %}
 
   {% if complements.pantry %}
-  <h5 class="mt-3" id="cmpl-pantry">From your pantry &amp; recipes</h5>
+  <h5 class="mt-3" id="cmpl-pantry">From your pantry</h5>
   {% for s in complements.pantry %}{{ suggest_card(s, "Add to meal") }}{% endfor %}
   {% endif %}
 

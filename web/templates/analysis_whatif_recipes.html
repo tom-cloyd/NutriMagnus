@@ -30,6 +30,10 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
       <label class="form-check-label" for="mode-all">All recipes</label>
     </div>
     <div class="form-check form-check-inline">
+      <input class="form-check-input" type="radio" name="mode" id="mode-name" value="name" {% if mode == "name" %}checked{% endif %}>
+      <label class="form-check-label" for="mode-name">By name</label>
+    </div>
+    <div class="form-check form-check-inline">
       <input class="form-check-input" type="radio" name="mode" id="mode-range" value="range" {% if mode == "range" %}checked{% endif %}>
       <label class="form-check-label" for="mode-range">By date created</label>
     </div>
@@ -39,6 +43,12 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
     </div>
   </div>
   <div class="d-flex gap-4 flex-wrap">
+    <div class="mb-3" id="name-block" style="width:26rem;max-width:100%">
+      <label class="form-label" for="recipe_name">Words in the recipe's name <small class="muted">(every word must appear; <code>!word</code> leaves out names with that word)</small></label>
+      <input type="text" class="form-control" id="recipe_name" name="recipe_name" value="{{ recipe_name or "" }}"
+             autocomplete="off" placeholder="e.g. chicken soup">
+      <div class="small mt-1" id="name-matches" aria-live="polite"></div>
+    </div>
     <div class="mb-3" id="range-block" style="max-width:22rem">
       <label class="form-label" for="ranges_raw">Dates created <small class="muted">(one per line: <code>YYYY-MM-DD:YYYY-MM-DD</code>, or a single date <code>YYYY-MM-DD</code>)</small></label>
       <textarea class="form-control" id="ranges_raw" name="ranges_raw" rows="3"
@@ -52,7 +62,9 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
 
   <h3 class="h5">2. What to change</h3>
   <p class="muted mb-2"><small>
-    Add a row for each change; they all apply together. Type part of a name in a food/recipe box and pick from the list.
+    Add a row for each change; they all apply together. For <strong>Remove</strong> and <strong>Change amount</strong>,
+    click the food/recipe box to list the ingredients of the recipes chosen above (most used first), and type to narrow
+    the list; for <strong>Add</strong> and <strong>Replace</strong>, type part of any food's or recipe's name and pick from the list.
     <strong>Remove</strong>, <strong>Replace</strong> and <strong>Change amount</strong> reach the ingredient wherever it is used,
     including inside sub-recipes. <strong>Add</strong> puts the amount into each recipe like one more ingredient; choose whether the amount is for
     each serving or for the whole recipe (then each serving gets its share). The number of servings stays the same.
@@ -201,16 +213,60 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
 
 <script>
 (function () {
-  var radios = { all: document.getElementById('mode-all'), range: document.getElementById('mode-range'), ids: document.getElementById('mode-ids') };
+  var radios = { all: document.getElementById('mode-all'), name: document.getElementById('mode-name'),
+                 range: document.getElementById('mode-range'), ids: document.getElementById('mode-ids') };
+  var nameBlock = document.getElementById('name-block');
   var rangeBlock = document.getElementById('range-block');
   var idsBlock = document.getElementById('ids-block');
+  var recipeName = document.getElementById('recipe_name');
   var rangesRaw = document.getElementById('ranges_raw');
   var recipeIds = document.getElementById('recipe_ids');
   function sync() {
+    recipeName.disabled = !radios.name.checked;
     rangesRaw.disabled = !radios.range.checked;
     recipeIds.disabled = !radios.ids.checked;
+    nameBlock.classList.toggle('opacity-50', !radios.name.checked);
     rangeBlock.classList.toggle('opacity-50', !radios.range.checked);
     idsBlock.classList.toggle('opacity-50', !radios.ids.checked);
+  }
+  // "By name": as you type, which recipes the words select.
+  var nameMatches = document.getElementById('name-matches');
+  var nameTimer = null, nameSeq = 0;
+  function previewNames() {
+    clearTimeout(nameTimer);
+    var q = recipeName.value.trim();
+    if (!q) { nameMatches.textContent = ''; return; }
+    nameTimer = setTimeout(function () {
+      var mine = ++nameSeq;
+      fetch('/analysis/whatif-recipes/name-matches?recipe_name=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (mine !== nameSeq) return;
+          nameMatches.innerHTML = '';
+          var head = document.createElement('div');
+          head.className = data.count ? 'muted' : 'text-warning';
+          head.textContent = data.count ? data.count + ' recipe(s) match' + (data.count > data.recipes.length ? ' (the first ' + data.recipes.length + ' shown)' : '') + ':'
+                                        : 'No recipe has all of those words in its name.';
+          nameMatches.appendChild(head);
+          if (!data.count) return;
+          var box = document.createElement('div');
+          box.style.maxHeight = '9rem';
+          box.style.overflowY = 'auto';
+          data.recipes.forEach(function (r, i) {
+            var a = document.createElement('a');
+            a.href = '/recipe/' + r.id;
+            a.target = '_blank';
+            a.textContent = r.name;
+            var code = document.createElement('span');
+            code.className = 'muted';
+            code.textContent = ' ' + r.code;
+            box.appendChild(a);
+            box.appendChild(code);
+            if (i < data.recipes.length - 1) box.appendChild(document.createTextNode(' · '));
+          });
+          nameMatches.appendChild(box);
+        });
+    }, 200);
   }
   // The cursor goes in the box the checked choice uses: on load (unless
   // something already has it; no scrolling, so a page reloaded with
@@ -222,10 +278,12 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
     try { box.setSelectionRange(end, end); } catch (e) {}
   }
   // "All recipes" has no box, so nothing takes the cursor then.
-  function activeBox() { return radios.range.checked ? rangesRaw : radios.ids.checked ? recipeIds : null; }
+  function activeBox() { return radios.name.checked ? recipeName : radios.range.checked ? rangesRaw : radios.ids.checked ? recipeIds : null; }
   Object.keys(radios).forEach(function (k) {
     radios[k].addEventListener('change', function () { sync(); focusBox(activeBox()); });
   });
+  recipeName.addEventListener('input', function () { if (recipeName.value.trim()) { radios.name.checked = true; sync(); } previewNames(); });
+  previewNames();
   recipeIds.addEventListener('input', function () { if (recipeIds.value.trim()) { radios.ids.checked = true; sync(); } });
   rangesRaw.addEventListener('input', function () { if (rangesRaw.value.trim()) { radios.range.checked = true; sync(); } });
   sync();
@@ -238,5 +296,5 @@ For the effect on what you actually ate, use <a href="/analysis/whatif">What-if:
   }
 })();
 </script>
-{{ _wc.script(max_rows, 'Amount to add (e.g. 1 cup, 30 g, 1 serving)') }}
+{{ _wc.script(max_rows, 'Amount to add (e.g. 1 cup, 30 g, 1 serving)', ingredient_source='/analysis/whatif-recipes/ingredients') }}
 {% endblock %}

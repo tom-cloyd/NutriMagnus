@@ -120,6 +120,29 @@
 </div>
 {% endif %}
 
+{# ── Recipes on hand (recipes.on_hand) ── #}
+{% if recipes_on_hand and not link_id %}
+<h5 class="mt-4" id="recipes-on-hand">Recipes on hand {{ manual_link("pantry-recipes") }}</h5>
+<p class="muted mb-1"><small>Batches you've made. Complement suggestions offer them as things you have. Your other recipes are offered with the general suggestions, as things you could make.</small></p>
+<table class="table table-sm table-hover mb-3" style="max-width:40rem">
+  <tbody>
+    {% for r in recipes_on_hand %}
+    <tr{% if r.archived %} class="text-muted"{% endif %}>
+      <td class="muted" style="width:4rem"><small>{{ food_id_short(none, r.id) }}</small></td>
+      <td><a href="/recipe/{{ r.id }}">{{ r.name }}</a>
+        {% if r.archived %}<span class="badge bg-secondary ms-1" title="An archived recipe isn't suggested">Archived</span>{% endif %}</td>
+      <td style="width:1%;white-space:nowrap">
+        <form method="post" action="/recipe/{{ r.id }}/on-hand" class="m-0">
+          <input type="hidden" name="next" value="/pantry#recipes-on-hand">
+          <button type="submit" class="btn btn-sm btn-outline-danger" title="Take this recipe out of your pantry (its batch is used up)">Remove from pantry</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
 {# ── Pantry list ── #}
 {% if pantry_total %}
 <h5 class="mt-4">Filter my pantry list</h5>
@@ -278,6 +301,6 @@
 {% elif filter %}
 <p class="result-count">No pantry items match <strong>{{ filter }}</strong>.</p>
 {% else %}
-<p>Your pantry is empty. Add some foods above, or <a href="/settings#starter-data">load starter data</a> to explore the app.</p>
+<p>{% if recipes_on_hand %}No foods in your pantry yet.{% else %}Your pantry is empty.{% endif %} Add some foods above, or <a href="/settings#starter-data">load starter data</a> to explore the app.</p>
 {% endif %}
 {% endblock %}

@@ -286,6 +286,14 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        # on_hand: a batch of this recipe is made and in the pantry, so
+        # complement suggestions offer it as something the user has, not
+        # just something they could make (set_recipe_on_hand).
+        try:
+            conn.execute("ALTER TABLE recipes ADD COLUMN on_hand INTEGER NOT NULL DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+
         # max_meal_g: the most of this food a protein complement suggestion
         # may add to one meal (usda_nutrients.complement_meal_limit) — a
         # personal preference, not a data edit, so has_user_annotation()
@@ -1650,7 +1658,7 @@ def recipe_list(conn: sqlite3.Connection, *, include_archived: bool = False) -> 
     return conn.execute(
         "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
         " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived, notes,"
-        " is_drink"
+        " is_drink, on_hand"
         f" FROM recipes {archived_clause} ORDER BY name"
     ).fetchall()
 
@@ -1660,7 +1668,7 @@ def recipe_list_recent(conn: sqlite3.Connection, limit: int = 20, *, include_arc
     return conn.execute(
         "SELECT id, name, description, servings, serving_size, dcp_g, dcp_computed_at, created_at, complete,"
         " last_accessed_at, total_weight, total_weight_unit, total_volume, total_volume_unit, archived,"
-        " is_drink"
+        " is_drink, on_hand"
         f" FROM recipes {archived_clause} ORDER BY COALESCE(last_accessed_at, created_at) DESC LIMIT ?",
         (limit,)
     ).fetchall()
@@ -1670,6 +1678,18 @@ def set_recipe_complete(conn: sqlite3.Connection, recipe_id: int, complete: bool
     """Mark a recipe complete or not (the same flag as Edit Recipe's
     "Mark recipe as complete" box; the Recipes list sets it in place)."""
     conn.execute("UPDATE recipes SET complete = ? WHERE id = ?", (1 if complete else 0, recipe_id))
+
+
+def set_recipe_on_hand(conn: sqlite3.Connection, recipe_id: int, on_hand: bool) -> None:
+    """Put a recipe in the pantry (a batch is made and on hand) or take it out."""
+    conn.execute("UPDATE recipes SET on_hand = ? WHERE id = ?", (1 if on_hand else 0, recipe_id))
+
+
+def recipes_on_hand(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """The recipes in the pantry, by name: id, name, servings, archived."""
+    return conn.execute(
+        "SELECT id, name, servings, archived FROM recipes WHERE on_hand = 1 ORDER BY name COLLATE NOCASE"
+    ).fetchall()
 
 
 def set_recipe_archived(conn: sqlite3.Connection, recipe_id: int, archived: bool) -> None:

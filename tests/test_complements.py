@@ -1155,3 +1155,40 @@ class TestComplementsMutationGaps20261014:
         self._insert(db_conn, 600, "Seed mix pumpkin sunflower hemp seeds")
         found = [c for c in _complements.load_cache_candidates() if c["fdc_id"] == 600]
         assert len(found) == 1
+
+
+# ---------------------------------------------------------------------------
+# Recipes: on hand (pantry) vs. the rest (general tier)
+# ---------------------------------------------------------------------------
+
+class TestRecipeCandidates:
+    """A recipe in the pantry is offered as on hand; any other recipe joins the
+    general tier, as something the user could make (recipe_candidates)."""
+
+    @staticmethod
+    def _recipe():
+        gc = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [])["general"][0]
+        return {"name": "My lysine loaf", "fdc_id": None, "recipe_id": 79,
+                "nutrients": gc["comp_nutrients"], "diaas": None, "serving_weight_g": None}
+
+    def test_recipe_not_on_hand_is_a_general_suggestion(self):
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [], recipe_candidates=[self._recipe()])
+        general = [s for s in result["general"] if s["name"] == "My lysine loaf"]
+        assert general and general[0]["recipe_id"] == 79
+        assert not any(s["name"] == "My lysine loaf" for s in result["pantry"])
+
+    def test_recipe_on_hand_is_a_pantry_suggestion_only(self):
+        r = self._recipe()
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [r], recipe_candidates=[dict(r)])
+        assert any(s["name"] == "My lysine loaf" for s in result["pantry"])
+        assert not any(s["name"] == "My lysine loaf" for s in result["general"])
+
+    def test_ignored_recipe_is_left_out(self):
+        result = _usda.suggest_complements(_DEFICIENT_NUTRIENTS, [], recipe_candidates=[self._recipe()],
+                                           exclude_names={"my lysine loaf"})
+        assert not any(s["name"] == "My lysine loaf" for s in result["general"] + result["pantry"])
+
+    def test_display_passes_recipes_through(self):
+        result = _complements.build_complement_display(
+            _DEFICIENT_NUTRIENTS, [], recipe_candidates=[self._recipe()], general_limit=50)
+        assert any(s["name"] == "My lysine loaf" for s in result["general"])

@@ -5504,19 +5504,20 @@ def test_pantry_search_defers_online_sources_to_async_endpoint(
     assert "Add to pantry" in api_resp.text
 
 
-def test_pantry_search_includes_bundled_sources_and_drops_recipes(
+def test_pantry_search_includes_bundled_sources_and_recipes(
     client: TestClient, db_conn, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Regression: My Pantry's own search used to cover only cache, USDA and
     OFF, silently ignoring CNF/CoFID/AFCD/CIQUAL even when ticked. It now uses
-    the shared search helpers — but a pantry holds foods, so no recipe rows."""
+    the shared search helpers, recipes included: a made batch goes in the
+    pantry too (test_pantry_search_offers_recipes_but_not_when_linking)."""
     _mock_api(monkeypatch)
     db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Peanut butter cookies', 1)")
     db_conn.commit()
     resp = client.get("/pantry", params={"search": "peanut butter", "source": ["cofid", "recipe"]})
     assert resp.status_code == 200
     assert "source-cofid" in resp.text
-    assert "Peanut butter cookies" not in resp.text
+    assert "Peanut butter cookies" in resp.text
     # cofid is bundled (no network), so nothing is left to fetch
     assert 'id="pantry-search-loading"' not in resp.text
 
@@ -8780,6 +8781,64 @@ def test_whatif_recipes_needs_a_change_first(client: TestClient) -> None:
     assert "Enter at least one change above" in resp.text
 
 
+def test_whatif_recipes_select_by_name(client: TestClient, cached_food: dict) -> None:
+    """mode=name takes the recipes whose names hold every word ("!" words
+    leave names out), here and in the CSV export, which reads the saved query."""
+    _whatif_recipe(client, cached_food, "Chicken Soup")
+    _whatif_recipe(client, cached_food, "Chicken Bake")
+    _whatif_recipe(client, cached_food, "Lentil Soup")
+    params = {"mode": "name", "recipe_name": "chicken soup", "e_op": "remove",
+              "e_item": f"U{cached_food['fdcId']}", "e_with": "", "e_amt": "", "e_basis": "grams"}
+    resp = client.get("/analysis/whatif-recipes", params=params)
+    assert "(1 recipe(s) selected)" in resp.text and "Chicken Soup" in resp.text
+    assert "found in 1 recipe(s)" in resp.text
+    resp = client.get("/analysis/whatif-recipes", params={**params, "recipe_name": "soup !lentil"})
+    assert "(1 recipe(s) selected)" in resp.text
+    from urllib.parse import urlencode
+    csv = client.get("/analysis/whatif-recipes/export.csv?" + urlencode(params)).text
+    assert "Chicken Soup" in csv and "Chicken Bake" not in csv
+
+
+def test_whatif_recipes_name_matches_preview(client: TestClient, cached_food: dict) -> None:
+    rid = _whatif_recipe(client, cached_food, "Chicken Soup")
+    _whatif_recipe(client, cached_food, "Lentil Soup")
+    data = client.get("/analysis/whatif-recipes/name-matches", params={"recipe_name": "soup"}).json()
+    assert data["count"] == 2 and {r["name"] for r in data["recipes"]} == {"Chicken Soup", "Lentil Soup"}
+    data = client.get("/analysis/whatif-recipes/name-matches", params={"recipe_name": "chicken"}).json()
+    assert data == {"count": 1, "recipes": [{"id": rid, "code": f"R{rid}", "name": "Chicken Soup"}]}
+    assert client.get("/analysis/whatif-recipes/name-matches").json()["count"] == 0
+
+
+def test_whatif_recipes_ingredient_list(client: TestClient, cached_food: dict) -> None:
+    """The change box's list: every food and sub-recipe in the selected
+    recipes, nested ones included, with how many use it; q narrows it."""
+    sub = _whatif_recipe(client, cached_food, "Spice Rub")
+    outer = int(client.post("/recipe/new", data={"name": "Roast Dinner", "servings": 1}, follow_redirects=False)
+                .headers["location"].split("/recipe/")[1].split("/")[0])
+    client.post(f"/recipe/{outer}/ingredient/add-recipe",
+                data={"ref_recipe_id": sub, "recipe_name": "Spice Rub", "servings": 1}, follow_redirects=False)
+    url = "/analysis/whatif-recipes/ingredients"
+    data = client.get(url, params={"mode": "name", "recipe_name": "roast"}).json()
+    assert data["selected"] == 1
+    # Equal counts fall back to name order: "Chicken, ..." before "Spice Rub".
+    assert [(r["code"], r["detail"]) for r in data["results"]] == [
+        (f"U{cached_food['fdcId']}", "in 1 of 1"), (f"R{sub}", "recipe, in 1 of 1")]
+    data = client.get(url, params={"mode": "all"}).json()
+    assert data["results"][0] == {"code": f"U{cached_food['fdcId']}", "name": cached_food["name"],
+                                  "kind": "food", "detail": "in 2 of 2"}
+    assert [r["name"] for r in client.get(url, params={"mode": "all", "q": "spice"}).json()["results"]] == ["Spice Rub"]
+    assert client.get(url, params={"mode": "ids", "recipe_ids": ""}).json() == {"selected": 0, "results": []}
+
+
+def test_whatif_recipes_picker_lists_ingredients(client: TestClient) -> None:
+    """The recipes page wires the change box to the ingredient list; the
+    meals page keeps searching every food."""
+    recipes = client.get("/analysis/whatif-recipes").text
+    assert 'value="name"' in recipes and 'id="recipe_name"' in recipes
+    assert '"/analysis/whatif-recipes/ingredients"' in recipes
+    assert "var ingredientSource = null" in client.get("/analysis/whatif").text
+
+
 def test_food_use_recipes_rows_link_to_whatif(client: TestClient, cached_food: dict) -> None:
     _whatif_recipe(client, cached_food, "Chicken Bake")
     resp = client.get("/analysis/food-use-recipes")
@@ -10268,3 +10327,77 @@ def test_a_pantry_note_can_be_changed_from_the_list(client: TestClient) -> None:
     with _db.get_db() as conn:
         assert _db.pantry_get(conn, pid)["notes"] == "5 lb bag"
     assert "5 lb bag" in client.get("/pantry").text
+
+
+def test_recipe_in_pantry_from_its_page_list_and_pantry(client: TestClient, db_conn) -> None:
+    """A made batch of a recipe is food on hand: it can be put in My Pantry
+    from the recipe's page, the Recipes list's Pantry column and My Pantry's
+    search, is listed under Recipes on hand, and can be taken out again."""
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Protein bread', 21)")
+    db_conn.commit()
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = 'Protein bread'").fetchone()["id"]
+    on_hand = lambda: db_conn.execute("SELECT on_hand FROM recipes WHERE id = ?", (rid,)).fetchone()[0]
+
+    # The recipe's page box, unticked; ticking it saves and returns to the box.
+    page = client.get(f"/recipe/{rid}").text
+    box = page.split('id="pantry-toggle"')[1].split("</form>")[0]
+    assert 'name="on_hand"' in box and "checked" not in box
+    resp = client.post(f"/recipe/{rid}/on-hand", data={"on_hand": "1"}, follow_redirects=False)
+    assert resp.headers["location"] == f"/recipe/{rid}#pantry-toggle"
+    assert on_hand() == 1
+
+    # Listed under Recipes on hand, with a Remove from pantry button.
+    page = client.get("/pantry").text
+    assert 'id="recipes-on-hand"' in page
+    section = page.split('id="recipes-on-hand"')[1].split("</table>")[0]
+    assert "Protein bread" in section and f'action="/recipe/{rid}/on-hand"' in section
+
+    # The Recipes list's Pantry box, ticked; unticking it in place clears it.
+    page = client.get("/recipes", params={"q": "protein bread"}).text
+    box = page.split(f'action="/recipe/{rid}/on-hand"')[1].split("</form>")[0]
+    assert "js-row-toggle" in page and "checked" in box
+    assert client.post(f"/recipe/{rid}/on-hand", data={},
+                       headers={"X-Numa-Ajax": "1"}).json() == {"ok": True}
+    assert on_hand() == 0
+    assert 'id="recipes-on-hand"' not in client.get("/pantry").text
+    assert client.post("/recipe/999999/on-hand", data={"on_hand": "1"},
+                       headers={"X-Numa-Ajax": "1"}).json() == {"ok": False}
+
+
+def test_pantry_search_offers_recipes_but_not_when_linking(client: TestClient, db_conn) -> None:
+    """My Pantry's search finds recipes, each with Add to pantry (or Remove
+    once in it); linking a name-only entry to a food still finds foods only."""
+    db_conn.execute("INSERT INTO recipes (name, servings) VALUES ('Whole wheat loaf', 1)")
+    db_conn.execute("INSERT INTO pantry (food_name) VALUES ('Mystery flour')")
+    db_conn.commit()
+    rid = db_conn.execute("SELECT id FROM recipes WHERE name = 'Whole wheat loaf'").fetchone()["id"]
+    link_id = db_conn.execute("SELECT id FROM pantry WHERE food_name = 'Mystery flour'").fetchone()["id"]
+
+    page = client.get("/pantry", params={"search": "whole wheat loaf", "source": "recipe"}).text
+    row = page.split(f'data-row-key="recipe:{rid}"')[1].split("</tr>")[0]
+    assert f'action="/recipe/{rid}/on-hand"' in row and "Add to pantry" in row
+    assert 'name="recipe_id"' in row  # its Compare box
+
+    client.post(f"/recipe/{rid}/on-hand", data={"on_hand": "1"})
+    page = client.get("/pantry", params={"search": "whole wheat loaf", "source": "recipe"}).text
+    assert "Remove from pantry" in page.split(f'data-row-key="recipe:{rid}"')[1].split("</tr>")[0]
+
+    page = client.get("/pantry", params={"search": "whole wheat loaf", "source": "recipe",
+                                         "link_id": link_id}).text
+    assert f'data-row-key="recipe:{rid}"' not in page
+
+
+def test_complement_pools_split_recipes_by_pantry(client: TestClient, db_conn) -> None:
+    """Complement suggestions count a recipe as on hand only when it's in the
+    pantry; other recipes are offered as things you could make, and an
+    archived recipe isn't offered at all."""
+    import web.backend as _backend
+    nuts = json.dumps(dict(SAMPLE_NUTRIENTS))
+    for name, on_hand, archived in (("Made loaf", 1, 0), ("Unmade loaf", 0, 0), ("Old loaf", 1, 1)):
+        db_conn.execute("INSERT INTO recipes (name, servings, nutrients_json, on_hand, archived)"
+                        " VALUES (?, 1, ?, ?, ?)", (name, nuts, on_hand, archived))
+    db_conn.commit()
+    have, others = _backend._web_complement_pools()
+    assert "Made loaf" in [c["name"] for c in have]
+    assert [c["name"] for c in others] == ["Unmade loaf"]
+    assert "Old loaf" not in [c["name"] for c in have + others]
