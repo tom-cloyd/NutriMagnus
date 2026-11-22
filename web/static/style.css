@@ -64,6 +64,17 @@ details[open] > summary::before {
   content: "▼ ";
 }
 
+/* A button that opens a small pop-up form (Edit on a meal's items and the
+   "Added" line, from meal.html's edit_popup / scale_popup; Edit on a
+   recipe's ingredients): it sits in a row of buttons, so neither it nor its
+   <details> takes the section margins above (0.5rem under a details, 0.4rem
+   under its summary). Those made it ride several pixels above the ✕ remove
+   button beside it, which a table cell centres without any. */
+details.popup-edit,
+details.popup-edit > summary {
+  margin-bottom: 0;
+}
+
 /* A long list folded behind its count line (Foods -> 9): the bar says
    whether clicking shows or hides it. */
 details.fold-list:not([open]) .fold-hide,
