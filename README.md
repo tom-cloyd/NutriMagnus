@@ -32,7 +32,7 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Oxalate tracking** — flags high-oxalate foods with practical notes (relevant for kidney stone risk and calcium absorption)
 - **Multiple user profiles** — different RDA targets for different household members (age, sex, weight, activity level)
 - **Personalized nutrient targets** — set a custom "optimal" target above the standard RDA for any nutrient (e.g. higher Vitamin D for older adults), and custom max limits that warn you as you approach them
-- **Personal pantry** — keep a list of protein sources on hand; the complement advisor draws from it first
+- **Personal pantry** — keep a list of the foods you have on hand, and batches of recipes you've made; the complement advisor draws from it first
 - **Glycemic load tracking** — see the glycemic load of foods, recipes, full meals and whole days (a day judged on the daily scale, not the per-meal one), with an estimated GI for meals and recipes; set an optional daily target, plot daily glycemic load over time, or average it across 7, 14 or 30 days; get lower-GI swap suggestions from your own foods
 - **Glycemic index lookup** — search the published GI reference tables by food name, for normal or impaired glucose tolerance, and attach a value to any food in one click. The 2008 edition (~2,500 entries) is built in; the 2021 edition (over 4,000 foods) can be added from Settings in a few clicks — its license doesn't allow it to ship with the program
 - **Nutrient trends over time** — average your intake over 7, 14, or 30 days, or plot any nutrient across your logged days, to catch a chronic shortfall a single day's numbers would hide
@@ -40,12 +40,13 @@ Anyone who wants to understand what they're actually eating — especially peopl
 - **Archive** — hide a food, pantry entry, or recipe you're not currently using without deleting it
 - **Side-by-side comparison** — compare up to 8 foods and/or recipes at once, in any mix, nutrient by nutrient; jump in directly from any search or list page
 - **Food use analysis** — see how often a food shows up across your logged meals or saved recipes, and replace it, remove it, or add another food alongside it across those meals in one step, on every date or just the dates you pick
-- **Data checks** — one page lists every problem in your food data, with a fix beside each: broken references, missing nutrient groups, missing or implausible calories, impossible values, recipe and meal amounts that no longer match a food's portions, duplicate foods, and old USDA copies; after a fix, NutriMagnus shows which recipes and meals changed and by how much
+- **Data checks** — one page lists every problem in your food data, with a fix beside each: broken references, missing nutrient groups, missing or implausible calories, impossible values, recipe and meal amounts that no longer match a food's portions, duplicate foods, and old USDA copies; after a fix, NutriMagnus shows which recipes and meals changed and by how much, and the Home page says when new problems turn up
 - **What-if analysis** — see how removing, adding, replacing or cutting down a food would change your daily nutrition over a set of days, or a recipe's nutrition per serving, before changing anything; save a scenario, download the results, and apply any of those changes for real when you're ready
 - **Printable reports** — generate a print/PDF-ready report for any food, meal, or full day, with a checkbox choice of which sections to include
 - **Recipe translation for printing** — translate a recipe's name, description, instructions, and ingredients into another language (via an AI chat tool of your choice) and print the result, with the English original kept alongside translated units
 - **Starter foods and recipes** — a new install comes with a set of starter foods and recipes to explore, and a setup checklist to walk you through first-time setup; each update says which starter items it adds or improves and lets you choose which to take; nothing is changed without your say-so
 - **Runs like a desktop program** — opens in its own window, with its own icon and no browser tabs or address bar (with Chrome, Chromium, Brave, Edge or Vivaldi installed; otherwise in a normal browser tab), and Ctrl+Q quits it
+- **Keyboard-friendly** — keyboard shortcuts throughout, and Alt+Shift+K opens a list of every page and shortcut that you filter by typing
 - **Extensive built-in help** — "Learn more" links throughout the app jump straight to the relevant section of the full User Manual, built in and readable without leaving the app
 
 ---

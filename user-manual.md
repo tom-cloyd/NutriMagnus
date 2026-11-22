@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-22:0950* / Reading time: 7 hours, 58 minutes
+*Updated 2026-11-22:1046* / Reading time: 7 hours, 58 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -960,7 +960,7 @@ Converts amounts for one food, with no nutrient analysis. Search for the food, t
 
 #### Food Cache {: #food-cache-web}
 
-*Search terms: cached foods, saved foods, food list, stored foods, my foods.*
+*Search terms: cached foods, saved foods, food list, stored foods, my foods, most eaten, frequent foods.*
 
 Every food NuMa has fetched from [USDA](#gloss-usda), Open Food Facts[^3] or another source, plus every food you've created, is kept here: your own copy, usable offline. The columns are explained in the [Food Cache column guide](#cached) below.
 
@@ -1119,7 +1119,7 @@ Foods that gain amino acid data change from — to ✓ in the Food Cache's [AA](
 
 #### My Pantry {: #pantry-web}
 
-*Search terms: foods on hand, staples, groceries.*
+*Search terms: foods on hand, staples, groceries, leftovers, batch cooking, meal prep, made ahead.*
 
 The foods you keep at home. NuMa looks here first for [complement suggestions](#comp) and lists pantry foods first in searches. The list's columns are explained under [My Pantry Table](#pantry) below.
 
@@ -1291,7 +1291,7 @@ Your estimates are used wherever the food is: the Food Cache list, and food, rec
 
 #### Checking your data {: #checking-your-data}
 
-*Search terms: data checks, data quality, problems in data, find errors.*
+*Search terms: data checks, data quality, problems in data, find errors, since last time.*
 
 Every result NuMa gives you is only as good as the food data underneath it. A food with no calorie value quietly adds nothing to every calorie total it's part of; a wrong cup weight is worse still: NuMa works out the food's density from it, and uses that density for *every* volume measure of the food — tablespoons, teaspoons, fluid ounces, any fraction or multiple of a cup — so every such amount you enter for that food, in any recipe or meal, comes out wrong. (Correcting the cup weight fixes amounts entered afterwards; those already entered are listed under [Amounts that no longer match](#stale-amounts).) NuMa checks your data in three places:
 
@@ -1474,7 +1474,7 @@ The sections, roughly in the order a meal's page shows them:
 
 #### A food's page {: #food-page}
 
-*Search terms: food page, food details, nutrition facts, food analysis.*
+*Search terms: food page, food details, nutrition facts, food analysis, my notes, personal notes, comments.*
 
 A food's page shows, from the top:
 
@@ -2075,7 +2075,7 @@ The same columns appear on the Daily Summary's Recent Days table, added up per d
 
 #### Meal Items Table {: #meal-detail}
 
-*Search terms: foods in a meal, edit meal, comment, memo, timestamp, clock, when eaten, view, ingredients, break down, recipes whole.*
+*Search terms: foods in a meal, edit meal, comment, memo, timestamp, clock, when eaten, view, ingredients, break down, recipes whole, mistake, wrong amount, take back.*
 
 Shows the foods and recipes logged in a single meal.
 
@@ -2151,12 +2151,13 @@ Both Food Use pages can also replace one food or recipe with another throughout 
 
 #### Daily summary (Analysis → 1) {: #daily-summary}
 
-*Search terms: daily totals, day view, daily report.*
+*Search terms: daily totals, day view, daily report, warning sign, weight changed, settle.*
 
 Your recent days side by side, and the starting point for looking across several days:
 
 - Buttons lead to [Nutrient averages over a period](#trend) (the last 7, 14 or 30 days, [any dates or chosen meals](#range-totals)), [Week-by-week averages](#summary-blocks) and the [Nutrient plot](#nutrient-plot), each described below.
 - **Recent Days with Meals** lists each logged date: **Complete** (✓ when every meal that day is marked complete; click the dot to go to that day's meals), Protein and its percentage of your goal, Day [DCP](#gloss-dcp) and its percentage, the day's glycemic load if you track it, and any other nutrients you've chosen in [Settings → 11](#meal-columns). Click a date to open that day's full analysis: every meal pooled, with the same sections as a meal's page (see [Analyze full day](#full-day)). For a day older than the table reaches, open any of its meals in Meals & Log and click **Analyze full day** (shown when the day has more than one meal; with only one, that meal's page is the whole day).
+- A yellow box above the table appears when a recipe's serving weight has changed since some meals logged it: it lists those meals, on any date, each with **Settle**, and the table marks their days with ⚠. What settling does: [Settling them all at once](#servings-yield-effects).
 
 #### Nutrient Averages Over a Period {: #trend}
 
@@ -2824,6 +2825,8 @@ A recipe's serving weight comes from **Number of servings** and **Total yield we
 See also [Recipe Ingredient List](#recipe-ingredients).
 
 #### Refused, with the reason
+
+*Search terms: error, rejected, invalid amount, not accepted, won't save.*
 
 Nothing is added or changed, your text stays in the box, and the message says what couldn't be read:
 
@@ -4018,6 +4021,9 @@ For a food you rely on often, running the "estimate amino acids from another foo
 
 
 #### Two-step combinations {: #comb}
+
+*Search terms: two foods, add two foods, second food.*
+
 After the gap-closer and [DIAAS](#gloss-diaas)-boosting sections, NuMa offers to show two-step combinations. Each combination pairs one of the top gap-closers (Step 1) with the best [DIAAS](#gloss-diaas)-booster for the resulting protein pool (Step 2).
 
 Why two steps? A gap-closer fixes amino acid balance but may not raise digestibility. A [DIAAS](#gloss-diaas)-booster raises digestibility but cannot close a specific amino acid gap on its own. Together they address both problems: Step 1 corrects the [limiting amino acid](#gloss-limiting-amino-acid); Step 2 raises the overall [DIAAS](#gloss-diaas) of the now-balanced pool, increasing digestible [complete protein](#gloss-complete-protein) ([DCP](#gloss-dcp)) further.
@@ -6363,6 +6369,7 @@ DETAILS:
 * Edit Recipe has a link under Number of servings and Total yield weight to a new manual section on what changing each affects: the number of servings changes the nutrients in a serving; the total yield weight changes only what a serving weighs (and water, if the recipe has a cooked water figure), with meals keeping their nutrients until you choose on each meal page.
 * When a recipe's serving weight changes, its page and Edit Recipe show **Review them**: a list of every meal item and recipe ingredient entered at the old weight, each with **Keep the grams** or **Keep the servings** (or one choice for every row), applied at once. A meal page's yellow note links there. **Daily Summary** lists every affected meal, on any date, with **Settle**, and marks affected days with ⚠. Recipes used as ingredients now record their serving weight too, and saving a recipe records the old weight first on any use without one.
 
+- **57.** MANUAL: Daily Summary's section now explains its box of meals logged at a recipe's old serving weight, and more everyday words (*leftovers*, *undo*, *my notes*, *error*) find the right sections in the manual's search. [learn more...](#daily-summary)
 - **56.** When a recipe's serving weight changes, **Review them** on its page lists every meal and recipe that used the old weight, to keep the grams or the servings for each, all at once; Daily Summary lists every meal affected, with ⚠ beside its day. [learn more...](#servings-yield-effects)
 - **55.** On Edit Recipe, a link under **Number of servings** and **Total yield weight** explains what changing each affects: servings change the nutrients in a serving; total weight changes only what a serving weighs, and your meals keep their nutrients until you choose. [learn more...](#servings-yield-effects)
 - **54.** The Home page's **Review them** opens Foods → 9 at a list of just the new data problems, each linked to its food and its place in the full lists, kept until you click **Done with these**. [learn more...](#new-problems)

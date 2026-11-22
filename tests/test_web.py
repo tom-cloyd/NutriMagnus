@@ -6016,6 +6016,16 @@ def test_food_search_drops_results_with_an_excluded_word(client: TestClient, db_
     assert backend._run_food_search("!kidney", ["cache"], 25, external=False) == []
 
 
+def test_search_api_query_drops_prep_words_but_never_sends_nothing() -> None:
+    """The online query leaves out prep-state words whatever their case, and
+    source names only when clean_query (the default); a query of nothing but
+    prep words is sent whole rather than as an empty search."""
+    assert backend._search_api_query("Beans Red Cooked", clean_query=False) == "Beans Red"
+    assert backend._search_api_query("usda beans cooked") == "beans"
+    assert backend._search_api_query("usda beans cooked", clean_query=False) == "usda beans"
+    assert backend._search_api_query("cooked boiled") == "cooked boiled"
+
+
 def test_food_search_says_how_many_matches_an_excluded_word_hid(client: TestClient, db_conn, monkeypatch) -> None:
     """Reported 2026-11-12: "beans red cooked !kidney" showed no USDA rows
     and no reason — every cooked red bean USDA has is a kidney bean. The

@@ -29,11 +29,12 @@ with _db.get_db() as conn:
 `serving_size` is a free-text human description of what one serving actually is (e.g. `"1 muffin"`), set on the Edit Recipe page — independent of `total_weight`/`servings`, which give the gram weight of that same serving. Shown wherever a recipe's serving count is displayed, via the `_serving_note.html` macro.
 
 `recipe_get_ingredients()` rows:
-`id, recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id`
+`id, recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id, sort_order, ref_recipe_deleted, serving_grams`
+(`SELECT *`. `serving_grams` = grams per serving of the sub-recipe `ref_recipe_id` when entered; checked against its current serving weight by `_serving_weight_changes()` in web/backend.py)
 
 `meal_get_items()` rows:
-`id, meal_id, item_type ('food'|'recipe'), fdc_id, recipe_id, food_name, amount, unit, notes, serving_grams`
-(`serving_grams` = grams per recipe serving when logged; see `_annotate_recipe_amounts()` in web/backend.py)
+`id, meal_id, item_type ('food'|'recipe'), fdc_id, recipe_id, food_name, amount, unit, notes, serving_grams, added_time, from_recipe_id`
+(`SELECT *`. `serving_grams` = grams per recipe serving when logged; see `_annotate_recipe_amounts()` in web/backend.py. `added_time` = time of day the item was entered. `from_recipe_id` = the recipe a food came from when that recipe was added as individual ingredients)
 
 `pantry_list()` rows:
 `id, food_name, fdc_id, notes`
