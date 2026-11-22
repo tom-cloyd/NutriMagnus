@@ -238,7 +238,7 @@
     {% if _rb %}{{ _rb }}{% else %}Quit NuMa completely (Ctrl+Q), then start it again.{% endif %} Nothing you entered is lost.
   </div>
   {% endif %}
-  {# System Issues: a recalculation that failed (Settings → 15). On every page,
+  {# System Issues: a recalculation that failed (Settings → 16). On every page,
      not just Home, so it can't go unseen; dismissing it hides it until a new
      failure, while the issue itself stays listed in Settings until resolved. #}
   {% set _sys_issues = system_issue_count() %}
@@ -247,7 +247,7 @@
     <strong>{{ _sys_issues }} recalculation{{ 's' if _sys_issues != 1 }} failed</strong> and
     {{ 'need' if _sys_issues != 1 else 'needs' }} a look: a food or recipe change should have
     updated something (such as a recipe's protein-quality score), but the update didn't complete.
-    <a href="/settings#system-issues">See Settings → 15. System Issues</a>.
+    <a href="/settings#system-issues">See Settings → 16. System Issues</a>.
     <form method="post" action="/recompute-errors/ack-banner" class="d-inline-block ms-2 mb-0">
       <input type="hidden" name="return_to" value="{{ request.url.path ~ ('?' ~ request.url.query if request.url.query else '') }}">
       <div class="form-check d-inline-block mb-0">

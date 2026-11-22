@@ -41,7 +41,7 @@
   {% endif %}
   {% if nutrient_sections %}
   <li class="sb-item" data-target="sec-nutrients">
-    <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
+    <a class="sb-toggle" href="#sec-nutrients" data-ak="u" data-ak-label="Nutritional Analysis (Contents sidebar)">N<u class="ak">u</u>tritional Analysis</a>
     <ul class="sb-sub">
       {% for section in nutrient_sections %}
       <li><a class="sb-link" href="#nut-{{ loop.index }}">{{ section.name }}</a></li>
@@ -118,6 +118,8 @@
     <li class="breadcrumb-item active" aria-current="page">{{ recipe.name }}</li>
   </ol>
 </nav>
+
+{% include "_serving_weight_notice.html" %}
 
 {# ── Header ───────────────────────────────────────────────────────────── #}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">

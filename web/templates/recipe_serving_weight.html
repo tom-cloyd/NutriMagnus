@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{# Every meal and recipe that entered a recipe when one serving weighed
+   something else (web/backend.py recipe_serving_weight_get,
+   _serving_weight_changes), each with keep-grams / keep-servings. #}
+{% block title %}NutriMagnus — Serving weight changed: {{ recipe.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/recipes">Recipes</a></li>
+    <li class="breadcrumb-item"><a href="/recipe/{{ recipe.id }}">{{ recipe.name }}</a>{{ food_id_tag(None, recipe_id=recipe.id) }}</li>
+    <li class="breadcrumb-item active" aria-current="page">Serving weight changed</li>
+  </ol>
+</nav>
+
+<h2>Serving weight changed {{ manual_link("servings-yield-effects") }}</h2>
+<p class="lead mb-2">Uses of <a href="/recipe/{{ recipe.id }}">{{ recipe.name }}</a>{{ food_id_tag(None, recipe_id=recipe.id) }} entered when a serving weighed something else</p>
+
+{% if applied >= 0 %}
+<p class="status-met"><strong>&#10003; {{ applied }} use{{ "s" if applied != 1 }} settled{% if applied %}; their meals and recipes are worked out again{% endif %}.</strong></p>
+{% endif %}
+
+<p style="max-width:52rem">One serving of this recipe weighs
+<strong>{% if now_g %}{{ "%g"|format(now_g|round(1)) }}&thinsp;g{% else %}unknown{% endif %}</strong> now
+({{ "%g"|format(recipe.servings) }} servings{% if recipe.total_weight %} from a total yield weight of {{ "%g"|format(recipe.total_weight) }}&thinsp;{{ recipe.total_weight_unit or "g" }}{% endif %}).
+Meals and recipes record a recipe in <em>servings</em>, so each one below still holds the servings it was entered with,
+which are now a different amount of food. For each, say which was right:</p>
+<ul style="max-width:52rem">
+  <li><strong>Keep the grams</strong> if you weighed it and typed grams (&ldquo;200 g&rdquo;): the servings are worked out
+  again with the new weight, and its nutrients change to match.</li>
+  <li><strong>Keep the servings</strong> if you entered servings (&ldquo;1 serving&rdquo;, a share of the dish): nothing
+  changes but the grams shown.</li>
+</ul>
+
+{% if changes %}
+<form method="post" action="/recipe/{{ recipe.id }}/serving-weight" id="serving-weight-form">
+  <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+    <span>For every row:</span>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-all="keep">Keep the grams</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-all="accept">Keep the servings</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-all="">Clear choices</button>
+    {#- A second Apply up here, so a long list doesn't hide the only one. #}
+    <button type="submit" class="btn btn-primary btn-sm ms-2">Apply these choices</button>
+  </div>
+  <div style="overflow-x:auto">
+  <table class="table table-sm align-middle" style="width:auto">
+    <thead class="table-light">
+      <tr><th>Used in</th><th class="num-col">Entered as</th><th class="num-col">One serving then &rarr; now</th>
+          <th>Keep the grams</th><th>Keep the servings</th></tr>
+    </thead>
+    <tbody>
+    {%- for c in changes %}
+      {%- set field = "choice_" ~ c.kind ~ "_" ~ c.id %}
+      <tr>
+        <td>{% if c.kind == "meal" %}Meal: <a href="/meal/{{ c.owner_id }}">{{ c.meal_date }} {{ c.owner_name }}</a>
+            {%- else %}Recipe: <a href="/recipe/{{ c.owner_id }}/edit">{{ c.owner_name }}</a>{{ food_id_tag(None, recipe_id=c.owner_id) }}{% endif %}</td>
+        <td class="num-col">{{ "%g"|format(c.amount|round(3)) }} serving{{ "s" if c.amount != 1 }}
+            <br><small class="muted">{{ "%g"|format((c.amount * c.serving_grams)|round(1)) }}&thinsp;g then</small></td>
+        <td class="num-col">{{ "%g"|format(c.serving_grams|round(1)) }}&thinsp;g &rarr; {{ "%g"|format(c.now_g|round(1)) }}&thinsp;g</td>
+        <td><label class="d-flex gap-1 align-items-start m-0">
+            <input class="form-check-input" type="radio" name="{{ field }}" value="keep">
+            <span>{{ "%g"|format(c.keep_servings) }} serving{{ "s" if c.keep_servings != 1 }}
+              <small class="muted">({{ "%g"|format((c.amount * c.serving_grams)|round(1)) }}&thinsp;g)</small></span></label></td>
+        <td><label class="d-flex gap-1 align-items-start m-0">
+            <input class="form-check-input" type="radio" name="{{ field }}" value="accept">
+            <span>{{ "%g"|format(c.amount|round(3)) }} serving{{ "s" if c.amount != 1 }}
+              <small class="muted">({{ "%g"|format((c.amount * c.now_g)|round(1)) }}&thinsp;g)</small></span></label></td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm">Apply these choices</button>
+  <small class="muted ms-2">A row with neither ticked is left as it is, and stays flagged.</small>
+</form>
+<script>
+document.querySelectorAll('#serving-weight-form [data-all]').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var v = b.getAttribute('data-all');
+    document.querySelectorAll('#serving-weight-form input[type="radio"]').forEach(function (r) {
+      r.checked = !!v && r.value === v;
+    });
+    // Ticked by script, which fires no change event: tell base.html's
+    // unsaved-changes guard, so Apply lights up and leaving the page warns.
+    if (window.numaDirtyGuard) window.numaDirtyGuard.recheck(document.getElementById('serving-weight-form'));
+  });
+});
+</script>
+{% else %}
+<p class="status-met"><strong>Nothing to review.</strong> Every meal and recipe that uses this recipe
+({{ uses }} use{{ "s" if uses != 1 }}) was entered at its current serving weight, or has no weight recorded to compare.</p>
+{% endif %}
+<p class="mt-3"><a href="/recipe/{{ recipe.id }}">&larr; Back to {{ recipe.name }}</a>{{ food_id_tag(None, recipe_id=recipe.id) }}</p>
+{% endblock %}

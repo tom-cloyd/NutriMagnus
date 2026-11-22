@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-22:0648* / Reading time: 7 hours, 47 minutes
+*Updated 2026-11-22:0950* / Reading time: 7 hours, 58 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -163,13 +163,14 @@ Then glance at **Computed Daily Targets (section 2)** to check your targets look
 
 #### Step 2 — Settings worth doing at some point
 
-*Search terms: optional settings, preferences, configuration, default browser, recommended targets.*
+*Search terms: optional settings, preferences, configuration, default browser, recommended targets, supplements, routine.*
 
 - **Nutrient Targets - Researched (section 5):** click **Load recommended Revised Optimal targets**, and add max limits for anything you need to keep low.
 - **Glycemic Index Reference Table (section 7):** only if you'll track glycemic index (Step 4). Build the 2021 table ([how](#gi-editions)) before choosing glycemic index values, so they come from the better table.
-- **Meals & Log columns (section 10):** which nutrient columns your meal lists show.
-- **Starter Data (section 11):** keep the starter foods and recipes, or clear them.
+- **Meals & Log columns (section 11):** which nutrient columns your meal lists show.
+- **Starter Data (section 12):** keep the starter foods and recipes, or clear them.
 - **Browser to Launch (section 13):** NuMa's own window (the default) or a browser tab, and which browser if you run several.
+- **[Daily Starting Items](#daily-start) (section 10):** foods and recipes you have every day, such as a vitamin or a morning coffee, which NuMa then adds to each day's first meal for you. Each food must already be in NuMa, so this is easiest after Step 3.
 - **Protein Digestibility Overrides (section 4):** nothing to do now; it's for later, if you find a better digestibility figure for a food.
 
 #### Step 3 — Set up your pantry
@@ -190,7 +191,7 @@ Your pantry is the foods you keep at home and use often. It matters for two reas
 
 *Search terms: upgrade, what's new, release notes.*
 
-A new version sometimes adds starter foods or recipes, or improves ones you have. **NuMa tells you:** the **UPDATE AVAILABLE** message says what it will change, and a **NEW STARTER ITEMS** message on the home page says what it added or improved. Nothing in your data changes until you choose, in [Settings → 11. Starter Data](#starter-data).
+A new version sometimes adds starter foods or recipes, or improves ones you have. **NuMa tells you:** the **UPDATE AVAILABLE** message says what it will change, and a **NEW STARTER ITEMS** message on the home page says what it added or improved. Nothing in your data changes until you choose, in [Settings → 12. Starter Data](#starter-data).
 
 ### C. Where to go next {: #quick-start-next}
 
@@ -466,7 +467,7 @@ At the end, [A few more things worth trying](#wf-more) lists some features the w
 
 **Before you start:** your profile should be filled in (**Settings → 1. Your Profile**: age, sex, weight, height, activity level). Without it, NuMa can't compare what you ate with what you need.
 
-**Step 1 — Create a meal.** Click **Meals & Log**. In the **New Meal** form at the top, give the meal a name ("Breakfast") and today's date, and create it. The meal's page opens, with a search box.
+**Step 1 — Create a meal.** Click **Meals & Log**. In the **New Meal** form at the top, give the meal a name ("Breakfast") and today's date, and create it. The meal's page opens, with a search box. If it's the day's first meal and you have [daily starting items](#daily-start), they're already in it.
 
 **Step 2 — Add what you ate.** Type a food's name and click **Search**. Foods from your pantry and Food Cache come first, so after Workflow 1 most of what you want is near the top. In the result's amount box, type how much you ate (`1 cup`, `40 g`, `2 slices`, `p1` for the food's first saved portion) and add it. Repeat for each food. You can add a recipe the same way. If NuMa opens a food's Annotate page to ask for its glycemic index, click **Skip for now** to get back to the meal.
 
@@ -722,7 +723,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 16 minutes)*
+*(Reading time: 2 hours, 20 minutes)*
 
 
 
@@ -763,7 +764,7 @@ The bottom of the page gives the release and build numbers, e.g. *NutriMagnus 0.
 
 Every page has the same navigation bar across the top: **NuMa** (home), **Foods**, **Recipes**, **Compare**, **Meals & Log**, **Analysis**, **Settings** and **Manual** (this document). **Foods**, **Recipes** and **Analysis** open drop-down menus; the others go straight to their page.
 
-**Keyboard shortcuts.** Hold **Alt+Shift** and press the underlined letter of a menu item: `F` Foods, `R` Recipes, `C` Compare, `M` Meals & Log, `N` Analysis, `S` Settings, `A` Manual. Settings sections have them too: `Alt+Shift+3` jumps to section 3, Dietary Preferences; section 10 is `Alt+Shift+0`; sections 11 to 15 use a letter of their name (`T` Starter Data, `E` Keyboard Shortcuts, `B` Browser to Launch, `D` Data Quality Reminder, `Y` System Issues). With a menu open, pressing an item's number opens it; in the Foods menu, item 10 (Archived foods & recipes) is `0`. They work in any desktop browser.
+**Keyboard shortcuts.** Hold **Alt+Shift** and press the underlined letter of a menu item: `F` Foods, `R` Recipes, `C` Compare, `M` Meals & Log, `N` Analysis, `S` Settings, `A` Manual. Settings sections have them too: `Alt+Shift+3` jumps to section 3, Dietary Preferences; section 10, Daily Starting Items, is `Alt+Shift+0`; sections 11 to 16 use a letter of their name (`L` Meals & Log columns, `T` Starter Data, `B` Browser to Launch, `D` Data Quality Reminder, `E` Keyboard Shortcuts, `Y` System Issues). With a menu open, pressing an item's number opens it; in the Foods menu, item 10 (Archived foods & recipes) is `0`. They work in any desktop browser.
 
 <span id="command-palette"></span>
 **Can't remember a shortcut? Press `Alt+Shift+K`.** It opens the *command palette*: a panel listing every page in the menus, plus anything the page you're on has a shortcut for (its search box, its Items section, Settings' sections), each followed by the keys that reach it, such as *Foods: Food Cache (Alt+Shift+F, then 5)*. So the only shortcut you need to remember is `K`. The **⌘ Alt+Shift+K** button at the right end of the menu bar opens it too.
@@ -779,6 +780,7 @@ Used to other programs? `Ctrl+K` opens the same panel.
 - On a drop-down menu the shortcut also puts you on its first item: ↑ and ↓ move, Enter or Space picks, Escape closes.
 - `Alt+Shift+I`, on any page with a search box, puts the cursor in it with the text selected, ready for a new search, and clears the old results (opening the box's section first if it's closed).
 - `Alt+Shift+U`, in the manual, returns to the NuMa page you opened it from (see [Getting back to where you were](#manual-back)).
+- `Alt+Shift+U`, on a meal, a recipe or a food page, does what clicking **Nutritional Analysis** in the page's Contents sidebar does: it takes you to that section (on a food page, opening it first if it's collapsed). Pages with no Nutritional Analysis entry in their sidebar don't use it.
 - `Alt+Shift+Y`, on a page with an Items section (a meal, Compare, Analyze a recipe portion, or a recipe's Edit page, where it's Ingredients), moves to that section.
 
 <span id="go-to-id"></span>
@@ -1316,13 +1318,15 @@ Every result NuMa gives you is only as good as the food data underneath it. A fo
 | [Duplicate foods](#duplicate-foods) | Two or more foods with the same name, so a fix to one doesn't reach what uses the other | Foods → 9 → **Find duplicate foods** (on request) | Compare them, keep one (the rest are replaced by it everywhere), or mark "not duplicates" |
 | [Recipe weight unknown](#recipe-servings-grams) | A logged recipe whose serving weight can't be worked out; a recipe whose serving size changed after you logged it | Meal pages | Enter the recipe's total weight; review the meal as the page suggests |
 | [Deleted sub-recipes](#ts-deleted-recipe) | A recipe ingredient or meal item pointing at a recipe that was deleted | Foods → 9; Edit Recipe (offers to relink) | Relink it or remove it |
-| [Failed recalculations](#system-issues-howto) | A recipe or meal whose automatic recalculation broke after a change | Settings → 15; a red alert at the top of every page | **Retry** |
+| [Failed recalculations](#system-issues-howto) | A recipe or meal whose automatic recalculation broke after a change | Settings → 16; a red alert at the top of every page | **Retry** |
 | [Import checks](#fetch) | Claude AI replies, [CSV](#gloss-csv) files and recipe imports: missing names, non-numbers, unknown nutrients; imports fill only empty values | The import page's "Notes from validation" | Fix the source and import again |
 | [Estimates](#filling-gaps) | Where NuMa used an estimate (calories, amino acids, protein digestibility) instead of measured data | Labeled where the figure appears | Replace with real data where you can |
 
 **Right after you add a food.** If a food you've just added to a meal or recipe has a problem from the table (not merely an estimate), the page says so at once, with a link to the food. That's the easiest moment to fix it.
 
 **The Home page reminder.**{: #data-check-reminder} When new problems have turned up since you last opened Foods → 9, the Home page says how many, with a link. Opening Foods → 9 clears it until more new ones appear. Problems in NuMa's starter foods and recipes never set it off (they're still listed). **Settings → 14 (Data Quality Reminder)** turns it off, or asks for a reminder every so many weeks regardless. A monthly look is a good habit if you log most days.
+
+**New since your last check.**{: #new-problems} The reminder's **Review them** link opens Foods → 9 at a box listing just the new problems, one per line: the food (or meal or recipe item), what's wrong, and a link to its place in the full lists below. Look here first: a cluster of new problems usually has one cause, such as a food you just added, a Refresh from USDA, or a recipe or portion you edited. The box stays as you work, even if you leave the page and come back; each problem you fix is crossed out and marked **fixed ✓**. Click **Done with these** to clear the box. Problems still open stay in their lists, and only problems that are newer still will bring the box back.
 
 ##### Problems by food {: #problems-by-food}
 
@@ -1990,7 +1994,7 @@ The **nutrient table**{: #compare-nutrients} covers every nutrient a food's anal
 The **Meals & Log** page:
 
 - **New Meal** (name and date) creates a meal and opens it.
-- The [list of meals](#meals-list): completeness, items, Meal DCP, Day DCP (all meals that date), % of your daily goal, calories, [glycemic load](#glycemic) if you track it, and any nutrient columns chosen in [Settings → 10](#meal-columns). Filters set the date and sort order.
+- The [list of meals](#meals-list): completeness, items, Meal DCP, Day DCP (all meals that date), % of your daily goal, calories, [glycemic load](#glycemic) if you track it, and any nutrient columns chosen in [Settings → 11](#meal-columns). Filters set the date and sort order.
 - **Search meal history** finds every meal that contains, or doesn't contain, a food or recipe, by name or [ID](#gloss-id) ([Meal History Tables](#meal-history)).
 - **Calculate** works out DCP and calories for all meals, or the last 10 or 30 days.
 
@@ -2060,7 +2064,7 @@ Click a meal to open, edit or delete it.
 
 Besides its fixed columns, the Meals & Log list shows nutrients you choose, such as sodium, fiber, vitamin D or an amino acid.
 
-Choose them in **Settings → 10. Meals & Log columns**: give each nutrient a position (1 = leftmost), leave others blank, and click **Save Meals & Log columns**. Until you choose, they're Protein, Calories, Carbohydrate, Fiber and Sugars; **Restore default columns** puts those back.
+Choose them in **Settings → 11. Meals & Log columns**: give each nutrient a position (1 = leftmost), leave others blank, and click **Save Meals & Log columns**. Until you choose, they're Protein, Calories, Carbohydrate, Fiber and Sugars; **Restore default columns** puts those back.
 
 Protein here is raw protein; [DCP](#gloss-dcp) always has fixed columns of its own.
 
@@ -2152,7 +2156,7 @@ Both Food Use pages can also replace one food or recipe with another throughout 
 Your recent days side by side, and the starting point for looking across several days:
 
 - Buttons lead to [Nutrient averages over a period](#trend) (the last 7, 14 or 30 days, [any dates or chosen meals](#range-totals)), [Week-by-week averages](#summary-blocks) and the [Nutrient plot](#nutrient-plot), each described below.
-- **Recent Days with Meals** lists each logged date: **Complete** (✓ when every meal that day is marked complete; click the dot to go to that day's meals), Protein and its percentage of your goal, Day [DCP](#gloss-dcp) and its percentage, the day's glycemic load if you track it, and any other nutrients you've chosen in [Settings → 10](#meal-columns). Click a date to open that day's full analysis: every meal pooled, with the same sections as a meal's page (see [Analyze full day](#full-day)). For a day older than the table reaches, open any of its meals in Meals & Log and click **Analyze full day** (shown when the day has more than one meal; with only one, that meal's page is the whole day).
+- **Recent Days with Meals** lists each logged date: **Complete** (✓ when every meal that day is marked complete; click the dot to go to that day's meals), Protein and its percentage of your goal, Day [DCP](#gloss-dcp) and its percentage, the day's glycemic load if you track it, and any other nutrients you've chosen in [Settings → 11](#meal-columns). Click a date to open that day's full analysis: every meal pooled, with the same sections as a meal's page (see [Analyze full day](#full-day)). For a day older than the table reaches, open any of its meals in Meals & Log and click **Analyze full day** (shown when the day has more than one meal; with only one, that meal's page is the whole day).
 
 #### Nutrient Averages Over a Period {: #trend}
 
@@ -2461,7 +2465,7 @@ It also says what stays as it is: on What-if: Meals, a food inside a recipe (cha
 
 *Search terms: preferences, options, configuration, setup.*
 
-Settings has fifteen numbered sections, each opening and closing:
+Settings has sixteen numbered sections, each opening and closing. The **Contents** sidebar on the left lists them all: click one to open it and go straight to it.
 
 - **1. [Your Profile](#profile-setup)** — age, sex, weight, height, activity level (this drives all your daily nutrient targets), plus a checkbox enabling [oxalate](#oxalate) lookup, your [glucose tolerance](#gi-impaired) (the [GI](#gloss-gi) lookup default, and which advice [GI](#gloss-gi) notes give you), and an optional [daily glycemic load target](#gl-target).
 - **2. Computed Daily Targets** — see [Computed Daily Targets (Settings → 2)](#daily-nutrient-targets).
@@ -2472,12 +2476,13 @@ Settings has fifteen numbered sections, each opening and closing:
 - **7. Glycemic Index Reference Table** — which [GI](#gloss-gi) table lookups search, and building the 2021 one (see [Upgrading to the 2021 tables](#gi-editions)).
 - **8. Glycemic Load** — show or hide every [glycemic load](#gl) figure: on food, meal, recipe and day pages (with the [estimated GI](#mixture-gi)), the day's [GL](#gloss-gl) so far under a meal's and a day's title, the [GL](#gloss-gl) columns and sort on Meals & Log and Recent Days, the [GL](#gloss-gl) trend and plot series, Compare, What-if, Top Contributors' [GL](#gloss-gl) ranking and swaps, printouts, and your daily [GL](#gloss-gl) target in Settings → 1. On unless you turn it off. [GI](#gloss-gi) values are still shown and kept, and nothing is deleted: turning it back on brings everything back, including a daily target you'd set. This is separate from **I do not record glycemic index data** in Settings → 7, which only stops NuMa asking you for GI values.
 - **9. Water Tracking** — show or hide everything about [water](#water): the drinks / food split, the drink tick-boxes, the water fill-in and the check for a wet food picked in place of a dry one. On unless you turn it off; turning it off deletes nothing. From age 65, a day's page also warns when its drinks fall below the minimum that ESPEN (the European Society for Clinical Nutrition and Metabolism) recommends for older people.
-- **10. [Meals & Log columns](#meal-columns)** — which nutrient columns your meal lists show.
-- **11. [Starter Data](#starter-data)** — curated foods and recipes to explore or build on.
-- **12. Keyboard Shortcuts** — see [Finding your way around](#web-shortcuts).
+- **10. [Daily Starting Items](#daily-start)** — foods and recipes added to the first meal of each new day.
+- **11. [Meals & Log columns](#meal-columns)** — which nutrient columns your meal lists show.
+- **12. [Starter Data](#starter-data)** — curated foods and recipes to explore or build on.
 - **13. Browser to Launch** — see below.
 - **14. Data Quality Reminder** — the Home page note about new data problems (see [Checking your data](#data-check-reminder)).
-- **15. System Issues** — see [below](#system-issues-howto).
+- **15. Keyboard Shortcuts** — see [Finding your way around](#web-shortcuts).
+- **16. System Issues** — see [below](#system-issues-howto).
 
 #### Your Profile {: #profile-setup}
 
@@ -2612,6 +2617,28 @@ The Home page also shows a banner for each new entry, with its own **Got it** bo
 
 **Update Now**, on the packaged Linux install, downloads and installs the new version in place, leaving your data untouched; close and restart NuMa when it says so (the running version keeps working until then). On Windows, or running from source, there's a **Download NutriMagnus** button or a GitHub link instead.
 
+#### Daily Starting Items {: #daily-start}
+
+*Search terms: every day, routine, supplements, vitamins, automatic, default foods, template.*
+
+Some things you have every day: a vitamin pill, a morning coffee, the same breakfast cereal. **Settings → 10. Daily Starting Items** saves you adding them by hand each day. List them once, and whenever you create a meal on a date that has no meals yet, NuMa adds them to that meal for you.
+
+**Setting them up.** Each row takes a **code** and an **amount**:
+
+- The [code](#gloss-code) is the one in the **Code** column of the Food Cache, My Pantry or the Recipes list: [U171477](#gloss-code) for a [USDA](#gloss-usda) food, [UD4](#gloss-code) for one you entered yourself, [R21](#gloss-code) for a recipe. Capital letters don't matter.
+- The amount is written the way you'd write it on a meal: `1 cup`, `40 g` or `p1` (the food's first saved portion) for a food; `1 serving`, `2 srv` or `200 g` for a recipe. Left empty, it means 100 g of a food or 1 serving of a recipe.
+- A food must already be in your Food Cache. If it isn't, search for it and add it to a meal or your pantry once, and it will be.
+
+**Finding a code without leaving Settings.** Above the table, **Find a code** has a search box with **Search foods** (your Food Cache; Enter does the same) and **Search recipes** buttons. Type part of a name (every word must be in it, and `!word` leaves out names with that word) and click one: the matches are listed with their codes, a food with its first few saved portions (`p1`, `p2` …) and a recipe with what one serving weighs. **Use** on a match puts its code in the first empty row and moves the cursor to that row's amount box. Nothing is saved until you click **Save daily starting items**.
+
+Click **Save daily starting items**. The table then shows the name of each food or recipe beside its code, with the amount it works out to. There are always three empty rows at the bottom; to add more than three items, fill those in, save, and three more appear. To take an item off the list, tick its **Remove** box and save.
+
+If a code or amount can't be used (a mistyped code, or an amount NuMa can't read, such as `3 flurbs`), **nothing is saved**: a red box says what's wrong with each row, and everything you typed is still there to correct.
+
+**When they're added.** Only the *first* meal created on a date gets them: later meals that day get nothing extra, and meals you already have are never changed. This works for any date with no meals yet, including a past day you're filling in. Merging meals and What-if don't create new days this way, so they never add them.
+
+**On the meal page**, a green line names what was added, with an **Undo** button that takes all of them back out at once (handy on a day you skipped them). You can also change or remove each one in the Items list, like anything else in the meal. If an item can no longer be added (its recipe was deleted, say), a red line names it, and the others are still added.
+
 ### J. The Manual {: #manual-menu}
 
 *Search terms: help, documentation, user manual.*
@@ -2678,7 +2705,7 @@ Bookmarks are kept by your browser on this computer, and survive manual updates;
 
 ## Part 5 — Skills used everywhere {: #skills}
 
-*(Reading time: 23 minutes)*
+*(Reading time: 27 minutes)*
 
 
 
@@ -2914,7 +2941,8 @@ The rest of this section is about the order results come in.
 | **A food's name** | The new name replaces the old one on every ingredient line that uses the food; nutrients unaffected | Same, and in your pantry | [Editing or changing a food](#food-edit-consequences) |
 | **Deleting a food** | Refused while any recipe, meal or pantry entry uses it | Refused | [Editing or changing a food](#food-edit-consequences) |
 | **A recipe's ingredients or amounts** | That recipe recalculated, and every recipe built on it | Recalculated by the next page you open | [Changing a recipe…](#recipe-dcp-cascade) |
-| **A recipe's servings count or Total weight** | Per-serving figures change, and cascade as above | A meal logs servings, so "1 serving" now means the new serving; the meal page flags the item and asks whether to keep the grams you ate | [How a meal records a recipe](#recipe-servings-grams) |
+| **A recipe's Number of servings** | Per-serving figures change, and cascade as above | A meal logs servings, so "1 serving" now means the new serving; the meal page flags the item and asks whether to keep the grams you ate | [What changes in servings or yield weight affect](#servings-yield-effects) |
+| **A recipe's Total yield weight** | No nutrient change (except water, if the recipe has a cooked water figure); only what a serving weighs | No nutrient change until you choose; the meal page flags the item and asks whether to keep the grams | [What changes in servings or yield weight affect](#servings-yield-effects) |
 | **A recipe's name** | The new name replaces the old one everywhere | Same | [Editing or changing a food](#food-edit-consequences) |
 | **Deleting a recipe** | Refused while any recipe or meal uses it; Archive instead | Refused | [Deleting a recipe that's used elsewhere](#delete-recipe-elsewhere) |
 | **Substituting** one food or recipe for another everywhere | Ingredients switched and recalculated, cascading up; amounts kept as typed | Items switched; amounts kept as typed | [Replace a Food or Recipe Everywhere](#fooduse-substitute) |
@@ -2948,11 +2976,41 @@ Otherwise it reads **1 serving (weight unknown)**. The nutrients are still right
 
 **If a recipe's serving size changes after you've logged it, NuMa asks what you meant.** Change 8 servings to 4 and each serving is twice the food, so a meal's "1 serving" would count double. NuMa remembers what a serving weighed when logged; if that changes, the meal page shows a yellow note with two buttons:
 
-- **Keep the 295 g I logged** — adjusts the servings (to 0.5 here) so the meal holds what you ate. Usually right.
+- **Keep the 295 g I logged** — adjusts the servings (to 0.5 here) so the meal holds what you ate. Usually right when the number of servings changed; after a corrected Total yield weight it depends on how you entered the amount (see [below](#servings-yield-effects)).
 - **Use the new serving size** — keeps "1 serving", for when the old size was wrong.
 
 Day pages and Meal History Search flag the item too. Differences under 1% are ignored; it only works when both weights are known. Typing a new amount for the item also settles it.
 
+
+#### What changes in Number of servings or Total yield weight affect {: #servings-yield-effects}
+
+*Search terms: cooked weight, raw weight, batch weight, portion size, yield, recipe weight correction.*
+
+On Edit Recipe, **Number of servings** and **Total yield weight** together say what one serving is: how many portions the finished dish is divided into, and what the whole dish weighs. One serving weighs the total divided by the number of servings (1,200 g in 4 servings: 300 g each). The two fields affect different things.
+
+**Changing Number of servings changes the nutrients in a serving.** The recipe's nutrients are its ingredients' total divided by the number of servings, so going from 8 servings to 4 puts twice the nutrients (and twice the weight) in each serving. That reaches:
+
+- **The recipe itself:** every per-serving figure on its page (nutrients, calories, [DCP](#gloss-dcp)).
+- **Recipes that use it as an ingredient:** they record it in servings, so their nutrients change too, and so on up the chain.
+- **Meals that logged it:** a meal records servings, so its "1 serving" now holds the new amount, and the meal's nutrients change. Each such meal page shows a yellow note asking whether to keep the grams you logged instead ([How a meal records a recipe](#recipe-servings-grams)).
+
+**Changing Total yield weight changes only what a serving weighs, not its nutrients.** The ingredients and the number of servings are the same, so the nutrients in a serving are the same. Correcting a raw weight to the cooked weight (often about half, as water cooks off) means each serving is the same food in less weight. What changes:
+
+- **The grams shown beside servings** everywhere: "1 serving (148 g)" instead of "(296 g)".
+- **Turning a weight into servings from now on:** typing `200 g` of the recipe on a meal or Edit Recipe now means more servings, since each serving weighs less.
+- **Water,** but only if the recipe page has a cooked water figure (g per 100 g of the finished dish): NuMa multiplies that by the total weight, so the water in a serving changes with it.
+- **The weight of recipes that use it,** when their own weight is worked out from their ingredients. Their nutrients don't change.
+
+**Meals you already logged keep their nutrients, until you choose.** A meal records servings, not grams, so a new weight alone changes nothing in it. But the serving now weighs something different from when you logged it, so each meal page that has the recipe shows the yellow note with two choices. NuMa doesn't know how you entered each amount, so it's for you to say:
+
+- **You logged it in servings** ("1 serving", one bowl of four): choose **Use the new serving size**. The servings, and the nutrients, stay as they are; only the grams shown change. This is right because the serving you ate was always that share of the dish.
+- **You weighed it and typed grams** ("200 g"): choose **Keep the … g I logged**. NuMa turned your 200 g into servings using the old weight, which was wrong, so the meal holds too little (or too much) of the recipe. Keeping the grams works the servings out again with the corrected weight, and the meal's nutrients change to match: halving the yield weight doubles the servings in 200 g, and so the nutrients.
+
+**Settling them all at once.** After a change to either field, the recipe's page and Edit Recipe show a yellow box saying how many meal items and recipe ingredients were entered at the old serving weight, with **Review them**. It opens a list of every one of them: each meal (date and name) and each recipe that uses this one as an ingredient, with what one serving weighed then and now, and two choices side by side, **Keep the grams** (the servings this works out to) or **Keep the servings**. Tick one in each row, or use **For every row** to tick the same everywhere, and click **Apply these choices** (there's one above the list and one below). Nothing is saved until you do: a row with neither ticked is left as it is and stays listed, and if you try to leave the page with choices ticked but not applied, NuMa asks first. The meals and recipes you settle are worked out again at once. The same list opens from **Settle every meal and recipe that uses it at once** in a meal page's yellow note.
+
+**On Daily Summary**, a box above the table lists every meal, on any date, that holds a recipe whose serving weight has changed since it was logged, with a **Settle** button for its recipe, and a ⚠ beside each affected day in the table. The box goes once every such meal is settled.
+
+Recipes used as ingredients are checked the same way: NuMa records what a serving weighed when you added the ingredient, or last changed its amount.
 
 #### Editing or changing a food: nutrients, portions, amounts, name {: #food-edit-consequences}
 
@@ -6241,7 +6299,7 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 Version overview: 
 
-SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again; the Food Cache keeps your Fetch ticks and delete warnings when you leave and click back; replacing a food across meals or recipes always says whether it worked; a new Archived page (Foods → 10) finds archived foods and recipes with missing nutrient data; a meal's Items can be viewed as logged, as foods (recipes broken down), or with each recipe kept whole; Ctrl+click on a Contents sidebar or in the manual explains the browser tab before it opens; Foods → 9's lists, the Food Cache and My Pantry can start with the foods you eat most; any food can carry your own notes, kept through a Refresh, and pantry notes can be changed; a recipe you have made can go in My Pantry, so protein complement suggestions treat it as on hand; What-if: Recipes finds recipes by name and lists their ingredients to pick from; an addition to a meal can be changed or undone straight away, and every Items view can edit and remove items.
+SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again; the Food Cache keeps your Fetch ticks and delete warnings when you leave and click back; replacing a food across meals or recipes always says whether it worked; a new Archived page (Foods → 10) finds archived foods and recipes with missing nutrient data; a meal's Items can be viewed as logged, as foods (recipes broken down), or with each recipe kept whole; Ctrl+click on a Contents sidebar or in the manual explains the browser tab before it opens; Foods → 9's lists, the Food Cache and My Pantry can start with the foods you eat most; any food can carry your own notes, kept through a Refresh, and pantry notes can be changed; a recipe you have made can go in My Pantry, so protein complement suggestions treat it as on hand; What-if: Recipes finds recipes by name and lists their ingredients to pick from; an addition to a meal can be changed or undone straight away, and every Items view can edit and remove items; Alt+Shift+U goes to a page's Nutritional Analysis; Settings has a Contents sidebar, and a new Daily Starting Items section adds the foods and recipes you have every day to each day's first meal; the Home page's data-check link opens Foods → 9 on just the new problems; Edit Recipe explains what changing servings or yield weight affects, and a recipe whose serving weight changed can be settled in every meal and recipe at once, with Daily Summary flagging the meals affected.
 
 DETAILS:
 
@@ -6298,7 +6356,18 @@ DETAILS:
 * **What-if: Recipes** can choose its recipes **By name** (the recipes whose names hold every word typed, listed as you type), and for **Remove** and **Change amount** its food/recipe box lists every food and sub-recipe in the chosen recipes, most used first, to pick from; **Add** and **Replace** still search all your foods and recipes.
 * Right after you add something to a meal, the green **Added …** line has **Edit** and **Undo** buttons: **Edit** changes its amount (for a recipe added as individual ingredients, their total, each scaled to keep their proportions), and **Undo** takes it back out, all of it, with a green line saying what was removed.
 * A meal's **Foods** and **Foods & recipes** views of Items now have **Edit** and remove buttons too: in Foods & recipes they work on the row (a recipe logged as individual ingredients: a new total, a weight or servings, or all of them removed); in Foods they change what you logged of a food yourself, while a food inside a recipe logged whole says "in a recipe" and changes only with the recipe.
+* **Alt+Shift+U** on a meal, a recipe or a food page clicks **Nutritional Analysis** in the Contents sidebar, going to that section (opening it first on a food page, if collapsed).
+* Settings has a **Contents** sidebar listing its sections; clicking one opens it and goes to it.
+* New **Settings → 10. Daily Starting Items** (Alt+Shift+0), after Water Tracking; the sections after it move down one, and Meals & Log columns, now 11, is Alt+Shift+L; Keyboard Shortcuts moves to 15, just before System Issues: foods and recipe portions, each given as a code and an amount, that NuMa adds to the first meal created on a date with no meals yet. Its **Find a code** box searches foods or recipes by name, and **Use** puts a match's code in the first empty row. The meal page names them, with an **Undo** for all of them, and names any that could no longer be added. A code or amount that can't be used refuses the save, with the reason and what was typed kept.
+* When the Home page reports new data problems, **Review them** opens Foods → 9 at a **New since your last check** box listing just those problems, each with its food (or meal or recipe item), what's wrong and a link to its place in the lists; fixed ones are marked **fixed ✓**, and **Done with these** clears the box.
+* Edit Recipe has a link under Number of servings and Total yield weight to a new manual section on what changing each affects: the number of servings changes the nutrients in a serving; the total yield weight changes only what a serving weighs (and water, if the recipe has a cooked water figure), with meals keeping their nutrients until you choose on each meal page.
+* When a recipe's serving weight changes, its page and Edit Recipe show **Review them**: a list of every meal item and recipe ingredient entered at the old weight, each with **Keep the grams** or **Keep the servings** (or one choice for every row), applied at once. A meal page's yellow note links there. **Daily Summary** lists every affected meal, on any date, with **Settle**, and marks affected days with ⚠. Recipes used as ingredients now record their serving weight too, and saving a recipe records the old weight first on any use without one.
 
+- **56.** When a recipe's serving weight changes, **Review them** on its page lists every meal and recipe that used the old weight, to keep the grams or the servings for each, all at once; Daily Summary lists every meal affected, with ⚠ beside its day. [learn more...](#servings-yield-effects)
+- **55.** On Edit Recipe, a link under **Number of servings** and **Total yield weight** explains what changing each affects: servings change the nutrients in a serving; total weight changes only what a serving weighs, and your meals keep their nutrients until you choose. [learn more...](#servings-yield-effects)
+- **54.** The Home page's **Review them** opens Foods → 9 at a list of just the new data problems, each linked to its food and its place in the full lists, kept until you click **Done with these**. [learn more...](#new-problems)
+- **53.** Settings has a **Contents** sidebar listing all its sections, and a new section, **10. Daily Starting Items**: foods and recipes NuMa adds to the first meal of each new day, such as a daily vitamin, with a **Find a code** search for foods and recipes right there. The sections after it move down one; Meals & Log columns, now 11, is Alt+Shift+L; Keyboard Shortcuts moves to 15, just before System Issues. [learn more...](#daily-start)
+- **52.** `Alt+Shift+U` on a meal, a recipe or a food page goes to its Nutritional Analysis section, as clicking that entry in the Contents sidebar does. [learn more...](#web-shortcuts)
 - **51.** On a meal, the green **Added …** line has **Edit** and **Undo** buttons, to change or take back what you just added (a recipe added as individual ingredients, all together), and the **Foods** and **Foods & recipes** views of Items now have **Edit** and **✕** too, not only **As logged**. [learn more...](#meal-undo-add)
 - **50.** What-if: Recipes can choose recipes **By name** (every word you type, listed as you type), and for **Remove** and **Change amount** its food/recipe box lists the ingredients of the chosen recipes to pick from, most used first ([What-if: Recipes](#whatif-recipes)).
 - **49.** A recipe you've made can now go in My Pantry (**Add to pantry** on My Pantry's search, **In My Pantry** on the recipe's page, or the Recipes list's **Pantry** column), and complement suggestions offer it under **From your pantry**. Your other recipes are suggested under **Other options**, as things you could make. [learn more...](#pantry-recipes)

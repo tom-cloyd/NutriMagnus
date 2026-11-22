@@ -11,6 +11,7 @@
   <div class="sb-title">Contents</div>
   <ul class="sb-list">
     <li class="sb-item"><a class="sb-toggle" href="/food/cache/problems">Problems by food &rarr;</a></li>
+    {% if new_problems %}<li class="sb-item"><a class="sb-toggle" href="#new-problems">New since your last check</a></li>{% endif %}
     <li class="sb-item"><a class="sb-toggle" href="#integrity">Broken references</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#completeness">Missing nutrient data</a></li>
     <li class="sb-item"><a class="sb-toggle" href="#calories">Food data problems</a></li>
@@ -54,6 +55,38 @@
 <p><a href="/food/cache/problems" class="btn btn-sm btn-outline-primary" title="The same checks, one entry per food: everything wrong with a food and how to fix it, together">Problems by food</a>
   <a href="/food/cache/duplicates" class="btn btn-sm btn-outline-secondary">Find duplicate foods</a> {{ manual_link("checking-your-data", "All of NuMa’s data checks") }}</p>
 <p class="muted" style="max-width:48rem"><small>This page lists by problem. To see everything wrong with each food in one place, use <strong>Problems by food</strong>.</small></p>
+{#- The problems new since the last visit to this page, kept until "Done
+    with these" (web/backend.py _describe_problem_keys). The Home page's
+    DATA CHECK link opens the page here. #}
+{% if new_problems %}
+{#- Counted in problems, as the Home page counts them; one row can hold
+    several (a food's missing nutrient groups). #}
+{%- set _n = new_problems | map(attribute="keys") | map("length") | sum %}
+{%- set _n_open = new_problems | rejectattr("fixed") | map(attribute="keys") | map("length") | sum %}
+<div class="alert alert-warning mt-2" id="new-problems" style="max-width:60rem">
+  <h3 class="h5 mb-1">New since your last check{% if new_since %} ({{ new_since }}){% endif %}:
+    {{ _n }} problem{{ "s" if _n != 1 }}{% if _n_open != _n %}, {{ _n_open }} still open{% endif %}</h3>
+  <p class="mb-2"><small>These weren&rsquo;t there at your last check, so something you did since (or a data update)
+  may have caused them. Each is also in its list below. {{ manual_link("new-problems") }}</small></p>
+  <table class="table table-sm mb-2 bg-transparent">
+    <thead><tr><th>Food or item</th><th>Problem</th><th>Where below</th></tr></thead>
+    <tbody>
+    {%- for r in new_problems %}
+      <tr{% if r.fixed %} class="text-muted"{% endif %}>
+        <td>{% if r.url and r.what %}<a href="{{ r.url }}">{{ r.what }}</a>{% else %}{{ r.what or "—" }}{% endif %}</td>
+        <td>{% if r.fixed %}<s>{{ r.problem }}</s> <strong class="text-success">fixed &check;</strong>{% else %}{{ r.problem }}{% endif %}</td>
+        <td>{% if not r.fixed %}<a href="#{{ r.anchor }}">{{ r.where }}</a>{% endif %}</td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="/food/cache/db-check/new-done" class="m-0">
+    <button type="submit" class="btn btn-sm btn-outline-secondary"
+            title="Clear this box. Problems still open stay in their lists below.">Done with these</button>
+  </form>
+</div>
+{% endif %}
+
 <form method="get" action="/food/cache/db-check" class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <label class="d-flex align-items-center gap-1 m-0" for="db-check-order">Order every list of foods:
     <select name="order" id="db-check-order" class="form-select form-select-sm w-auto" onchange="this.form.submit()">

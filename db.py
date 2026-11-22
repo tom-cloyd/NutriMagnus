@@ -256,6 +256,16 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        # The same for a recipe used as an ingredient of another recipe:
+        # grams one serving of the sub-recipe weighed when the ingredient was
+        # entered (or last edited or confirmed), so a later change to that
+        # recipe's serving weight can be found and settled (web/backend.py
+        # _serving_weight_changes()). NULL = not recorded.
+        try:
+            conn.execute("ALTER TABLE recipe_ingredients ADD COLUMN serving_grams REAL")
+        except sqlite3.OperationalError:
+            pass
+
         # Time of day ("HH:MM", the computer's local clock) the item was
         # entered into the meal — see _now_hhmm(). NULL for items logged
         # before this column existed; shown in the meal page's Items list.
@@ -1616,11 +1626,16 @@ def recipe_add_ingredient(conn: sqlite3.Connection, recipe_id: int, fdc_id: int,
                           food_name: str, amount: float, unit: str,
                           notes: str | None = None,
                           *, ref_recipe_id: int | None = None,
-                          ref_recipe_deleted: bool = False) -> None:
+                          ref_recipe_deleted: bool = False,
+                          serving_grams: float | None = None) -> None:
+    """serving_grams: for a sub-recipe, what one serving of it weighs now
+    (recipe_ingredients.serving_grams)."""
     conn.execute("""
-        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id, ref_recipe_deleted)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None, ref_recipe_id, 1 if ref_recipe_deleted else 0))
+        INSERT INTO recipe_ingredients (recipe_id, fdc_id, food_name, amount, unit, notes, ref_recipe_id,
+                                        ref_recipe_deleted, serving_grams)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (recipe_id, fdc_id, food_name, amount, unit, notes or None, ref_recipe_id, 1 if ref_recipe_deleted else 0,
+          serving_grams))
     _recipe_invalidate_dcp(conn, recipe_id)
 
 
@@ -1902,6 +1917,59 @@ def recipe_update(conn: sqlite3.Connection, recipe_id: int, name: str,
         (name, recipe_id)
     )
     _recipe_invalidate_dcp(conn, recipe_id)
+
+
+def recipe_ingredient_set_serving_grams(conn: sqlite3.Connection, ingredient_id: int,
+                                       serving_grams: float | None) -> None:
+    """Record what one serving of a sub-recipe ingredient's recipe weighs now
+    (recipe_ingredients.serving_grams)."""
+    conn.execute("UPDATE recipe_ingredients SET serving_grams=? WHERE id=?", (serving_grams, ingredient_id))
+
+
+def recipe_ingredient_set_servings(conn: sqlite3.Connection, ingredient_id: int,
+                                   servings: float, unit: str) -> None:
+    """Change a sub-recipe ingredient's servings count, keeping its name and
+    notes, and mark its recipe's saved DCP stale."""
+    row = conn.execute("SELECT recipe_id FROM recipe_ingredients WHERE id=?", (ingredient_id,)).fetchone()
+    conn.execute("UPDATE recipe_ingredients SET amount=?, unit=? WHERE id=?", (servings, unit, ingredient_id))
+    if row:
+        _recipe_invalidate_dcp(conn, row["recipe_id"])
+
+
+def recipe_fill_missing_serving_grams(conn: sqlite3.Connection, recipe_id: int, grams: float) -> None:
+    """Record `grams` as the serving weight on every meal item and recipe
+    ingredient that uses `recipe_id` and has none recorded yet. Called just
+    before the recipe is saved, with its weight then, so a change the save
+    makes can be found afterwards even for uses never shown since logging."""
+    conn.execute("UPDATE meal_items SET serving_grams=? WHERE item_type='recipe' AND recipe_id=? "
+                 "AND serving_grams IS NULL", (grams, recipe_id))
+    conn.execute("UPDATE recipe_ingredients SET serving_grams=? WHERE ref_recipe_id=? "
+                 "AND ref_recipe_deleted=0 AND serving_grams IS NULL", (grams, recipe_id))
+
+
+def recipe_weight_uses(conn: sqlite3.Connection, recipe_id: int | None = None) -> list[dict]:
+    """Every use of a recipe (or of every recipe) that records servings:
+    logged meal items and sub-recipe ingredients, as dicts {"kind": "meal" |
+    "recipe", "id" (the meal item or ingredient), "owner_id" (the meal or
+    the recipe using it), "owner_name", "meal_date" (None for a recipe),
+    "recipe_id" (the recipe used), "recipe_name", "amount" (servings),
+    "serving_grams" (recorded, or None)}. Meals newest first, then recipes."""
+    where_m, where_r, params = "", "", ()
+    if recipe_id is not None:
+        where_m, where_r, params = " AND mi.recipe_id = ?", " AND ri.ref_recipe_id = ?", (recipe_id,)
+    meals = conn.execute(f"""
+        SELECT 'meal' AS kind, mi.id, m.id AS owner_id, m.name AS owner_name, m.meal_date,
+               mi.recipe_id, mi.food_name AS recipe_name, mi.amount, mi.serving_grams
+        FROM meal_items mi JOIN meals m ON m.id = mi.meal_id
+        WHERE mi.item_type = 'recipe' AND mi.recipe_id IS NOT NULL{where_m}
+        ORDER BY m.meal_date DESC, m.id DESC, mi.id""", params).fetchall()
+    recipes = conn.execute(f"""
+        SELECT 'recipe' AS kind, ri.id, r.id AS owner_id, r.name AS owner_name, NULL AS meal_date,
+               ri.ref_recipe_id AS recipe_id, ri.food_name AS recipe_name, ri.amount, ri.serving_grams
+        FROM recipe_ingredients ri JOIN recipes r ON r.id = ri.recipe_id
+        WHERE ri.ref_recipe_id IS NOT NULL AND ri.ref_recipe_deleted = 0{where_r}
+        ORDER BY r.name, ri.id""", params).fetchall()
+    return [dict(r) for r in meals] + [dict(r) for r in recipes]
 
 
 def recipe_update_ingredient(conn: sqlite3.Connection, ingredient_id: int,

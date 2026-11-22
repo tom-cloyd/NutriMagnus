@@ -45,6 +45,40 @@
   <a href="/summary/nutrient-plot" class="btn btn-sm btn-outline-secondary">Nutrient plot</a>
 </div>
 
+{#- Meals holding a recipe entered at another serving weight (web/backend.py
+    _serving_weight_changes), one row per recipe (weight_groups), its meals
+    folded under it: their days' totals may be off until settled. #}
+{% if weight_changes %}
+{%- set _n = weight_changes | length %}
+<div class="alert alert-warning" id="serving-weight-meals" style="max-width:64rem">
+  <strong>&#9888; {{ _n }} meal item{{ "s" if _n != 1 }} use{{ "s" if _n == 1 }} a recipe whose serving weight has
+  changed since {{ "it was" if _n == 1 else "they were" }} logged</strong>
+  ({{ weight_groups | length }} recipe{{ "s" if weight_groups | length != 1 }}; days marked &#9888; below).
+  Each still holds the servings it was logged with, now a different amount of food, so its day&rsquo;s totals may be off.
+  <strong>Settle</strong> a recipe to choose, for each of its meals (or all at once), whether to keep the grams you
+  logged or the servings; a meal&rsquo;s own page does just that meal. {{ manual_link("servings-yield-effects") }}
+  <div style="overflow-x:auto">
+  <table class="table table-sm mb-1 mt-2 bg-transparent" style="width:auto">
+    <thead><tr><th>Recipe</th><th class="num-col">Meals</th><th class="num-col">One serving then &rarr; now</th><th></th></tr></thead>
+    <tbody>
+    {%- for g in weight_groups %}
+      <tr>
+        <td><a href="/recipe/{{ g.recipe_id }}">{{ g.recipe_name }}</a>{{ food_id_tag(None, recipe_id=g.recipe_id) }}
+          <details class="mt-1"><summary class="muted"><small>{{ g.meals | length }} meal item{{ "s" if g.meals | length != 1 }},
+            {{ g.first }}{% if g.last != g.first %} to {{ g.last }}{% endif %}</small></summary>
+            <small>{% for c in g.meals %}<a href="/meal/{{ c.owner_id }}">{{ c.meal_date }} {{ c.owner_name }}</a>{{ ", " if not loop.last }}{% endfor %}</small>
+          </details></td>
+        <td class="num-col">{{ g.meals | length }}</td>
+        <td class="num-col" style="white-space:nowrap">{% for v in g.then %}{{ "%g"|format(v) }}{{ " / " if not loop.last }}{% endfor %}&thinsp;g &rarr; {{ "%g"|format(g.now_g|round(1)) }}&thinsp;g</td>
+        <td><a href="/recipe/{{ g.recipe_id }}/serving-weight" class="btn btn-sm btn-warning py-0">Settle</a></td>
+      </tr>
+    {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+
 {# ── Recent days table ────────────────────────────────────────────────── #}
 {% set show_pct_col = day_rows|selectattr('pct_goal', 'none')|list|length < day_rows|length %}
 <details open data-remember="recent-days">
@@ -80,7 +114,8 @@
     <tbody>
       {% for r in day_rows %}
       <tr>
-        <td class="sticky-col"><a href="/summary/{{ r.meal_date }}" title="Full nutrient analysis for {{ r.meal_date }}">{{ r.meal_date }}</a></td>
+        <td class="sticky-col"><a href="/summary/{{ r.meal_date }}" title="Full nutrient analysis for {{ r.meal_date }}">{{ r.meal_date }}</a>
+          {%- if r.meal_date in weight_change_dates %} <a href="#serving-weight-meals" class="text-warning-emphasis" title="A meal this day uses a recipe whose serving weight has changed since it was logged: see the box above">&#9888;</a>{% endif %}</td>
         <td class="text-center">
           {% if r.day_complete %}
           <span class="text-success" title="All meals on this date are marked complete">&#10003;</span>

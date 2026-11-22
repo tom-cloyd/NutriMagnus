@@ -1,0 +1,12 @@
+{#- On a recipe's pages: its uses entered at another serving weight
+    (serving_weight_uses, from web/backend.py _serving_weight_notice()). #}
+{%- if serving_weight_uses and (serving_weight_uses.meals or serving_weight_uses.recipes) %}
+{%- set _m = serving_weight_uses.meals %}{% set _r = serving_weight_uses.recipes %}
+<div class="alert alert-warning py-2" id="serving-weight-notice" style="max-width:60rem">
+  <strong>One serving of this recipe now weighs a different amount</strong> than when
+  {% if _m %}{{ _m }} meal item{{ "s" if _m != 1 }}{% endif %}{% if _m and _r %} and {% endif %}{% if _r %}{{ _r }} recipe ingredient{{ "s" if _r != 1 }}{% endif %}
+  using it {{ "were" if _m + _r != 1 else "was" }} entered. Say for each whether to keep the grams or the servings:
+  <a href="/recipe/{{ recipe.id }}/serving-weight" class="btn btn-sm btn-warning py-0 ms-1">Review them</a>
+  {{ manual_link("servings-yield-effects") }}
+</div>
+{%- endif %}

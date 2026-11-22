@@ -139,7 +139,7 @@
   {% endif %}
   {% if nutrient_sections %}
   <li class="sb-item" data-target="sec-nutrients">
-    <a class="sb-toggle" href="#sec-nutrients">Nutritional Analysis</a>
+    <a class="sb-toggle" href="#sec-nutrients" data-ak="u" data-ak-label="Nutritional Analysis (Contents sidebar)">N<u class="ak">u</u>tritional Analysis</a>
     <ul class="sb-sub">
       {% for section in nutrient_sections %}
       <li><a class="sb-link" href="#nut-{{ loop.index }}">{{ section.name }}</a></li>
@@ -362,6 +362,31 @@
     {%- endif %}
   </div>
   {%- endif %}
+  {#- The first meal of a day: the daily starting items just added (Settings → 10). #}
+  {%- set _start_ids = request.query_params.get("start_ids", "").split(",") | select("ne", "") | map("int") | select("in", items_by_id) | list %}
+  {%- set _start_problems = request.query_params.getlist("start_problem") %}
+  {% if _start_ids or _start_problems %}
+  <div class="mb-1" id="daily-start-added">
+    {%- if _start_ids %}
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <strong class="text-success">&check; First meal of the day: added your daily starting items:
+        {% for i in _start_ids %}{% set _it = items_by_id[i] %}{{ _it.food_name }}{{ food_id_tag(_it.fdc_id, _it.recipe_id) }} &mdash;
+        {%- if _it.item_type == "recipe" %} {{ "%g"|format(_it.amount) }} serving{{ "s" if _it.amount != 1 }}
+        {%- else %} {{ _it.amount_display or ("%g g"|format(_it.amount)) }}{% endif %}{{ "; " if not loop.last }}{% endfor %}.</strong>
+      <form method="post" action="/meal/{{ meal.id }}/remove-items" style="margin:0">
+        <input type="hidden" name="item_ids" value="{{ _start_ids | join(',') }}">
+        <input type="hidden" name="name" value="your daily starting items">
+        <button type="submit" class="btn btn-outline-danger btn-sm py-0"
+                title="Take all of the daily starting items back out of this meal">Undo</button>
+      </form>
+      <a href="/settings#daily-start" class="muted"><small>Change them in Settings &rarr; 10</small></a>
+    </div>
+    {%- endif %}
+    {%- for p in _start_problems %}
+    <p class="numa-error mb-1">Daily starting item not added: {{ p }} <a href="/settings#daily-start">Settings &rarr; 10</a></p>
+    {%- endfor %}
+  </div>
+  {% endif %}
   {% if request.query_params.get("removed") %}<p class="text-success mb-1" id="just-removed"><strong>&check; Removed {{ request.query_params.get("removed") }} from this meal.</strong></p>{% endif %}
   {% include "_food_quality_note.html" %}
 
@@ -834,7 +859,7 @@
             One serving weighed {{ sc.logged | round | int }}&thinsp;g then; it weighs {{ sc.now | round | int }}&thinsp;g now,
             so {{ "%g"|format(item.amount|round(2)) }} serving{{ "" if item.amount == 1 else "s" }} now counts as
             {{ (sc.now * item.amount) | round | int }}&thinsp;g instead of the {{ (sc.logged * item.amount) | round | int }}&thinsp;g you logged.
-            {{ manual_link("recipe-servings-grams") }}
+            {{ manual_link("servings-yield-effects") }} &middot; <a href="/recipe/{{ item.recipe_id }}/serving-weight">Settle every meal and recipe that uses it at once</a>
           </small>
           <div class="d-flex flex-wrap gap-2 mt-1">
             <form method="post" action="/meal/{{ meal.id }}/item/{{ item.id }}/serving-weight" style="margin:0">

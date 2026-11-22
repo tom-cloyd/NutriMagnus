@@ -2850,6 +2850,69 @@ def settings_water_post(track_water: str = Form("")):
     return RedirectResponse("/settings?saved=water#water-tracking", status_code=303)
 
 
+_DAILY_START_LOOKUP_MAX = 30
+
+
+@app.get("/settings/daily-start/lookup", response_class=JSONResponse)
+def settings_daily_start_lookup(q: str = "", kind: str = "food"):
+    """Settings → 10's Search foods / Search recipes: the Food Cache's foods,
+    or your recipes, whose names hold every word of `q` (a list filter's
+    rules: "!word" leaves a word out, a whole code finds that one item), as
+    {"results": [{"code", "name", "detail"}], "more": n not shown}. Archived
+    items are left out. Nothing typed finds nothing."""
+    q = (q or "").strip()
+    out = []
+    if q:
+        with _db.get_db() as conn:
+            if kind == "recipe":
+                for r in _recipes_named(conn, q):
+                    if r["archived"]:
+                        continue
+                    serv = recipe_serving_grams(r["id"], conn)
+                    out.append({"code": f"R{r['id']}", "name": r["name"],
+                                "detail": f"1 serving = {serv:.4g} g" if serv else ""})
+            else:
+                for r in _filtered_cached_foods(conn, q):
+                    code = _classify_food_id(r["fdc_id"])
+                    portions = json.loads(r["portions_json"] or "[]") or []
+                    hint = "; ".join(
+                        f"p{i} {p.get('description') or ''} ({float(p.get('gram_weight') or 0):.4g} g)"
+                        for i, p in enumerate(portions[:3], 1))
+                    if len(portions) > 3:
+                        hint += "; …"
+                    out.append({"code": code[0] if code else str(r["fdc_id"]), "name": r["name"],
+                                "detail": " · ".join(x for x in (r["brand"] or "", hint) if x)})
+    return {"results": out[:_DAILY_START_LOOKUP_MAX], "more": max(0, len(out) - _DAILY_START_LOOKUP_MAX)}
+
+
+@app.post("/settings/daily-start", response_class=RedirectResponse)
+def settings_daily_start_post(code: list[str] = Form([]), amount: list[str] = Form([]),
+                              remove: list[int] = Form([])):
+    """Settings → 10: save the daily starting items. Rows come in order
+    (code[i], amount[i]); a row with an empty code, or whose index is in
+    `remove`, is dropped. If any kept row's code or amount can't be used,
+    nothing is saved: the page shows why, with what was typed still there."""
+    from urllib.parse import quote
+
+    amounts = list(amount) + [""] * (len(code) - len(amount))
+    drop = set(remove)
+    items = [{"code": c.strip(), "amount": a.strip()} for i, (c, a) in enumerate(zip(code, amounts))
+             if c.strip() and i not in drop]
+    errors = []
+    with _db.get_db() as conn:
+        for item in items:
+            try:
+                _daily_start_resolve(conn, item["code"], item["amount"])
+            except _entry_parse.EntryError as e:
+                errors.append(str(e))
+    if errors:
+        return RedirectResponse(
+            f"/settings?start_error={quote(chr(10).join(errors))}"
+            f"&start_draft={quote(json.dumps(items))}#daily-start", status_code=303)
+    _save_prefs_file({"daily_start_items": items})
+    return RedirectResponse("/settings?saved=daily-start#daily-start", status_code=303)
+
+
 @app.post("/gi-table-notice/ack-banner", response_class=RedirectResponse)
 def gi_table_notice_ack_banner():
     """'Do not remind me again' on the home-page GI-table banner. Cleared
@@ -4527,6 +4590,62 @@ async def food_cache_prune_post(request: Request):
     return RedirectResponse(f"/food/cache?pruned={len(deleted)}", status_code=303)
 
 
+def _describe_problem_keys(quality: dict, keys) -> list[dict]:
+    """Rows for the data-problem keys (data_quality.scan's "keys") in `keys`,
+    for Foods → 9's "New since your last check" box: {"keys" (the problem
+    keys the row stands for: one food's missing groups share a row), "what"
+    (the food, or "" for a database fault), "problem", "url" (the item's own
+    page, or None), "anchor" (its list on Foods → 9), "where" (that list's
+    name)}. Worked out when the problems are found and kept, so a fixed one,
+    gone from every list, can still be named."""
+    food_issue = {(r["fdc_id"], i["kind"]): (r["name"], i["text"])
+                  for r in quality["food_issues"] for i in r["issues"]}
+    gap_name = {g["fdc_id"]: g["name"] for g in quality["gaps"]}
+    group_label = {k: label.lower() for k, label, _keys in _data_completeness.GROUPS}
+    stale = {f"stale:{s['where']}:{s['item_id']}": s for s in quality["stale_amounts"]}
+    rows, gaps = [], {}
+    for key in sorted(keys):
+        kind, _, rest = key.partition(":")
+        try:
+            if kind == "food":
+                fdc, _, issue = rest.rpartition(":")
+                name, text = food_issue.get((int(fdc), issue), ("", issue.replace("_", " ")))
+                rows.append({"keys": [key], "what": name, "problem": text[:1].upper() + text[1:],
+                             "url": f"/food/{fdc}", "anchor": "calories", "where": "Food data problems"})
+            elif kind == "gap":
+                fdc, _, group = rest.rpartition(":")
+                gaps.setdefault(int(fdc), []).append((key, group_label.get(group, group)))
+            elif kind == "stale" and key in stale:
+                s = stale[key]
+                owner = "meal" if s["where"] == "meal" else "recipe"
+                url = f"/meal/{s['owner_id']}" if owner == "meal" else f"/recipe/{s['owner_id']}/edit"
+                rows.append({"keys": [key], "what": s["food_name"],
+                             "problem": f"The amount \u201c{s['typed']}\u201d in the {owner} \u201c{s['owner_label']}\u201d "
+                                        f"no longer matches the food\u2019s portions",
+                             "url": url, "anchor": "stale-amounts", "where": "Amounts that no longer match"})
+            elif kind == "integrity":
+                cat = rest.partition(":")[0]
+                rows.append({"keys": [key], "what": "", "problem": f"Broken reference: {cat.replace('_', ' ')}",
+                             "url": None, "anchor": "integrity", "where": "Broken references"})
+        except ValueError:
+            continue
+    for fdc, parts in gaps.items():
+        rows.append({"keys": [k for k, _l in parts], "what": gap_name.get(fdc, ""),
+                     "problem": "No data for: " + ", ".join(label for _k, label in parts),
+                     "url": f"/food/{fdc}",
+                     "anchor": "completeness", "where": "Missing nutrient data"})
+    order = ["integrity", "calories", "completeness", "stale-amounts"]
+    rows.sort(key=lambda r: (order.index(r["anchor"]), r["what"].lower()))
+    return rows
+
+
+@app.post("/food/cache/db-check/new-done", response_class=RedirectResponse)
+def food_cache_db_check_new_done():
+    """"Done with these" on Foods → 9's New since your last check box."""
+    _save_prefs_file({"data_check_new": [], "data_check_new_since": None})
+    return RedirectResponse("/food/cache/db-check", status_code=303)
+
+
 @app.get("/food/cache/db-check", response_class=HTMLResponse)
 def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0, zeroed: int = 0,
                                   amounts_fixed: int = 0,
@@ -4634,12 +4753,33 @@ def food_cache_db_check_get(request: Request, repaired: int = 0, saved: int = 0,
     vitamin_k_run = _vitamin_k_repair.status()
     if not vitamin_k_run["running"]:
         _vitamin_k_repair.clear_status()
+    # The problems that are new since the last visit (not in data_check_seen)
+    # are listed at the top, in "New since your last check", until "Done with
+    # these": kept in prefs, with their descriptions, so a reload or coming
+    # back after fixing one still shows them (a fixed one marked fixed).
+    # Not on a first ever visit: then everything is "new", and the lists are
+    # the review.
+    prefs = _load_prefs_file()
+    new_rows = prefs.get("data_check_new") or []
+    new_since = prefs.get("data_check_new_since")
+    if prefs.get("data_check_last_seen"):
+        listed = {k for r in new_rows for k in r.get("keys", [])}
+        fresh = quality["keys"] - set(prefs.get("data_check_seen") or []) - listed
+        added = _describe_problem_keys(quality, fresh)
+        if added:
+            if not new_rows:
+                new_since = prefs.get("data_check_last_seen")
+            new_rows = new_rows + added
+            _save_prefs_file({"data_check_new": new_rows, "data_check_new_since": new_since})
+    new_problems = [dict(r, fixed=not (set(r.get("keys", [])) & quality["keys"])) for r in new_rows]
     # Opening this page counts as reviewing every current problem: the Home
     # page reminder only raises ones that appear after this (_data_check_reminder()).
     _save_prefs_file({"data_check_seen": sorted(quality["keys"]),
                       "data_check_last_seen": datetime.date.today().isoformat()})
     total = sum(len(v) for v in issues.values())
     return templates.TemplateResponse(request, "food_cache_db_check.html", {
+        "new_problems":  new_problems,
+        "new_since":     new_since,
         "issues": issues,
         "total": total,
         "repairable": total - len(issues["bad_json"]) - len(issues["deleted_subrecipe_refs"]),
@@ -7421,6 +7561,70 @@ def _serving_weight_changed(logged: float | None, now: float | None) -> bool:
     return abs(now - logged) > max(0.5, 0.01 * logged)
 
 
+def _serving_weight_changes(conn, recipe_id: int | None = None) -> list[dict]:
+    """The uses of a recipe (or of every recipe) entered when one serving
+    weighed something else: meal items and sub-recipe ingredients whose
+    recorded serving_grams differs from the recipe's serving weight now
+    (_serving_weight_changed). db.recipe_weight_uses() rows plus "now_g",
+    and "keep_servings": the servings that would keep the grams entered.
+    A use with no recorded weight can't be judged and isn't listed."""
+    now: dict[int, float | None] = {}
+    out = []
+    for use in _db.recipe_weight_uses(conn, recipe_id):
+        rid = use["recipe_id"]
+        if rid not in now:
+            now[rid] = recipe_serving_grams(rid, conn) if _db.recipe_get(conn, rid) else None
+        if _serving_weight_changed(use["serving_grams"], now[rid]):
+            amount = float(use["amount"] or 0)
+            out.append(dict(use, now_g=now[rid],
+                            keep_servings=round(amount * use["serving_grams"] / now[rid], 3)))
+    return out
+
+
+def _serving_weight_notice(recipe_id: int) -> dict:
+    """{"meals", "recipes"}: how many of a recipe's uses are listed by
+    _serving_weight_changes(), for _serving_weight_notice.html."""
+    with _db.get_db() as conn:
+        changes = _serving_weight_changes(conn, recipe_id)
+    return {"meals": sum(1 for c in changes if c["kind"] == "meal"),
+            "recipes": sum(1 for c in changes if c["kind"] == "recipe")}
+
+
+def _apply_serving_weight_choices(choices: dict[tuple[str, int], str]) -> int:
+    """Settle uses listed by _serving_weight_changes(): {("meal" | "recipe",
+    id): "keep" | "accept"}. "keep" rescales the servings so the grams
+    entered stay the same; "accept" keeps the servings (and so takes the new
+    amount of food). Either way the new serving weight is recorded, so the
+    use is no longer flagged. Then the meals' saved totals and the recipes'
+    saved DCP are worked out again. Returns how many were settled."""
+    done, meals, recipes = 0, {}, set()
+    with _db.get_db() as conn:
+        for use in _serving_weight_changes(conn):
+            choice = choices.get((use["kind"], use["id"]))
+            if choice not in ("keep", "accept"):
+                continue
+            srv = use["keep_servings"]
+            unit = f"{srv:g} serving" + ("s" if srv != 1 else "")
+            if use["kind"] == "meal":
+                if choice == "keep":
+                    _db.meal_update_item(conn, use["id"], use["owner_id"], srv, unit)
+                _db.meal_item_set_serving_grams(conn, use["id"], use["now_g"])
+                meals[use["owner_id"]] = use["meal_date"]
+            else:
+                if choice == "keep":
+                    _db.recipe_ingredient_set_servings(conn, use["id"], srv, unit)
+                _db.recipe_ingredient_set_serving_grams(conn, use["id"], use["now_g"])
+                recipes.add(use["owner_id"])
+            done += 1
+        for rid in recipes:
+            _recipe_dcp.recompute_recipe_dcp(rid, conn)
+    for meal_id in meals:
+        _compute_and_store_meal_bcp(meal_id)
+    for meal_date in set(meals.values()):
+        _refresh_day_pct_goal(meal_date)
+    return done
+
+
 def _annotate_recipe_amounts(items: list[dict], conn, *, id_key: str = "id") -> bool:
     """Give each recipe item in `items` what the shared recipe_amount() macro
     (templates/_recipe_amount.html) needs to show servings AND grams:
@@ -7876,17 +8080,133 @@ def meals_compute_bcp(redirect_to: str = Form("/meals"), scope: str = Form("all"
     return RedirectResponse(redirect_to, status_code=303)
 
 
+# ── Daily starting items (Settings → 10) ─────────────────────────────────
+# Foods and recipe portions added to the first meal created on a date with no
+# meals yet (a daily supplement, the morning coffee). Kept in prefs.json as
+# [{"code": "U171477", "amount": "1 cup"}, ...]: the code and the amount as
+# typed, read again each time they are added, so a food's portions or a
+# recipe's serving weight are the ones it has that day.
+
+def _daily_start_items() -> list[dict]:
+    """The saved daily starting items, in order: [{"code", "amount"}]."""
+    raw = _load_prefs_file().get("daily_start_items") or []
+    if not isinstance(raw, list):
+        return []
+    return [{"code": str(r.get("code", "")).strip(), "amount": str(r.get("amount", "")).strip()}
+            for r in raw if isinstance(r, dict) and str(r.get("code", "")).strip()]
+
+
+def _daily_start_resolve(conn, code: str, amount: str) -> dict:
+    """What one daily starting item adds: {"kind": "food"|"recipe", "id",
+    "code", "name", "amount" (grams or servings), "unit" (as stored on the
+    meal item), "shown"}. Raises entry_parse.EntryError with a sentence for
+    the person when the code or the amount can't be used. A food must be in
+    the Food Cache already: adding one is never a USDA look-up."""
+    try:
+        kind, ident = _parse_code(code)
+    except ValueError as e:
+        raise _entry_parse.EntryError(str(e)) from None
+    shown_code = _classify_food_id(ident if kind == "food" else None,
+                                   ident if kind == "recipe" else None)
+    code = shown_code[0] if shown_code else code.strip()
+    if kind == "food":
+        cached = _db.get_cached_food(conn, ident)
+        if not cached:
+            raise _entry_parse.EntryError(
+                f"{code}: no food with this code is in your Food Cache. Find it with a search and add it to "
+                f"a meal or your pantry once, and it will be.")
+        name = cached["name"]
+        portions = json.loads(cached["portions_json"] or "[]") or []
+        grams, label = _parse_portion_str(amount or "100 g", portions, name)
+        if not grams:
+            raise _entry_parse.EntryError(f"{code} ({name}): {label}")
+        return {"kind": "food", "id": ident, "code": code, "name": name, "amount": grams,
+                "unit": label, "shown": _added_amount(grams, label)}
+    recipe = _db.recipe_get(conn, ident)
+    if not recipe:
+        raise _entry_parse.EntryError(f"{code}: no recipe has this code.")
+    name = recipe["name"]
+    serving_g = recipe_serving_grams(ident, conn)
+    try:
+        servings, _typed = _parse_recipe_amount(amount or "1 serving", recipe, serving_g)
+    except _entry_parse.EntryError as e:
+        raise _entry_parse.EntryError(f"{code} ({name}): {e}") from None
+    servings = round(servings, 4)
+    unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
+    shown = unit + (f" ({servings * serving_g:.4g} g)" if serving_g else "")
+    return {"kind": "recipe", "id": ident, "code": code, "name": name, "amount": servings,
+            "unit": unit, "shown": shown}
+
+
+def _daily_start_add(conn, meal_id: int) -> tuple[list[int], list[str]]:
+    """Add the daily starting items to a meal. Returns (the new meal item
+    ids, a sentence for each item that couldn't be added, e.g. a food since
+    deleted). Never stops at a bad item: the others are still added."""
+    new_ids, problems = [], []
+    for item in _daily_start_items():
+        try:
+            r = _daily_start_resolve(conn, item["code"], item["amount"])
+        except _entry_parse.EntryError as e:
+            problems.append(str(e))
+            continue
+        if r["kind"] == "food":
+            new_ids.append(_db.meal_add_food(conn, meal_id, r["id"], r["name"], r["amount"], r["unit"]))
+        else:
+            new_ids.append(_db.meal_add_recipe(conn, meal_id, r["id"], r["name"], r["amount"], unit=r["unit"]))
+    return new_ids, problems
+
+
+def _daily_start_draft(raw: str) -> list[dict]:
+    """The rows a refused Settings → 10 save sent back (start_draft), so the
+    form shows what was typed rather than the saved list."""
+    try:
+        data = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return []
+    return [{"code": str(r.get("code", "")), "amount": str(r.get("amount", ""))}
+            for r in data if isinstance(r, dict)] if isinstance(data, list) else []
+
+
+def _daily_start_rows(items: list[dict]) -> list[dict]:
+    """Settings → 10's table: each item with what its code names now, or why
+    it can't be added."""
+    rows = []
+    with _db.get_db() as conn:
+        for item in items:
+            row = dict(item, name="", shown="", problem="")
+            if item["code"]:
+                try:
+                    r = _daily_start_resolve(conn, item["code"], item["amount"])
+                    row.update(name=r["name"], shown=r["shown"])
+                except _entry_parse.EntryError as e:
+                    row["problem"] = str(e)
+            rows.append(row)
+    return rows
+
+
 @app.post("/meals/create", response_class=RedirectResponse)
 def meal_create(
     name: str = Form(""),
     meal_date: str = Form(""),
 ):
+    from urllib.parse import urlencode
+
     name = name.strip() or "Meal"
     meal_date = meal_date.strip() or datetime.date.today().isoformat()
+    start_ids, start_problems = [], []
     with _db.get_db() as conn:
+        # The first meal of a day gets the daily starting items (Settings → 10).
+        first_of_day = not _db.meal_list_by_date(conn, meal_date)
         meal_id = _db.meal_create(conn, name, meal_date)
         _day_profile.ensure_day_profile(conn, meal_date)
-    return RedirectResponse(f"/meal/{meal_id}", status_code=303)
+        if first_of_day:
+            start_ids, start_problems = _daily_start_add(conn, meal_id)
+    params = []
+    if start_ids:
+        params.append(("start_ids", ",".join(str(i) for i in start_ids)))
+    params += [("start_problem", p) for p in start_problems]
+    qs = f"?{urlencode(params)}" if params else ""
+    return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
 
 
 @app.post("/meal/{meal_id}/refresh-aa", response_class=RedirectResponse)
@@ -8499,6 +8819,8 @@ def meal_add_recipe_item(
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         with _db.get_db() as conn:
             new_ids = [_db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)]
+            if serving_g:
+                _db.meal_item_set_serving_grams(conn, new_ids[0], serving_g)
     # The search stays, so more results can be added (see meal_add_food).
     amount_shown = f"{servings:g} serving" + ("s" if servings != 1 else "")
     if serving_g:
@@ -9108,7 +9430,8 @@ def meal_day_profile_override(meal_id: int, profile_name: str = Form(...)):
 @app.get("/settings", response_class=HTMLResponse)
 def settings_get(request: Request, saved: str = "", recompute_retry: str = "", kept: int = 0,
                        gi_build_error: str = "", kept_recipes: int = 0, kept_edited: int = 0,
-                       target_error: str = "", applied: int = 0, apply_error: int = 0):
+                       target_error: str = "", applied: int = 0, apply_error: int = 0,
+                       start_error: str = "", start_draft: str = ""):
     profile = _profile.load_profile()
     diet_pref = _current_diet_pref()
     rda = _profile.compute_rda(profile, diet_pref=diet_pref) if profile else None
@@ -9192,6 +9515,9 @@ def settings_get(request: Request, saved: str = "", recompute_retry: str = "", k
         "sex_values":           _profile.SEX_VALUES,
         "saved":                saved,
         "target_error":         target_error,
+        "daily_start_rows":     _daily_start_rows(_daily_start_draft(start_draft)
+                                                  if start_error else _daily_start_items()),
+        "daily_start_errors":   [e for e in start_error.split("\n") if e.strip()],
         "starter_foods_kept":   kept,
         "starter_recipes_kept": kept_recipes,
         "starter_edited_kept":  kept_edited,
@@ -9681,7 +10007,7 @@ async def settings_starter_data_improve(request: Request):
 def settings_starter_data_improve_all():
     """Replace the user's copies of every starter item still listed as
     improved. The list comes from pending_changes(), not the form, so it's
-    exactly what Settings -> 11 is offering."""
+    exactly what Settings -> 12 is offering."""
     from numa_app.services import demo_data as _demo_data
     with _db.get_db() as conn:
         pending = _demo_data.pending_changes(conn, silent=_is_curator())
@@ -9702,7 +10028,7 @@ def settings_starter_data_keep_mine():
 @app.post("/starter-notice/ack", response_class=RedirectResponse)
 def starter_notice_ack():
     """'Got it' on the home page's new/improved starter items notice. The
-    items themselves stay listed in Settings -> 11 until dealt with."""
+    items themselves stay listed in Settings -> 12 until dealt with."""
     from numa_app.services import demo_data as _demo_data
     _demo_data.acknowledge_version_changes()
     return RedirectResponse("/", status_code=303)
@@ -10760,6 +11086,7 @@ def recipe_detail(request: Request, recipe_id: int, servings: float | None = Non
     # Notice after the page's own Archive/Restore button (recipe_archive's flags).
     ctx.update(just_archived=bool(archived), just_restored=bool(restored),
                still_used=bool(still_used), cooked_water_error=cooked_water_error)
+    ctx["serving_weight_uses"] = _serving_weight_notice(recipe_id)
     return templates.TemplateResponse(request, "recipe_detail.html", ctx)
 
 
@@ -11280,6 +11607,7 @@ def recipe_edit_get(request: Request, recipe_id: int, q: str = "", saved: str = 
     search_ctx.pop("recipe")    # the page has the full recipe row
 
     return templates.TemplateResponse(request, "recipe_edit.html", {
+        "serving_weight_uses": _serving_weight_notice(recipe_id),
         **_added_food_note(added_check),
         "recipe":             dict(recipe),
         "ingredients":        ingredients,
@@ -11369,6 +11697,12 @@ def recipe_edit_post(
     if tv is not None:
         tv *= _PORTION_VOL_TO_ML.get(total_volume_unit.lower(), 1.0)
     with _db.get_db() as conn:
+        # Record the serving weight as it is before this save on every use
+        # that has none yet, so a change this save makes to it (servings or
+        # total weight) is found and offered for review afterwards.
+        before_g = recipe_serving_grams(recipe_id, conn)
+        if before_g:
+            _db.recipe_fill_missing_serving_grams(conn, recipe_id, before_g)
         _db.recipe_update(
             conn, recipe_id,
             name=name.strip(), description=description.strip(),
@@ -11382,6 +11716,36 @@ def recipe_edit_post(
         )
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
     return RedirectResponse(f"/recipe/{recipe_id}/edit?saved=1", status_code=303)
+
+
+@app.get("/recipe/{recipe_id}/serving-weight", response_class=HTMLResponse)
+def recipe_serving_weight_get(request: Request, recipe_id: int, applied: int = -1):
+    """Every meal and recipe that entered this recipe when one serving weighed
+    something else, each with a choice: keep the grams entered, or keep the
+    servings. Reached from the recipe's pages, meal pages and Daily Summary."""
+    with _db.get_db() as conn:
+        recipe = _db.recipe_get(conn, recipe_id)
+        if not recipe:
+            return RedirectResponse("/recipes", status_code=303)
+        changes = _serving_weight_changes(conn, recipe_id)
+        uses = len(_db.recipe_weight_uses(conn, recipe_id))
+        now_g = recipe_serving_grams(recipe_id, conn)
+    return templates.TemplateResponse(request, "recipe_serving_weight.html", {
+        "recipe": dict(recipe), "changes": changes, "uses": uses, "now_g": now_g, "applied": applied})
+
+
+@app.post("/recipe/{recipe_id}/serving-weight", response_class=RedirectResponse)
+async def recipe_serving_weight_post(request: Request, recipe_id: int):
+    """Apply the review page's choices: fields choice_<meal|recipe>_<id> =
+    keep | accept. A use left without a choice is left as it is."""
+    form = await request.form()
+    choices = {}
+    for name, value in form.items():
+        parts = name.split("_")
+        if len(parts) == 3 and parts[0] == "choice" and parts[1] in ("meal", "recipe") and parts[2].isdigit():
+            choices[(parts[1], int(parts[2]))] = str(value)
+    done = _apply_serving_weight_choices(choices)
+    return RedirectResponse(f"/recipe/{recipe_id}/serving-weight?applied={done}", status_code=303)
 
 
 @app.post("/recipe/{recipe_id}/delete", response_class=RedirectResponse)
@@ -11689,9 +12053,10 @@ def recipe_ingredient_add_recipe(
         servings = round(servings_n, 4)
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         _effects.before_change(conn, recipe_id, gi_opt_out=_gi_opt_out())
-        _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
-                                   notes.strip() or None, ref_recipe_id=ref_recipe_id)
         sub_serving_g = recipe_serving_grams(ref_recipe_id, conn)
+        _db.recipe_add_ingredient(conn, recipe_id, 0, name, servings, unit,
+                                   notes.strip() or None, ref_recipe_id=ref_recipe_id,
+                                   serving_grams=sub_serving_g)
         amount_shown = unit + (f" ({servings * sub_serving_g:.4g} g)" if sub_serving_g else "")
         _db.recipe_auto_weight(conn, recipe_id)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
@@ -11766,6 +12131,9 @@ def recipe_ingredient_edit(
             _effects.before_change(conn, recipe_id, gi_opt_out=_gi_opt_out())
         _db.recipe_update_ingredient(conn, ing_id, grams, label,
                                       food_name.strip(), notes.strip() or None)
+        if ing and ing["ref_recipe_id"]:
+            # A sub-recipe amount typed now is in today's servings.
+            _db.recipe_ingredient_set_serving_grams(conn, ing_id, sub_serving_g)
         _recipe_dcp.recompute_recipe_dcp(recipe_id, conn)
         new_ing = next((i for i in _db.recipe_get_ingredients(conn, recipe_id) if i["id"] == ing_id), None)
     if amount_changed and new_ing:
@@ -12958,8 +13326,27 @@ def summary_index(request: Request):
     with _db.get_db() as conn:
         rows = _db.meal_dates_with_bcp(conn, limit=30)
         day_rows, day_nutrient_cols, mandatory_day_cols = _build_day_rows(rows, conn)
+        # Every meal holding a recipe entered at another serving weight
+        # (any date, not only the days shown), for the box above the table
+        # and a mark beside each affected day.
+        weight_changes = [c for c in _serving_weight_changes(conn) if c["kind"] == "meal"]
+    # One row per recipe in the box, its meals folded under it.
+    by_recipe: dict[int, dict] = {}
+    for c in weight_changes:
+        g = by_recipe.setdefault(c["recipe_id"], {"recipe_id": c["recipe_id"], "recipe_name": c["recipe_name"],
+                                                   "now_g": c["now_g"], "then": set(), "meals": []})
+        g["then"].add(round(c["serving_grams"], 1))
+        g["meals"].append(c)
+    weight_groups = sorted(by_recipe.values(), key=lambda g: (-len(g["meals"]), g["recipe_name"].lower()))
+    for g in weight_groups:
+        g["then"] = sorted(g["then"])
+        g["first"] = min(c["meal_date"] for c in g["meals"])
+        g["last"] = max(c["meal_date"] for c in g["meals"])
 
     return templates.TemplateResponse(request, "summary.html", {
+        "weight_changes": weight_changes,
+        "weight_groups":  weight_groups,
+        "weight_change_dates": {c["meal_date"] for c in weight_changes},
         "day_rows":       day_rows,
         "day_nutrient_cols": day_nutrient_cols,
         "mandatory_day_cols": mandatory_day_cols,

@@ -1,13 +1,47 @@
 {% extends "base.html" %}
 {% block title %}NutriMagnus — Settings{% endblock %}
 
+{% block layout_class %}analysis-page{% endblock %}
+{% block main_class %}analysis-content{% endblock %}
+
+{#- The Contents sidebar: one entry per section; a click opens a closed
+    section before jumping to it (script at the end). #}
+{% block sidebar_nav %}
+<aside class="analysis-sidebar no-print" id="settings-toc">
+  <a class="sb-page-title" href="#analysis-content">Settings</a>
+  <div class="sb-title">Contents</div>
+  <ul class="sb-list">
+    {%- for id, label in [
+      ("your-profile", "1. Your Profile"),
+      ("daily-targets", "2. Your Computed Daily Targets"),
+      ("diet-preferences", "3. Dietary Preferences"),
+      ("digestibility-overrides", "4. Protein Digestibility Overrides"),
+      ("nutrient-targets", "5. Nutrient Targets - Researched"),
+      ("usda-api-key", "6. USDA API Key"),
+      ("gi-table", "7. Glycemic Index Reference Table"),
+      ("gl-tracking", "8. Glycemic Load"),
+      ("water-tracking", "9. Water Tracking"),
+      ("daily-start", "10. Daily Starting Items"),
+      ("meal-list-nutrients", "11. Meals & Log columns"),
+      ("starter-data", "12. Starter Data"),
+      ("browser-preference", "13. Browser to Launch"),
+      ("data-check-reminder", "14. Data Quality Reminder"),
+      ("keyboard-shortcuts", "15. Keyboard Shortcuts"),
+      ("system-issues", "16. System Issues"),
+    ] %}
+    <li class="sb-item"><a class="sb-toggle" href="#{{ id }}">{{ label }}</a></li>
+    {%- endfor %}
+  </ul>
+</aside>
+{% endblock %}
+
 {% block content %}
 <h2>Settings</h2>
 <p class="muted"><small>Setting NuMa up for the first time, or again after losing your data? The setup checklist says which of these sections must be done first, and which can wait.
   {{ manual_link("first-setup", "Open the setup checklist in the User Manual") }}</small></p>
 
 {# ── 1. Profile form ───────────────────────────────────────────────────── #}
-<details open>
+<details open id="your-profile">
   <summary data-ak="1"><u class="ak">1</u>. <strong>Your Profile</strong>
     {% if profile %}<span class="muted"> — used to calculate personalized RDA targets</span>{% endif %}
     {{ manual_link("profile-setup") }}
@@ -206,7 +240,7 @@
 </details>
 
 {# ── 2. Computed RDA summary ──────────────────────────────────────────── #}
-<details>
+<details id="daily-targets">
   <summary data-ak="2"><u class="ak">2</u>. <strong>Your Computed Daily Targets</strong>
     <span class="muted"> — derived from your profile above</span>
     {{ manual_link("daily-nutrient-targets") }}
@@ -273,7 +307,7 @@
 </details>
 
 {# ── 4. Protein digestibility overrides ───────────────────────────────── #}
-<details>
+<details id="digestibility-overrides">
   <summary data-ak="4"><u class="ak">4</u>. <strong>Protein Digestibility Overrides</strong>
     <span class="muted"> — advanced: per-food DIAAS coefficients</span>
     {{ manual_link("dcp-overrides") }}
@@ -678,9 +712,73 @@
   </form>
 </details>
 
-{# ── 10. Meals & Log columns (Alt+Shift+0: the 0 in "10") ──────────────────────────────────────────── #}
+{# ── 10. Daily starting items (Alt+Shift+0: the 0 in "10") ───────────── #}
+<details id="daily-start" {% if saved == 'daily-start' or daily_start_errors %}open{% endif %}>
+  <summary data-ak="0">1<u class="ak">0</u>. <strong>Daily Starting Items</strong>
+    <span class="muted"> — foods and recipes added to each day&rsquo;s first meal</span>
+    {{ manual_link("daily-start") }}
+  </summary>
+  <p class="mt-2" style="max-width:48rem">Things you have every day, such as a supplement or a morning coffee, can be
+  added for you. When you create a meal on a date that has no meals yet, NuMa adds each item listed here to it, and
+  the meal page says so, with an <strong>Undo</strong> button. Later meals that day get nothing extra, and meals you
+  already have are never changed.</p>
+  <p class="muted" style="max-width:48rem"><small>Give each item&rsquo;s code (find it with <strong>Find a code</strong> below, or in the Code column of the Food
+  Cache, My Pantry or the Recipes list: <code>U171477</code>, <code>UD4</code>, <code>R21</code>) and an amount, written as you
+  would on a meal: <code>1 cup</code>, <code>40 g</code>, <code>p1</code> for a food; <code>1 serving</code>,
+  <code>200 g</code> for a recipe. A food must already be in your Food Cache. To add more rows, fill in the empty
+  ones and click Save; another set of empty rows appears.</small></p>
+  {% if saved == 'daily-start' %}
+  <p class="status-met mt-2"><strong>&#10003; Daily starting items saved{% if not daily_start_rows %}: there are none now, so new days start empty{% endif %}.</strong></p>
+  {% endif %}
+  {% if daily_start_errors %}
+  <div class="numa-error mt-2"><strong>Nothing was saved.</strong> Correct
+  {{ "this" if daily_start_errors|length == 1 else "these" }} and save again:
+    <ul class="mb-0">{% for e in daily_start_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+  {#- Look a code up without leaving the page: outside the save form, so
+      Enter here searches and never saves. Script at the end of the page. #}
+  <div class="mt-2" id="daily-start-lookup" style="max-width:52rem">
+    <label for="daily-start-q" class="form-label mb-1"><strong>Find a code:</strong></label>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <input type="text" id="daily-start-q" class="form-control form-control-sm" style="max-width:20rem"
+             placeholder="e.g. coffee brewed" aria-describedby="daily-start-q-hint">
+      <button type="button" class="btn btn-outline-primary btn-sm" data-lookup="food">Search foods</button>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-lookup="recipe">Search recipes</button>
+    </div>
+    <div class="muted" id="daily-start-q-hint"><small>Searches your Food Cache or your recipes by name (every word
+    must be in it; <code>!word</code> leaves a word out). <strong>Use</strong> puts the code in the first empty row
+    below. Enter searches foods.</small></div>
+    <div id="daily-start-results" class="mt-1" aria-live="polite"></div>
+  </div>
+  <form method="post" action="/settings/daily-start" class="mt-2">
+    <table class="table table-sm mt-2" style="max-width:52rem" id="daily-start-table">
+      <thead class="table-light">
+        <tr><th style="width:9rem">Code</th><th style="width:12rem">Amount</th><th>Food or recipe</th><th class="text-center" style="width:5rem">Remove</th></tr>
+      </thead>
+      <tbody>
+        {%- set _blank = {"code": "", "amount": "", "name": "", "shown": "", "problem": ""} %}
+        {%- for row in daily_start_rows + [_blank, _blank, _blank] %}
+        <tr>
+          <td><input type="text" class="form-control form-control-sm" name="code" value="{{ row.code }}"
+                     aria-label="Code, row {{ loop.index }}"></td>
+          <td><input type="text" class="form-control form-control-sm" name="amount" value="{{ row.amount }}"
+                     aria-label="Amount, row {{ loop.index }}"></td>
+          <td>{% if row.problem %}<span class="text-danger">{{ row.problem }}</span>
+              {%- elif row.name %}{{ row.name }} <span class="muted">&mdash; {{ row.shown }}</span>{% endif %}</td>
+          <td class="text-center">{% if row.code %}<input class="form-check-input" type="checkbox" name="remove"
+              value="{{ loop.index0 }}" aria-label="Remove row {{ loop.index }}">{% endif %}</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    <button type="submit" class="btn btn-primary btn-sm">Save daily starting items</button>
+  </form>
+</details>
+
+{# ── 11. Meals & Log columns (Alt+Shift+L) ──────────────────────────────────────────── #}
 <details id="meal-list-nutrients" {% if saved in ('meal_nutrients', 'meal_nutrients_defaults') %}open{% endif %}>
-  <summary data-ak="0">1<u class="ak">0</u>. <strong>Meals &amp; Log columns</strong>
+  <summary data-ak="l">11. <strong>Meals &amp; <u class="ak">L</u>og columns</strong>
     <span class="muted"> — extra nutrients shown as columns on the Meals &amp; Log list and Recent Days</span>
     {{ manual_link("meal-columns") }}
   </summary>
@@ -730,9 +828,9 @@
   </form>
 </details>
 
-{# ── 11. Starter data (Alt+Shift+T) ─────────────────────────────────────────────────── #}
+{# ── 12. Starter data (Alt+Shift+T) ─────────────────────────────────────────────────── #}
 <details id="starter-data" {% if starter_changes.improved_foods or starter_changes.improved_recipes or starter_changes.new_foods or starter_changes.new_recipes %}open{% endif %}>
-  <summary data-ak="t">11. <strong>S<u class="ak">t</u>arter Data</strong>
+  <summary data-ak="t">12. <strong>S<u class="ak">t</u>arter Data</strong>
     <span class="muted"> — curated foods and recipes to explore or build on</span>
   </summary>
 
@@ -929,64 +1027,6 @@
   </details>
 </details>
 
-{# ── 12. Keyboard shortcuts (Alt+Shift+E: K opens the command palette) ─────────────────────────────────────────────── #}
-<details>
-  <summary data-ak="e">12. <strong>K<u class="ak">e</u>yboard Shortcuts</strong>
-    <span class="muted"> — Alt+Shift shortcut keys, works in any desktop browser</span>
-    {{ manual_link("web-shortcuts") }}
-  </summary>
-  <div class="row mt-2 g-3">
-    <div class="col-auto">
-      <p class="mb-1"><strong>Navigation</strong> (<kbd>Alt+Shift</kbd>+key):</p>
-      <ul class="mb-0">
-        <li><kbd>F</kbd> — Foods</li>
-        <li><kbd>R</kbd> — Recipes</li>
-        <li><kbd>C</kbd> — Compare</li>
-        <li><kbd>M</kbd> — Meals &amp; Log</li>
-        <li><kbd>N</kbd> — Analysis</li>
-        <li><kbd>S</kbd> — Settings</li>
-        <li><kbd>A</kbd> — Manual</li>
-        <li><kbd>K</kbd> — command palette: every page and action, with its shortcut</li>
-      </ul>
-      <p class="mb-1 mt-2"><strong>On any page with a search box:</strong></p>
-      <ul class="mb-0">
-        <li><kbd>I</kbd> — jump to the search box and clear the previous results</li>
-      </ul>
-      <p class="mb-1 mt-2"><strong>On any page with an Items section:</strong></p>
-      <ul class="mb-0">
-        <li><kbd>Y</kbd> — jump to the Items section (a recipe's Ingredients on its Edit page)</li>
-      </ul>
-    </div>
-    <div class="col-auto">
-      <p class="mb-1"><strong>Settings sections</strong> (<kbd>Alt+Shift</kbd>+key):</p>
-      <ul class="mb-0">
-        <li><kbd>1</kbd> — Your Profile</li>
-        <li><kbd>2</kbd> — Computed Daily Targets</li>
-        <li><kbd>3</kbd> — Dietary Preferences</li>
-        <li><kbd>4</kbd> — Protein Digestibility Overrides</li>
-        <li><kbd>5</kbd> — Nutrient Targets - Researched</li>
-        <li><kbd>6</kbd> — USDA API Key</li>
-        <li><kbd>7</kbd> — Glycemic Index Reference Table</li>
-        <li><kbd>8</kbd> — Glycemic Load</li>
-        <li><kbd>9</kbd> — Water Tracking</li>
-        <li><kbd>0</kbd> — Meals &amp; Log Columns (section 10)</li>
-        <li><kbd>T</kbd> — Starter Data (11; <kbd>S</kbd> is taken by Settings)</li>
-        <li><kbd>E</kbd> — Keyboard Shortcuts (12; <kbd>K</kbd> is the command palette)</li>
-        <li><kbd>B</kbd> — Browser to Launch (13)</li>
-        <li><kbd>D</kbd> — Data Quality Reminder (14)</li>
-        <li><kbd>Y</kbd> — System Issues (15)</li>
-      </ul>
-    </div>
-  </div>
-  <p class="mb-0 mt-2"><strong>Quit NuMa:</strong> <kbd>Ctrl+Q</kbd> on any page stops NuMa and closes its window (it asks first if you have unsaved changes). Always on, whatever the box below says. In Firefox, Ctrl+Q quits Firefox, and NuMa stops a few seconds later.</p>
-  <p class="mb-0 mt-2"><strong>Inside a Foods/Recipes/Analysis menu:</strong> once it's open, press its plain number key (no Alt/Shift) to jump straight to that item — e.g. <kbd>5</kbd> for "5. Food Cache" in the Foods menu.</p>
-  <div class="form-check mt-3">
-    <input class="form-check-input" type="checkbox" id="shortcuts-toggle">
-    <label class="form-check-label" for="shortcuts-toggle">Enable keyboard shortcuts</label>
-  </div>
-  <p class="muted mt-1"><small>Setting is stored in your browser and takes effect immediately.</small></p>
-</details>
-
 {# ── 13. Browser to launch (Alt+Shift+B) ──────────────────────────────── #}
 <details id="browser-preference">
   <summary data-ak="b">13. <strong><u class="ak">B</u>rowser to Launch</strong>
@@ -1067,9 +1107,72 @@
   </form>
 </details>
 
-{# ── 15. System issues (Alt+Shift+Y: S is already the Settings nav link) ── #}
+{# ── 15. Keyboard shortcuts (Alt+Shift+E: K opens the command palette) ─────────────────────────────────────────────── #}
+<details id="keyboard-shortcuts">
+  <summary data-ak="e">15. <strong>K<u class="ak">e</u>yboard Shortcuts</strong>
+    <span class="muted"> — Alt+Shift shortcut keys, works in any desktop browser</span>
+    {{ manual_link("web-shortcuts") }}
+  </summary>
+  <div class="row mt-2 g-3">
+    <div class="col-auto">
+      <p class="mb-1"><strong>Navigation</strong> (<kbd>Alt+Shift</kbd>+key):</p>
+      <ul class="mb-0">
+        <li><kbd>F</kbd> — Foods</li>
+        <li><kbd>R</kbd> — Recipes</li>
+        <li><kbd>C</kbd> — Compare</li>
+        <li><kbd>M</kbd> — Meals &amp; Log</li>
+        <li><kbd>N</kbd> — Analysis</li>
+        <li><kbd>S</kbd> — Settings</li>
+        <li><kbd>A</kbd> — Manual</li>
+        <li><kbd>K</kbd> — command palette: every page and action, with its shortcut</li>
+      </ul>
+      <p class="mb-1 mt-2"><strong>On any page with a search box:</strong></p>
+      <ul class="mb-0">
+        <li><kbd>I</kbd> — jump to the search box and clear the previous results</li>
+      </ul>
+      <p class="mb-1 mt-2"><strong>On any page with an Items section:</strong></p>
+      <ul class="mb-0">
+        <li><kbd>Y</kbd> — jump to the Items section (a recipe's Ingredients on its Edit page)</li>
+      </ul>
+      <p class="mb-1 mt-2"><strong>On a meal, recipe or food page:</strong></p>
+      <ul class="mb-0">
+        <li><kbd>U</kbd> — go to Nutritional Analysis (as clicking it in the Contents sidebar does)</li>
+      </ul>
+    </div>
+    <div class="col-auto">
+      <p class="mb-1"><strong>Settings sections</strong> (<kbd>Alt+Shift</kbd>+key):</p>
+      <ul class="mb-0">
+        <li><kbd>1</kbd> — Your Profile</li>
+        <li><kbd>2</kbd> — Computed Daily Targets</li>
+        <li><kbd>3</kbd> — Dietary Preferences</li>
+        <li><kbd>4</kbd> — Protein Digestibility Overrides</li>
+        <li><kbd>5</kbd> — Nutrient Targets - Researched</li>
+        <li><kbd>6</kbd> — USDA API Key</li>
+        <li><kbd>7</kbd> — Glycemic Index Reference Table</li>
+        <li><kbd>8</kbd> — Glycemic Load</li>
+        <li><kbd>9</kbd> — Water Tracking</li>
+        <li><kbd>0</kbd> — Daily Starting Items (section 10)</li>
+        <li><kbd>L</kbd> — Meals &amp; Log Columns (11)</li>
+        <li><kbd>T</kbd> — Starter Data (12; <kbd>S</kbd> is taken by Settings)</li>
+        <li><kbd>B</kbd> — Browser to Launch (13)</li>
+        <li><kbd>D</kbd> — Data Quality Reminder (14)</li>
+        <li><kbd>E</kbd> — Keyboard Shortcuts (15; <kbd>K</kbd> is the command palette)</li>
+        <li><kbd>Y</kbd> — System Issues (16)</li>
+      </ul>
+    </div>
+  </div>
+  <p class="mb-0 mt-2"><strong>Quit NuMa:</strong> <kbd>Ctrl+Q</kbd> on any page stops NuMa and closes its window (it asks first if you have unsaved changes). Always on, whatever the box below says. In Firefox, Ctrl+Q quits Firefox, and NuMa stops a few seconds later.</p>
+  <p class="mb-0 mt-2"><strong>Inside a Foods/Recipes/Analysis menu:</strong> once it's open, press its plain number key (no Alt/Shift) to jump straight to that item — e.g. <kbd>5</kbd> for "5. Food Cache" in the Foods menu.</p>
+  <div class="form-check mt-3">
+    <input class="form-check-input" type="checkbox" id="shortcuts-toggle">
+    <label class="form-check-label" for="shortcuts-toggle">Enable keyboard shortcuts</label>
+  </div>
+  <p class="muted mt-1"><small>Setting is stored in your browser and takes effect immediately.</small></p>
+</details>
+
+{# ── 16. System issues (Alt+Shift+Y: S is already the Settings nav link) ── #}
 <details id="system-issues" {% if recompute_errors %}open{% endif %}>
-  <summary data-ak="y">15. <strong>S<u class="ak">y</u>stem Issues</strong>
+  <summary data-ak="y">16. <strong>S<u class="ak">y</u>stem Issues</strong>
     {% if recompute_errors %}
     <span class="text-danger"> — {{ recompute_errors|length }} unresolved</span>
     {% else %}
@@ -1121,7 +1224,6 @@
   {% endif %}
 </details>
 
-
 <script>
 function toggleHeight(unit) {
   document.getElementById('height-cm-group').style.display =
@@ -1129,5 +1231,124 @@ function toggleHeight(unit) {
   document.getElementById('height-imperial-group').style.display =
     unit === 'imperial' ? '' : 'none';
 }
+</script>
+<script>
+// Settings → 10's Find a code: look up foods or recipes by name, and put a
+// result's code in the first empty row of the table below.
+(function () {
+  var box = document.getElementById('daily-start-q');
+  var out = document.getElementById('daily-start-results');
+  var table = document.getElementById('daily-start-table');
+  if (!box || !out || !table) return;
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+  function emptyRow() {
+    var rows = Array.from(table.querySelectorAll('tbody tr'));
+    var row = rows.find(function (r) { return !r.querySelector('input[name="code"]').value.trim(); });
+    if (row) return row;
+    // Every row is filled: add one like the last, emptied.
+    row = rows[rows.length - 1].cloneNode(true);
+    row.querySelectorAll('input[type="text"]').forEach(function (i) { i.value = ''; });
+    var rm = row.querySelector('input[name="remove"]');
+    if (rm) rm.parentNode.removeChild(rm);
+    row.children[2].textContent = '';
+    table.querySelector('tbody').appendChild(row);
+    return row;
+  }
+  function use(item) {
+    var row = emptyRow();
+    row.querySelector('input[name="code"]').value = item.code;
+    row.children[2].textContent = item.name + ' (not saved yet)';
+    var amount = row.querySelector('input[name="amount"]');
+    amount.focus();
+    amount.select();
+  }
+  function search(kind) {
+    var q = box.value.trim();
+    out.textContent = '';
+    if (!q) { out.appendChild(el('div', 'muted', 'Type part of a name first.')); box.focus(); return; }
+    out.appendChild(el('div', 'muted', 'Searching…'));
+    fetch('/settings/daily-start/lookup?kind=' + kind + '&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        out.textContent = '';
+        var what = kind === 'recipe' ? 'recipes' : 'foods in your Food Cache';
+        if (!data.results.length) {
+          out.appendChild(el('div', 'muted', 'No ' + what + ' match "' + q + '".'));
+          return;
+        }
+        var t = el('table', 'table table-sm mb-1');
+        var tb = el('tbody');
+        data.results.forEach(function (item) {
+          var tr = el('tr');
+          var c = el('td'); c.appendChild(el('code', '', item.code)); tr.appendChild(c);
+          var n = el('td', '', item.name);
+          if (item.detail) { n.appendChild(el('br')); n.appendChild(el('small', 'muted', item.detail)); }
+          tr.appendChild(n);
+          var b = el('td', 'text-end');
+          var btn = el('button', 'btn btn-outline-primary btn-sm py-0', 'Use');
+          btn.type = 'button';
+          btn.title = 'Put ' + item.code + ' in the first empty row below';
+          btn.addEventListener('click', function () { use(item); });
+          b.appendChild(btn); tr.appendChild(b);
+          tb.appendChild(tr);
+        });
+        t.appendChild(tb);
+        out.appendChild(t);
+        if (data.more) out.appendChild(el('div', 'muted', data.more + ' more not shown: add a word to narrow the search.'));
+      })
+      .catch(function () {
+        out.textContent = '';
+        out.appendChild(el('div', 'numa-error', 'The search failed. Is NuMa still running?'));
+      });
+  }
+  document.querySelectorAll('#daily-start-lookup [data-lookup]').forEach(function (b) {
+    b.addEventListener('click', function () { search(b.getAttribute('data-lookup')); });
+  });
+  box.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); search('food'); }
+  });
+})();
+</script>
+<script>
+// The Contents sidebar: open a closed section before jumping to it, and
+// light the entry of the section nearest the top third of the window.
+(function () {
+  var toc = document.getElementById('settings-toc');
+  if (!toc) return;
+  var links = Array.from(toc.querySelectorAll('.sb-toggle'));
+  function target(a) { return document.getElementById(a.getAttribute('href').slice(1)); }
+  var clicked = null;
+  links.forEach(function (a) {
+    a.addEventListener('click', function () {
+      var el = target(a);
+      if (el && el.tagName === 'DETAILS') el.open = true;
+      clicked = a; setTimeout(update, 50);
+    });
+  });
+  ['wheel', 'touchmove', 'keydown'].forEach(function (ev) {
+    window.addEventListener(ev, function () { clicked = null; }, {passive: true});
+  });
+  function update() {
+    var atEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+    var line = atEnd ? window.innerHeight - 40 : window.innerHeight / 3;
+    var best = clicked, bestY = -Infinity;
+    if (!best) links.forEach(function (a) {
+      var el = target(a);
+      if (!el) return;
+      var y = el.getBoundingClientRect().top;
+      if (y <= line && y >= bestY) { best = a; bestY = y; }
+    });
+    links.forEach(function (a) { a.closest('.sb-item').classList.toggle('sb-active', a === best); });
+  }
+  window.addEventListener('scroll', update, {passive: true});
+  window.addEventListener('resize', update);
+  document.addEventListener('toggle', update, true);
+  update();
+})();
 </script>
 {% endblock %}

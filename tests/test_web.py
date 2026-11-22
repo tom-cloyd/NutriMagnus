@@ -1872,8 +1872,8 @@ def test_system_issues_alert_shows_on_every_page_until_dismissed(client: TestCli
 
 
 def test_settings_sections_order_and_shortcut_keys(client: TestClient) -> None:
-    """The fifteen Settings sections, in order, each with its Alt+Shift key:
-    digits for 1-10 (0 = 10), a letter of its name for 11-15."""
+    """The sixteen Settings sections, in order, each with its Alt+Shift key:
+    digits for 1-10 (0 = 10), a letter of its name for 11-16."""
     import re
     text = client.get("/settings").text
     found = [(k, re.sub(r"<[^>]+>", "", t).strip())
@@ -1883,14 +1883,138 @@ def test_settings_sections_order_and_shortcut_keys(client: TestClient) -> None:
         ("3", "Dietary Preferences"), ("4", "Protein Digestibility Overrides"),
         ("5", "Nutrient Targets - Researched"), ("6", "USDA API Key"),
         ("7", "Glycemic Index Reference Table"), ("8", "Glycemic Load"),
-        ("9", "Water Tracking"), ("0", "Meals &amp; Log columns"),
-        ("t", "Starter Data"), ("e", "Keyboard Shortcuts"),
-        ("b", "Browser to Launch"), ("d", "Data Quality Reminder"),
+        ("9", "Water Tracking"), ("0", "Daily Starting Items"),
+        ("l", "Meals &amp; Log columns"),
+        ("t", "Starter Data"), ("b", "Browser to Launch"),
+        ("d", "Data Quality Reminder"), ("e", "Keyboard Shortcuts"),
         ("y", "System Issues"),
     ]
     # No letter may collide with a main-nav shortcut.
     nav_keys = {"f", "r", "c", "m", "n", "s", "a", "k"}
     assert not nav_keys & {k for k, _ in found}
+
+
+def test_settings_contents_sidebar_lists_every_section(client: TestClient) -> None:
+    """Settings has a Contents sidebar with one entry per section, in order,
+    each linking to an id the page has, on a <details> the script opens."""
+    import re
+    text = client.get("/settings").text
+    toc = text.split('id="settings-toc"', 1)[1].split("</aside>", 1)[0]
+    entries = re.findall(r'<a class="sb-toggle" href="#([\w-]+)">(\d+)\. ', toc)
+    assert [int(n) for _, n in entries] == list(range(1, 17))
+    for anchor, _n in entries:
+        assert re.search(r'<details[^>]*\bid="' + anchor + '"', text), anchor
+    assert "el.tagName === 'DETAILS') el.open = true" in text
+
+
+def test_daily_start_items_save_and_show(client: TestClient, cached_food) -> None:
+    """Settings → 10 saves codes and amounts, shows what each names, and
+    drops a row ticked Remove or left without a code."""
+    import web.backend as backend
+    fdc = cached_food["fdcId"]
+    rid = _make_recipe(client, "Morning Mix", 1, fdc, cached_food["name"], "300 g")
+    resp = client.post("/settings/daily-start", follow_redirects=False, data={
+        "code": [f"u{fdc}", f"R{rid}", "R999999", ""], "amount": ["50 g", "1 serving", "1 serving", ""],
+        "remove": ["2"]})
+    assert resp.headers["location"] == "/settings?saved=daily-start#daily-start"
+    assert backend._daily_start_items() == [{"code": f"u{fdc}", "amount": "50 g"},
+                                            {"code": f"R{rid}", "amount": "1 serving"}]
+    page = client.get("/settings?saved=daily-start").text
+    section = page.split('id="daily-start"', 1)[1]
+    assert "Daily starting items saved." in section
+    assert f'{cached_food["name"]} <span class="muted">&mdash; 50 g</span>' in section
+    assert 'Morning Mix <span class="muted">&mdash; 1 serving (300 g)</span>' in section
+
+
+def test_daily_start_lookup_finds_foods_and_recipes(client: TestClient, cached_food) -> None:
+    """Settings → 10's Find a code: foods from the Food Cache and recipes by
+    every word of the name, each with its code; nothing typed finds nothing,
+    and archived recipes are left out."""
+    fdc = cached_food["fdcId"]
+    rid = _make_recipe(client, "Morning Mix", 1, fdc, cached_food["name"], "300 g")
+    old = _make_recipe(client, "Morning Old", 1, fdc, cached_food["name"], "100 g")
+    with _db.get_db() as conn:
+        conn.execute("UPDATE recipes SET archived = 1 WHERE id = ?", (old,))
+    word = cached_food["name"].split(",")[0]
+    foods = client.get("/settings/daily-start/lookup", params={"kind": "food", "q": word}).json()
+    assert {"code": f"U{fdc}", "name": cached_food["name"]}.items() <= foods["results"][0].items()
+    recipes = client.get("/settings/daily-start/lookup", params={"kind": "recipe", "q": "morning"}).json()
+    assert [(r["code"], r["name"], r["detail"]) for r in recipes["results"]] == [
+        (f"R{rid}", "Morning Mix", "1 serving = 300 g")]
+    assert client.get("/settings/daily-start/lookup", params={"kind": "recipe", "q": "morning !mix"}).json() == {
+        "results": [], "more": 0}
+    assert client.get("/settings/daily-start/lookup", params={"q": " "}).json() == {"results": [], "more": 0}
+    page = client.get("/settings").text
+    assert 'id="daily-start-lookup"' in page and 'data-lookup="recipe"' in page
+
+
+def test_daily_start_items_bad_row_saves_nothing(client: TestClient, cached_food) -> None:
+    """A code or amount that can't be used refuses the whole save: the saved
+    list is unchanged, and the form shows why with what was typed."""
+    import web.backend as backend
+    fdc = cached_food["fdcId"]
+    client.post("/settings/daily-start", data={"code": [f"U{fdc}"], "amount": ["20 g"]})
+    resp = client.post("/settings/daily-start", data={
+        "code": [f"U{fdc}", "zz9", f"U{fdc}"], "amount": ["30 g", "1", "3 flurbs"]})
+    assert backend._daily_start_items() == [{"code": f"U{fdc}", "amount": "20 g"}]
+    section = resp.text.split('id="daily-start"', 1)[1]
+    assert "Nothing was saved." in section
+    assert "is not a food or recipe code" in section
+    assert f"U{fdc} ({cached_food['name']}):" in section
+    assert 'name="code" value="zz9"' in section and 'name="amount" value="3 flurbs"' in section
+
+
+def test_first_meal_of_a_day_gets_daily_start_items(client: TestClient, cached_food, db_conn) -> None:
+    """The first meal created on a date gets the daily starting items, and
+    its page names them with an Undo; a second meal that day gets nothing."""
+    import db as _db
+    fdc = cached_food["fdcId"]
+    rid = _make_recipe(client, "Morning Mix", 1, fdc, cached_food["name"], "300 g")
+    client.post("/settings/daily-start", data={"code": [f"U{fdc}", f"R{rid}"],
+                                               "amount": ["50 g", "2 servings"]})
+    resp = client.post("/meals/create", data={"name": "Breakfast", "meal_date": "2026-11-01"},
+                       follow_redirects=False)
+    loc = resp.headers["location"]
+    meal_id = int(loc.split("/meal/")[1].split("?")[0])
+    items = _db.meal_get_items(db_conn, meal_id)
+    assert [(i["item_type"], i["amount"], i["unit"]) for i in items] == [
+        ("food", 50.0, "50 g"), ("recipe", 2.0, "2 servings")]
+    page = client.get(loc).text
+    assert "First meal of the day: added your daily starting items:" in page
+    import re
+    notice = re.sub(r"<[^>]+>", "", page.split('id="daily-start-added"', 1)[1].split("</strong>", 1)[0])
+    assert cached_food["name"] in notice and "Morning Mix" in notice
+    assert "&mdash; 50 g;" in notice and "&mdash; 2 servings." in notice
+    assert 'name="name" value="your daily starting items"' in page
+    second = client.post("/meals/create", data={"name": "Lunch", "meal_date": "2026-11-01"},
+                         follow_redirects=False).headers["location"]
+    assert "?" not in second
+    assert _db.meal_get_items(db_conn, int(second.split("/meal/")[1])) == []
+
+
+def test_daily_start_item_that_no_longer_works_is_reported(client: TestClient, cached_food, db_conn) -> None:
+    """An item that can't be added any more (its recipe deleted) is named on
+    the meal page; the other items are still added."""
+    import db as _db
+    import web.backend as backend
+    fdc = cached_food["fdcId"]
+    backend._save_prefs_file({"daily_start_items": [
+        {"code": "R999999", "amount": "1 serving"}, {"code": f"U{fdc}", "amount": "10 g"}]})
+    loc = client.post("/meals/create", data={"name": "Breakfast", "meal_date": "2026-11-02"},
+                      follow_redirects=False).headers["location"]
+    items = _db.meal_get_items(db_conn, int(loc.split("/meal/")[1].split("?")[0]))
+    assert [i["fdc_id"] for i in items] == [fdc]
+    page = client.get(loc).text
+    assert "Daily starting item not added: R999999: no recipe has this code." in page
+
+
+def test_no_daily_start_items_means_a_plain_new_meal(client: TestClient) -> None:
+    """With nothing saved, creating a day's first meal adds nothing and the
+    meal page shows no daily-start notice."""
+    loc = client.post("/meals/create", data={"name": "Breakfast", "meal_date": "2026-11-03"},
+                      follow_redirects=False).headers["location"]
+    assert "?" not in loc
+    assert 'id="daily-start-added"' not in client.get(loc).text
 
 
 def test_items_section_shortcut(client: TestClient, cached_food, db_conn) -> None:
@@ -1908,6 +2032,26 @@ def test_items_section_shortcut(client: TestClient, cached_food, db_conn) -> Non
     assert '<summary data-ak="y" data-ak-focus><strong>Ingredients (1)' in edit
     base = (pathlib.Path(backend.__file__).parent / "templates" / "base.html").read_text()
     assert "target.hasAttribute('data-ak-focus')" in base
+
+
+def test_nutritional_analysis_sidebar_shortcut(client: TestClient, cached_food, db_conn) -> None:
+    """Alt+Shift+U (data-ak="u") clicks the Contents sidebar's Nutritional
+    Analysis entry on a meal, a recipe and a food page, its u underlined."""
+    meal_id = _db.meal_create(db_conn, "Lunch", "2026-10-01")
+    _db.meal_add_food(db_conn, meal_id, cached_food["fdcId"], cached_food["name"], 100.0, "g")
+    db_conn.commit()
+    rid = _make_recipe(client, "U Stew", 1, cached_food["fdcId"], cached_food["name"], "300 g")
+    link = ('data-ak="u" data-ak-label="Nutritional Analysis (Contents sidebar)">'
+            'N<u class="ak">u</u>tritional Analysis</a>')
+    for url in (f"/meal/{meal_id}", f"/recipe/{rid}"):
+        page = client.get(url).text
+        assert '<a class="sb-toggle" href="#sec-nutrients" ' + link in page, url
+        assert page.count('data-ak="u"') == 1, url
+    food = client.get(f"/food/{cached_food['fdcId']}").text
+    assert ('<button class="sb-toggle" type="button" data-ak="u" data-ak-label="Nutritional '
+            'Analysis (Contents sidebar)"><span class="sb-chevron">&#9660;</span>'
+            'N<u class="ak">u</u>tritional Analysis</button>') in food
+    assert food.count('data-ak="u"') == 1
 
 
 def test_nav_memory_skips_own_section() -> None:
@@ -10401,3 +10545,130 @@ def test_complement_pools_split_recipes_by_pantry(client: TestClient, db_conn) -
     assert "Made loaf" in [c["name"] for c in have]
     assert [c["name"] for c in others] == ["Unmade loaf"]
     assert "Old loaf" not in [c["name"] for c in have + others]
+
+
+def _no_calorie_food(db_conn, fdc_id: int = -987001, name: str = "Mystery flour test") -> int:
+    db_conn.execute("INSERT INTO foods (fdc_id, name, data_type, nutrients_json, portions_json, user_drafted) "
+                    "VALUES (?, ?, 'Custom', ?, '[]', 1)", (fdc_id, name, json.dumps({"protein_g": 10.0})))
+    db_conn.commit()
+    return fdc_id
+
+
+def test_db_check_lists_problems_new_since_last_check(client: TestClient, db_conn) -> None:
+    """Foods → 9 opens with a box naming the problems that weren't there at
+    the last check; it survives a reload, marks a fixed one fixed, and goes
+    on Done with these. The Home page's link opens the page at it."""
+    import web.backend as backend
+    backend._save_prefs_file({"data_check_seen": [], "data_check_last_seen": "2026-11-19"})
+    fid = _no_calorie_food(db_conn)
+    home = client.get("/").text
+    assert 'href="/food/cache/db-check#new-problems">Review them</a>' in home
+    page = client.get("/food/cache/db-check").text
+    box = page.split('id="new-problems"', 1)[1].split("Done with these", 1)[0]
+    assert "New since your last check (2026-11-19)" in box
+    assert f'<a href="/food/{fid}">Mystery flour test</a>' in box
+    assert "No calorie value" in box and 'href="#calories">Food data problems</a>' in box
+    assert "No data for:" in box
+    again = client.get("/food/cache/db-check").text
+    assert 'id="new-problems"' in again and "fixed &check;" not in again
+    db_conn.execute("DELETE FROM foods WHERE fdc_id = ?", (fid,))
+    db_conn.commit()
+    fixed = client.get("/food/cache/db-check").text.split('id="new-problems"', 1)[1]
+    assert "<s>No calorie value" in fixed and "fixed &check;" in fixed
+    client.post("/food/cache/db-check/new-done")
+    assert 'id="new-problems"' not in client.get("/food/cache/db-check").text
+
+
+def test_db_check_first_visit_has_no_new_problems_box(client: TestClient, db_conn) -> None:
+    """With no earlier check, every problem would be "new", so the box isn't
+    shown: the lists themselves are the review."""
+    _no_calorie_food(db_conn)
+    assert 'id="new-problems"' not in client.get("/food/cache/db-check").text
+
+
+def test_recipe_edit_links_servings_and_yield_effects(client: TestClient, cached_food) -> None:
+    """Under Number of servings and Total yield weight, Edit Recipe links to
+    the manual section on what changing them affects."""
+    rid = _make_recipe(client, "Link Stew", 2, cached_food["fdcId"], cached_food["name"], "300 g")
+    page = client.get(f"/recipe/{rid}/edit").text
+    assert "servings-yield-effects" in page
+    assert "Learn more about what changes in these two fields affect" in page
+
+
+def _set_recipe_weight(client: TestClient, rid: int, name: str, servings: float, grams: float) -> None:
+    client.post(f"/recipe/{rid}/edit", data={"name": name, "servings": servings,
+                                             "total_weight": str(grams), "total_weight_unit": "g"})
+
+
+def test_yield_weight_change_flags_meals_and_keep_grams_settles_them(client: TestClient, cached_food,
+                                                                       db_conn) -> None:
+    """A meal logged a recipe by weight; halving the recipe's total yield
+    weight flags it on the recipe's pages, its review page and Daily Summary
+    (whose ⚠ marks the day); Keep the grams doubles its servings and clears
+    every flag."""
+    import db as _db
+    fdc = cached_food["fdcId"]
+    rid = _make_recipe(client, "Muffin Test", 4, fdc, cached_food["name"], "400 g")
+    _set_recipe_weight(client, rid, "Muffin Test", 4, 400)            # 100 g a serving
+    meal_id = _db.meal_create(db_conn, "Breakfast", "2026-11-20")
+    db_conn.commit()
+    client.post(f"/meal/{meal_id}/add-recipe", data={"recipe_id": rid, "amount": "200 g"})
+    item = _db.meal_get_items(db_conn, meal_id)[0]
+    assert (item["amount"], item["serving_grams"]) == (2.0, 100.0)
+    _set_recipe_weight(client, rid, "Muffin Test", 4, 200)            # cooked: 50 g a serving
+    assert "Review them" in client.get(f"/recipe/{rid}").text.split('id="serving-weight-notice"', 1)[1]
+    assert 'id="serving-weight-notice"' in client.get(f"/recipe/{rid}/edit").text
+    review = client.get(f"/recipe/{rid}/serving-weight").text
+    assert f'name="choice_meal_{item["id"]}" value="keep"' in review and "100&thinsp;g &rarr; 50&thinsp;g" in review
+    summary = client.get("/summary").text
+    assert 'id="serving-weight-meals"' in summary and 'href="#serving-weight-meals"' in summary
+    assert f'href="/recipe/{rid}/serving-weight"' in summary
+    resp = client.post(f"/recipe/{rid}/serving-weight", data={f"choice_meal_{item['id']}": "keep"},
+                       follow_redirects=False)
+    assert resp.headers["location"] == f"/recipe/{rid}/serving-weight?applied=1"
+    item = _db.meal_get_items(db_conn, meal_id)[0]
+    assert (item["amount"], item["unit"], item["serving_grams"]) == (4.0, "4 servings", 50.0)
+    assert 'id="serving-weight-notice"' not in client.get(f"/recipe/{rid}").text
+    assert 'id="serving-weight-meals"' not in client.get("/summary").text
+
+
+def test_keep_servings_and_untouched_rows(client: TestClient, cached_food, db_conn) -> None:
+    """Keep the servings leaves the amount and records the new weight; a row
+    with no choice is left as it is and stays flagged. A meal item logged
+    before weights were recorded still gets flagged: the save records the
+    old weight first."""
+    import db as _db
+    fdc = cached_food["fdcId"]
+    rid = _make_recipe(client, "Stew Test", 2, fdc, cached_food["name"], "400 g")
+    _set_recipe_weight(client, rid, "Stew Test", 2, 400)              # 200 g a serving
+    meal_a = _db.meal_create(db_conn, "Lunch", "2026-11-20")
+    meal_b = _db.meal_create(db_conn, "Dinner", "2026-11-21")
+    a = _db.meal_add_recipe(db_conn, meal_a, rid, "Stew Test", 1.0, unit="1 serving")   # no weight recorded
+    b = _db.meal_add_recipe(db_conn, meal_b, rid, "Stew Test", 1.0, unit="1 serving")
+    db_conn.commit()
+    _set_recipe_weight(client, rid, "Stew Test", 2, 300)              # 150 g a serving
+    client.post(f"/recipe/{rid}/serving-weight", data={f"choice_meal_{a}": "accept"})
+    items = {i["id"]: i for i in _db.meal_get_items(db_conn, meal_a) + _db.meal_get_items(db_conn, meal_b)}
+    assert (items[a]["amount"], items[a]["serving_grams"]) == (1.0, 150.0)
+    assert (items[b]["amount"], items[b]["serving_grams"]) == (1.0, 200.0)
+    assert f'name="choice_meal_{b}"' in client.get(f"/recipe/{rid}/serving-weight").text
+
+
+def test_sub_recipe_ingredient_flagged_and_settled(client: TestClient, cached_food, db_conn) -> None:
+    """A recipe used as an ingredient records its serving weight; when that
+    changes, the review page lists the containing recipe, and Keep the grams
+    rescales the ingredient's servings."""
+    import db as _db
+    fdc = cached_food["fdcId"]
+    sub = _make_recipe(client, "Sauce Test", 4, fdc, cached_food["name"], "400 g")
+    _set_recipe_weight(client, sub, "Sauce Test", 4, 400)             # 100 g a serving
+    outer = _make_recipe(client, "Bowl Test", 1, fdc, cached_food["name"], "100 g")
+    client.post(f"/recipe/{outer}/ingredient/add-recipe", data={"ref_recipe_id": sub, "amount": "1 serving"})
+    ing = next(i for i in _db.recipe_get_ingredients(db_conn, outer) if i["ref_recipe_id"] == sub)
+    assert ing["serving_grams"] == 100.0
+    _set_recipe_weight(client, sub, "Sauce Test", 4, 200)             # 50 g a serving
+    review = client.get(f"/recipe/{sub}/serving-weight").text
+    assert f'name="choice_recipe_{ing["id"]}"' in review and "Bowl Test" in review
+    client.post(f"/recipe/{sub}/serving-weight", data={f"choice_recipe_{ing['id']}": "keep"})
+    ing = next(i for i in _db.recipe_get_ingredients(db_conn, outer) if i["ref_recipe_id"] == sub)
+    assert (ing["amount"], ing["serving_grams"]) == (2.0, 50.0)

@@ -25,7 +25,7 @@
   {% endif %}
   {% if nutrient_sections %}
   <li class="sb-item" data-target="sec-nutrients">
-    <button class="sb-toggle" type="button"><span class="sb-chevron">&#9660;</span>Nutritional Analysis</button>
+    <button class="sb-toggle" type="button" data-ak="u" data-ak-label="Nutritional Analysis (Contents sidebar)"><span class="sb-chevron">&#9660;</span>N<u class="ak">u</u>tritional Analysis</button>
     <ul class="sb-sub">
       {% for section in nutrient_sections %}
       <li><a class="sb-link" href="#nut-{{ loop.index }}">{{ section.name }}</a></li>

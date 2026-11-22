@@ -8,6 +8,58 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+#### November 22 updates
+
+**PROGRAM: SETTLE A RECIPE'S CHANGED SERVING WEIGHT EVERYWHERE AT ONCE; DAILY SUMMARY FLAGS AFFECTED MEALS**
+
+When a recipe's serving weight changes (its Number of servings or Total yield weight), every meal and recipe that entered it at the old weight can now be settled from one page: the recipe's page and Edit Recipe show a yellow box with **Review them**, opening a list of each such meal item and recipe ingredient with **Keep the grams** or **Keep the servings** for each (or for every row at once) and **Apply these choices**; settled meals and recipes are worked out again. A meal page's yellow note links there too. **Daily Summary** lists every affected meal, on any date, above its table, with **Settle**, and marks each affected day with ⚠. Recipes used as ingredients now record what a serving weighed when entered, so they're checked the same way, and saving a recipe first records its old serving weight on any use that had none, so a change is caught even for meals whose page was never opened after logging.
+
+<!--
+```
+Scope: db.py recipe_ingredients.serving_grams column; recipe_ingredient_set_serving_grams/_set_servings, recipe_fill_missing_serving_grams, recipe_weight_uses; recipe_add_ingredient(serving_grams=). web/backend.py _serving_weight_changes, _serving_weight_notice, _apply_serving_weight_choices, GET/POST /recipe/{id}/serving-weight; recipe_edit_post fills missing weights first; sub-recipe add/edit and meal add-recipe record the weight; summary_index weight_changes. Templates: recipe_serving_weight.html, _serving_weight_notice.html (recipe_detail, recipe_edit), meal.html note link, summary.html box + day mark. Tests: test_yield_weight_change_flags_meals_and_keep_grams_settles_them, test_keep_servings_and_untouched_rows, test_sub_recipe_ingredient_flagged_and_settled.
+```
+-->
+
+**PROGRAM: FOODS → 9 OPENS ON THE PROBLEMS THAT ARE NEW**
+
+When the Home page says new data problems have turned up since your last check, **Review them** now opens Foods → 9 at a **New since your last check** box listing just those problems, one line each: the food (or meal or recipe item, linked), what's wrong, and a link to its place in the full lists. A food's missing nutrient groups share one line. The box stays through reloads and while you work: a problem you fix is crossed out and marked **fixed ✓**, and **Done with these** clears the box. Not shown on a first ever visit, when every problem would count as new.
+
+<!--
+```
+Scope: web/backend.py _describe_problem_keys(), food_cache_db_check_get() (prefs data_check_new / data_check_new_since), POST /food/cache/db-check/new-done; food_cache_db_check.html #new-problems box + sidebar entry; home.html link anchor. Tests: test_db_check_lists_problems_new_since_last_check, test_db_check_first_visit_has_no_new_problems_box.
+```
+-->
+
+**PROGRAM: EDIT RECIPE SAYS WHAT SERVINGS AND YIELD WEIGHT CHANGES AFFECT**
+
+Under **Number of servings** and **Total yield weight** on Edit Recipe, a **Learn more about what changes in these two fields affect** link opens a new manual section answering it: changing the number of servings changes the nutrients in a serving (the recipe, recipes using it, and meals that logged it); changing the total yield weight changes only what a serving weighs, not its nutrients (except water, when the recipe has a cooked water figure), and meals keep their nutrients until you choose, on each meal page, whether to keep the grams you logged. The manual's table of what edits change had both in one row, saying total weight changes per-serving figures; it now has a row for each.
+
+<!--
+```
+Scope: recipe_edit.html link (manual_link servings-yield-effects); user-manual.md #servings-yield-effects, editing-consequences table split, recipe-servings-grams Keep advice qualified. Test: test_recipe_edit_links_servings_and_yield_effects.
+```
+-->
+
+**PROGRAM: SETTINGS GETS A CONTENTS SIDEBAR AND DAILY STARTING ITEMS**
+
+Settings has a **Contents** sidebar listing all sixteen sections; clicking one opens it if it's closed and goes to it, and the entry for the section in view is lit. New **Settings → 10. Daily Starting Items** (Alt+Shift+0), after Water Tracking, lists foods and recipe portions, each as a code (`U171477`, `UD4`, `R21`) and an amount written as on a meal (`1 cup`, `p1`, `2 servings`). A **Find a code** box above the table searches the Food Cache (**Search foods**, or Enter) or your recipes (**Search recipes**) by name, without leaving the page; each match shows its code (a food with its first portions, a recipe with its serving weight), and **Use** puts the code in the first empty row, cursor to its amount. When a meal is created on a date that has no meals yet, NuMa adds each of them to it; later meals that day, and meals already logged, are never touched. The meal page then says what was added, with one **Undo** for all of it, and a red line for any item that could no longer be added (its recipe deleted, say), the others still added. Saving checks every row: if one can't be used, nothing is saved, and the section shows why with what was typed still in place. A food must already be in the Food Cache. The sections from the old 10 on move down one (Meals & Log columns is now 11, and its shortcut Alt+Shift+L; System Issues is 16), Keyboard Shortcuts moves to 15, just before System Issues (Browser to Launch 13, Data Quality Reminder 14),, and Settings' Keyboard Shortcuts section lists the new keys, plus Alt+Shift+U on meal, recipe and food pages.
+
+<!--
+```
+Scope: web/backend.py: _daily_start_items/_resolve/_add/_rows/_draft, POST /settings/daily-start, GET /settings/daily-start/lookup (JSON; _filtered_cached_foods / _recipes_named, archived left out, 30 shown), /meals/create adds them when meal_list_by_date() was empty; settings_get gains start_error/start_draft. settings.html: sidebar_nav block (analysis-page layout), ids on sections 1, 2, 4, 12, section 10 (sections 10-15 renumbered 11-16; Meals & Log columns' key 0 -> L; Keyboard Shortcuts moved to 15, Browser 13, Data Quality 14), sidebar script. meal.html: #daily-start-added notice. Tests: test_settings_contents_sidebar_lists_every_section, test_daily_start_* (5), sections-order test extended to 16.
+```
+-->
+
+**PROGRAM: ALT+SHIFT+U GOES TO NUTRITIONAL ANALYSIS**
+
+On a meal, a recipe or a food page, **Alt+Shift+U** does what clicking **Nutritional Analysis** in the Contents sidebar does: it goes to that section, opening it first on a food page if it was collapsed. The entry's *u* is underlined while shortcuts are on, and the command palette lists it as *This page: Nutritional Analysis (Contents sidebar)*. In the manual, Alt+Shift+U is still Return; the manual has no such sidebar, so the two never meet.
+
+<!--
+```
+Scope: templates only. meal.html, recipe_detail.html, food_detail.html: data-ak="u" and data-ak-label on the sidebar's sec-nutrients .sb-toggle; base.html's akRun() clicks it (no handler change). Test: test_nutritional_analysis_sidebar_shortcut.
+```
+-->
+
 #### November 21 updates
 
 **PROGRAM: EDIT OR UNDO RIGHT AFTER ADDING TO A MEAL; EDIT AND REMOVE IN EVERY ITEMS VIEW**

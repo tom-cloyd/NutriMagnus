@@ -41,7 +41,7 @@
   NuMa found <strong>{{ data_check_reminder.new }}</strong> data problem{{ 's' if data_check_reminder.new != 1 }} you haven&rsquo;t reviewed yet
   &mdash; foods with no calories or impossible values, missing nutrient data, amounts that no longer match.
   {% endif %}
-  <a href="/food/cache/db-check">Review them</a>. {{ manual_link("checking-your-data", "About data checks") }}
+  <a href="/food/cache/db-check#new-problems">Review them</a>. {{ manual_link("checking-your-data", "About data checks") }}
   <br><small class="muted">Opening the check clears this note. Turn it off or set a routine reminder in <a href="/settings#data-check-reminder">Settings &rarr; 14</a>.</small>
 </div>
 {% endif %}
@@ -116,7 +116,7 @@
   {% if starter_preview_text %}
   <br><small><strong>Starter foods and recipes:</strong> this update {{ starter_preview_text }}. After updating, NuMa will list them for you to choose from — nothing is added or changed on its own.</small>
   {% elif not update_available.starter_manifest %}
-  <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 11. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
+  <br><small class="muted">Updates sometimes add new starter foods or recipes — after updating, check <strong>Settings → 12. Starter Data → Restore individual starter items</strong> to pick up anything new.</small>
   {% endif %}
   {% if self_update_available %}
   <form method="post" action="/update-now" class="mt-2 mb-0" id="update-now-form">
@@ -166,7 +166,7 @@
 <div class="alert alert-info mt-4">
   <strong>NEW STARTER ITEMS:</strong> This version of NuMa {{ starter_changes_text }}.
   Nothing in your data has been changed — you choose which ones you want in
-  <a href="/settings#starter-data">Settings → 11. Starter Data</a>.
+  <a href="/settings#starter-data">Settings → 12. Starter Data</a>.
   <form method="post" action="/starter-notice/ack" class="mt-2 mb-0">
     <div class="form-check">
       <input class="form-check-input" type="checkbox" id="starter-notice-ack" onchange="if(this.checked) this.form.requestSubmit();">
