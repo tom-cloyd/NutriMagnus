@@ -2150,25 +2150,29 @@ def _now_hhmm() -> str:
 def meal_add_food(conn: sqlite3.Connection, meal_id: int, fdc_id: int,
                   food_name: str, amount: float, unit: str,
                   notes: str | None = None, added_time: str | None = None,
-                  from_recipe_id: int | None = None) -> None:
-    """Log a food. from_recipe_id: the recipe it is one ingredient of, when
-    a recipe is logged as individual ingredients (see meal_items.from_recipe_id)."""
-    conn.execute("""
+                  from_recipe_id: int | None = None) -> int:
+    """Log a food; returns the new meal item's id. from_recipe_id: the recipe
+    it is one ingredient of, when a recipe is logged as individual ingredients
+    (see meal_items.from_recipe_id)."""
+    cur = conn.execute("""
         INSERT INTO meal_items (meal_id, item_type, fdc_id, food_name, amount, unit, notes, added_time,
                                 from_recipe_id)
         VALUES (?, 'food', ?, ?, ?, ?, ?, ?, ?)
     """, (meal_id, fdc_id, food_name, amount, unit, notes or None, added_time or _now_hhmm(),
           from_recipe_id))
+    return cur.lastrowid
 
 
 def meal_add_recipe(conn: sqlite3.Connection, meal_id: int, recipe_id: int,
                     recipe_name: str, servings: float, unit: str = "servings",
-                    added_time: str | None = None) -> None:
-    conn.execute("""
+                    added_time: str | None = None) -> int:
+    """Log a recipe; returns the new meal item's id."""
+    cur = conn.execute("""
         INSERT INTO meal_items
             (meal_id, item_type, recipe_id, food_name, amount, unit, added_time)
         VALUES (?, 'recipe', ?, ?, ?, ?, ?)
     """, (meal_id, recipe_id, recipe_name, servings, unit, added_time or _now_hhmm()))
+    return cur.lastrowid
 
 
 def meal_list_by_date(conn: sqlite3.Connection, meal_date: str) -> list[sqlite3.Row]:

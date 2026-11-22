@@ -18,6 +18,91 @@
 {% import "_recipe_amount.html" as _ramt %}
 {% import "_online_search_notice.html" as _osn %}
 {% import "_gl_result.html" as _gl %}
+{# Items' Edit pop-up for one logged item: the As logged rows, and the Foods /
+   Foods & recipes rows and "Added" line that stand for a single item. `label`
+   heads it when it is opened from somewhere other than the item's own row. #}
+{% macro edit_popup(item, label="", summary_class="btn-sm") -%}
+<details class="popup-edit">
+  <summary class="btn btn-outline-secondary {{ summary_class }}" style="list-style:none;cursor:pointer">Edit</summary>
+  <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
+    <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
+      <input type="hidden" name="q" value="{{ q }}">
+      {% if label %}<p class="mb-0" style="font-size:0.85rem">{{ label }}</p>{% endif %}
+      <p class="muted mb-0" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
+      <div class="d-flex gap-2 align-items-center">
+        {% if item.fdc_id %}
+        <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
+        <input type="text" name="amount" value="{{ item.amount_display or ((item.amount | round(1)) ~ ' g') }}"
+               class="form-control form-control-sm" placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1"
+               style="width:12rem" required>
+        {% else %}
+        <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
+        <input type="text" name="amount" value="{{ '%g' | format(item.amount) }} serving{{ 's' if item.amount != 1 }}"
+               class="form-control form-control-sm" placeholder="e.g. 200 (= grams), 1 1/8 srv, 3/4 c"
+               style="width:12rem" required>
+        {% endif %}
+      </div>
+      {% if not item.fdc_id %}
+      <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; servings with the word (1 1/8 srv, 2 servings) &middot; or a volume (cup, T, tsp, ml), when the recipe has a total volume or a serving size that is a measure</div>
+      {% endif %}
+      {% if item.fdc_id %}
+      <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if item.portions %} &middot; p1, p2… (this food's portions, listed below){% else %} &middot; p1, p2… (USDA portions){% endif %}</div>
+      {% if item.portions %}
+      <div style="font-size:0.75rem" class="muted">
+        Portions:
+        {% for p in item.portions %}
+        <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% endif %}
+      {% if item.fdc_id %}
+      <div class="d-flex gap-2 align-items-center">
+        <label class="form-label mb-0 text-nowrap">Notes</label>
+        <input type="text" name="notes" value="{{ item.notes }}"
+               class="form-control form-control-sm" placeholder="optional">
+      </div>
+      {% endif %}
+      <button type="submit" class="btn btn-sm btn-primary align-self-start">Save changes</button>
+    </form>
+  </div>
+</details>
+{%- endmacro %}
+{# Edit for a row that stands for several logged foods (a recipe logged as
+   individual ingredients, a food logged more than once): one new total,
+   every item scaled by the same factor (/meal/{id}/scale-items). #}
+{% macro scale_popup(ids, name, grams, recipe_id=None, label="", summary_class="btn-sm") -%}
+<details class="popup-edit">
+  <summary class="btn btn-outline-secondary {{ summary_class }}" style="list-style:none;cursor:pointer">Edit</summary>
+  <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
+    <form method="post" action="/meal/{{ meal.id }}/scale-items" class="d-flex flex-column gap-2">
+      <input type="hidden" name="item_ids" value="{{ ids | join(',') }}">
+      <input type="hidden" name="name" value="{{ name }}">
+      {% if recipe_id %}<input type="hidden" name="recipe_id" value="{{ recipe_id }}">{% endif %}
+      <input type="hidden" name="q" value="{{ q }}">
+      {% if label %}<p class="mb-0" style="font-size:0.85rem">{{ label }}</p>{% endif %}
+      <div class="d-flex gap-2 align-items-center">
+        <label class="form-label mb-0 text-nowrap">Total amount <span class="text-danger">*</span></label>
+        <input type="text" name="amount" value="{{ grams | round(1) }} g"
+               class="form-control form-control-sm" style="width:12rem" required
+               placeholder="{% if recipe_id %}e.g. 300 (= grams), 10 oz, 2 srv{% else %}e.g. 300 (= grams), 10 oz{% endif %}">
+      </div>
+      <div style="font-size:0.75rem" class="muted">The {{ ids | length }} food{{ "" if ids | length == 1 else "s" }} it stands for {{ "is" if ids | length == 1 else "are" }} scaled to this total, keeping {{ "its" if ids | length == 1 else "their" }} proportions. Type a weight (a bare number = grams, or oz, lb){% if recipe_id %}, or servings with the word (1 1/2 srv), at the recipe's serving weight now{% endif %}.</div>
+      <button type="submit" class="btn btn-sm btn-primary align-self-start">Save changes</button>
+    </form>
+  </div>
+</details>
+{%- endmacro %}
+{# A remove button for one or several logged items (/meal/{id}/remove-items). #}
+{% macro remove_ids_button(ids, name, title) -%}
+<form method="post" action="/meal/{{ meal.id }}/remove-items" style="margin:0">
+  <input type="hidden" name="item_ids" value="{{ ids | join(',') }}">
+  <input type="hidden" name="name" value="{{ name }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <button type="submit" class="btn btn-outline-danger btn-sm" title="{{ title }}"
+          aria-label="Remove {{ name }}">&#x2715;</button>
+</form>
+{%- endmacro %}
 {# The meal's free-text note. Sits beside the Protein Summary card, or on
    its own where the meal has no protein analysis. #}
 {% macro meal_note_form() %}
@@ -245,7 +330,39 @@
     </div>
   </form>
   {% if add_error %}<p class="numa-error mt-2">{{ add_error }}</p>{% endif %}
-  {% if request.query_params.get("added") %}<p class="text-success mb-1" id="just-added"><strong>&check; Added {{ request.query_params.get("added") }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>{% if q %}<br>The search results stay below, so you can add another; a new search replaces them.{% endif %}</p>{% endif %}
+  {% if request.query_params.get("added") %}
+  {%- set _added_name = request.query_params.get("added") %}
+  {%- set _added_ids = request.query_params.get("added_ids", "") %}
+  {#- The ids still in the meal; Edit opens them, Undo removes them. #}
+  {%- set _ids = _added_ids.split(",") | select("ne", "") | map("int") | select("in", items_by_id) | list %}
+  <div class="mb-1" id="just-added">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <strong class="text-success">&check; Added {{ _added_name }}{% if request.query_params.get("added_amount") %} &mdash; {{ request.query_params.get("added_amount") }}{% endif %}.</strong>
+      {%- if _ids | length == 1 %}
+      {{ edit_popup(items_by_id[_ids[0]], label="Change what you just added: " ~ _added_name, summary_class="btn-sm py-0") }}
+      {%- elif _ids %}
+      {%- set _first = items_by_id[_ids[0]] %}
+      {%- set _tot = namespace(g=0) %}{% for i in _ids %}{% set _tot.g = _tot.g + (items_by_id[i].amount or 0) %}{% endfor %}
+      {{ scale_popup(_ids, _added_name, _tot.g,
+                     recipe_id=(_first.from_recipe.id if _first.from_recipe else None),
+                     label="Change the amount of " ~ _added_name ~ " you just added", summary_class="btn-sm py-0") }}
+      {%- endif %}
+      {%- if _ids %}
+      <form method="post" action="/meal/{{ meal.id }}/remove-items" style="margin:0">
+        <input type="hidden" name="item_ids" value="{{ _ids | join(',') }}">
+        <input type="hidden" name="name" value="{{ _added_name }}">
+        <input type="hidden" name="q" value="{{ q }}">
+        <button type="submit" class="btn btn-outline-danger btn-sm py-0"
+                title="Take this addition back out of the meal{% if _ids | length > 1 %} (all {{ _ids | length }} ingredients it added){% endif %}">Undo</button>
+      </form>
+      {%- endif %}
+    </div>
+    {%- if q %}
+    <div class="text-success">The search results stay below, so you can add another; a new search replaces them.</div>
+    {%- endif %}
+  </div>
+  {%- endif %}
+  {% if request.query_params.get("removed") %}<p class="text-success mb-1" id="just-removed"><strong>&check; Removed {{ request.query_params.get("removed") }} from this meal.</strong></p>{% endif %}
   {% include "_food_quality_note.html" %}
 
   {% if q %}
@@ -596,7 +713,7 @@
     </form>
   </div>
   {% if item_view_rows is not none %}
-  <p class="muted mb-0 mt-1"><small>{% if item_view == "foods" %}Every food in this meal, recipes broken down to their foods; a food reached more than once is one row.{% else %}Each recipe kept whole, including one whose ingredients you logged separately.{% endif %} To edit or remove an item, choose <em>As logged</em>.</small></p>
+  <p class="muted mb-0 mt-1"><small>{% if item_view == "foods" %}Every food in this meal, recipes broken down to their foods; a food reached more than once is one row.{% else %}Each recipe kept whole, including one whose ingredients you logged separately.{% endif %} {% if item_view == "foods" %}&#x2715; removes what you logged of a food yourself; a food inside a recipe logged whole goes only with the recipe, or by changing it.{% else %}&#x2715; on a recipe logged as separate ingredients removes all of them.{% endif %} <strong>Edit</strong> on a row that stands for several logged foods changes their total amount, keeping their proportions.</small></p>
   <table class="nutrient-table list-table meal-items-table mt-2">
     <thead>
       <tr>
@@ -604,6 +721,8 @@
         <th class="fit">{% if item_view == "foods" %}Food{% else %}Food / Recipe{% endif %}</th>
         <th class="fit num-col">Amount</th>
         <th>{% if item_view == "foods" %}From{% else %}Notes{% endif %}</th>
+        <th class="fit"></th>
+        <th class="fit"></th>
       </tr>
     </thead>
     <tbody>
@@ -613,11 +732,32 @@
         <td class="fit">{% if row.fdc_id %}<a href="/food/{{ row.fdc_id }}?amount={{ row.grams | round(1) }}&from_context=meal">{{ row.food_name }}</a>{{ food_id_tag(row.fdc_id) }}{% else %}{{ row.food_name }}{% endif %}</td>
         <td class="fit num-col">{% if row.is_supplement %}{{ "%g" | format((row.grams / 100) | round(2)) }} unit{{ "" if row.grams == 100 else "s" }}{% else %}{{ row.grams | round(1) }}&thinsp;g{% endif %}</td>
         <td><small class="muted">{% for src in row.sources %}{{ src or "logged on its own" }}{% if not loop.last %}; {% endif %}{% endfor %}</small></td>
+        <td class="fit">
+          {%- set _also = (" The part inside " ~ (row.whole_recipes | join(", ")) ~ " stays as it is.") if row.whole_recipes else "" %}
+          {%- if row.item_ids | length == 1 %}
+          {{ edit_popup(items_by_id[row.item_ids[0]], label=("Changes the " ~ row.food_name ~ " you logged yourself." ~ _also) if _also else "") }}
+          {%- elif row.item_ids %}
+          {{ scale_popup(row.item_ids, row.food_name, row.item_grams,
+                         label="You logged " ~ row.food_name ~ " " ~ (row.item_ids | length) ~ " times; this changes their total." ~ _also) }}
+          {%- endif %}
+        </td>
+        <td class="fit">
+          {%- if row.item_ids and row.whole_recipes %}
+          {{ remove_ids_button(row.item_ids, row.food_name, "Removes the " ~ row.food_name ~ " you logged yourself; the part inside " ~ (row.whole_recipes | join(", ")) ~ " stays (change or remove the recipe for that)") }}
+          {%- elif row.item_ids %}
+          {{ remove_ids_button(row.item_ids, row.food_name, "Remove " ~ row.food_name ~ " from this meal" ~ (" (all " ~ (row.item_ids | length) ~ " times it was logged)" if row.item_ids | length > 1 else "")) }}
+          {%- else %}
+          <small class="muted" title="Inside {{ row.whole_recipes | join(', ') }}, logged whole: remove that recipe, or change it, instead">in a recipe</small>
+          {%- endif %}
+        </td>
         {% elif row.gathered %}
         <td class="fit muted"><small>{{ row.added_time or "—" }}</small></td>
         <td class="fit"><a href="/recipe/{{ row.recipe_id }}">{{ row.food_name }}</a>{{ food_id_tag(None, recipe_id=row.recipe_id) }}</td>
         <td class="fit num-col">{{ row.grams | round(1) }}&thinsp;g</td>
         <td><small class="muted">logged as {{ row.parts }} separate ingredient{{ "" if row.parts == 1 else "s" }}</small></td>
+        <td class="fit">{{ scale_popup(row.item_ids, row.food_name, row.grams, recipe_id=row.recipe_id,
+                                       label=row.food_name ~ ", logged as separate ingredients") }}</td>
+        <td class="fit">{{ remove_ids_button(row.item_ids, row.food_name, "Remove " ~ row.food_name ~ " from this meal: " ~ ("its one separately logged ingredient" if row.parts == 1 else "all " ~ row.parts ~ " of its separately logged ingredients")) }}</td>
         {% else %}
         <td class="fit muted"><small>{{ row.added_time or "—" }}</small></td>
         <td class="fit">
@@ -633,6 +773,8 @@
         </td>
         <td class="fit num-col">{% if row.recipe_id %}{{ _ramt.amount(row) }}{% else %}{{ _famt.amount(row) }}{% endif %}</td>
         <td>{% if row.notes %}<small class="muted">{{ row.notes }}</small>{% endif %}</td>
+        <td class="fit">{{ edit_popup(row) }}</td>
+        <td class="fit">{{ remove_ids_button([row.id], row.food_name, "Remove " ~ row.food_name ~ " from this meal") }}</td>
         {% endif %}
       </tr>
       {% endfor %}
@@ -673,50 +815,7 @@
           {% if item.notes %}<small class="muted">{{ item.notes }}</small>{% endif %}
         </td>
         <td class="fit">
-          <details class="popup-edit">
-            <summary class="btn btn-outline-secondary btn-sm" style="list-style:none;cursor:pointer">Edit</summary>
-            <div class="card card-body p-2 mt-1" style="min-width:20rem;position:absolute;z-index:10">
-              <form method="post" action="/meal/{{ meal.id }}/update/{{ item.id }}" class="d-flex flex-column gap-2">
-                <input type="hidden" name="q" value="{{ q }}">
-                <p class="muted mb-0" style="font-size:0.8rem"><span class="text-danger">*</span> required field</p>
-                <div class="d-flex gap-2 align-items-center">
-                  {% if item.fdc_id %}
-                  <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
-                  <input type="text" name="amount" value="{{ item.amount_display or ((item.amount | round(1)) ~ ' g') }}"
-                         class="form-control form-control-sm" placeholder="e.g. 150 (= grams), 2 oz, 1/4 cup, p1"
-                         style="width:12rem" required>
-                  {% else %}
-                  <label class="form-label mb-0 text-nowrap">Amount <span class="text-danger">*</span></label>
-                  <input type="text" name="amount" value="{{ '%g' | format(item.amount) }} serving{{ 's' if item.amount != 1 }}"
-                         class="form-control form-control-sm" placeholder="e.g. 200 (= grams), 1 1/8 srv, 3/4 c"
-                         style="width:12rem" required>
-                  {% endif %}
-                </div>
-                {% if not item.fdc_id %}
-                <div style="font-size:0.75rem" class="muted">a bare number = grams &middot; oz &middot; lb &middot; servings with the word (1 1/8 srv, 2 servings) &middot; or a volume (cup, T, tsp, ml), when the recipe has a total volume or a serving size that is a measure</div>
-                {% endif %}
-                {% if item.fdc_id %}
-                <div style="font-size:0.75rem" class="muted">g &middot; oz &middot; lb &middot; cup &middot; T (tbsp) &middot; tsp{% if item.portions %} &middot; p1, p2… (this food's portions, listed below){% else %} &middot; p1, p2… (USDA portions){% endif %}</div>
-                {% if item.portions %}
-                <div style="font-size:0.75rem" class="muted">
-                  Portions:
-                  {% for p in item.portions %}
-                  <strong>p{{ loop.index }}</strong> {{ p.description }} ({{ p.gram_weight | round(1) }}&thinsp;g){% if not loop.last %} &middot; {% endif %}
-                  {% endfor %}
-                </div>
-                {% endif %}
-                {% endif %}
-                {% if item.fdc_id %}
-                <div class="d-flex gap-2 align-items-center">
-                  <label class="form-label mb-0 text-nowrap">Notes</label>
-                  <input type="text" name="notes" value="{{ item.notes }}"
-                         class="form-control form-control-sm" placeholder="optional">
-                </div>
-                {% endif %}
-                <button type="submit" class="btn btn-sm btn-primary align-self-start">Save changes</button>
-              </form>
-            </div>
-          </details>
+          {{ edit_popup(item) }}
         </td>
         <td class="fit">
           <form method="post" action="/meal/{{ meal.id }}/remove/{{ item.id }}" style="margin:0">
@@ -1464,7 +1563,7 @@ document.getElementById('complements-form').addEventListener('change', function 
   var key = 'numa-meal-scroll-{{ meal.id }}';
   document.addEventListener('submit', function (e) {
     var action = e.target.getAttribute('action') || '';
-    if (!/\/(add|add-recipe)$|\/(update|remove)\/|\/confirm-aa\b/.test(action)) return;
+    if (!/\/(add|add-recipe|remove-items)$|\/(update|remove)\/|\/confirm-aa\b/.test(action)) return;
     sessionStorage.setItem(key, String(window.scrollY));
   });
   var saved = sessionStorage.getItem(key);

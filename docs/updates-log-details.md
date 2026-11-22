@@ -8,6 +8,18 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+#### November 21 updates
+
+**PROGRAM: EDIT OR UNDO RIGHT AFTER ADDING TO A MEAL; EDIT AND REMOVE IN EVERY ITEMS VIEW**
+
+Right after you add something to a meal, the green **Added …** line has **Edit** and **Undo** buttons, to change its amount or take it straight back out; a recipe added as individual ingredients is changed (a new total, scaled to keep its proportions) or undone all together. The **Foods** and **Foods & recipes** views of a meal's Items now have **Edit** and **✕** too, not only **As logged**. [learn more...](#meal-undo-add)
+
+<!--
+```
+Scope: meal page. db.py: meal_add_food() and meal_add_recipe() return the new meal_items id. web/backend.py: /meal/{id}/add and /add-recipe put added_ids (comma-separated; every leaf row for mode=ingredients) in the redirect, the annotate detour's next= included; new POST /meal/{id}/remove-items (item_ids, name, q) removes several items, meal-scoped so ids from another meal are ignored, and redirects with removed=name when anything went; new POST /meal/{id}/scale-items (item_ids, amount, name, recipe_id) sets a new total for several food items, scaling each by one factor (amount: a weight via _parse_portion_str with no portions, else with recipe_id servings/volume via parse_recipe_amount × recipe_serving_grams), units rewritten as "N g", notes kept, meal-scoped; meal page context gains items_by_id. numa_app/services/meal_item_views.py: foods_view rows gain item_ids (logged items holding the food itself: on its own or from_recipe), item_grams and whole_recipes (recipes logged whole containing it); whole_view's gathered rows gain item_ids. meal.html: the As logged Edit pop-up moved into a top-level edit_popup(item, label) macro, with scale_popup() and remove_ids_button() beside it; #just-added is now a div (a form inside the old <p> closed it early) with Edit (edit_popup for one id still in the meal, scale_popup for several) and Undo; #just-removed line; Edit and ✕ columns in the Foods / Foods & recipes tables (Foods: a food only inside whole recipes shows "in a recipe"; one in both removes only the logged part, saying so in the title), scroll-restore regex covers remove-items. Tests: test_meal_item_views.py (7).
+```
+-->
+
 #### November 20 updates
 
 **PROGRAM: WHAT-IF: RECIPES FINDS RECIPES BY NAME, AND LISTS THEIR INGREDIENTS TO PICK FROM**

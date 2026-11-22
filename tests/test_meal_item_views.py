@@ -94,3 +94,140 @@ def test_meal_page_view_selector(meal, client):
     assert "part of" in page and "Almond milk" not in page.split('id="sec-items"')[1].split("</section>")[0]
     # An unknown value falls back to the saved choice.
     assert 'value="logged" selected' in client.get(f"/meal/{meal['id']}?item_view=bogus").text
+
+
+def _item_id(meal_id, name):
+    return next(it["id"] for it in _items(meal_id) if it["food_name"] == name)
+
+
+def test_view_rows_carry_the_logged_items_a_remove_can_take_out(meal):
+    oats, lentils = _item_id(meal["id"], "Oats"), _item_id(meal["id"], "Lentils")
+    with _db.get_db() as conn:
+        by_name = {r["food_name"]: r for r in _miv.foods_view(_items(meal["id"]), conn)}
+    # Oats: logged on its own (removable) and inside Bowl, logged whole (not).
+    assert by_name["Oats"]["item_ids"] == [oats]
+    assert by_name["Oats"]["whole_recipes"] == ["Bowl"]
+    # Almond milk is only inside Bowl: nothing here to remove.
+    assert by_name["Almond milk"]["item_ids"] == []
+    assert by_name["Lentils"]["item_ids"] == [lentils]
+    assert by_name["Lentils"]["whole_recipes"] == []
+    soup = _miv.whole_view(_items(meal["id"]))[2]
+    assert soup["item_ids"] == [lentils]
+
+
+def test_add_recipe_as_ingredients_then_undo_removes_just_those(meal, client):
+    from urllib.parse import parse_qs, urlsplit
+    before = {it["id"] for it in _items(meal["id"])}
+    resp = client.post(f"/meal/{meal['id']}/add-recipe",
+                       data={"recipe_id": meal["bowl"], "amount": "1 serving", "mode": "ingredients"},
+                       follow_redirects=False)
+    params = parse_qs(urlsplit(resp.headers["location"]).query)
+    added = [int(x) for x in params["added_ids"][0].split(",")]
+    assert len(added) == 3  # Oats, then Oat base's oats and milk
+    assert {it["id"] for it in _items(meal["id"])} == before | set(added)
+
+    page = client.get(resp.headers["location"]).text
+    assert f'name="item_ids" value="{params["added_ids"][0]}"' in page and ">Undo</button>" in page
+
+    resp = client.post(f"/meal/{meal['id']}/remove-items",
+                       data={"item_ids": params["added_ids"][0], "name": "Bowl"},
+                       follow_redirects=False)
+    assert {it["id"] for it in _items(meal["id"])} == before
+    assert "removed=Bowl" in resp.headers["location"]
+    assert "Removed Bowl from this meal" in client.get(resp.headers["location"]).text
+
+
+def test_remove_items_ignores_another_meals_items(meal, client):
+    with _db.get_db() as conn:
+        other = _db.meal_create(conn, "Dinner", "2026-01-05")
+        other_item = _db.meal_add_food(conn, other, OATS, "Oats", 10.0, "g")
+    resp = client.post(f"/meal/{meal['id']}/remove-items",
+                       data={"item_ids": f"{other_item},junk", "name": "Oats"}, follow_redirects=False)
+    assert "removed" not in resp.headers["location"]
+    with _db.get_db() as conn:
+        assert conn.execute("SELECT 1 FROM meal_items WHERE id = ?", (other_item,)).fetchone()
+    assert len(_items(meal["id"])) == 3
+
+
+def test_foods_and_whole_views_show_remove_buttons(meal, client):
+    lentils = _item_id(meal["id"], "Lentils")
+    page = client.get(f"/meal/{meal['id']}?item_view=foods").text
+    assert page.count('action="/meal/%d/remove-items"' % meal["id"]) == 2  # Oats, Lentils
+    assert "in a recipe</small>" in page  # Almond milk, only inside Bowl
+    assert "the part inside Bowl stays" in page
+    page = client.get(f"/meal/{meal['id']}?item_view=whole").text
+    assert page.count('action="/meal/%d/remove-items"' % meal["id"]) == 3
+    assert f'name="item_ids" value="{lentils}"' in page
+    assert "its one separately logged ingredient" in page
+
+
+def _amount(item_id):
+    with _db.get_db() as conn:
+        return conn.execute("SELECT amount FROM meal_items WHERE id = ?", (item_id,)).fetchone()[0]
+
+
+def test_scale_items_sets_a_new_total_keeping_proportions(meal, client):
+    from urllib.parse import parse_qs, urlsplit
+    lentils = _item_id(meal["id"], "Lentils")
+    client.post(f"/meal/{meal['id']}/scale-items",
+                data={"item_ids": str(lentils), "amount": "300", "name": "Lentil soup"})
+    assert _amount(lentils) == pytest.approx(300.0)
+    # Servings of the recipe, at its serving weight now (150 g).
+    client.post(f"/meal/{meal['id']}/scale-items",
+                data={"item_ids": str(lentils), "amount": "1 srv", "name": "Lentil soup",
+                      "recipe_id": str(meal["soup"])})
+    assert _amount(lentils) == pytest.approx(150.0)
+
+    # Several items: Bowl added again as individual ingredients (3 foods, 250 g).
+    resp = client.post(f"/meal/{meal['id']}/add-recipe",
+                       data={"recipe_id": meal["bowl"], "amount": "1 serving", "mode": "ingredients"},
+                       follow_redirects=False)
+    ids = [int(x) for x in parse_qs(urlsplit(resp.headers["location"]).query)["added_ids"][0].split(",")]
+    before = [_amount(i) for i in ids]
+    client.post(f"/meal/{meal['id']}/scale-items",
+                data={"item_ids": ",".join(map(str, ids)), "amount": f"{sum(before) * 2} g", "name": "Bowl"})
+    assert [_amount(i) for i in ids] == pytest.approx([b * 2 for b in before])
+
+    resp = client.post(f"/meal/{meal['id']}/scale-items",
+                       data={"item_ids": str(lentils), "amount": "lots", "name": "Lentil soup"},
+                       follow_redirects=False)
+    assert "add_error=Lentil+soup" in resp.headers["location"]
+    assert _amount(lentils) == pytest.approx(150.0)
+    # Another meal's item isn't touched.
+    with _db.get_db() as conn:
+        other = _db.meal_create(conn, "Dinner", "2026-01-05")
+        other_item = _db.meal_add_food(conn, other, OATS, "Oats", 10.0, "g")
+    client.post(f"/meal/{meal['id']}/scale-items", data={"item_ids": str(other_item), "amount": "99"})
+    assert _amount(other_item) == pytest.approx(10.0)
+
+
+def test_foods_and_whole_views_show_edit_buttons(meal, client):
+    oats, lentils = _item_id(meal["id"], "Oats"), _item_id(meal["id"], "Lentils")
+    page = client.get(f"/meal/{meal['id']}?item_view=foods").text
+    # Oats (logged once) and Lentils open their item's own Edit; Almond milk has none.
+    assert f'action="/meal/{meal["id"]}/update/{oats}"' in page
+    assert f'action="/meal/{meal["id"]}/update/{lentils}"' in page
+    assert "Changes the Oats you logged yourself. The part inside Bowl stays as it is." in page
+    assert page.count(">Edit</summary>") == 2
+    page = client.get(f"/meal/{meal['id']}?item_view=whole").text
+    bowl = _item_id(meal["id"], "Bowl")
+    assert f'action="/meal/{meal["id"]}/update/{bowl}"' in page
+    assert f'action="/meal/{meal["id"]}/scale-items"' in page  # Lentil soup, gathered
+    assert page.count(">Edit</summary>") == 3
+
+
+def test_added_line_has_edit(meal, client):
+    oats = _item_id(meal["id"], "Oats")
+    page = client.get(f"/meal/{meal['id']}?added=Oats&added_amount=30+g&added_ids={oats}").text
+    added = page.split('id="just-added"')[1].split('id="sec-items"')[0]
+    assert f'action="/meal/{meal["id"]}/update/{oats}"' in added
+    assert "Change what you just added: Oats" in added and ">Undo</button>" in added
+    resp = client.post(f"/meal/{meal['id']}/add-recipe",
+                       data={"recipe_id": meal["bowl"], "amount": "1 serving", "mode": "ingredients"},
+                       follow_redirects=False)
+    added = client.get(resp.headers["location"]).text.split('id="just-added"')[1].split('id="sec-items"')[0]
+    assert f'action="/meal/{meal["id"]}/scale-items"' in added
+    assert 'name="recipe_id" value="%d"' % meal["bowl"] in added
+    # An id no longer in the meal gets neither Edit nor Undo.
+    added = client.get(f"/meal/{meal['id']}?added=Gone&added_ids=999999").text.split('id="just-added"')[1]
+    assert ">Undo</button>" not in added.split("</div>\n  </div>")[0]

@@ -9765,7 +9765,7 @@ def test_meal_add_keeps_the_search_for_another_pick(client: TestClient, cached_f
     page = client.get(f"/meal/{meal_id}?q=chicken&added={urllib.parse.quote(cached_food['name'])}"
                       "&added_amount=150+g")
     assert 'id="just-added"' in page.text and "search results stay below" in page.text
-    assert "&mdash; 150 g.</strong><br>" in page.text
+    assert "&mdash; 150 g.</strong>" in page.text
     resp = client.post(f"/meal/{meal_id}/add",
                        data={"fdc_id": cached_food["fdcId"], "food_name": cached_food["name"],
                              "portion_str": "2 oz", "q": "chicken"}, follow_redirects=False)

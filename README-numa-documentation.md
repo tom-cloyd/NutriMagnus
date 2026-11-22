@@ -2,7 +2,7 @@
 
 A nutritional analysis web app written in Python (FastAPI). Analyzes individual food portions, recipes, and complete meals using data pooled from six nutrition databases — USDA FoodData Central, Open Food Facts, the Canadian Nutrient File, and the UK CoFID, Australian AFCD, and French CIQUAL static datasets. The program presents itself to users as **NutriMagnus ("nutrition wizard")**.
 
-UPDATED: 2026-11-20:1417
+UPDATED: 2026-11-22:0648
 
 Last monthly accuracy check: 2026-11-10 (README and full manual audit).
 
@@ -1747,7 +1747,7 @@ Paths shown are Linux; `platform_utils.py` maps them to `%LOCALAPPDATA%\numa` (d
 
 ## Test Suite
 
-**2,623 tests**, all passing (2,568 in the default run plus 55 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
+**2,630 tests**, all passing (2,575 in the default run plus 55 browser-level end-to-end tests, which are excluded from it — see "Browser-level end-to-end tests" below).
 
 `tests/test_packaging_spec.py` keeps the file table below honest (every test file has a row, no row for a deleted file). It does not check the count above — update that by hand at each monthly check (`pytest --collect-only -q` for the default run, `-m e2e` for the browser tests).
 
@@ -1770,7 +1770,7 @@ Run with: `pytest` (uses `pytest.ini` which sets `testpaths = tests` and `python
 | `tests/test_recipe_nutrients.py` | `numa_app/services/recipe_nutrients.py`: nested sub-recipe expansion/flattening, linear portion scaling, `best_aa_nutrients()` complement fallback |
 | `tests/test_recipe_edit_effects.py` | `numa_app/services/recipe_edit_effects.py` and its Edit page routes: the offer after an add, remove or amount change (shown once), one report covering every change since the last, appending within a session and replacing the file at a new session's first report, remembered nutrient choice, the 5% filter, the Show button's HTML, the food-details panel |
 | `tests/test_recipe_csv.py` | `numa_app/services/recipe_csv.py`: recipe CSV export/import, sub-recipe closure collection, two-pass dedup-and-create import |
-| `tests/test_meal_item_views.py` | `numa_app/services/meal_item_views.py`: Foods view (recipes broken down, sub-recipes scaled, one food combined with its sources), Foods & recipes view (separately logged ingredients gathered under their recipe), sorting; the meal page's View selector, remembered choice and fallback |
+| `tests/test_meal_item_views.py` | `numa_app/services/meal_item_views.py`: Foods view (recipes broken down, sub-recipes scaled, one food combined with its sources), Foods & recipes view (separately logged ingredients gathered under their recipe), sorting; the meal page's View selector, remembered choice and fallback; each row's removable item ids, Edit and Undo on the "Added" line, Edit and remove in every view, and the remove-items and scale-items routes (meal-scoped) |
 | `tests/test_protein_per_meal.py` | `numa_app/services/protein_per_meal.py`: per-meal amount by age/weight (adult g/kg, 65+ PROT-AGE, no-profile general), DCP preferred over raw protein, a large meal never flagged; meal page line and day page per-meal table |
 | `tests/test_gl_swaps.py` | `top_contributors.rank_contributors_by_gl()` (sums to the meal GL, merges a food reached twice, names no-GI foods, coverage) and `numa_app/services/gl_swaps.py` (shared-name-words ordering, carbohydrate-similarity and minimum-GI-drop filters, archived foods excluded); meal and recipe pages' "rank by glycemic load" view, swap links that open a working What-if (this meal and last 30 days; recipe); the swap notes' count of foods with a GI and link to Foods → 9's no-GI list; `data_quality.missing_gi_in_use()` and its "not needed" (GI "don't prompt me") save; `data_quality.gi_not_needed()` and the section's "Also list foods for which the GI is marked 'not needed'" button (retitled section, remembered, undo by unticking); impaired-tolerance GI values marked on the food, Annotate and meal pages and in swaps; Compare's glycemic table (GI, GL per 100 g, lowest complete GL highlighted, "≥" with coverage for a recipe missing a GI); Recent Days' Day GL column; links from every impaired-tolerance mark to `#gi-impaired`; the daily GL target (Settings save keeps the active profile's name; day page line, Recent Days colour, trend days-over, blank turns it off; Settings' "Help me choose" panel and its manual link) |
 | `tests/test_glycemic_load.py` | `numa_app/services/glycemic_load.py`: food/recipe line items, recipe GL worked out live through sub-recipes (cycles, deleted sub-recipes), partial totals with gaps and their reasons (no GI / "don't prompt" / no data), the 1 g negligible-carbohydrate floor, impaired-tolerance GI values named (`impaired`), carbohydrate coverage (`coverage_pct`, summed by `combine_gl()`), daily GL target suggestions (`gl_target_options()`), `gl_for_leaves()` matching `gl_for_items()`, available carbohydrate by source (`available_carbs_100g()`), the estimated mixture GI (weighting, 10 g floor, coverage, band closeness, day combination) and uncooked recipe ingredients (`looks_uncooked()`, `recipes.gi_as_eaten`, per-recipe scope), serving-vs-day band boundaries, day totals and multi-day averaging; multi-item accumulation, items after each blocker kind, and `meal_line_items()` shape (from the 2026-09-30 mutation run) |

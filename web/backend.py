@@ -8111,6 +8111,9 @@ def meal_view(request: Request, meal_id: int, q: str = "", add_error: str = "", 
         "item_sort":           item_sort,
         "item_view":           item_view,
         "item_view_rows":      item_view_rows,
+        # Each logged item by id: the Edit pop-ups on the Foods / Foods &
+        # recipes rows and the "Added" line open the item they stand for.
+        "items_by_id":         {it["id"]: it for it in items},
         "nutrient_sections":   _nutrient_sections(total_nutrients, rda, daily_nutrients,
                                                   optimal=optimal, max_limits=max_limits,
                                                   dcp_g=diaas_display["dcp_g"] if diaas_display else None,
@@ -8393,7 +8396,8 @@ def meal_add_food(
             # persist-search JS in base.html doesn't restore an older one),
             # so several results can be added one after another; `added`
             # names what was just added, above the results.
-            params = {"q": q, "added": name, "added_amount": amount_shown}
+            params = {"q": q, "added": name, "added_amount": amount_shown,
+                      "added_ids": str(new_id)}
             if check:
                 params["added_check"] = check
         qs = f"?{urlencode(params)}"
@@ -8429,12 +8433,13 @@ def meal_add_food(
     # Store what was typed ("1/3 c", "2 × large egg") as the unit, the way a
     # recipe ingredient does, so a later portion correction can find it.
     with _db.get_db() as conn:
-        _db.meal_add_food(conn, meal_id, fdc_id, name, grams, label)
+        new_id = _db.meal_add_food(conn, meal_id, fdc_id, name, grams, label)
         check = _added_food_check(conn, fdc_id)
     if _annotation_prompt_needed(fdc_id):
         # next= carries the search (explicitly, even when empty), so the
         # annotate flow lands back on the same results.
         back = f"/meal/{meal_id}?" + urlencode({"q": q, "added": name, "added_amount": amount_shown,
+                                                  "added_ids": str(new_id),
                                                   **({"added_check": check} if check else {})})
         return RedirectResponse(f"/food/annotate/{fdc_id}?next={quote(back)}", status_code=303)
     return _redirect(check=check)
@@ -8481,25 +8486,106 @@ def meal_add_recipe_item(
         # that sub-recipe as a package alongside the real ingredients.
         with _db.get_db() as conn:
             leaves = expand_recipe_ingredients(recipe_id, conn, portion_factor=scale)
+        new_ids = []
         with _db.get_db() as conn:
             for leaf in leaves:
                 grams = leaf["grams"]
                 # Each row remembers the recipe, so What-if can still find
                 # the set after it's been altered for this meal.
-                _db.meal_add_food(conn, meal_id, leaf["fdc_id"],
-                                  leaf["food_name"], grams, f"{grams:.4g} g",
-                                  from_recipe_id=recipe_id)
+                new_ids.append(_db.meal_add_food(conn, meal_id, leaf["fdc_id"],
+                                                 leaf["food_name"], grams, f"{grams:.4g} g",
+                                                 from_recipe_id=recipe_id))
     else:
         unit = f"{servings:g} serving" + ("s" if servings != 1 else "")
         with _db.get_db() as conn:
-            _db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)
+            new_ids = [_db.meal_add_recipe(conn, meal_id, recipe_id, name, servings, unit=unit)]
     # The search stays, so more results can be added (see meal_add_food).
     amount_shown = f"{servings:g} serving" + ("s" if servings != 1 else "")
     if serving_g:
         amount_shown += f" ({servings * serving_g:.4g} g)"
     if mode == "ingredients":
         amount_shown += ", as individual ingredients"
-    return RedirectResponse(f"/meal/{meal_id}?{urlencode({'q': q, 'added': name, 'added_amount': amount_shown})}", status_code=303)
+    # added_ids lets the "Added" line's Undo take back exactly these items.
+    params = {'q': q, 'added': name, 'added_amount': amount_shown,
+              'added_ids': ",".join(str(i) for i in new_ids)}
+    return RedirectResponse(f"/meal/{meal_id}?{urlencode(params)}", status_code=303)
+
+
+@app.post("/meal/{meal_id}/remove-items", response_class=RedirectResponse)
+def meal_remove_items(meal_id: int, item_ids: str = Form(""), name: str = Form(""),
+                      q: str = Form("")):
+    """Remove several of this meal's items at once: the "Added" line's Undo
+    (everything one add put in, e.g. a recipe's individual ingredients), and
+    the Foods / Foods & recipes views' remove buttons, where one row can stand
+    for several logged items. Ids not in this meal are ignored. `name` is
+    what the removed notice calls them."""
+    from urllib.parse import urlencode
+
+    ids = [int(x) for x in item_ids.replace(" ", "").split(",") if x.isdigit()]
+    removed = 0
+    with _db.get_db() as conn:
+        for item_id in ids:
+            removed += _db.meal_remove_item(conn, item_id, meal_id)
+    params = {}
+    if q:
+        params["q"] = q
+    if removed and name:
+        params["removed"] = name
+    qs = f"?{urlencode(params)}" if params else ""
+    return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
+
+
+@app.post("/meal/{meal_id}/scale-items", response_class=RedirectResponse)
+def meal_scale_items(meal_id: int, item_ids: str = Form(""), amount: str = Form(""),
+                     name: str = Form(""), recipe_id: int | None = Form(None),
+                     q: str = Form("")):
+    """Edit for a row that stands for several logged foods: a recipe logged
+    as individual ingredients (the Foods & recipes view, or the "Added" line
+    right after adding it), or one food logged more than once (Foods view).
+    `amount` is the new total: a weight ("300", "10 oz"), or, with
+    `recipe_id`, servings or a volume of that recipe ("2 srv", "3/4 c") at its
+    serving weight now. Every item is scaled by the same factor, so their
+    proportions (any changes made to them for this meal included) are kept.
+    Ids not in this meal are ignored. Foods only; a recipe item is skipped."""
+    from urllib.parse import urlencode
+
+    def _redirect(error: str | None = None) -> RedirectResponse:
+        params = {"add_error": error} if error else {}
+        if q:
+            params["q"] = q
+        qs = f"?{urlencode(params)}" if params else ""
+        return RedirectResponse(f"/meal/{meal_id}{qs}", status_code=303)
+
+    ids = {int(x) for x in item_ids.replace(" ", "").split(",") if x.isdigit()}
+    with _db.get_db() as conn:
+        items = [it for it in _db.meal_get_items(conn, meal_id)
+                 if it["id"] in ids and it["item_type"] == "food"]
+    if not items:
+        return _redirect()
+    current = sum(float(it["amount"] or 0) for it in items)
+    target, msg = _parse_portion_str(amount.strip(), [], name)
+    if target is None and recipe_id:
+        with _db.get_db() as conn:
+            recipe = _db.recipe_get(conn, recipe_id)
+            serving_g = recipe_serving_grams(recipe_id, conn) if recipe else None
+        if recipe and serving_g:
+            try:
+                srv, _typed = _parse_recipe_amount(amount, recipe, serving_g)
+                target = srv * serving_g
+            except _entry_parse.EntryError as e:
+                msg = str(e)
+    if target is None:
+        return _redirect(error=f"{name}: {msg}")
+    if target <= 0 or current <= 0:
+        return _redirect(error=f"{name}: enter an amount above zero.")
+    factor = target / current
+    with _db.get_db() as conn:
+        for it in items:
+            grams = float(it["amount"] or 0) * factor
+            # Stored the way a recipe's separately logged ingredients are.
+            _db.meal_replace_food(conn, it["id"], meal_id, it["fdc_id"], it["food_name"],
+                                  grams, f"{grams:.4g} g", it["notes"])
+    return _redirect()
 
 
 @app.post("/meal/{meal_id}/remove/{item_id}", response_class=RedirectResponse)
