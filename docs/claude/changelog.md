@@ -4,7 +4,7 @@ Moved from `CLAUDE.md` (2026-11-12) so it loads only when a task needs it; `CLAU
 
 ## Version stamp (from CLAUDE.md's Key Invariants)
 
-- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp; never hand-edit that line. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. Write it as one line in two parts, `SUMMARY: <one succinct sentence> DETAILS: <full note>`, with both labels in capitals and no newlines (the note is copied into the manual's one-line `Version overview:`). Each time the details change, review the summary for correctness against them: every claim must still be true, and none may overstate the details (adopted 2026-11-15). If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format). `RELEASE_VERSION`'s `-rc.N` counter is separate and deliberately NOT bumped on every session (decided 2026-09-21) — it advances only when an actual release is cut, so it stays a meaningful release count rather than a session count.
+- **Bump `version.py`'s `VERSION` stamp before ending any session that changed application behavior** (bug fixes, features, refactors — not pure docs/comments). Run `python3 scripts/bump_version.py` — it sets `VERSION` to the current timestamp; never hand-edit that line. `NEW_VERSION_NOTE` still needs a manual edit to describe the change. Write it in two parts, with both labels in capitals: `SUMMARY:` followed by a short bulleted list of the most important changes, one `* ` bullet per line (adopted 2026-11-23), then `DETAILS: <full note>` on one line. Each time the details change, review the summary for correctness against them: every claim must still be true, and none may overstate the details (adopted 2026-11-15). If `user-manual.md` or `README-numa-documentation.md` were also edited, update their header stamps by hand the same way (see each file's top few lines for the exact format). `RELEASE_VERSION`'s `-rc.N` counter is separate and deliberately NOT bumped on every session (decided 2026-09-21) — it advances only when an actual release is cut, so it stays a meaningful release count rather than a session count.
 
 ## Changelog: two files (since 2026-11-14)
 
@@ -40,10 +40,11 @@ would go stale. Numbering restarts at 1 after each release.
 previous overview if there is one, so there's only ever one. **Split it into three
 paragraphs** (adopted 2026-11-15; one long line was unreadable): `Version overview:` alone
 on its line, then the `SUMMARY: …` part, then the `DETAILS: …` part, each separated by a
-blank line. **The DETAILS part is a bulleted list** (adopted 2026-11-15; a paragraph of
+blank line. **The SUMMARY part is a bulleted list too** (adopted 2026-11-23): `SUMMARY:`
+alone on its line, a blank line, then the note's `* ` bullets as they are. **The DETAILS part is a bulleted list** (adopted 2026-11-15; a paragraph of
 details was unreadable): `DETAILS:` alone on its line, a blank line, then each detail as its
 own `* ` bullet (asterisk, so it can't be mistaken for the numbered `- **N.**` bullets).
-The note itself in `version.py` stays one line; only the manual's copy is split.
+In `version.py` the DETAILS stay one line; only the manual's copy is split into bullets.
 
 **The layout to end up with in the manual**, reading down from the marker:
 
@@ -54,7 +55,10 @@ The note itself in `version.py` stays one line; only the manual's copy is split.
 
 Version overview:
 
-SUMMARY: ...
+SUMMARY:
+
+* Most important change.
+* Next one.
 
 DETAILS:
 
@@ -80,7 +84,7 @@ DETAILS:
 ```
 
 **When a release is cut**, `scripts/create_release.py` publishes, as the GitHub release
-page, only the SUMMARY paragraph of the Version overview (found between the manual's marker
+page, only the SUMMARY of the Version overview, its bullets (found between the manual's marker
 and the nearest `#### Release ... summary` heading), without its label, followed by the line
 "See full list of changes in the User Manual's 'What's New' section" (adopted 2026-11-15:
 the whole overview and every bullet was more than anyone reads). No SUMMARY there, and the

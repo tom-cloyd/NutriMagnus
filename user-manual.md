@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-22:2215* / Reading time: 7 hours, 59 minutes
+*Updated 2026-11-23:1513* / Reading time: 7 hours, 58 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -6305,7 +6305,18 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 Version overview: 
 
-SUMMARY: Each food's data problems, and their fixes, are now in one place; smarter searches; checkboxes for "complete" added to lists and searches, and for "drinks" in the Recipes list and in searches; Compare keeps your picks across searches; a shorter, reorganized manual with a Return button; recipe Edit can report what each ingredient change does to the recipe's nutrients; filling in a food's missing data has clear steps, ending with Claude AI; What-if removes a recipe logged as individual ingredients even after you changed it for that meal; Alt+Shift+K lists every page and shortcut; Alt+Shift+G, then a recipe's or meal's ID and Enter, opens it from its list; NuMa's window shows its icon in Alt+Tab again; the Food Cache keeps your Fetch ticks and delete warnings when you leave and click back; replacing a food across meals or recipes always says whether it worked; a new Archived page (Foods → 10) finds archived foods and recipes with missing nutrient data; a meal's Items can be viewed as logged, as foods (recipes broken down), or with each recipe kept whole; Ctrl+click on a Contents sidebar or in the manual explains the browser tab before it opens; Foods → 9's lists, the Food Cache and My Pantry can start with the foods you eat most; any food can carry your own notes, kept through a Refresh, and pantry notes can be changed; a recipe you have made can go in My Pantry, so protein complement suggestions treat it as on hand; What-if: Recipes finds recipes by name and lists their ingredients to pick from; an addition to a meal can be changed or undone straight away, and every Items view can edit and remove items; Alt+Shift+U goes to a page's Nutritional Analysis; Settings has a Contents sidebar, and a new Daily Starting Items section adds the foods and recipes you have every day to each day's first meal; the Home page's data-check link opens Foods → 9 on just the new problems; Edit Recipe explains what changing servings or yield weight affects, and a recipe whose serving weight changed can be settled in every meal and recipe at once, with Daily Summary flagging the meals affected.
+SUMMARY:
+
+* Each food's data problems and their fixes in one place (Foods → 9).
+* Smarter searches, including `!` to leave out a word.
+* A shorter, reorganized manual with step-by-step workflows.
+* Daily Starting Items adds the foods you have every day to each day's first meal.
+* A meal addition can be edited or undone straight away, and a meal's Items can show recipes broken down into foods.
+* Recipe Edit reports how each ingredient change moves the recipe's nutrients.
+* A recipe whose serving weight changed can be settled in every meal and recipe at once.
+* Your own notes on any food.
+* Recipes you have made can go in My Pantry.
+* Alt+Shift+K lists every page and shortcut.
 
 DETAILS:
 

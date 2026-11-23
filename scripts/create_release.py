@@ -137,19 +137,33 @@ _SUMMARY_LABEL_RE = re.compile(r"^SUMMARY:\s*")
 def _release_summary() -> str | None:
     """The SUMMARY paragraph of the Version overview in the manual's
     unreleased What's new section, without its label; None if there isn't
-    one. Also accepts the older one-line overview, where SUMMARY and DETAILS
-    shared a line."""
+    one. The usual form is "SUMMARY:" alone on its line followed by "* "
+    bullets, returned as those bullet lines. Also accepts a SUMMARY written
+    on its label's line, and the older one-line overview, where SUMMARY and
+    DETAILS shared a line."""
     if not MANUAL_FILE.exists():
         return None
     lines = MANUAL_FILE.read_text().splitlines()
     marker_idx, end_idx = _pending_range(lines)
     if marker_idx is None:
         return None
-    for line in lines[marker_idx + 1:end_idx]:
+    pending = lines[marker_idx + 1:end_idx]
+    for i, line in enumerate(pending):
         text = re.sub(r"^Version overview:\s*", "", line.strip())
         if _SUMMARY_LABEL_RE.match(text):
             text = _SUMMARY_LABEL_RE.sub("", text).split("DETAILS:", 1)[0].strip()
-            return text or None
+            if text:
+                return text
+            # "SUMMARY:" alone on its line: the "* " bullets that follow it
+            # (blank lines allowed) up to the first other line.
+            bullets = []
+            for follow in pending[i + 1:]:
+                s = follow.strip()
+                if s.startswith("* "):
+                    bullets.append(s)
+                elif s or bullets:
+                    break
+            return "\n".join(bullets) or None
     return None
 
 

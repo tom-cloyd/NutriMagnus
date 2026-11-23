@@ -46,6 +46,12 @@ def test_notes_are_just_the_summary_and_the_pointer(tmp_path, monkeypatch) -> No
     monkeypatch.setattr(create_release, "MANUAL_FILE", manual)
     assert create_release._release_notes() == (
         "Short summary.\n\nSee full list of changes in the User Manual's 'What's New' section")
+    # The usual form: SUMMARY alone on its line, then its "* " bullets.
+    manual.write_text(_MANUAL.replace(
+        "SUMMARY: Short summary.", "SUMMARY:\n\n* First item.\n* Second item."))
+    assert create_release._release_notes() == (
+        "* First item.\n* Second item.\n\n"
+        "See full list of changes in the User Manual's 'What's New' section")
 
 
 def test_one_line_overview_still_read_and_no_summary_stops_the_release(tmp_path, monkeypatch) -> None:
