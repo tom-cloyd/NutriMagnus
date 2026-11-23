@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-23:1513* / Reading time: 7 hours, 58 minutes
+*Updated 2026-11-23:1535* / Reading time: 7 hours, 58 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -723,7 +723,7 @@ A few other things worth a look, once you've got the basics down:
 
 ## Part 4 — Menu by menu {: #part-3-using-numa}
 
-*(Reading time: 2 hours, 20 minutes)*
+*(Reading time: 2 hours, 21 minutes)*
 
 
 
@@ -2581,6 +2581,8 @@ The last box brings back the Ctrl+click explanation from [Working in two windows
 *Search terms: sample data, demo data, example recipes, preloaded.*
 
 A small set of checked foods and recipes, loaded automatically on a new install so your Food Cache and Recipes aren't empty. Many foods have full amino acid data, some a glycemic index value (only ones NuMa may share), and several recipes show protein complementing at work. Some foods (salt, vanilla, cinnamon) are there only because a starter recipe uses them; **View all starter data** shows which recipes use each. Their names start with `* `. Your pantry starts empty: only you know what you keep ([Set up your pantry](#first-setup)). This section is for putting the starter data back after clearing it, or loading it into an older install: **Load starter data** restores it all, **Restore individual starter items** chosen ones.
+
+**Why these foods?** A food often becomes a starter food because its nutrition data has been filled out with extra research. Where it came from, often [USDA](#gloss-usda), its record had no amino acid figures, so they were looked up and added, and often a [GI](#gloss-gi) value too. Without amino acid data, NuMa can't judge how good a food's protein is; without a GI value, it can't estimate how the food affects your blood sugar. So the starter foods give you foods with more of this data already in place, before you've learned to fill in a food's missing data yourself. [Workflow 12](#fix-food-data) shows how to do that.
 
 Loading never touches what you already have (a food you have is skipped), and **Clear starter data** removes only what loading added.
 
