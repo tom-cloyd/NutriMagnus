@@ -1,6 +1,6 @@
 # NutriMagnus User Manual
 
-*Updated 2026-11-22:1046* / Reading time: 7 hours, 58 minutes
+*Updated 2026-11-22:2215* / Reading time: 7 hours, 59 minutes
 
 *Last full audit: 2026-11-10* / [Disclaimer](/disclaimer)
 
@@ -6368,7 +6368,9 @@ DETAILS:
 * When the Home page reports new data problems, **Review them** opens Foods → 9 at a **New since your last check** box listing just those problems, each with its food (or meal or recipe item), what's wrong and a link to its place in the lists; fixed ones are marked **fixed ✓**, and **Done with these** clears the box.
 * Edit Recipe has a link under Number of servings and Total yield weight to a new manual section on what changing each affects: the number of servings changes the nutrients in a serving; the total yield weight changes only what a serving weighs (and water, if the recipe has a cooked water figure), with meals keeping their nutrients until you choose on each meal page.
 * When a recipe's serving weight changes, its page and Edit Recipe show **Review them**: a list of every meal item and recipe ingredient entered at the old weight, each with **Keep the grams** or **Keep the servings** (or one choice for every row), applied at once. A meal page's yellow note links there. **Daily Summary** lists every affected meal, on any date, with **Settle**, and marks affected days with ⚠. Recipes used as ingredients now record their serving weight too, and saving a recipe records the old weight first on any use without one.
+* Changing **Rank by** or **Show** in a Top Contributors table (on a meal, a recipe or a full day) now redraws only that table: the page stays where it is and the cursor stays on the menu you changed (it used to reload at the top, and on a meal with a search in its box it stayed there).
 
+- **58.** Changing **Rank by** or **Show** in a Top Contributors table redraws just the table: the page stays where it is, with the cursor still on the menu you changed. [learn more...](#top-contributors)
 - **57.** MANUAL: Daily Summary's section now explains its box of meals logged at a recipe's old serving weight, and more everyday words (*leftovers*, *undo*, *my notes*, *error*) find the right sections in the manual's search. [learn more...](#daily-summary)
 - **56.** When a recipe's serving weight changes, **Review them** on its page lists every meal and recipe that used the old weight, to keep the grams or the servings for each, all at once; Daily Summary lists every meal affected, with ⚠ beside its day. [learn more...](#servings-yield-effects)
 - **55.** On Edit Recipe, a link under **Number of servings** and **Total yield weight** explains what changing each affects: servings change the nutrients in a serving; total weight changes only what a serving weighs, and your meals keep their nutrients until you choose. [learn more...](#servings-yield-effects)

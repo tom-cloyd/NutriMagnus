@@ -48,7 +48,7 @@
 {% macro render(form_action, contributor_options, contributor_rank, contributors, contributor_total, contributor_count, contributor_unit, top_n, top_n_options, is_dcp=False, extra_hidden='', always_food_level=False, gl=None, missing=[], table_heading='') %}
 <div class="d-flex flex-wrap align-items-center gap-3">
   <h3 class="section-heading mb-0">Top Contributors</h3>
-  <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2">
+  <form method="get" action="{{ form_action }}#sec-contributors" class="d-flex flex-wrap align-items-center gap-2 js-contrib-form">
     {{ extra_hidden | safe }}
     <label class="muted mb-0" for="rank_nutrient"><small>Rank by</small></label>
     <select name="rank" id="rank_nutrient" class="form-select form-select-sm d-inline-block" style="width:auto"
@@ -79,6 +79,64 @@
      "Rank by" it read as though it belonged to the control that followed. #}
   {{ manual_link("top-contributors") }}
 </div>
+{# Rank by / Show re-rank in place: the page fetches itself with the new
+   choice and swaps in only #sec-contributors (everything that depends on
+   the ranking is inside it), so the window doesn't move and focus stays on
+   the picker just changed. A full reload went to the top first and then to
+   #sec-contributors, and on a meal page with a remembered search it loaded
+   twice (base.html puts the search back) and stayed at the top. The URL is
+   the current one with the form's fields set, so the rest of the page's
+   state (a search, servings) is kept; if the fetch fails, the form submits
+   as an ordinary GET and lands on the section. #}
+<script>
+(function () {
+  if (window.numaContribRerank) return;
+  window.numaContribRerank = true;
+  // Which picker was just changed, to give it focus again after the swap.
+  var changed = 'rank_nutrient';
+  document.addEventListener('change', function (e) {
+    if (e.target.closest && e.target.closest('form.js-contrib-form') && e.target.id) changed = e.target.id;
+  }, true);
+  document.addEventListener('submit', function (e) {
+    var form = e.target;
+    if (!form.matches || !form.matches('form.js-contrib-form') || e.defaultPrevented) return;
+    var section = document.getElementById('sec-contributors');
+    if (!section || !window.fetch || !window.DOMParser) return;
+    e.preventDefault();
+    var url = new URL(location.href);
+    url.hash = '';
+    new FormData(form).forEach(function (v, k) { url.searchParams.set(k, v); });
+    section.setAttribute('aria-busy', 'true');
+    fetch(url.toString(), {credentials: 'same-origin'})
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(function (html) {
+        var fresh = new DOMParser().parseFromString(html, 'text/html').getElementById('sec-contributors');
+        if (!fresh) throw new Error('no section');
+        var y = window.scrollY;
+        section.innerHTML = fresh.innerHTML;
+        // innerHTML doesn't run scripts: re-run the section's own (the
+        // no-data list's button wiring). This one guards itself above.
+        section.querySelectorAll('script').forEach(function (old) {
+          var s = document.createElement('script');
+          s.textContent = old.textContent;
+          old.replaceWith(s);
+        });
+        section.removeAttribute('aria-busy');
+        history.replaceState(history.state, '', url.pathname + url.search);
+        var sel = document.getElementById(changed) || document.getElementById('rank_nutrient');
+        if (sel) sel.focus({preventScroll: true});
+        window.scrollTo({top: y, left: window.scrollX, behavior: 'instant'});
+      })
+      .catch(function () {
+        section.removeAttribute('aria-busy');
+        form.submit();
+      });
+  // Capture phase: runs before base.html's submit listeners, which then see
+  // defaultPrevented and don't save a scroll position for a reload that
+  // never happens.
+  }, true);
+})();
+</script>
 {# table_heading: set on a meal page that also shows by_item(), so the two
    tables each get a heading (and a contents-sidebar entry). #}
 {% if table_heading %}<h4 class="mt-3 mb-1" id="contrib-by-food">{{ table_heading }}</h4>{% endif %}

@@ -10,6 +10,26 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 #### November 22 updates
 
+**PROGRAM: TOP CONTRIBUTORS RE-RANKS WITHOUT MOVING THE PAGE**
+
+Changing **Rank by** or **Show** in a Top Contributors table now redraws just that table, in place: the page doesn't move, and the cursor stays on the menu you changed, so you can try one nutrient after another. Works the same on a meal, a recipe and a full day. [learn more...](#top-contributors)
+
+<!--
+```
+Scope: web/templates/_top_contributors.html (form.js-contrib-form; one capture-phase submit
+listener fetches the current URL with the form's fields set, swaps #sec-contributors'
+innerHTML from the response, re-runs the section's scripts, history.replaceState()s the URL,
+refocuses the changed select with preventScroll; on any failure falls back to form.submit()).
+Before: a GET reload to #sec-contributors. base.html's keep-your-place restore stands aside when
+there's a fragment, so the page loaded at the top and smooth-scrolled down; and on a meal whose
+search box had a remembered search, the form dropped q, base.html's persist-search
+location.replace()d with it put back, and that second load stayed at the top. Capture phase so
+base.html's submit listener sees defaultPrevented and saves no scroll offset. The changed select
+is tracked from its change event (activeElement isn't reliable). New browser test
+test_contributors_rerank_e2e.py (fails on the old template: the page reloads).
+```
+-->
+
 **MANUAL: WEEKLY SWEEP**
 
 Daily Summary's section now mentions the box that lists meals logged with a recipe whose serving weight has since changed, and links to what settling them does. Searching the manual for everyday words such as *leftovers*, *undo a mistake*, *my notes*, *most eaten*, *error* or *invalid amount* now finds the right sections. [learn more...](#daily-summary)
