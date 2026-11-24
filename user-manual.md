@@ -6303,7 +6303,7 @@ What changed in each release of NuMa, newest first, one line per change. The new
 
 <!-- Insert new updates below here -->
 
-#### Next release summary to this point
+#### Release v2026-11-22-2215 summary
 
 Version overview: 
 

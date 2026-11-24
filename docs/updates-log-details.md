@@ -8,6 +8,8 @@ Newest first. Entries made after a release are at the top, above the first "Rele
 
 <!-- Insert new updates below here -->
 
+## Release v2026-11-22-2215 — dated entries released in it
+
 #### November 22 updates
 
 **PROGRAM: TOP CONTRIBUTORS RE-RANKS WITHOUT MOVING THE PAGE**
